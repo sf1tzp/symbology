@@ -3,7 +3,7 @@ import os
 
 # Load environment variables
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
 load_dotenv()
@@ -15,11 +15,25 @@ ENV = os.environ.get("ENV", "development")
 class DatabaseSettings(BaseModel):
     """Database connection configuration."""
 
-    postgres_user: str = Field(default="postgres", env="POSTGRES_USER")
-    postgres_password: str = Field(default="postgres", env="POSTGRES_PASSWORD")
-    postgres_db: str = Field(default="symbology", env="POSTGRES_DB")
-    host: str = Field(default="10.0.0.3", env="POSTGRES_HOST")
-    port: int = Field(default=5432, env="POSTGRES_PORT")
+    postgres_user: str = Field(default="postgres")
+    postgres_password: str = Field(default="postgres")
+    postgres_db: str = Field(default="symbology")
+    host: str = Field(default="10.0.0.3")
+    port: int = Field(default=5432)
+
+    model_config = ConfigDict(
+        env_prefix="",
+        extra="ignore",
+        json_schema_extra={
+            "env": {
+                "postgres_user": "POSTGRES_USER",
+                "postgres_password": "POSTGRES_PASSWORD",
+                "postgres_db": "POSTGRES_DB",
+                "host": "POSTGRES_HOST",
+                "port": "POSTGRES_PORT"
+            }
+        }
+    )
 
     @property
     def url(self) -> str:
@@ -30,8 +44,19 @@ class DatabaseSettings(BaseModel):
 class PGAdminSettings(BaseSettings):
     """PGAdmin settings."""
 
-    email: str = Field(default="dude@stev.lol", env="PGADMIN_EMAIL")
-    password: str = Field(default="postgres", env="PGADMIN_PASSWORD")
+    email: str = Field(default="dude@stev.lol")
+    password: str = Field(default="postgres")
+
+    model_config = ConfigDict(
+        env_prefix="",
+        extra="ignore",
+        json_schema_extra={
+            "env": {
+                "email": "PGADMIN_EMAIL",
+                "password": "PGADMIN_PASSWORD"
+            }
+        }
+    )
 
 
 class ApiSettings(BaseModel):
@@ -50,9 +75,19 @@ class OpenAISettings(BaseModel):
 class LoggingSettings(BaseSettings):
     """Logging configuration."""
 
-    level: str = Field(default="INFO", env="LOG_LEVEL")
+    level: str = Field(default="INFO")
 
-    @validator("level")
+    model_config = ConfigDict(
+        env_prefix="",
+        extra="ignore",
+        json_schema_extra={
+            "env": {
+                "level": "LOG_LEVEL"
+            }
+        }
+    )
+
+    @field_validator("level")
     def validate_log_level(cls, v: str) -> int:
         """Convert log level string to logging constant."""
         levels = {
@@ -68,19 +103,25 @@ class LoggingSettings(BaseSettings):
 class Settings(BaseSettings):
     """Main application settings."""
 
-    env: str = Field(default="development", env="ENV")
+    env: str = Field(default="development")
     database: DatabaseSettings = DatabaseSettings()
     pgadmin: PGAdminSettings = PGAdminSettings()
     api: ApiSettings = ApiSettings()
     openai: OpenAISettings = OpenAISettings()
     logging: LoggingSettings = LoggingSettings()
 
-    class Config:
-        env_prefix = ""
-        env_nested_delimiter = "__"
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"  # Allow extra fields if needed
+    model_config = ConfigDict(
+        env_prefix="",
+        env_nested_delimiter="__",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        json_schema_extra={
+            "env": {
+                "env": "ENV"
+            }
+        }
+    )
 
 
 # Create and export a settings instance

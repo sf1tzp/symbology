@@ -2,7 +2,7 @@ import logging
 from typing import Optional, Tuple
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 # Configure logging

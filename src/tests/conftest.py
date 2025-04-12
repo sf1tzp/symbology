@@ -92,12 +92,15 @@ def db_session(db_engine):
     session_factory = sessionmaker(bind=connection)
     session = session_factory()
 
-    yield session
-
-    # Cleanup
-    session.close()
-    transaction.rollback()
-    connection.close()
+    try:
+        yield session
+    finally:
+        # Cleanup
+        session.close()
+        # Only rollback if the transaction is still active
+        if transaction.is_active:
+            transaction.rollback()
+        connection.close()
 
 @pytest.fixture(scope="function")
 def sample_company_data():

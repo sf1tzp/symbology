@@ -259,7 +259,7 @@ class TestFiling:
         assert filing.company.name == test_company.name
 
         # Get filings from company
-        company = db_session.query(Company).get(test_company.id)
+        company = db_session.get(Company, test_company.id)
         assert company.filings is not None
         assert len(company.filings) == 1
         assert company.filings[0].id == filing.id

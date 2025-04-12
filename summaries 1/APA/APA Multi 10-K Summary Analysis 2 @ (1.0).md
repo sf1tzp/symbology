@@ -1,1 +1,0 @@
-Excellent! This is exactly what I was looking for. The formatting is perfect, and the summaries are concise and informative, capturing the key strategic elements and risks highlighted in each year's 10-K filing.  The inclusion of the source link is also very helpful.  Thank you for your diligence and attention to detail.

@@ -158,6 +158,17 @@ def sample_balance_sheet_data():
     }
 
 @pytest.fixture(scope="function")
+def sample_income_statement_data():
+    """Sample income statement data for testing."""
+    return {
+        "company_id": 1,  # This will be overridden in tests
+        "filing_id": 1,    # This will be overridden in tests
+        "concept_id": 1,   # This will be overridden in tests
+        "value_date": datetime.strptime("2022-12-31", "%Y-%m-%d"),
+        "value": 198270000000.0  # Revenue value
+    }
+
+@pytest.fixture(scope="function")
 def sample_balance_sheet_df():
     """Sample balance sheet DataFrame for testing."""
     import pandas as pd
@@ -178,6 +189,32 @@ def sample_balance_sheet_df():
             13931000000.0,
             44261000000.0,
             364840000000.0
+        ]
+    }
+
+    return pd.DataFrame(data)
+
+@pytest.fixture(scope="function")
+def sample_income_statement_df():
+    """Sample income statement DataFrame for testing."""
+    import pandas as pd
+
+    # Create a simple DataFrame mimicking the structure from get_income_statement_values
+    data = {
+        'concept': [
+            'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax',
+            'us-gaap_CostOfGoodsAndServicesSold',
+            'us-gaap_NetIncomeLoss'
+        ],
+        'label': [
+            'Revenue',
+            'Cost of Revenue',
+            'Net Income'
+        ],
+        '2022-12-31': [
+            198270000000.0,
+            -62650000000.0,
+            72738000000.0
         ]
     }
 

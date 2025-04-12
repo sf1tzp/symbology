@@ -33,6 +33,8 @@ Common test fixtures are defined in `conftest.py`. These include:
 - `sample_financial_concept_data`: Sample data for financial concepts
 - `sample_balance_sheet_data`: Sample balance sheet values
 - `sample_balance_sheet_df`: Sample balance sheet DataFrame for testing
+- `sample_income_statement_data`: Sample income statement values
+- `sample_income_statement_df`: Sample income statement DataFrame for testing
 
 ## Mocking in Tests
 
@@ -110,10 +112,18 @@ Mocking has been particularly useful for testing our EDGAR integration without m
 #### Financial Data Tests (`test_financials.py`)
 - Financial concept creation and label mapping
 - Balance sheet value storage and retrieval
+- Income statement value storage and retrieval
 - Processing of balance sheet dataframes
+- Processing of income statement dataframes
 - Date-based financial data retrieval
 - Relationship tests between financial models
 - Concept-to-label mapping verification
+- Company-BalanceSheetValue relationship tests
+- Company-IncomeStatementValue relationship tests
+- Filing-BalanceSheetValue relationship tests
+- Filing-IncomeStatementValue relationship tests
+- Concept-BalanceSheetValue relationship tests
+- Concept-IncomeStatementValue relationship tests
 
 ### Ingestion Tests (`ingestion/`)
 
@@ -122,6 +132,8 @@ Mocking has been particularly useful for testing our EDGAR integration without m
 - Income statement data extraction from EDGAR filings
 - Storage of extracted data in the database
 - Integration between EDGAR parsing and database storage
+- Testing balance sheet data storage functionality
+- Testing income statement data storage functionality
 
 ## Running Tests
 

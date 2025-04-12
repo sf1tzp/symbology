@@ -149,14 +149,13 @@ def store_income_statement_data(edgar_filing, db_company, db_filing, session=Non
         Dictionary with summary of stored data
     """
     try:
-        from src.python.database.crud_financials import process_balance_sheet_dataframe
+        from src.python.database.crud_financials import process_income_statement_dataframe
 
         # Get income statement dataframe
         income_stmt_df = get_income_statement_values(edgar_filing)
 
-        # Process and store in database
-        # We can reuse the same processing function since the dataframe format is the same
-        results = process_balance_sheet_dataframe(
+        # Process and store in database using our specialized income statement function
+        results = process_income_statement_dataframe(
             company_id=db_company.id,
             filing_id=db_filing.id,
             df=income_stmt_df,

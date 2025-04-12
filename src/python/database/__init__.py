@@ -1,4 +1,4 @@
-from .base import Base, close_session, db_session, engine, init_db
+from .base import Base, close_session, db_session, engine, get_db_session, init_db
 
 # Re-export the CRUD functions for easy import
 from .crud_company import (
@@ -28,7 +28,7 @@ from .models import Company, Filing
 # Initialize all models and provide a clean import API
 __all__ = [
     # Database session
-    "engine", "db_session", "init_db", "close_session", "Base",
+    "engine", "db_session", "init_db", "close_session", "Base", "get_db_session",
 
     # Models
     "Company", "Filing",

@@ -10,8 +10,7 @@ from database import (
 )
 
 # Import ingestion components
-from .edgar import EdgarClient
-from .ingestion import ingest_companies
+from .edgar import debug, edgar_login, get_company
 
 __all__ = [
     # Re-export database components
@@ -23,7 +22,9 @@ __all__ = [
     "get_company_by_cik",
     "upsert_company",
 
-    # Ingestion components
-    "EdgarClient",
-    "ingest_companies",
+    # Edgar components
+    "edgar_login",
+    "get_company",
+     "debug",
+
 ]

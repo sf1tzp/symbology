@@ -1,4 +1,3 @@
-from .base import Base
 from sqlalchemy import (
     Boolean,
     Column,
@@ -10,6 +9,8 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import relationship
+
+from .base import Base
 
 
 class Company(Base):

@@ -1,12 +1,8 @@
 import logging
 
 from config import settings
-from ingestion.database import (
-    close_session,
-    get_companies_by_ticker,
-    init_db,
-    upsert_company,
-)
+from database.base import close_session, init_db
+from database.crud_company import get_companies_by_ticker, upsert_company
 from ingestion.edgar import debug, edgar_login, get_company
 
 
@@ -27,22 +23,24 @@ def main():
     logger.debug(debug(company))
 
     # Initialize the database (create tables if they don't exist)
-    init_db()
+    # Pass the database URL from settings instead of importing settings in the database module
+    init_db(settings.database.url)
     logger.info("Database initialized")
 
     # Convert Edgar company object to dictionary for database storage
     company_data = {
-        'cik': company.cik,
-        'name': company.name,
-        'tickers': [ticker],
-        'sic': company.sic,
-        'sic_description': company.sic_description,
-        'business_address': str(company.business_address),
-        'mailing_address': str(company.mailing_address),
-        'fiscal_year_end': company.fiscal_year_end
+        "cik": company.cik,
+        "name": company.name,
+        "tickers": [ticker],
+        "sic": company.sic,
+        "sic_description": company.sic_description,
+        "business_address": str(company.business_address),
+        "mailing_address": str(company.mailing_address),
+        "fiscal_year_end": company.fiscal_year_end,
     }
 
     # Insert or update the company in the database
+    # Using default session since we're in the main application flow
     db_company = upsert_company(company.cik, company_data)
     logger.info(f"Company upserted to database with ID: {db_company.id}")
 
@@ -61,4 +59,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

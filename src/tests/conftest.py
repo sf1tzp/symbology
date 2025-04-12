@@ -136,3 +136,49 @@ def sample_filing_data():
         "url": "https://www.sec.gov/Archives/edgar/data/1234567/000123456723000123/test-10k.htm",
         "data": {"key": "value"}
     }
+
+@pytest.fixture(scope="function")
+def sample_financial_concept_data():
+    """Sample financial concept data for testing."""
+    return {
+        "concept_id": "us-gaap_CashAndCashEquivalentsAtCarryingValue",
+        "description": "Amount of currency on hand as well as demand deposits with banks or financial institutions.",
+        "labels": ["Cash and Cash Equivalents"]
+    }
+
+@pytest.fixture(scope="function")
+def sample_balance_sheet_data():
+    """Sample balance sheet data for testing."""
+    return {
+        "company_id": 1,  # This will be overridden in tests
+        "filing_id": 1,    # This will be overridden in tests
+        "concept_id": 1,   # This will be overridden in tests
+        "value_date": datetime.strptime("2022-12-31", "%Y-%m-%d"),
+        "value": 13931000000.0
+    }
+
+@pytest.fixture(scope="function")
+def sample_balance_sheet_df():
+    """Sample balance sheet DataFrame for testing."""
+    import pandas as pd
+
+    # Create a simple DataFrame mimicking the structure from get_balance_sheet_values
+    data = {
+        'concept': [
+            'us-gaap_CashAndCashEquivalentsAtCarryingValue',
+            'us-gaap_AccountsReceivableNetCurrent',
+            'us-gaap_Assets'
+        ],
+        'label': [
+            'Cash and Cash Equivalents',
+            'Accounts Receivable',
+            'Total Assets'
+        ],
+        '2022-12-31': [
+            13931000000.0,
+            44261000000.0,
+            364840000000.0
+        ]
+    }
+
+    return pd.DataFrame(data)

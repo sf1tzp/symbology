@@ -1,8 +1,9 @@
-import json
 from datetime import datetime
+import json
 
-from edgar import Company, set_identity, get_filings
+from edgar import Company, get_filings, set_identity
 from edgar.xbrl2.xbrl import XBRL
+
 
 def edgar_login(edgar_contact):
     set_identity(edgar_contact)
@@ -28,85 +29,143 @@ def get_10k_filing(company, year):
     else:
         return None
 
-def get_balance_sheet_values(filing):
-    xbrl = XBRL.from_filing(filing)
-    df = xbrl.statements.balance_sheet().to_dataframe()
-    # Filter to keep only the columns for the specified year
-    # Remove rows where column `has_values` == False
-    if 'has_values' in df.columns:
-        df = df[df['has_values'] == True]
+def _process_xbrl_dataframe(df, filing, columns_to_drop=None):
+    """
+    Process XBRL dataframe by filtering rows and columns based on common criteria.
+
+    Args:
+        df: DataFrame from XBRL statement
+        filing: Filing object to extract year information
+        columns_to_drop: List of columns to exclude from the result
+
+    Returns:
+        Processed DataFrame
+    """
+    if columns_to_drop is None:
+        columns_to_drop = ['level', 'has_values', 'is_abstract', 'original_label', 'abstract', 'dimension']
+
+    # Apply filters for existing columns
+    mask = True  # Start with all rows selected
     if 'is_abstract' in df.columns:
-        df = df[df['is_abstract'] == False]
+        mask = mask & (~df['is_abstract'])
+    if 'has_values' in df.columns:
+        mask = mask & df['has_values']
+
+    # Apply the filter mask only if we've actually set conditions
+    if not isinstance(mask, bool):
+        df = df.loc[mask]
 
     # Drop specified columns if they exist
-    columns_to_drop = ['level', 'has_values', 'is_abstract', 'original_label', 'abstract', 'dimension']
     df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
 
+    # Filter columns based on year
+    year = year_from_period_of_report(filing)
+
+    # Build a list of columns to keep
     filtered_columns = []
     for col in df.columns:
         try:
-            year = year_from_period_of_report(filing)
+            # Try to parse as a date and match by year
             col_date = datetime.strptime(col, '%Y-%m-%d')
             if col_date.year == year:
                 filtered_columns.append(col)
         except ValueError:
-            # If it's not a date, keep it (metadata columns)
+            # Keep non-date columns (metadata)
             filtered_columns.append(col)
 
-    df = df[filtered_columns]
+    return df[filtered_columns]
 
-    return df
+def get_balance_sheet_values(filing):
+    """
+    Extract balance sheet values from a filing.
+
+    Args:
+        filing: Filing object from edgar package
+
+    Returns:
+        DataFrame containing balance sheet data for the filing's year
+    """
+    xbrl = XBRL.from_filing(filing)
+    df = xbrl.statements.balance_sheet().to_dataframe()
+    return _process_xbrl_dataframe(df, filing)
 
 def get_income_statement_values(filing):
+    """
+    Extract income statement values from a filing.
+
+    Args:
+        filing: Filing object from edgar package
+
+    Returns:
+        DataFrame containing income statement data for the filing's year
+    """
     xbrl = XBRL.from_filing(filing)
     df = xbrl.statements.income_statement().to_dataframe()
-    # Filter to keep only the columns for the specified year
-    # Remove rows where column `has_values` == False
-    if 'has_values' in df.columns:
-        df = df[df['has_values'] == True]
+    # Income statement uses slightly different columns to drop
+    return _process_xbrl_dataframe(df, filing, columns_to_drop=['level', 'abstract', 'dimension'])
 
-    if 'is_abstract' in df.columns:
-        df = df[df['is_abstract'] == False]
+def store_balance_sheet_data(edgar_filing, db_company, db_filing, session=None):
+    """
+    Extract balance sheet data from an EDGAR filing and store it in the database.
 
-    # # Drop specified columns if they exist
-    columns_to_drop = ['level', 'abstract', 'dimension']
-    df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
+    Args:
+        edgar_filing: Filing object from edgar package
+        db_company: Company object from database
+        db_filing: Filing object from database
+        session: SQLAlchemy session (optional)
 
-    filtered_columns = []
-    for col in df.columns:
-        try:
-            year = year_from_period_of_report(filing)
-            col_date = datetime.strptime(col, '%Y-%m-%d')
-            if col_date.year == year:
-                filtered_columns.append(col)
-        except ValueError:
-            # If it's not a date, keep it (metadata columns)
-            filtered_columns.append(col)
-        # # Keep non-date columns (like 'label')
-        # if '_' not in col:
-        #     filtered_columns.append(col)
-        #     continue
-        #
-        # # For date range columns (like "2019-07-01_2020-06-30")
-        # try:
-        #     # Split on underscore to get start and end dates
-        #     start_date_str, end_date_str = col.split('_')
-        #     # Parse the end date and check if it matches the requested year
-        #     start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-        #     end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-        #     # If end date is one year + one day later than start date
-        #     date_diff = (end_date - start_date).days
-        #     if end_date.year == year and (date_diff == 365 or date_diff == 364 or date_diff == 365):
-        #         # todo: rename the column to just
-        #         filtered_columns.append(col)
+    Returns:
+        Dictionary with summary of stored data
+    """
+    try:
+        from src.python.database.crud_financials import process_balance_sheet_dataframe
 
-        # except (ValueError, IndexError):
-        #     # If parsing fails, keep the column anyway
-        #     filtered_columns.append(col)
+        # Get balance sheet dataframe
+        balance_sheet_df = get_balance_sheet_values(edgar_filing)
 
-    df = df[filtered_columns]
+        # Process and store in database
+        results = process_balance_sheet_dataframe(
+            company_id=db_company.id,
+            filing_id=db_filing.id,
+            df=balance_sheet_df,
+            session=session
+        )
 
-    return df
+        return results
+    except ImportError as e:
+        raise ImportError("Could not import database modules. Make sure you're running from the correct directory.") from e
+
+def store_income_statement_data(edgar_filing, db_company, db_filing, session=None):
+    """
+    Extract income statement data from an EDGAR filing and store it in the database.
+
+    Args:
+        edgar_filing: Filing object from edgar package
+        db_company: Company object from database
+        db_filing: Filing object from database
+        session: SQLAlchemy session (optional)
+
+    Returns:
+        Dictionary with summary of stored data
+    """
+    try:
+        from src.python.database.crud_financials import process_balance_sheet_dataframe
+
+        # Get income statement dataframe
+        income_stmt_df = get_income_statement_values(edgar_filing)
+
+        # Process and store in database
+        # We can reuse the same processing function since the dataframe format is the same
+        results = process_balance_sheet_dataframe(
+            company_id=db_company.id,
+            filing_id=db_filing.id,
+            df=income_stmt_df,
+            session=session
+        )
+
+        return results
+    except ImportError as e:
+        raise ImportError("Could not import database modules. Make sure you're running from the correct directory.") from e
 
 def debug_company(company):
     filtered = { k: v for k, v in company.__dict__.items() if k != "filings" }

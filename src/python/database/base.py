@@ -1,9 +1,8 @@
 import logging
-from typing import Optional, Tuple
+from typing import Tuple
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
 
 # Configure logging
 logger = logging.getLogger(__name__)

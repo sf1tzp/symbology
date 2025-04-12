@@ -2,6 +2,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     JSON,
@@ -42,6 +43,8 @@ class Company(Base):
 
     # Relationship with filings
     filings = relationship("Filing", back_populates="company")
+    # Relationship with balance sheet values
+    balance_sheet_values = relationship("BalanceSheetValue", back_populates="company")
 
     def __repr__(self):
         return f"<Company(name='{self.name}', cik={self.cik}, tickers={self.tickers})>"
@@ -75,6 +78,8 @@ class Filing(Base):
 
     # Relationship with company
     company = relationship("Company", back_populates="filings")
+    # Relationship with balance sheet values
+    balance_sheet_values = relationship("BalanceSheetValue", back_populates="filing")
 
     def __repr__(self):
         return f"<Filing(id={self.id}, type='{self.filing_type}', date={self.filing_date})>"
@@ -86,5 +91,61 @@ class Filing(Base):
 
     def to_json(self):
         """Convert Filing object to JSON string"""
+        import json
+        return json.dumps(self.to_dict(), default=str)
+
+
+class FinancialConcept(Base):
+    """Model for tracking financial concepts and their labels across companies."""
+    __tablename__ = "financial_concepts"
+
+    id = Column(Integer, primary_key=True)
+    concept_id = Column(String(255), index=True, unique=True, nullable=False)  # e.g., "us-gaap_CashAndCashEquivalentsAtCarryingValue"
+    description = Column(Text)
+    labels = Column(JSON)  # Array of different labels used for this concept
+
+    # Relationship with balance sheet values
+    balance_sheet_values = relationship("BalanceSheetValue", back_populates="concept")
+
+    def __repr__(self):
+        return f"<FinancialConcept(concept_id='{self.concept_id}')>"
+
+    def to_dict(self):
+        """Convert FinancialConcept object to dictionary"""
+        result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return result
+
+    def to_json(self):
+        """Convert FinancialConcept object to JSON string"""
+        import json
+        return json.dumps(self.to_dict(), default=str)
+
+
+class BalanceSheetValue(Base):
+    """Model for storing balance sheet values for companies."""
+    __tablename__ = "balance_sheet_values"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    filing_id = Column(Integer, ForeignKey("filings.id"), index=True, nullable=False)
+    concept_id = Column(Integer, ForeignKey("financial_concepts.id"), index=True, nullable=False)
+    value_date = Column(DateTime, index=True, nullable=False)
+    value = Column(Float)
+
+    # Relationships
+    company = relationship("Company", back_populates="balance_sheet_values")
+    filing = relationship("Filing", back_populates="balance_sheet_values")
+    concept = relationship("FinancialConcept", back_populates="balance_sheet_values")
+
+    def __repr__(self):
+        return f"<BalanceSheetValue(company_id={self.company_id}, concept_id={self.concept_id}, value_date={self.value_date})>"
+
+    def to_dict(self):
+        """Convert BalanceSheetValue object to dictionary"""
+        result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return result
+
+    def to_json(self):
+        """Convert BalanceSheetValue object to JSON string"""
         import json
         return json.dumps(self.to_dict(), default=str)

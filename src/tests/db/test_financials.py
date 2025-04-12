@@ -3,14 +3,19 @@ from datetime import datetime, timedelta
 import pandas as pd
 from sqlalchemy.exc import IntegrityError
 
+# Use absolute imports for test files
+from src.python.financial_processing import (
+    process_balance_sheet_dataframe,
+    process_income_statement_dataframe,
+    store_balance_sheet_data,
+    store_balance_sheet_value
+)
 from src.python.database.crud_company import create_company
 from src.python.database.crud_filing import create_filing
 from src.python.database.crud_financials import (
     get_or_create_financial_concept,
     store_balance_sheet_value,
     store_income_statement_value,
-    process_balance_sheet_dataframe,
-    process_income_statement_dataframe,
     get_balance_sheet_values_by_company,
     get_income_statement_values_by_company,
     get_balance_sheet_by_date,

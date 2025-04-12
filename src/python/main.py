@@ -3,7 +3,7 @@ import logging
 from config import settings
 from database.base import close_session, init_db
 from database.crud_company import get_companies_by_ticker, upsert_company
-from ingestion.edgar import debug, edgar_login, get_company
+from ingestion.edgar import debug_company, edgar_login, get_company
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     # Get company information for MSFT
     company = get_company(ticker)
     logger.info(f"Retrieved company data for MSFT: {company.name}")
-    logger.debug(debug(company))
+    logger.debug(debug_company(company))
 
     # Initialize the database (create tables if they don't exist)
     # Pass the database URL from settings instead of importing settings in the database module

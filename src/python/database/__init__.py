@@ -30,8 +30,6 @@ from .crud_financials import (
     get_income_statement_by_date,
     get_income_statement_values_by_company,
     get_or_create_financial_concept,
-    process_balance_sheet_dataframe,
-    process_income_statement_dataframe,
     store_balance_sheet_value,
     store_income_statement_value,
 )

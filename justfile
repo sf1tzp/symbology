@@ -9,6 +9,10 @@ _create_venv:
         uv pip install -r requirements.lock
     fi
 
+deps:
+    uv pip compile pyproject.toml -o requirements.lock
+    uv pip install -r requirements.lock
+
 run: _create_venv
     uv run src/python/main.py
 

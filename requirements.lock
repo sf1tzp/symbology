@@ -47,7 +47,7 @@ decorator==5.2.1
     # via ipython
 defusedxml==0.7.1
     # via nbconvert
-edgartools==3.13.3
+edgartools==3.15.0
     # via symbology (pyproject.toml)
 executing==2.2.0
     # via stack-data

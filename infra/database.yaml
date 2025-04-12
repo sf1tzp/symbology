@@ -9,11 +9,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - ${DB_PORT:-5432}:5432
+      - ${POSTGRES_PORT:-5432}:5432
     volumes: # optional to preserve database after container is deleted.
       - ./database-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,6 +29,7 @@ services:
     ports:
       - "${PGADMIN_PORT:-8080}:80"
     volumes:
-      - ./database-data/pgadmin-servers.json:/pgadmin4/servers.json
+      - ./pgadmin-data/pgadmin-servers.json:/pgadmin4/servers.json
+      - ./pgadmin-data/pgpass:/pgpass
     depends_on:
       - postgres

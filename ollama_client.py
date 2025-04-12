@@ -75,7 +75,7 @@ def estimate_tokens(model, text):
 
 
 def openai_chat(model, system_prompt, content, temperature):
-    input_tokens=estimate_tokens(model, system_prompt + content);
+    input_tokens=estimate_tokens(model, system_prompt + content)
     start = time.time()
     client = openai.OpenAI()
     response = client.chat.completions.create(

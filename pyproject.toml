@@ -9,3 +9,6 @@ dependencies = [
     "jupyter>=1.1.1",
     "ollama>=0.4.7",
 ]
+
+[tool.pylyzer.python]
+path = ".venv/bin/python"

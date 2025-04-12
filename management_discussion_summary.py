@@ -166,10 +166,8 @@ def generate_management_discussion_summary(model, company, date="2020-01-01:"):
         }
 
         tenk = f.data_object()
-        tenk_txt = os.path.join(filings_dir, f"{strings["fiscal_year"]}-MDA.txt")
-        ai_summary_md = os.path.join(
-            reports_dir, f"{strings["fiscal_year"]}-MDA-Summary.md"
-        )
+        tenk_txt = os.path.join(filings_dir, f'{strings["fiscal_year"]}-MDA.txt')
+        ai_summary_md = os.path.join(reports_dir, f'{strings["fiscal_year"]}-MDA-Summary.md')
 
         if os.path.isfile(ai_summary_md):
             continue

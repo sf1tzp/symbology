@@ -16,6 +16,9 @@ deps:
 run *ARGS: _create_venv
     uv run run.py {{ARGS}}
 
+delete *ARGS: _create_venv
+    uv run run.py delete {{ARGS}}
+
 test: _create_venv
     uv run -m pytest --cov=src.ingestion src/tests
 

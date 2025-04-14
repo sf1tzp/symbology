@@ -50,6 +50,22 @@ def parse_args():
         help="Email to use for EDGAR API (defaults to value from config)"
     )
 
+    # Add a "delete" command for deleting companies by ticker
+    delete_parser = subparsers.add_parser("delete", help="Delete a company and all its associated data")
+    delete_parser.add_argument(
+        "--ticker",
+        "-t",
+        type=str,
+        required=True,
+        help="Ticker symbol of the company to delete (e.g., AAPL)"
+    )
+    delete_parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Force deletion without confirmation"
+    )
+
     # If no arguments are provided, show help and exit
     if len(sys.argv) == 1:
         parser.print_help()
@@ -119,6 +135,8 @@ def run_demo():
 
         # Filter to only get business descriptions
         business_descriptions = [doc for doc in source_documents if doc.document_type == "business_description"]
+        mgmt_discussion = [doc for doc in source_documents if doc.document_type == "management_discussion"]
+        risk_factors = [doc for doc in source_documents if doc.document_type == "risk_factors"]
 
         if business_descriptions:
             # Get the most recent business description
@@ -130,6 +148,28 @@ def run_demo():
             logger.info(f"Business Description (truncated): {truncated_content}")
         else:
             logger.warning("No business description found for MSFT")
+
+        if mgmt_discussion:
+            # Get the most recent business description
+            latest_mgmt_discussion = max(mgmt_discussion, key=lambda x: x.report_date)
+
+            # Truncate the content to 140 characters
+            truncated_content = latest_mgmt_discussion.content[:540] + "..." if len(latest_mgmt_discussion.content) > 140 else latest_mgmt_discussion.content
+
+            logger.info(f"Management Discussion (truncated): {truncated_content}")
+        else:
+            logger.warning("No management discussion found for MSFT")
+
+        if risk_factors:
+            # Get the most recent business description
+            latest_risk_factors = max(risk_factors, key=lambda x: x.report_date)
+
+            # Truncate the content to 140 characters
+            truncated_content = latest_risk_factors.content[:540] + "..." if len(latest_risk_factors.content) > 140 else latest_risk_factors.content
+
+            logger.info(f"Risk Factors (truncated): {truncated_content}")
+        else:
+            logger.warning("No risk factors found for MSFT")
 
         session.close()
     else:
@@ -180,6 +220,61 @@ def run_10k_ingestion(tickers, years, edgar_contact=None):
     return results
 
 
+def delete_company_by_ticker(ticker, force=False):
+    """
+    Delete a company by its ticker symbol.
+
+    Args:
+        ticker: The ticker symbol of the company to delete
+        force: If True, skip confirmation prompt
+
+    Returns:
+        True if the company was found and deleted, False otherwise
+    """
+    from src.ingestion.database.crud_company import delete_company, get_companies_by_ticker
+
+    logger.info(f"Looking up company with ticker: {ticker}")
+
+    # Initialize the database
+    init_db(settings.database.url)
+
+    # Find the company by ticker
+    companies = get_companies_by_ticker(ticker)
+
+    if not companies:
+        logger.error(f"No company found with ticker: {ticker}")
+        return False
+
+    if len(companies) > 1:
+        logger.warning(f"Multiple companies found with ticker {ticker}. Will delete them all.")
+
+    # Confirm deletion if not forced
+    if not force:
+        company_names = ", ".join([company.name for company in companies])
+        confirmation = input(f"Are you sure you want to delete {company_names} and all associated data? This cannot be undone. [y/N]: ")
+        if confirmation.lower() not in ["y", "yes"]:
+            logger.info("Deletion cancelled.")
+            return False
+
+    # Delete all companies with this ticker
+    deleted_count = 0
+    for company in companies:
+        logger.info(f"Deleting company: {company.name} (ID: {company.id}, CIK: {company.cik})")
+        result = delete_company(company.id)
+        if result:
+            deleted_count += 1
+            logger.info(f"Successfully deleted company {company.name}")
+        else:
+            logger.error(f"Failed to delete company {company.name}")
+
+    logger.info(f"Deleted {deleted_count} out of {len(companies)} companies with ticker {ticker}")
+
+    # Close the session when done
+    close_session()
+
+    return deleted_count > 0
+
+
 def main():
     # Set up logging
     configure_logging()
@@ -196,6 +291,10 @@ def main():
             years=args.years,
             edgar_contact=args.edgar_contact
         )
+    elif args.command == "delete":
+        success = delete_company_by_ticker(args.ticker, args.force)
+        if not success:
+            sys.exit(1)
     else:
         logger.error(f"Unknown command: {args.command}")
         sys.exit(1)

@@ -42,15 +42,15 @@ class Company(Base):
     former_names = Column(JSON)  # List of former company names
 
     # Relationship with filings
-    filings = relationship("Filing", back_populates="company")
+    filings = relationship("Filing", back_populates="company", cascade="all, delete-orphan")
     # Relationship with balance sheet values
-    balance_sheet_values = relationship("BalanceSheetValue", back_populates="company")
+    balance_sheet_values = relationship("BalanceSheetValue", back_populates="company", cascade="all, delete-orphan")
     # Relationship with income statement values
-    income_statement_values = relationship("IncomeStatementValue", back_populates="company")
+    income_statement_values = relationship("IncomeStatementValue", back_populates="company", cascade="all, delete-orphan")
     # Relationship with cash flow statement values
-    cash_flow_statement_values = relationship("CashFlowStatementValue", back_populates="company")
+    cash_flow_statement_values = relationship("CashFlowStatementValue", back_populates="company", cascade="all, delete-orphan")
     # Relationship with cover page values
-    cover_page_values = relationship("CoverPageValue", back_populates="company")
+    cover_page_values = relationship("CoverPageValue", back_populates="company", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Company(name='{self.name}', cik={self.cik}, tickers={self.tickers})>"
@@ -85,15 +85,15 @@ class Filing(Base):
     # Relationship with company
     company = relationship("Company", back_populates="filings")
     # Relationship with balance sheet values
-    balance_sheet_values = relationship("BalanceSheetValue", back_populates="filing")
+    balance_sheet_values = relationship("BalanceSheetValue", back_populates="filing", cascade="all, delete-orphan")
     # Relationship with income statement values
-    income_statement_values = relationship("IncomeStatementValue", back_populates="filing")
+    income_statement_values = relationship("IncomeStatementValue", back_populates="filing", cascade="all, delete-orphan")
     # Relationship with cash flow statement values
-    cash_flow_statement_values = relationship("CashFlowStatementValue", back_populates="filing")
+    cash_flow_statement_values = relationship("CashFlowStatementValue", back_populates="filing", cascade="all, delete-orphan")
     # Relationship with cover page values
-    cover_page_values = relationship("CoverPageValue", back_populates="filing")
+    cover_page_values = relationship("CoverPageValue", back_populates="filing", cascade="all, delete-orphan")
     # Relationship with source documents
-    source_documents = relationship("SourceDocument", back_populates="filing")
+    source_documents = relationship("SourceDocument", back_populates="filing", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Filing(id={self.id}, type='{self.filing_type}', date={self.filing_date})>"

@@ -65,18 +65,28 @@ def update_company(company_id: int, company_data: Dict[str, Any], session=None) 
 
 
 def delete_company(company_id: int, session=None) -> bool:
-    """Delete a company from the database."""
+    """
+    Delete a company from the database.
+
+    This will automatically cascade delete all associated filings, financial values,
+    and source documents through SQLAlchemy's relationship cascade options.
+
+    Returns True if company was found and deleted, False otherwise.
+    """
     session = session or get_db_session()
     try:
         db_company = session.query(Company).filter(Company.id == company_id).first()
         if db_company:
+            logger.info(f"Deleting company ID {company_id} (CIK: {db_company.cik}) and all associated data")
             session.delete(db_company)
             session.commit()
+            logger.info(f"Successfully deleted company ID {company_id} and all its related data")
             return True
+        logger.warning(f"Company ID {company_id} not found - nothing to delete")
         return False
     except Exception as e:
         session.rollback()
-        logger.error(f"Error deleting company: {e}")
+        logger.error(f"Error deleting company and its data: {e}")
         raise
 
 

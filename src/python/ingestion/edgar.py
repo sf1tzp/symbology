@@ -138,6 +138,45 @@ def get_cover_page_values(filing: Filing) -> pd.DataFrame:
 
     return df
 
+def get_business_description(filing: Filing) -> Optional[str]:
+    """
+    Extract the business description section from a 10-K filing.
+
+    Args:
+        filing: A Filing object from the edgar package
+
+    Returns:
+        The business description text as a string or None if not found
+    """
+    filing_obj = filing.obj()
+    return filing_obj.business if hasattr(filing_obj, 'business') else None
+
+def get_risk_factors(filing: Filing) -> Optional[str]:
+    """
+    Extract the risk factors section from a 10-K filing.
+
+    Args:
+        filing: A Filing object from the edgar package
+
+    Returns:
+        The risk factors text as a string or None if not found
+    """
+    filing_obj = filing.obj()
+    return filing_obj.risk_factors if hasattr(filing_obj, 'risk_factors') else None
+
+def get_management_discussion(filing: Filing) -> Optional[str]:
+    """
+    Extract the management's discussion and analysis (MD&A) section from a 10-K filing.
+
+    Args:
+        filing: A Filing object from the edgar package
+
+    Returns:
+        The MD&A text as a string or None if not found
+    """
+    filing_obj = filing.obj()
+    return filing_obj.management_discussion if hasattr(filing_obj, 'management_discussion') else None
+
 def debug_company(company: Company) -> None:
     filtered = { k: v for k, v in company.__dict__.items() if k != "filings" }
     print(json.dumps(filtered, indent=2, default=str))

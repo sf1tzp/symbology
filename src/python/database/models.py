@@ -92,6 +92,10 @@ class Filing(Base):
     cash_flow_statement_values = relationship("CashFlowStatementValue", back_populates="filing")
     # Relationship with cover page values
     cover_page_values = relationship("CoverPageValue", back_populates="filing")
+    # Relationship with document sections
+    business_description = relationship("BusinessDescription", back_populates="filing", uselist=False)
+    risk_factors = relationship("RiskFactors", back_populates="filing", uselist=False)
+    management_discussion = relationship("ManagementDiscussion", back_populates="filing", uselist=False)
 
     def __repr__(self):
         return f"<Filing(id={self.id}, type='{self.filing_type}', date={self.filing_date})>"
@@ -255,5 +259,89 @@ class CoverPageValue(Base):
 
     def to_json(self):
         """Convert CoverPageValue object to JSON string"""
+        import json
+        return json.dumps(self.to_dict(), default=str)
+
+
+class BusinessDescription(Base):
+    """Model for storing business description sections from 10-K filings."""
+    __tablename__ = "business_descriptions"
+
+    id = Column(Integer, primary_key=True)
+    filing_id = Column(Integer, ForeignKey("filings.id"), index=True, unique=True, nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    report_date = Column(DateTime, index=True, nullable=False)
+    content = Column(Text, nullable=False)
+
+    # Relationships
+    filing = relationship("Filing", back_populates="business_description")
+    company = relationship("Company")
+
+    def __repr__(self):
+        return f"<BusinessDescription(filing_id={self.filing_id}, company_id={self.company_id})>"
+
+    def to_dict(self):
+        """Convert BusinessDescription object to dictionary"""
+        result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return result
+
+    def to_json(self):
+        """Convert BusinessDescription object to JSON string"""
+        import json
+        return json.dumps(self.to_dict(), default=str)
+
+
+class RiskFactors(Base):
+    """Model for storing risk factors sections from 10-K filings."""
+    __tablename__ = "risk_factors"
+
+    id = Column(Integer, primary_key=True)
+    filing_id = Column(Integer, ForeignKey("filings.id"), index=True, unique=True, nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    report_date = Column(DateTime, index=True, nullable=False)
+    content = Column(Text, nullable=False)
+
+    # Relationships
+    filing = relationship("Filing", back_populates="risk_factors")
+    company = relationship("Company")
+
+    def __repr__(self):
+        return f"<RiskFactors(filing_id={self.filing_id}, company_id={self.company_id})>"
+
+    def to_dict(self):
+        """Convert RiskFactors object to dictionary"""
+        result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return result
+
+    def to_json(self):
+        """Convert RiskFactors object to JSON string"""
+        import json
+        return json.dumps(self.to_dict(), default=str)
+
+
+class ManagementDiscussion(Base):
+    """Model for storing management discussion sections from 10-K filings."""
+    __tablename__ = "management_discussions"
+
+    id = Column(Integer, primary_key=True)
+    filing_id = Column(Integer, ForeignKey("filings.id"), index=True, unique=True, nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    report_date = Column(DateTime, index=True, nullable=False)
+    content = Column(Text, nullable=False)
+
+    # Relationships
+    filing = relationship("Filing", back_populates="management_discussion")
+    company = relationship("Company")
+
+    def __repr__(self):
+        return f"<ManagementDiscussion(filing_id={self.filing_id}, company_id={self.company_id})>"
+
+    def to_dict(self):
+        """Convert ManagementDiscussion object to dictionary"""
+        result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return result
+
+    def to_json(self):
+        """Convert ManagementDiscussion object to JSON string"""
         import json
         return json.dumps(self.to_dict(), default=str)

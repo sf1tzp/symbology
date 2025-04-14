@@ -32,11 +32,11 @@ Company 1──┐
 ```
 
 ```
-PromptTemplate 1───N AICompletion N───M SourceDocument
+PromptTemplate 1───N LLMCompletion N───M SourceDocument
                               │
                               ├───N CompletionRating
                               │
-                              └───M AICompletion (self-referential)
+                              └───M LLMCompletion (self-referential)
 ```
 
 ## Key Models
@@ -47,7 +47,7 @@ PromptTemplate 1───N AICompletion N───M SourceDocument
 - **Statement Models**: Balance sheet, income statement, cash flow statement values
 - **SourceDocument**: Full-text documents from filings
 - **PromptTemplate**: Customizable templates for AI queries
-- **AICompletion**: Generated AI text with metadata and parameters
+- **LLMCompletion**: Generated AI text with metadata and parameters
 - **CompletionRating**: User feedback on AI-generated content
 
 ## Notes on Implementation

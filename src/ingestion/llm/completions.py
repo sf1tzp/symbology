@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from ..database import crud_ai_completion
-from ..database.models import AICompletion, CompletionRating
+from ..database.models import CompletionRating, LLMCompletion
 from .client import OpenAIClient
 
 
@@ -34,7 +34,7 @@ def generate_and_store_completion(
     stop_sequences: Optional[List[str]] = None,
     tags: Optional[List[str]] = None,
     notes: Optional[str] = None,
-) -> AICompletion:
+) -> LLMCompletion:
     """
     Generate a completion using a prompt template and store it in the database.
 
@@ -59,7 +59,7 @@ def generate_and_store_completion(
         notes: Optional notes about the completion
 
     Returns:
-        The created AICompletion object
+        The created LLMCompletion object
     """
     # Get the prompt template
     prompt_template = crud_ai_completion.get_prompt_template(db, prompt_template_id)

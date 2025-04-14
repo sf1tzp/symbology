@@ -31,11 +31,8 @@ lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 target-version = "py313"
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]                     # Ignore unused imports in __init__ files
-"src/ingestion/ai/*" = ["E501"]     # Ignore long lines in prompts, etc
-# "src/ingestion/ai/prompts.py" = ["F501"]     # Ignore long lines in prompts, etc
-# "src/ingestion/ai/completions.py" = ["E501"] # Ignore long lines in prompts, etc
-# "**/ai/*" = ["E402"]
+"__init__.py" = ["F401"]         # Ignore unused imports in __init__ files
+"src/ingestion/llm/*" = ["E501"] # Ignore long lines in prompts, etc
 
 [tool.ruff.lint.isort]
 known-first-party = ["symbology"]

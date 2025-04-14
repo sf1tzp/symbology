@@ -1,6 +1,6 @@
 """
 CRUD operations for the AI-related models, including PromptTemplate,
-AICompletion, and CompletionRating.
+LLMCompletion, and CompletionRating.
 """
 
 from datetime import datetime
@@ -178,7 +178,7 @@ def create_ai_completion(
     token_usage: Optional[Dict[str, int]] = None,
     tags: Optional[List[str]] = None,
     notes: Optional[str] = None,
-) -> models.AICompletion:
+) -> models.LLMCompletion:
     """
     Create a new AI completion record.
 
@@ -206,10 +206,10 @@ def create_ai_completion(
         notes: Optional notes about the completion
 
     Returns:
-        The created AICompletion object
+        The created LLMCompletion object
     """
     now = datetime.now()
-    db_completion = models.AICompletion(
+    db_completion = models.LLMCompletion(
         prompt_template_id=prompt_template_id,
         company_id=company_id,
         filing_id=filing_id,
@@ -243,7 +243,7 @@ def create_ai_completion(
     # Add context completions if provided
     if context_completion_ids:
         for comp_id in context_completion_ids:
-            context_completion = db.query(models.AICompletion).filter(models.AICompletion.id == comp_id).first()
+            context_completion = db.query(models.LLMCompletion).filter(models.LLMCompletion.id == comp_id).first()
             if context_completion:
                 db_completion.context_completions.append(context_completion)
 
@@ -252,7 +252,7 @@ def create_ai_completion(
     return db_completion
 
 
-def get_ai_completion(db: Session, completion_id: int) -> Optional[models.AICompletion]:
+def get_ai_completion(db: Session, completion_id: int) -> Optional[models.LLMCompletion]:
     """
     Get an AI completion by ID.
 
@@ -261,9 +261,9 @@ def get_ai_completion(db: Session, completion_id: int) -> Optional[models.AIComp
         completion_id: ID of the AI completion
 
     Returns:
-        The AICompletion object if found, None otherwise
+        The LLMCompletion object if found, None otherwise
     """
-    return db.query(models.AICompletion).filter(models.AICompletion.id == completion_id).first()
+    return db.query(models.LLMCompletion).filter(models.LLMCompletion.id == completion_id).first()
 
 
 def get_ai_completions(
@@ -278,7 +278,7 @@ def get_ai_completions(
     tags: Optional[List[str]] = None,
     skip: int = 0,
     limit: int = 100,
-) -> List[models.AICompletion]:
+) -> List[models.LLMCompletion]:
     """
     Get a list of AI completions with optional filtering.
 
@@ -296,22 +296,22 @@ def get_ai_completions(
         limit: Maximum number of records to return
 
     Returns:
-        List of AICompletion objects
+        List of LLMCompletion objects
     """
-    query = db.query(models.AICompletion)
+    query = db.query(models.LLMCompletion)
 
     if prompt_template_id is not None:
-        query = query.filter(models.AICompletion.prompt_template_id == prompt_template_id)
+        query = query.filter(models.LLMCompletion.prompt_template_id == prompt_template_id)
 
     if company_id is not None:
-        query = query.filter(models.AICompletion.company_id == company_id)
+        query = query.filter(models.LLMCompletion.company_id == company_id)
 
     if filing_id is not None:
-        query = query.filter(models.AICompletion.filing_id == filing_id)
+        query = query.filter(models.LLMCompletion.filing_id == filing_id)
 
     if source_document_id is not None:
         # Filter by source document ID using the many-to-many relationship
-        query = query.join(models.AICompletion.source_documents).filter(
+        query = query.join(models.LLMCompletion.source_documents).filter(
             models.SourceDocument.id == source_document_id
         )
 
@@ -320,7 +320,7 @@ def get_ai_completions(
         # We need to use the association table directly for this query
         query = query.join(
             models.completion_context_completions,
-            models.AICompletion.id == models.completion_context_completions.c.parent_completion_id
+            models.LLMCompletion.id == models.completion_context_completions.c.parent_completion_id
         ).filter(
             models.completion_context_completions.c.context_completion_id == context_completion_id
         )
@@ -329,13 +329,13 @@ def get_ai_completions(
         # Filter by completion ID that uses this completion as context
         query = query.join(
             models.completion_context_completions,
-            models.AICompletion.id == models.completion_context_completions.c.context_completion_id
+            models.LLMCompletion.id == models.completion_context_completions.c.context_completion_id
         ).filter(
             models.completion_context_completions.c.parent_completion_id == used_as_context_by_completion_id
         )
 
     if model is not None:
-        query = query.filter(models.AICompletion.model == model)
+        query = query.filter(models.LLMCompletion.model == model)
 
     # Filter by tags if specified (properly handling JSON contains)
     if tags is not None and len(tags) > 0:
@@ -343,7 +343,7 @@ def get_ai_completions(
         from sqlalchemy.dialects.postgresql import JSONB
         for tag in tags:
             # Use PostgreSQL's JSON containment operator @> with proper casting
-            query = query.filter(cast(models.AICompletion.tags, JSONB).contains([tag]))
+            query = query.filter(cast(models.LLMCompletion.tags, JSONB).contains([tag]))
 
     return query.offset(skip).limit(limit).all()
 

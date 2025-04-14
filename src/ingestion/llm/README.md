@@ -127,7 +127,7 @@ finally:
 You can retrieve completions from the database using the CRUD operations:
 
 ```python
-from ingestion.database.crud_ai_completion import (
+from ingestion.database.crud_llm_completion import (
     get_ai_completion,
     get_ai_completions,
     get_prompt_templates

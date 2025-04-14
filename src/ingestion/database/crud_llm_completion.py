@@ -465,3 +465,191 @@ def update_completion_rating(
     db.commit()
     db.refresh(db_rating)
     return db_rating
+
+def get_completion_dependency_chain(db: Session, completion_id: int, max_depth: int = 5) -> Dict[str, Any]:
+    """
+    Get the dependency chain for an AI completion, showing the context completions it uses
+    and any completions that use it as context, up to a maximum depth.
+
+    Args:
+        db: Database session
+        completion_id: ID of the completion to analyze
+        max_depth: Maximum depth of dependency chain to retrieve
+
+    Returns:
+        Dictionary containing the completion and its dependency chain
+    """
+    completion = get_ai_completion(db, completion_id)
+    if not completion:
+        raise ValueError(f"Completion with ID {completion_id} not found")
+
+    result = {
+        "id": completion.id,
+        "prompt_template_name": completion.prompt_template.name if completion.prompt_template else None,
+        "created_at": completion.created_at,
+        "tags": completion.tags,
+        "context_completions": [],
+        "used_as_context_by": []
+    }
+
+    # Get context completions (parent completions)
+    if completion.context_completions and max_depth > 0:
+        for ctx_completion in completion.context_completions:
+            ctx_result = get_completion_dependency_chain(db, ctx_completion.id, max_depth - 1)
+            result["context_completions"].append(ctx_result)
+
+    # Get completions that use this as context (child completions)
+    if completion.used_as_context_by and max_depth > 0:
+        for child_completion in completion.used_as_context_by:
+            child_result = {
+                "id": child_completion.id,
+                "prompt_template_name": child_completion.prompt_template.name if child_completion.prompt_template else None,
+                "created_at": child_completion.created_at,
+                "tags": child_completion.tags
+            }
+            result["used_as_context_by"].append(child_result)
+
+    return result
+
+def rate_completion(
+    db: Session,
+    completion_id: int,
+    rating: Optional[int] = None,
+    accuracy_score: Optional[int] = None,
+    relevance_score: Optional[int] = None,
+    helpfulness_score: Optional[int] = None,
+    comments: Optional[str] = None,
+) -> models.CompletionRating:
+    """
+    Rate an AI completion and store the rating in the database.
+
+    Args:
+        db: Database session
+        completion_id: ID of the completion to rate
+        rating: Optional overall rating (1-5)
+        accuracy_score: Optional accuracy score (1-5)
+        relevance_score: Optional relevance score (1-5)
+        helpfulness_score: Optional helpfulness score (1-5)
+        comments: Optional comments about the completion
+
+    Returns:
+        The created CompletionRating object
+    """
+    # Verify the completion exists
+    completion = get_ai_completion(db, completion_id)
+    if not completion:
+        raise ValueError(f"Completion with ID {completion_id} not found")
+
+    # Create the rating
+    db_rating = create_completion_rating(
+        db=db,
+        completion_id=completion_id,
+        rating=rating,
+        accuracy_score=accuracy_score,
+        relevance_score=relevance_score,
+        helpfulness_score=helpfulness_score,
+        comments=comments,
+    )
+
+    return db_rating
+
+def create_predefined_prompt_templates(db: Session) -> Dict[str, int]:
+    """
+    Create predefined prompt templates for common use cases.
+
+    Args:
+        db: Database session
+
+    Returns:
+        Dictionary mapping template names to their IDs
+    """
+    now = datetime.now()
+    templates = [
+        {
+            "name": "Risk Analysis",
+            "description": "Analyze a company's risk factors and management's response over time",
+            "system_prompt": "You are a financial analyst specializing in risk assessment. Analyze the provided document to identify key risk factors, how management is addressing them, and whether their approach has changed over time. Focus on both explicit statements and implicit indicators of risk management sophistication.",
+            "user_prompt_template": "Please analyze the risk factors and management's response for {company_name} from their {document_type}. Pay special attention to:\n\n1. Major risk categories identified\n2. How management plans to mitigate these risks\n3. Changes in risk approach compared to previous statements\n4. The level of detail and sophistication in their risk management\n\nProvide specific examples from the text to support your analysis.",
+            "category": "risk_analysis",
+            "default_parameters": {
+                "temperature": 0.3,
+                "max_tokens": 2000
+            },
+            "created_at": now,
+            "updated_at": now,
+            "is_active": True
+        },
+        {
+            "name": "Management Competency Assessment",
+            "description": "Evaluate management's competency based on their communications and decisions",
+            "system_prompt": "You are an executive coach and management consultant who specializes in evaluating leadership effectiveness. Analyze the provided document to assess the competency of the management team based on their communication style, strategic decisions, and how they frame challenges and opportunities.",
+            "user_prompt_template": "Please evaluate the competency of {company_name}'s management team based on their {document_type}. Assess:\n\n1. Communication clarity and transparency\n2. Strategic vision and planning capability\n3. Problem-solving approach and decision-making quality\n4. Adaptability to changing conditions\n5. Accountability for results and failures\n\nProvide specific examples from the text to support your assessment.",
+            "category": "management_assessment",
+            "default_parameters": {
+                "temperature": 0.4,
+                "max_tokens": 2000
+            },
+            "created_at": now,
+            "updated_at": now,
+            "is_active": True
+        },
+        {
+            "name": "Financial Position Analysis",
+            "description": "Analyze a company's financial position and performance trends",
+            "system_prompt": "You are a financial analyst specializing in evaluating company financial statements. Analyze the provided financial data to assess the company's financial health, performance trends, and areas of strength or concern.",
+            "user_prompt_template": "Please analyze the financial position of {company_name} based on their {document_type}. Assess:\n\n1. Profitability trends and margins\n2. Liquidity and solvency indicators\n3. Cash flow generation and quality\n4. Capital allocation and investment strategy\n5. Areas of financial strength and potential concern\n\nProvide specific metrics and figures from the data to support your analysis.",
+            "category": "financial_analysis",
+            "default_parameters": {
+                "temperature": 0.2,
+                "max_tokens": 2500
+            },
+            "created_at": now,
+            "updated_at": now,
+            "is_active": True
+        },
+        {
+            "name": "Business Model Summary",
+            "description": "Create a concise summary of a company's business model and strategy",
+            "system_prompt": "You are a business strategist who specializes in analyzing business models and corporate strategies. Review the provided document to extract and summarize the company's core business model, value proposition, target markets, and competitive advantages.",
+            "user_prompt_template": "Please provide a concise summary of {company_name}'s business model based on their {document_type}. Include:\n\n1. Core value proposition and revenue streams\n2. Target customers and market positioning\n3. Key products/services and their significance\n4. Growth strategy and expansion plans\n5. Competitive advantages and differentiators\n\nKeep the summary clear, factual, and well-structured.",
+            "category": "business_analysis",
+            "default_parameters": {
+                "temperature": 0.3,
+                "max_tokens": 1500
+            },
+            "created_at": now,
+            "updated_at": now,
+            "is_active": True
+        }
+    ]
+
+    template_ids = {}
+
+    for template_data in templates:
+        # Check if template already exists
+        existing_templates = get_prompt_templates(
+            db=db,
+            category=template_data["category"]
+        )
+
+        existing_template = next(
+            (t for t in existing_templates if t.name == template_data["name"]),
+            None
+        )
+
+        if existing_template:
+            template_ids[template_data["name"]] = existing_template.id
+        else:
+            # Create new template
+            new_template = create_prompt_template(
+                db=db,
+                name=template_data["name"],
+                description=template_data["description"],
+                system_prompt=template_data["system_prompt"],
+                user_prompt_template=template_data["user_prompt_template"],
+                category=template_data["category"],
+                default_parameters=template_data["default_parameters"],
+            )
+            template_ids[template_data["name"]] = new_template.id
+
+    return template_ids

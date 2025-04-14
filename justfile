@@ -19,6 +19,9 @@ run *ARGS: _create_venv
 delete *ARGS: _create_venv
     uv run run.py delete {{ARGS}}
 
+summarize:
+    uv run run.py summarize --document-id 3 --template-id 2 --temperature 0.7
+
 test: _create_venv
     uv run -m pytest --cov=src.ingestion src/tests
 

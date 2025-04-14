@@ -66,6 +66,39 @@ def parse_args():
         help="Force deletion without confirmation"
     )
 
+    # Add a "summarize" command for document summarization
+    summarize_parser = subparsers.add_parser("summarize", help="Summarize a document using LLM")
+    summarize_parser.add_argument(
+        "--document-id",
+        "-d",
+        type=int,
+        required=True,
+        help="ID of the document to summarize"
+    )
+    summarize_parser.add_argument(
+        "--template-id",
+        "-t",
+        type=int,
+        required=True,
+        help="ID of the prompt template to use"
+    )
+    summarize_parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        help="LLM model to use (defaults to template setting)"
+    )
+    summarize_parser.add_argument(
+        "--temperature",
+        type=float,
+        help="Temperature setting for the LLM (defaults to template setting)"
+    )
+    summarize_parser.add_argument(
+        "--max-tokens",
+        type=int,
+        help="Maximum tokens for the LLM output (defaults to template setting)"
+    )
+
     # If no arguments are provided, show help and exit
     if len(sys.argv) == 1:
         parser.print_help()
@@ -275,6 +308,64 @@ def delete_company_by_ticker(ticker, force=False):
     return deleted_count > 0
 
 
+def run_summarize_document(document_id, template_id, model=None, temperature=None, max_tokens=None):
+    """
+    Run the document summarization for a specific document using the LLM.
+
+    Args:
+        document_id: ID of the document to summarize
+        template_id: ID of the prompt template to use
+        model: Optional LLM model to use
+        temperature: Optional temperature setting
+        max_tokens: Optional max tokens setting
+
+    Returns:
+        The generated summary completion object
+    """
+    from src.ingestion.config import settings
+    from src.ingestion.database.base import close_session, get_db_session, init_db
+    from src.ingestion.database.crud_llm_completion import create_predefined_prompt_templates
+    from src.ingestion.do_completion import summarize_document
+
+    logger.info(f"Starting document summarization for document ID: {document_id} with template ID: {template_id}")
+
+    # Initialize the database
+    init_db(settings.database.url)
+
+    # Get a database session
+    db = get_db_session()
+
+    # load default prompt templates
+    create_predefined_prompt_templates(db)
+
+    try:
+        # Run the summarization
+        completion = summarize_document(
+            db=db,
+            source_document_id=document_id,
+            prompt_template_id=template_id,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+
+        logger.info(f"Successfully summarized document. Summary ID: {completion.id}")
+
+        # Print a short preview of the summary
+        preview_length = 200
+        preview = completion.completion_text[:preview_length] + "..." if len(completion.completion_text) > preview_length else completion.completion_text
+        logger.info(f"Summary preview: {preview}")
+
+        return completion
+
+    except Exception as e:
+        logger.error(f"Error summarizing document: {str(e)}")
+        raise
+    finally:
+        db.close()
+        close_session()
+
+
 def main():
     # Set up logging
     configure_logging()
@@ -294,6 +385,18 @@ def main():
     elif args.command == "delete":
         success = delete_company_by_ticker(args.ticker, args.force)
         if not success:
+            sys.exit(1)
+    elif args.command == "summarize":
+        try:
+            run_summarize_document(
+                document_id=args.document_id,
+                template_id=args.template_id,
+                model=args.model,
+                temperature=args.temperature,
+                max_tokens=args.max_tokens
+            )
+        except Exception as e:
+            logger.error(f"Summarization failed: {str(e)}")
             sys.exit(1)
     else:
         logger.error(f"Unknown command: {args.command}")

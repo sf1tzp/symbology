@@ -67,10 +67,21 @@ class ApiSettings(BaseModel):
 class OpenAISettings(BaseModel):
     """OpenAI API settings."""
 
-    open_ai_host: str = "10.0.0.4"
-    open_ai_port: str = "24098"
+    open_ai_host: str = Field(default="10.0.0.4")
+    open_ai_port: str = Field(default="11434")
+    default_model: str = Field(default="hf.co/lmstudio-community/gemma-3-12b-it-GGUF:Q6_K")
 
-    default_model: str = "hf.co/lmstudio-community/gemma-3-12b-it-GGUF:Q6_K"
+    model_config = ConfigDict(
+        env_prefix="",
+        extra="ignore",
+        json_schema_extra={
+            "env": {
+                "open_ai_host": "OPENAI_HOST",
+                "open_ai_port": "OPENAI_PORT",
+                "default_model": "OPENAI_DEFAULT_MODEL"
+            }
+        }
+    )
 
 
 class LoggingSettings(BaseSettings):

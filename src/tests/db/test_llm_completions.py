@@ -2,7 +2,8 @@ import pytest
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from src.ingestion.database import crud_ai_completion, models
+from src.ingestion.database import crud_llm_completion
+from src.ingestion.database import models
 from src.ingestion.database.base import Base, engine
 from sqlalchemy.exc import IntegrityError
 from src.ingestion.database import crud_company, crud_filing
@@ -110,7 +111,7 @@ def rating_data():
 @pytest.fixture
 def db_prompt_template(db: Session, template_data):
     """Fixture that creates a prompt template in the database"""
-    template = crud_ai_completion.create_prompt_template(
+    template = crud_llm_completion.create_prompt_template(
         db=db,
         name=template_data["name"],
         description=template_data["description"],
@@ -127,7 +128,7 @@ def db_prompt_template(db: Session, template_data):
 @pytest.fixture
 def db_completion(db: Session, db_prompt_template, completion_data, db_company, db_filing):
     """Fixture that creates an AI completion in the database"""
-    completion = crud_ai_completion.create_ai_completion(
+    completion = crud_llm_completion.create_ai_completion(
         db=db,
         prompt_template_id=db_prompt_template.id,
         system_prompt=completion_data["system_prompt"],
@@ -172,7 +173,7 @@ def db_source_document(db: Session, db_company, db_filing):
 def db_completion_with_relations(db: Session, db_prompt_template, completion_data,
                                db_company, db_filing, db_source_document):
     """Fixture that creates an AI completion with source document relationships"""
-    completion = crud_ai_completion.create_ai_completion(
+    completion = crud_llm_completion.create_ai_completion(
         db=db,
         prompt_template_id=db_prompt_template.id,
         system_prompt=completion_data["system_prompt"],
@@ -193,7 +194,7 @@ def db_completion_with_relations(db: Session, db_prompt_template, completion_dat
 @pytest.fixture
 def db_completion_chain(db: Session, db_prompt_template, db_completion, completion_data):
     """Fixture that creates an AI completion that uses another as context"""
-    follow_up = crud_ai_completion.create_ai_completion(
+    follow_up = crud_llm_completion.create_ai_completion(
         db=db,
         prompt_template_id=db_prompt_template.id,
         system_prompt="You are a follow-up analyst.",
@@ -210,7 +211,7 @@ def db_completion_chain(db: Session, db_prompt_template, db_completion, completi
 
 def test_create_prompt_template(db: Session, template_data):
     """Test creating a prompt template"""
-    template = crud_ai_completion.create_prompt_template(
+    template = crud_llm_completion.create_prompt_template(
         db=db,
         name=template_data["name"],
         description=template_data["description"],
@@ -238,7 +239,7 @@ def test_create_prompt_template(db: Session, template_data):
 
 def test_get_prompt_template(db: Session, db_prompt_template):
     """Test retrieving a prompt template by ID"""
-    retrieved = crud_ai_completion.get_prompt_template(db, db_prompt_template.id)
+    retrieved = crud_llm_completion.get_prompt_template(db, db_prompt_template.id)
 
     assert retrieved is not None
     assert retrieved.id == db_prompt_template.id
@@ -249,7 +250,7 @@ def test_get_prompt_template(db: Session, db_prompt_template):
 def test_get_prompt_templates(db: Session, db_prompt_template, template_data):
     """Test retrieving prompt templates with filtering"""
     # Create a second template with different category
-    second_template = crud_ai_completion.create_prompt_template(
+    second_template = crud_llm_completion.create_prompt_template(
         db=db,
         name="Second Template",
         description="Another test template",
@@ -261,7 +262,7 @@ def test_get_prompt_templates(db: Session, db_prompt_template, template_data):
     )
 
     # Test filtering by category
-    test_category_templates = crud_ai_completion.get_prompt_templates(
+    test_category_templates = crud_llm_completion.get_prompt_templates(
         db,
         category=template_data["category"]
     )
@@ -269,14 +270,14 @@ def test_get_prompt_templates(db: Session, db_prompt_template, template_data):
     assert test_category_templates[0].id == db_prompt_template.id
 
     # Test filtering by active status
-    active_templates = crud_ai_completion.get_prompt_templates(
+    active_templates = crud_llm_completion.get_prompt_templates(
         db,
         is_active=True
     )
     assert len(active_templates) == 2
 
     # Create an inactive template
-    inactive_template = crud_ai_completion.create_prompt_template(
+    inactive_template = crud_llm_completion.create_prompt_template(
         db=db,
         name="Inactive Template",
         description="An inactive template",
@@ -286,7 +287,7 @@ def test_get_prompt_templates(db: Session, db_prompt_template, template_data):
     )
 
     # Test filtering by inactive status
-    inactive_templates = crud_ai_completion.get_prompt_templates(
+    inactive_templates = crud_llm_completion.get_prompt_templates(
         db,
         is_active=False
     )
@@ -303,7 +304,7 @@ def test_update_prompt_template(db: Session, db_prompt_template):
     import time
     time.sleep(0.01)
 
-    updated = crud_ai_completion.update_prompt_template(
+    updated = crud_llm_completion.update_prompt_template(
         db,
         db_prompt_template.id,
         name="Updated Template Name",
@@ -326,21 +327,21 @@ def test_update_prompt_template(db: Session, db_prompt_template):
 
 def test_delete_prompt_template(db: Session, db_prompt_template):
     """Test deleting a prompt template"""
-    result = crud_ai_completion.delete_prompt_template(db, db_prompt_template.id)
+    result = crud_llm_completion.delete_prompt_template(db, db_prompt_template.id)
     assert result is True
 
     # Verify template was deleted
-    retrieved = crud_ai_completion.get_prompt_template(db, db_prompt_template.id)
+    retrieved = crud_llm_completion.get_prompt_template(db, db_prompt_template.id)
     assert retrieved is None
 
     # Test deleting non-existent template
-    result = crud_ai_completion.delete_prompt_template(db, 9999)
+    result = crud_llm_completion.delete_prompt_template(db, 9999)
     assert result is False
 
 
 def test_create_ai_completion(db: Session, db_prompt_template, completion_data, db_company, db_filing):
     """Test creating an AI completion"""
-    completion = crud_ai_completion.create_ai_completion(
+    completion = crud_llm_completion.create_ai_completion(
         db=db,
         prompt_template_id=db_prompt_template.id,
         system_prompt=completion_data["system_prompt"],
@@ -369,7 +370,7 @@ def test_create_ai_completion(db: Session, db_prompt_template, completion_data, 
 
 def test_get_ai_completion(db: Session, db_completion):
     """Test retrieving an AI completion by ID"""
-    retrieved = crud_ai_completion.get_ai_completion(db, db_completion.id)
+    retrieved = crud_llm_completion.get_ai_completion(db, db_completion.id)
 
     assert retrieved is not None
     assert retrieved.id == db_completion.id
@@ -382,14 +383,14 @@ def test_get_ai_completions_with_filtering(db: Session, db_completion, db_comple
                                           db_company, db_source_document):
     """Test retrieving AI completions with filtering"""
     # Test filtering by company ID
-    company_completions = crud_ai_completion.get_ai_completions(
+    company_completions = crud_llm_completion.get_ai_completions(
         db,
         company_id=db_company.id
     )
     assert len(company_completions) == 2
 
     # Test filtering by source document ID
-    doc_completions = crud_ai_completion.get_ai_completions(
+    doc_completions = crud_llm_completion.get_ai_completions(
         db,
         source_document_id=db_source_document.id
     )
@@ -397,14 +398,14 @@ def test_get_ai_completions_with_filtering(db: Session, db_completion, db_comple
     assert doc_completions[0].id == db_completion_with_relations.id
 
     # Test filtering by tags
-    tag_completions = crud_ai_completion.get_ai_completions(
+    tag_completions = crud_llm_completion.get_ai_completions(
         db,
         tags=["apple"]
     )
     assert len(tag_completions) == 2
 
     # Test filtering by model
-    model_completions = crud_ai_completion.get_ai_completions(
+    model_completions = crud_llm_completion.get_ai_completions(
         db,
         model=db_completion.model
     )
@@ -414,7 +415,7 @@ def test_get_ai_completions_with_filtering(db: Session, db_completion, db_comple
 def test_create_completion_with_source_documents(db: Session, db_prompt_template, completion_data,
                                                db_company, db_filing, db_source_document):
     """Test creating a completion with source document relationships"""
-    completion = crud_ai_completion.create_ai_completion(
+    completion = crud_llm_completion.create_ai_completion(
         db=db,
         prompt_template_id=db_prompt_template.id,
         system_prompt=completion_data["system_prompt"],
@@ -434,14 +435,14 @@ def test_create_completion_with_source_documents(db: Session, db_prompt_template
 def test_completion_self_referential_relationship(db: Session, db_completion_chain):
     """Test self-referential relationship between completions"""
     # Get the parent completion
-    parent = crud_ai_completion.get_ai_completion(db, db_completion_chain.context_completions[0].id)
+    parent = crud_llm_completion.get_ai_completion(db, db_completion_chain.context_completions[0].id)
 
     # Verify bidirectional relationship
     assert len(parent.used_as_context_by) == 1
     assert parent.used_as_context_by[0].id == db_completion_chain.id
 
     # Test querying by context completion
-    context_filtered = crud_ai_completion.get_ai_completions(
+    context_filtered = crud_llm_completion.get_ai_completions(
         db,
         context_completion_id=parent.id
     )
@@ -449,7 +450,7 @@ def test_completion_self_referential_relationship(db: Session, db_completion_cha
     assert context_filtered[0].id == db_completion_chain.id
 
     # Test querying by "used as context by"
-    used_as_context_filtered = crud_ai_completion.get_ai_completions(
+    used_as_context_filtered = crud_llm_completion.get_ai_completions(
         db,
         used_as_context_by_completion_id=db_completion_chain.id
     )
@@ -459,7 +460,7 @@ def test_completion_self_referential_relationship(db: Session, db_completion_cha
 
 def test_create_completion_rating(db: Session, db_completion, rating_data):
     """Test creating a completion rating"""
-    rating = crud_ai_completion.create_completion_rating(
+    rating = crud_llm_completion.create_completion_rating(
         db=db,
         completion_id=db_completion.id,
         rating=rating_data["rating"],
@@ -484,14 +485,14 @@ def test_create_completion_rating(db: Session, db_completion, rating_data):
 def test_get_completion_rating(db: Session, db_completion, rating_data):
     """Test retrieving a completion rating"""
     # Create a rating
-    rating = crud_ai_completion.create_completion_rating(
+    rating = crud_llm_completion.create_completion_rating(
         db=db,
         completion_id=db_completion.id,
         **rating_data
     )
 
     # Retrieve the rating
-    retrieved = crud_ai_completion.get_completion_rating(db, rating.id)
+    retrieved = crud_llm_completion.get_completion_rating(db, rating.id)
 
     assert retrieved is not None
     assert retrieved.id == rating.id
@@ -503,7 +504,7 @@ def test_get_completion_rating(db: Session, db_completion, rating_data):
 def test_get_completion_ratings_with_filtering(db: Session, db_completion, rating_data):
     """Test retrieving completion ratings with filtering"""
     # Create two ratings for the same completion
-    rating1 = crud_ai_completion.create_completion_rating(
+    rating1 = crud_llm_completion.create_completion_rating(
         db=db,
         completion_id=db_completion.id,
         rating=5,
@@ -513,7 +514,7 @@ def test_get_completion_ratings_with_filtering(db: Session, db_completion, ratin
         comments="Excellent analysis"
     )
 
-    rating2 = crud_ai_completion.create_completion_rating(
+    rating2 = crud_llm_completion.create_completion_rating(
         db=db,
         completion_id=db_completion.id,
         rating=3,
@@ -524,14 +525,14 @@ def test_get_completion_ratings_with_filtering(db: Session, db_completion, ratin
     )
 
     # Test filtering by completion ID
-    completion_ratings = crud_ai_completion.get_completion_ratings(
+    completion_ratings = crud_llm_completion.get_completion_ratings(
         db,
         completion_id=db_completion.id
     )
     assert len(completion_ratings) == 2
 
     # Test filtering by minimum rating
-    high_ratings = crud_ai_completion.get_completion_ratings(
+    high_ratings = crud_llm_completion.get_completion_ratings(
         db,
         completion_id=db_completion.id,
         min_rating=4
@@ -543,7 +544,7 @@ def test_get_completion_ratings_with_filtering(db: Session, db_completion, ratin
 def test_update_completion_rating(db: Session, db_completion, rating_data):
     """Test updating a completion rating"""
     # Create a rating
-    rating = crud_ai_completion.create_completion_rating(
+    rating = crud_llm_completion.create_completion_rating(
         db=db,
         completion_id=db_completion.id,
         **rating_data
@@ -557,7 +558,7 @@ def test_update_completion_rating(db: Session, db_completion, rating_data):
     time.sleep(0.01)
 
     # Update the rating
-    updated = crud_ai_completion.update_completion_rating(
+    updated = crud_llm_completion.update_completion_rating(
         db,
         rating.id,
         rating=2,
@@ -579,7 +580,7 @@ def test_update_completion_rating(db: Session, db_completion, rating_data):
 def test_relationship_cascade_delete(db: Session, db_completion, rating_data):
     """Test that ratings are deleted when a completion is deleted"""
     # Create a rating for the completion
-    rating = crud_ai_completion.create_completion_rating(
+    rating = crud_llm_completion.create_completion_rating(
         db=db,
         completion_id=db_completion.id,
         **rating_data
@@ -590,5 +591,120 @@ def test_relationship_cascade_delete(db: Session, db_completion, rating_data):
     db.commit()
 
     # Verify rating was also deleted
-    retrieved_rating = crud_ai_completion.get_completion_rating(db, rating.id)
+    retrieved_rating = crud_llm_completion.get_completion_rating(db, rating.id)
     assert retrieved_rating is None
+
+
+def test_get_completion_dependency_chain(db: Session, db_prompt_template, db_completion):
+    """Test retrieving the dependency chain of completions"""
+    # Create a chain of completions: original -> followup1 -> followup2
+    followup1 = crud_llm_completion.create_ai_completion(
+        db=db,
+        prompt_template_id=db_prompt_template.id,
+        system_prompt="You are a follow-up analyst.",
+        user_prompt="Provide more detail on the previous analysis.",
+        completion_text="Building on the previous analysis, here's more detail...",
+        model="gpt-4",
+        temperature=0.3,
+        max_tokens=1500,
+        context_completion_ids=[db_completion.id],
+        tags=["followup1"]
+    )
+
+    followup2 = crud_llm_completion.create_ai_completion(
+        db=db,
+        prompt_template_id=db_prompt_template.id,
+        system_prompt="You are a deep-dive analyst.",
+        user_prompt="Go deeper on the follow-up analysis.",
+        completion_text="Diving deeper into the analysis...",
+        model="gpt-4",
+        temperature=0.2,
+        max_tokens=1500,
+        context_completion_ids=[followup1.id],
+        tags=["followup2"]
+    )
+
+    # Test getting dependency chain starting from the original completion
+    chain = crud_llm_completion.get_completion_dependency_chain(db, db_completion.id)
+
+    # Check structure
+    assert chain["id"] == db_completion.id
+    assert "used_as_context_by" in chain
+    assert len(chain["used_as_context_by"]) == 1
+    assert chain["used_as_context_by"][0]["id"] == followup1.id
+
+    # Test getting dependency chain starting from the middle completion
+    chain = crud_llm_completion.get_completion_dependency_chain(db, followup1.id)
+
+    # Check both directions in the chain
+    assert chain["id"] == followup1.id
+    assert len(chain["context_completions"]) == 1
+    assert chain["context_completions"][0]["id"] == db_completion.id
+    assert len(chain["used_as_context_by"]) == 1
+    assert chain["used_as_context_by"][0]["id"] == followup2.id
+
+    # Test with limited depth
+    shallow_chain = crud_llm_completion.get_completion_dependency_chain(db, followup1.id, max_depth=0)
+
+    # With max_depth=0, shouldn't have any dependencies
+    assert shallow_chain["id"] == followup1.id
+    assert len(shallow_chain["context_completions"]) == 0
+    assert len(shallow_chain["used_as_context_by"]) == 0
+
+
+def test_rate_completion(db: Session, db_completion):
+    """Test rating a completion"""
+    # Rate a completion
+    rating = crud_llm_completion.rate_completion(
+        db=db,
+        completion_id=db_completion.id,
+        rating=4,
+        accuracy_score=5,
+        relevance_score=4,
+        helpfulness_score=3,
+        comments="Very accurate analysis but could be more helpful"
+    )
+
+    # Check the rating was created correctly
+    assert rating is not None
+    assert rating.id is not None
+    assert rating.completion_id == db_completion.id
+    assert rating.rating == 4
+    assert rating.accuracy_score == 5
+    assert rating.relevance_score == 4
+    assert rating.helpfulness_score == 3
+    assert rating.comments == "Very accurate analysis but could be more helpful"
+
+    # Get the rating via standard retrieval
+    retrieved_rating = crud_llm_completion.get_completion_rating(db, rating.id)
+    assert retrieved_rating is not None
+    assert retrieved_rating.id == rating.id
+
+    # Test that ratings are linked to the completion
+    ratings = crud_llm_completion.get_completion_ratings(db, completion_id=db_completion.id)
+    assert len(ratings) == 1
+    assert ratings[0].id == rating.id
+
+
+def test_rate_completion_nonexistent(db: Session):
+    """Test rating a completion that doesn't exist"""
+    # Try to rate a completion that doesn't exist
+    with pytest.raises(ValueError) as excinfo:
+        crud_llm_completion.rate_completion(
+            db=db,
+            completion_id=9999,
+            rating=4
+        )
+
+    # Check error message
+    assert "Completion with ID 9999 not found" in str(excinfo.value)
+
+
+def test_get_completion_dependency_chain_nonexistent(db: Session):
+    """Test getting dependency chain for a completion that doesn't exist"""
+    # Try to get a dependency chain for a completion that doesn't exist
+    with pytest.raises(ValueError) as excinfo:
+        crud_llm_completion.get_completion_dependency_chain(db, 9999)
+
+    # Check error message
+    assert "Completion with ID 9999 not found" in str(excinfo.value)

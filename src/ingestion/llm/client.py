@@ -7,15 +7,17 @@ This module provides functionality to:
 3. Process and return responses
 """
 
-import logging
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
 from pydantic import BaseModel, Field
 
+from src.ingestion.utils.logging import get_logger
+
 from ..config import settings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
 
 
 class Message(BaseModel):
@@ -62,7 +64,17 @@ class OpenAIClient:
     def __init__(self):
         """Initialize the OpenAI client with configuration from settings."""
         self.base_url = f"http://{settings.openai.open_ai_host}:{settings.openai.open_ai_port}"
-        self.client = httpx.Client(timeout=60.0)  # 60 second timeout
+        self.client = httpx.Client(timeout=300.0)  # 60 second timeout
+        # Test connection and log endpoint
+        logger.info(f"Initialized OpenAI client with endpoint: {self.base_url}")
+        try:
+            # Test API connectivity
+            response = self.client.get(f"{self.base_url}/v1/models")
+            response.raise_for_status()
+            logger.info("Successfully verified connection to OpenAI API")
+        except httpx.HTTPError as e:
+            logger.warning(f"Could not verify connection to OpenAI API: {e}")
+            logger.warning("Requests may fail if the API is not available")
 
     def create_completion(self, request: CompletionRequest) -> CompletionResponse:
         """
@@ -118,19 +130,25 @@ class OpenAIClient:
         Returns:
             The generated text from the completion
         """
+        # Start with the system message (instructions to the AI)
         messages = [
             Message(role="system", content=system_prompt),
         ]
 
-        # Add context messages if provided
+        # Prepare the user prompt with context if provided
         if context_texts:
-            for context in context_texts:
-                messages.append(Message(role="user", content=context))
-                # Add an empty assistant response to maintain the conversation flow
-                messages.append(Message(role="assistant", content="I've received this information."))
+            # First add the context to the system prompt instead of as a separate message
+            # This ensures the model treats it as background information rather than part of the conversation
+            context_formatted = "\n\n".join([
+                f"CONTEXT INFORMATION:\n{context}" for context in context_texts
+            ])
 
-        # Add the main user prompt
-        messages.append(Message(role="user", content=user_prompt))
+            # Combine context with the user prompt so it's all in one message
+            full_prompt = f"{context_formatted}\n\n---\n\nUSER QUERY:\n{user_prompt}"
+            messages.append(Message(role="user", content=full_prompt))
+        else:
+            # Just add the user prompt without any context
+            messages.append(Message(role="user", content=user_prompt))
 
         request = CompletionRequest(
             messages=messages,
@@ -138,6 +156,8 @@ class OpenAIClient:
             max_tokens=max_tokens,
             **kwargs
         )
+
+        logger.info(f"Sending completion request with {len(messages)} messages, temperature={temperature}")
 
         response = self.create_completion(request)
 

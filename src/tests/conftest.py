@@ -15,6 +15,9 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Set PYTHONPATH for consistent imports between tests and coverage
+# os.environ["PYTHONPATH"] = project_root
+
 # Import the models and settings
 from src.ingestion.database.models import Base
 from src.ingestion.config import settings

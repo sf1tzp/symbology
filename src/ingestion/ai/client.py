@@ -7,7 +7,6 @@ This module provides functionality to:
 3. Process and return responses
 """
 
-import json
 import logging
 from typing import Any, Dict, List, Optional, Union
 

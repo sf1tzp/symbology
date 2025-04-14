@@ -7,11 +7,11 @@ This module provides:
 3. Utilities for storing and retrieving prompt history
 """
 
-import logging
 from enum import Enum
-from typing import Dict, List, Optional
+import logging
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class PromptTemplate(BaseModel):
             return self.user_prompt_template.format(**kwargs)
         except KeyError as e:
             logger.error(f"Missing required parameter in prompt template: {e}")
-            raise ValueError(f"Missing required parameter: {e}")
+            raise ValueError(f"Missing required parameter: {e}") from e
 
 
 # System prompt templates for different analysis types

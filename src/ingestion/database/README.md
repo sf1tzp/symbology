@@ -1,3 +1,57 @@
+# Database Structure
+
+## Overview
+
+The Symbology database uses SQLAlchemy ORM with PostgreSQL to store financial data, company information, and AI-related data. The database is organized into several key areas:
+
+1. **Company & Filing Data**: Core entities representing companies and their SEC filings
+2. **Financial Statements**: Structured financial data extracted from XBRL filings
+3. **Source Documents**: Full-text documents extracted from company filings
+4. **AI Infrastructure**: Prompts, completions, and user feedback for AI-generated analysis
+
+## Entity Relationships
+
+```
+Company 1──┐
+           │
+           ├─N Filing 1──┐
+           │             │
+           │             ├─N SourceDocument
+           │             │
+           │             ├─N BalanceSheetValue
+           │             │
+           │             ├─N IncomeStatementValue
+           │             │
+           │             └─N CashFlowStatementValue
+           │
+           ├─N BalanceSheetValue
+           │
+           ├─N IncomeStatementValue
+           │
+           └─N CashFlowStatementValue
+```
+
+```
+PromptTemplate 1───N AICompletion N───M SourceDocument
+                              │
+                              ├───N CompletionRating
+                              │
+                              └───M AICompletion (self-referential)
+```
+
+## Key Models
+
+- **Company**: Company information (CIK, name, tickers, exchange, etc.)
+- **Filing**: SEC filing metadata (type, date, accession number)
+- **FinancialConcept**: Financial concepts like revenue, assets, etc.
+- **Statement Models**: Balance sheet, income statement, cash flow statement values
+- **SourceDocument**: Full-text documents from filings
+- **PromptTemplate**: Customizable templates for AI queries
+- **AICompletion**: Generated AI text with metadata and parameters
+- **CompletionRating**: User feedback on AI-generated content
+
+## Notes on Implementation
+
 # Why use Raw SQL in some crud functions?
 
 Raw SQL is used in the `get_balance_sheet_by_date()` and `get_income_statement_by_date()` functions for performance reasons:

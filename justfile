@@ -17,10 +17,10 @@ run *ARGS: _create_venv
     uv run run.py {{ARGS}}
 
 test: _create_venv
-    uv run -m pytest --cov=src.python src/tests
+    uv run -m pytest --cov=src.ingestion src/tests
 
 lint *FLAGS:
-    ~/.local/share/nvim/mason/bin/ruff check src/python {{FLAGS}}
+    ~/.local/share/nvim/mason/bin/ruff check src/ingestion {{FLAGS}}
 
 start-db: _generate-pgadmin-config
     #!/usr/bin/env bash

@@ -2,10 +2,10 @@ import datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from src.python.database import crud_business_description
-from src.python.database import crud_company
-from src.python.database import crud_filing
-from src.python.database.models import BusinessDescription
+from src.ingestion.database import crud_business_description
+from src.ingestion.database import crud_company
+from src.ingestion.database import crud_filing
+from src.ingestion.database.models import BusinessDescription
 
 
 @pytest.fixture

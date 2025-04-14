@@ -5,9 +5,9 @@ import pytest
 from datetime import datetime
 import pandas as pd
 
-from src.python.database.crud_company import create_company
-from src.python.database.crud_filing import create_filing
-from src.python.database.crud_financial_concepts import get_or_create_financial_concept
+from src.ingestion.database.crud_company import create_company
+from src.ingestion.database.crud_filing import create_filing
+from src.ingestion.database.crud_financial_concepts import get_or_create_financial_concept
 
 
 @pytest.fixture

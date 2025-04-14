@@ -1,13 +1,13 @@
 import argparse
 import sys
 
-from src.python.config import settings
-from src.python.database.base import close_session, get_db_session, init_db
-from src.python.database.crud_business_description import get_business_descriptions_by_company_id
-from src.python.database.crud_company import get_companies_by_ticker, upsert_company
-from src.python.ingestion.edgar import debug_company, edgar_login, get_company
-from src.python.ten_k import batch_process_10k_filings, process_10k_filing
-from src.python.utils.logging import configure_logging, get_logger
+from ingestion.edgar.accessors import edgar_login, get_company
+from src.ingestion.config import settings
+from src.ingestion.database.base import close_session, get_db_session, init_db
+from src.ingestion.database.crud_business_description import get_business_descriptions_by_company_id
+from src.ingestion.database.crud_company import get_companies_by_ticker, upsert_company
+from src.ingestion.ten_k import batch_process_10k_filings, process_10k_filing
+from src.ingestion.utils.logging import configure_logging, get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)
@@ -73,7 +73,7 @@ def run_demo():
     # Get company information for MSFT
     company = get_company(ticker)
     logger.info(f"Retrieved company data for MSFT: {company.name}")
-    logger.debug(debug_company(company))
+    logger.debug(company)
 
     # Initialize the database (create tables if they don't exist)
     # Pass the database URL from settings instead of importing settings in the database module

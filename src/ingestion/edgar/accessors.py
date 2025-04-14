@@ -1,5 +1,4 @@
 from datetime import datetime
-import json
 from typing import List, Optional
 
 from edgar import Company, EntityData, Filing, get_filings, set_identity
@@ -8,14 +7,34 @@ import pandas as pd
 
 
 def edgar_login(edgar_contact: str) -> None:
+    """
+    Set the identity for accessing EDGAR database.
+
+    The SEC EDGAR system requires a valid email contact for API access.
+
+    Args:
+        edgar_contact: Email address to identify requests to SEC
+    """
     set_identity(edgar_contact)
 
-def get_company(ticker: str) -> EntityData:  # Returns edgar.Company
+def get_company(ticker: str) -> EntityData:
+    """
+    Retrieve company information from EDGAR using its ticker symbol.
+
+    Args:
+        ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT')
+
+    Returns:
+        EntityData object containing company information
+    """
     return Company(ticker)
 
 def get_10k_filing(company: EntityData, year: int) -> Optional[Filing]:
     """
     Retrieve a 10-K filing for the specified year.
+
+    10-K filings are comprehensive annual reports that public companies must file with the SEC,
+    containing detailed financial information and business disclosures.
 
     Args:
         company: A Company object from the edgar package
@@ -113,12 +132,38 @@ def get_income_statement_values(filing: Filing) -> pd.DataFrame:
     return _process_xbrl_dataframe(df, filing, columns_to_drop=['level', 'abstract', 'dimension'])
 
 def get_cash_flow_statement_values(filing: Filing) -> pd.DataFrame:
+    """
+    Extract cash flow statement values from a filing.
+
+    The cash flow statement shows how changes in balance sheet accounts and
+    income affect cash and cash equivalents, categorized by operating, investing,
+    and financing activities.
+
+    Args:
+        filing: Filing object from edgar package
+
+    Returns:
+        DataFrame containing cash flow data for the filing's year
+    """
     xbrl = XBRL.from_filing(filing)
     df = xbrl.statements.cash_flow_statement().to_dataframe()
-    # Income statement uses slightly different columns to drop
+    # Cash flow statement uses slightly different columns to drop
     return _process_xbrl_dataframe(df, filing, columns_to_drop=['level', 'abstract', 'dimension'])
 
 def get_cover_page_values(filing: Filing) -> pd.DataFrame:
+    """
+    Extract cover page information from a filing.
+
+    The cover page contains summary information about the filing and company,
+    such as the company name, fiscal year end, filing date, and other
+    identifying information.
+
+    Args:
+        filing: Filing object from edgar package
+
+    Returns:
+        DataFrame containing cover page data for the filing
+    """
     xbrl = XBRL.from_filing(filing)
     df = xbrl.statements["CoverPage"].to_dataframe()
 
@@ -155,6 +200,9 @@ def get_risk_factors(filing: Filing) -> Optional[str]:
     """
     Extract the risk factors section from a 10-K filing.
 
+    Risk factors typically discuss significant risks that could adversely affect
+    the company's business, financial condition, or future results.
+
     Args:
         filing: A Filing object from the edgar package
 
@@ -168,6 +216,9 @@ def get_management_discussion(filing: Filing) -> Optional[str]:
     """
     Extract the management's discussion and analysis (MD&A) section from a 10-K filing.
 
+    MD&A provides information about the company's financial condition,
+    changes in financial condition, and results of operations from management's perspective.
+
     Args:
         filing: A Filing object from the edgar package
 
@@ -177,14 +228,15 @@ def get_management_discussion(filing: Filing) -> Optional[str]:
     filing_obj = filing.obj()
     return filing_obj.management_discussion if hasattr(filing_obj, 'management_discussion') else None
 
-def debug_company(company: Company) -> None:
-    filtered = { k: v for k, v in company.__dict__.items() if k != "filings" }
-    print(json.dumps(filtered, indent=2, default=str))
+def _year_from_period_of_report(filing: Filing) -> int:
+    """
+    Extract the calendar year from a filing's period of report date.
 
-def debug_filing(filing: Filing) -> None:
-    filtered = { k: v for k, v in filing.__dict__.items() if k != "filings" }
-    print(json.dumps(filtered, indent=2, default=str))
+    Args:
+        filing: A Filing object containing period_of_report date in 'YYYY-MM-DD' format
 
-def year_from_period_of_report(filing: Filing) -> int:
+    Returns:
+        The year as an integer
+    """
     date = datetime.strptime(filing.period_of_report, '%Y-%m-%d')
     return date.year

@@ -1,14 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Union
 
-from src.python.database.base import get_db_session
-from src.python.database.crud_business_description import create_business_description
-from src.python.database.crud_company import upsert_company
-from src.python.database.crud_filing import create_filing, get_filing_by_accession_number
-from src.python.database.crud_management_discussion import create_management_discussion
-from src.python.database.crud_risk_factors import create_risk_factors
-from src.python.financial_processing import store_balance_sheet_data, store_cash_flow_statement_data, store_cover_page_data, store_income_statement_data
-from src.python.ingestion.edgar import (
+from ingestion.edgar.accessors import (
     edgar_login,
     get_10k_filing,
     get_balance_sheet_values,
@@ -20,7 +13,14 @@ from src.python.ingestion.edgar import (
     get_management_discussion,
     get_risk_factors,
 )
-from src.python.utils.logging import get_logger, log_exception
+from src.ingestion.database.base import get_db_session
+from src.ingestion.database.crud_business_description import create_business_description
+from src.ingestion.database.crud_company import upsert_company
+from src.ingestion.database.crud_filing import create_filing, get_filing_by_accession_number
+from src.ingestion.database.crud_management_discussion import create_management_discussion
+from src.ingestion.database.crud_risk_factors import create_risk_factors
+from src.ingestion.financial_processing import store_balance_sheet_data, store_cash_flow_statement_data, store_cover_page_data, store_income_statement_data
+from src.ingestion.utils.logging import get_logger, log_exception
 
 # Initialize structlog
 logger = get_logger(__name__)

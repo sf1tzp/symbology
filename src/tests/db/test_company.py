@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 # Use absolute imports for test files
-from src.python.database.crud_company import (
+from src.ingestion.database.crud_company import (
     create_company,
     delete_company,
     get_all_companies,

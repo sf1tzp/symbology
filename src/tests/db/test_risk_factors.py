@@ -2,10 +2,10 @@ import datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from src.python.database import crud_risk_factors
-from src.python.database import crud_company
-from src.python.database import crud_filing
-from src.python.database.models import RiskFactors
+from src.ingestion.database import crud_risk_factors
+from src.ingestion.database import crud_company
+from src.ingestion.database import crud_filing
+from src.ingestion.database.models import RiskFactors
 
 
 @pytest.fixture

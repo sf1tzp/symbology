@@ -3,8 +3,8 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 # Use absolute imports for test files
-from src.python.database.crud_company import create_company
-from src.python.database.crud_filing import (
+from src.ingestion.database.crud_company import create_company
+from src.ingestion.database.crud_filing import (
     create_filing,
     delete_filing,
     get_all_filings,
@@ -16,7 +16,7 @@ from src.python.database.crud_filing import (
     update_filing,
     upsert_filing,
 )
-from src.python.database.models import Company
+from src.ingestion.database.models import Company
 
 
 class TestFiling:

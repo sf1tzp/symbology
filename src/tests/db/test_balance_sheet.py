@@ -5,13 +5,13 @@ import pytest
 from datetime import datetime, timedelta
 import pandas as pd
 
-from src.python.database.crud_balance_sheet import (
+from src.ingestion.database.crud_balance_sheet import (
     store_balance_sheet_value,
     get_balance_sheet_values_by_company,
     get_balance_sheet_by_date
 )
-from src.python.financial_processing import process_balance_sheet_dataframe
-from src.python.database.models import (
+from src.ingestion.financial_processing import process_balance_sheet_dataframe
+from src.ingestion.database.models import (
     FinancialConcept,
     BalanceSheetValue
 )

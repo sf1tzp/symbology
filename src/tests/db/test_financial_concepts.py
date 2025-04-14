@@ -4,11 +4,11 @@ Tests for financial concepts operations.
 import pytest
 from datetime import datetime
 
-from src.python.database.crud_financial_concepts import (
+from src.ingestion.database.crud_financial_concepts import (
     get_all_concepts,
     get_or_create_financial_concept
 )
-from src.python.database.models import (
+from src.ingestion.database.models import (
     FinancialConcept
 )
 
@@ -47,7 +47,7 @@ class TestFinancialConcepts:
     def test_get_all_concepts(self, db_session, test_company, test_filing, sample_balance_sheet_df):
         """Test retrieving all financial concepts."""
         # First, process the dataframe to create concepts
-        from src.python.financial_processing import process_balance_sheet_dataframe
+        from src.ingestion.financial_processing import process_balance_sheet_dataframe
         process_balance_sheet_dataframe(
             company_id=test_company.id,
             filing_id=test_filing.id,

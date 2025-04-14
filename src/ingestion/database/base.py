@@ -3,7 +3,7 @@ from typing import Tuple
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
 
-from src.python.utils.logging import get_logger
+from src.ingestion.utils.logging import get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)

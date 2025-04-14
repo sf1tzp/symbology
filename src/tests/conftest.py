@@ -16,8 +16,8 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the models and settings
-from src.python.database.models import Base
-from src.python.config import settings
+from src.ingestion.database.models import Base
+from src.ingestion.config import settings
 
 # Use PostgreSQL for testing with a separate test database
 TEST_DATABASE_NAME = "symbology-test"

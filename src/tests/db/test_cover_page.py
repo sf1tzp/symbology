@@ -5,13 +5,13 @@ import pytest
 from datetime import datetime, timedelta
 import pandas as pd
 
-from src.python.database.crud_cover_page import (
+from src.ingestion.database.crud_cover_page import (
     store_cover_page_value,
     get_cover_page_values_by_company,
     get_cover_page_by_date
 )
-from src.python.financial_processing import process_cover_page_dataframe
-from src.python.database.models import (
+from src.ingestion.financial_processing import process_cover_page_dataframe
+from src.ingestion.database.models import (
     FinancialConcept,
     CoverPageValue
 )

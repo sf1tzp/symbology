@@ -8,15 +8,15 @@ from typing import Any, Dict, Optional
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from src.python.database import (
+from src.ingestion.database import (
     get_or_create_financial_concept,
     store_balance_sheet_value,
     store_cash_flow_statement_value,
     store_cover_page_value,
     store_income_statement_value,
 )
-from src.python.database.models import Company, Filing
-from src.python.utils.logging import get_logger
+from src.ingestion.database.models import Company, Filing
+from src.ingestion.utils.logging import get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)
@@ -38,7 +38,7 @@ def process_balance_sheet_dataframe(
     Returns:
         Summary of processing results
     """
-    from src.python.database.base import get_db_session
+    from src.ingestion.database.base import get_db_session
     session = session or get_db_session()
 
     results = {
@@ -114,7 +114,7 @@ def process_income_statement_dataframe(
     Returns:
         Summary of processing results
     """
-    from src.python.database.base import get_db_session
+    from src.ingestion.database.base import get_db_session
     session = session or get_db_session()
 
     results = {
@@ -190,7 +190,7 @@ def process_cash_flow_statement_dataframe(
     Returns:
         Summary of processing results
     """
-    from src.python.database.base import get_db_session
+    from src.ingestion.database.base import get_db_session
     session = session or get_db_session()
 
     results = {
@@ -266,7 +266,7 @@ def process_cover_page_dataframe(
     Returns:
         Summary of processing results
     """
-    from src.python.database.base import get_db_session
+    from src.ingestion.database.base import get_db_session
     session = session or get_db_session()
 
     results = {
@@ -345,7 +345,7 @@ def store_balance_sheet_data(edgar_filing: Any, db_company: Company, db_filing: 
     """
     try:
         # Get balance sheet dataframe
-        from src.python.ingestion.edgar import get_balance_sheet_values
+        from ingestion.edgar.accessors import get_balance_sheet_values
         balance_sheet_df = get_balance_sheet_values(edgar_filing)
 
         # Process and store in database
@@ -376,7 +376,7 @@ def store_income_statement_data(edgar_filing: Any, db_company: Company, db_filin
     """
     try:
         # Get income statement dataframe
-        from src.python.ingestion.edgar import get_income_statement_values
+        from ingestion.edgar.accessors import get_income_statement_values
         income_stmt_df = get_income_statement_values(edgar_filing)
 
         # Process and store in database using our specialized income statement function
@@ -407,7 +407,7 @@ def store_cash_flow_statement_data(edgar_filing: Any, db_company: Company, db_fi
     """
     try:
         # Get cash flow statement dataframe
-        from src.python.ingestion.edgar import get_cash_flow_statement_values
+        from ingestion.edgar.accessors import get_cash_flow_statement_values
         cash_flow_stmt_df = get_cash_flow_statement_values(edgar_filing)
 
         # Process and store in database
@@ -438,7 +438,7 @@ def store_cover_page_data(edgar_filing: Any, db_company: Company, db_filing: Fil
     """
     try:
         # Get cover page dataframe
-        from src.python.ingestion.edgar import get_cover_page_values
+        from ingestion.edgar.accessors import get_cover_page_values
         cover_page_df = get_cover_page_values(edgar_filing)
 
         # Process and store in database

@@ -5,13 +5,13 @@ import pytest
 from datetime import datetime, timedelta
 import pandas as pd
 
-from src.python.database.crud_cash_flow import (
+from src.ingestion.database.crud_cash_flow import (
     store_cash_flow_statement_value,
     get_cash_flow_statement_values_by_company,
     get_cash_flow_statement_by_date
 )
-from src.python.financial_processing import process_cash_flow_statement_dataframe
-from src.python.database.models import (
+from src.ingestion.financial_processing import process_cash_flow_statement_dataframe
+from src.ingestion.database.models import (
     FinancialConcept,
     CashFlowStatementValue
 )

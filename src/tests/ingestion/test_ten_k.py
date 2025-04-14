@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 from datetime import datetime
 
-from src.python.ten_k import process_10k_filing, batch_process_10k_filings
+from src.ingestion.ten_k import process_10k_filing, batch_process_10k_filings
 
 
 class TestTenK:
@@ -74,27 +74,27 @@ class TestTenK:
             'cover_page': cover_page
         }
 
-    @patch('src.python.ten_k.edgar_login')
-    @patch('src.python.ten_k.get_company')
-    @patch('src.python.ten_k.get_10k_filing')
-    @patch('src.python.ten_k.get_filing_by_accession_number')
-    @patch('src.python.ten_k.upsert_company')
-    @patch('src.python.ten_k.create_filing')
-    @patch('src.python.ten_k.get_balance_sheet_values')
-    @patch('src.python.ten_k.store_balance_sheet_data')
-    @patch('src.python.ten_k.get_income_statement_values')
-    @patch('src.python.ten_k.store_income_statement_data')
-    @patch('src.python.ten_k.get_cash_flow_statement_values')
-    @patch('src.python.ten_k.store_cash_flow_statement_data')
-    @patch('src.python.ten_k.get_cover_page_values')
-    @patch('src.python.ten_k.store_cover_page_data')
-    @patch('src.python.ten_k.get_business_description')
-    @patch('src.python.ten_k.create_business_description')
-    @patch('src.python.ten_k.get_risk_factors')
-    @patch('src.python.ten_k.create_risk_factors')
-    @patch('src.python.ten_k.get_management_discussion')
-    @patch('src.python.ten_k.create_management_discussion')
-    @patch('src.python.ten_k.get_db_session')
+    @patch('src.ingestion.ten_k.edgar_login')
+    @patch('src.ingestion.ten_k.get_company')
+    @patch('src.ingestion.ten_k.get_10k_filing')
+    @patch('src.ingestion.ten_k.get_filing_by_accession_number')
+    @patch('src.ingestion.ten_k.upsert_company')
+    @patch('src.ingestion.ten_k.create_filing')
+    @patch('src.ingestion.ten_k.get_balance_sheet_values')
+    @patch('src.ingestion.ten_k.store_balance_sheet_data')
+    @patch('src.ingestion.ten_k.get_income_statement_values')
+    @patch('src.ingestion.ten_k.store_income_statement_data')
+    @patch('src.ingestion.ten_k.get_cash_flow_statement_values')
+    @patch('src.ingestion.ten_k.store_cash_flow_statement_data')
+    @patch('src.ingestion.ten_k.get_cover_page_values')
+    @patch('src.ingestion.ten_k.store_cover_page_data')
+    @patch('src.ingestion.ten_k.get_business_description')
+    @patch('src.ingestion.ten_k.create_business_description')
+    @patch('src.ingestion.ten_k.get_risk_factors')
+    @patch('src.ingestion.ten_k.create_risk_factors')
+    @patch('src.ingestion.ten_k.get_management_discussion')
+    @patch('src.ingestion.ten_k.create_management_discussion')
+    @patch('src.ingestion.ten_k.get_db_session')
     def test_process_10k_filing_success(
         self,
         mock_get_session,
@@ -185,9 +185,9 @@ class TestTenK:
         mock_get_cp.assert_called_once()
         mock_store_cp.assert_called_once()
 
-    @patch('src.python.ten_k.edgar_login')
-    @patch('src.python.ten_k.get_company')
-    @patch('src.python.ten_k.get_db_session')
+    @patch('src.ingestion.ten_k.edgar_login')
+    @patch('src.ingestion.ten_k.get_company')
+    @patch('src.ingestion.ten_k.get_db_session')
     def test_process_10k_filing_company_not_found(
         self,
         mock_get_session,
@@ -216,7 +216,7 @@ class TestTenK:
         mock_login.assert_called_once()
         mock_get_company.assert_called_once_with("NOTFOUND")
 
-    @patch('src.python.ten_k.process_10k_filing')
+    @patch('src.ingestion.ten_k.process_10k_filing')
     def test_batch_process_10k_filings(self, mock_process, db_session):
         """Test batch processing of multiple 10-K filings."""
         # For tickers=[AAPL, MSFT] and years=[2022, 2021], we need 4 responses

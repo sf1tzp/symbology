@@ -17,7 +17,7 @@ run: _create_venv
     uv run src/python/main.py
 
 test: _create_venv
-    uv run -m pytest src/tests
+    uv run -m pytest --cov=src.python src/tests
 
 lint fix: # just lint (--fix)
     ~/.local/share/nvim/mason/bin/ruff check src/python "{{fix}}"

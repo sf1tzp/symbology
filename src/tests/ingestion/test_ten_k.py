@@ -89,35 +89,31 @@ class TestTenK:
     @patch('src.ingestion.ten_k.get_cover_page_values')
     @patch('src.ingestion.ten_k.store_cover_page_data')
     @patch('src.ingestion.ten_k.get_business_description')
-    @patch('src.ingestion.ten_k.create_business_description')
+    @patch('src.ingestion.ten_k.create_source_document')
     @patch('src.ingestion.ten_k.get_risk_factors')
-    @patch('src.ingestion.ten_k.create_risk_factors')
     @patch('src.ingestion.ten_k.get_management_discussion')
-    @patch('src.ingestion.ten_k.create_management_discussion')
     @patch('src.ingestion.ten_k.get_db_session')
     def test_process_10k_filing_success(
         self,
         mock_get_session,
-        mock_create_md,
-        mock_get_md,
-        mock_create_rf,
-        mock_get_rf,
-        mock_create_bd,
-        mock_get_bd,
-        mock_store_cp,
-        mock_get_cp,
-        mock_store_cf,
-        mock_get_cf,
-        mock_store_is,
-        mock_get_is,
-        mock_store_bs,
-        mock_get_bs,
+        mock_get_management_discussion,
+        mock_get_risk_factors,
+        mock_create_source_document,
+        mock_get_business_description,
+        mock_store_cover_page_data,
+        mock_get_cover_page_values,
+        mock_store_cash_flow_statement_data,
+        mock_get_cash_flow_statement_values,
+        mock_store_income_statement_data,
+        mock_get_income_statement_values,
+        mock_store_balance_sheet_data,
+        mock_get_balance_sheet_values,
         mock_create_filing,
         mock_upsert_company,
-        mock_get_filing,
-        mock_get_10k,
+        mock_get_filing_by_accession_number,
+        mock_get_10k_filing,
         mock_get_company,
-        mock_login,
+        mock_edgar_login,
         mock_edgar_company,
         mock_edgar_filing,
         mock_financial_data,
@@ -128,10 +124,10 @@ class TestTenK:
         mock_get_session.return_value = db_session
 
         # Configure mocks
-        mock_login.return_value = None
+        mock_edgar_login.return_value = None
         mock_get_company.return_value = mock_edgar_company
-        mock_get_10k.return_value = mock_edgar_filing
-        mock_get_filing.return_value = None  # Filing doesn't exist yet
+        mock_get_10k_filing.return_value = mock_edgar_filing
+        mock_get_filing_by_accession_number.return_value = None  # Filing doesn't exist yet
 
         mock_db_company = MagicMock()
         mock_db_company.id = 1
@@ -142,22 +138,22 @@ class TestTenK:
         mock_create_filing.return_value = mock_db_filing
 
         # Financial data mocks
-        mock_get_bs.return_value = mock_financial_data['balance_sheet']
-        mock_store_bs.return_value = None
-        mock_get_is.return_value = mock_financial_data['income_statement']
-        mock_store_is.return_value = None
-        mock_get_cf.return_value = mock_financial_data['cash_flow']
-        mock_store_cf.return_value = None
-        mock_get_cp.return_value = mock_financial_data['cover_page']
-        mock_store_cp.return_value = None
+        mock_get_balance_sheet_values.return_value = mock_financial_data['balance_sheet']
+        mock_store_balance_sheet_data.return_value = None
+        mock_get_income_statement_values.return_value = mock_financial_data['income_statement']
+        mock_store_income_statement_data.return_value = None
+        mock_get_cash_flow_statement_values.return_value = mock_financial_data['cash_flow']
+        mock_store_cash_flow_statement_data.return_value = None
+        mock_get_cover_page_values.return_value = mock_financial_data['cover_page']
+        mock_store_cover_page_data.return_value = None
 
         # Textual data mocks
-        mock_get_bd.return_value = "Business Description Text"
-        mock_create_bd.return_value = None
-        mock_get_rf.return_value = "Risk Factors Text"
-        mock_create_rf.return_value = None
-        mock_get_md.return_value = "Management Discussion Text"
-        mock_create_md.return_value = None
+        mock_get_business_description.return_value = "Business Description Text"
+        mock_get_risk_factors.return_value = "Risk Factors Text"
+        mock_get_management_discussion.return_value = "Management Discussion Text"
+
+        # Source document creation mock
+        mock_create_source_document.return_value = None
 
         # Call the function
         result = process_10k_filing("TEST", 2022, "test@example.com")
@@ -170,20 +166,25 @@ class TestTenK:
         assert result["filing_id"] == 1
 
         # Verify that all the mocked functions were called
-        mock_login.assert_called_once()
+        mock_edgar_login.assert_called_once()
         mock_get_company.assert_called_once_with("TEST")
-        mock_get_10k.assert_called_once_with(mock_edgar_company, 2022)
-        mock_get_filing.assert_called_once()
+        mock_get_10k_filing.assert_called_once_with(mock_edgar_company, 2022)
+        mock_get_filing_by_accession_number.assert_called_once()
         mock_upsert_company.assert_called_once()
         mock_create_filing.assert_called_once()
-        mock_get_bs.assert_called_once()
-        mock_store_bs.assert_called_once()
-        mock_get_is.assert_called_once()
-        mock_store_is.assert_called_once()
-        mock_get_cf.assert_called_once()
-        mock_store_cf.assert_called_once()
-        mock_get_cp.assert_called_once()
-        mock_store_cp.assert_called_once()
+        mock_get_balance_sheet_values.assert_called_once()
+        mock_store_balance_sheet_data.assert_called_once()
+        mock_get_income_statement_values.assert_called_once()
+        mock_store_income_statement_data.assert_called_once()
+        mock_get_cash_flow_statement_values.assert_called_once()
+        mock_store_cash_flow_statement_data.assert_called_once()
+        mock_get_cover_page_values.assert_called_once()
+        mock_store_cover_page_data.assert_called_once()
+        mock_get_business_description.assert_called_once()
+        mock_get_risk_factors.assert_called_once()
+        mock_get_management_discussion.assert_called_once()
+        # We expect create_source_document to be called at least 3 times (for business, risk, and management)
+        assert mock_create_source_document.call_count >= 3
 
     @patch('src.ingestion.ten_k.edgar_login')
     @patch('src.ingestion.ten_k.get_company')

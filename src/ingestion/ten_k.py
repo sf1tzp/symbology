@@ -14,11 +14,9 @@ from ingestion.edgar.accessors import (
     get_risk_factors,
 )
 from src.ingestion.database.base import get_db_session
-from src.ingestion.database.crud_business_description import create_business_description
 from src.ingestion.database.crud_company import upsert_company
 from src.ingestion.database.crud_filing import create_filing, get_filing_by_accession_number
-from src.ingestion.database.crud_management_discussion import create_management_discussion
-from src.ingestion.database.crud_risk_factors import create_risk_factors
+from src.ingestion.database.crud_source_document import create_source_document
 from src.ingestion.financial_processing import store_balance_sheet_data, store_cash_flow_statement_data, store_cover_page_data, store_income_statement_data
 from src.ingestion.utils.logging import get_logger, log_exception
 
@@ -196,12 +194,14 @@ def process_10k_filing(ticker: str, year: int, edgar_contact: str = "your-email@
         try:
             business_desc = get_business_description(filing)
             if business_desc:
-                create_business_description(
-                    session,
-                    db_filing.id,
-                    db_company.id,
-                    report_date,
-                    business_desc
+                create_source_document(
+                    db=session,
+                    filing_id=db_filing.id,
+                    company_id=db_company.id,
+                    report_date=report_date,
+                    document_type="business_description",
+                    document_name="Business Description",
+                    content=business_desc
                 )
                 logger.info(f"Stored business description for {ticker} {year}")
         except Exception as e:
@@ -214,12 +214,14 @@ def process_10k_filing(ticker: str, year: int, edgar_contact: str = "your-email@
         try:
             risk_factors = get_risk_factors(filing)
             if risk_factors:
-                create_risk_factors(
-                    session,
-                    db_filing.id,
-                    db_company.id,
-                    report_date,
-                    risk_factors
+                create_source_document(
+                    db=session,
+                    filing_id=db_filing.id,
+                    company_id=db_company.id,
+                    report_date=report_date,
+                    document_type="risk_factors",
+                    document_name="Risk Factors",
+                    content=risk_factors
                 )
                 logger.info(f"Stored risk factors for {ticker} {year}")
         except Exception as e:
@@ -232,12 +234,14 @@ def process_10k_filing(ticker: str, year: int, edgar_contact: str = "your-email@
         try:
             md_and_a = get_management_discussion(filing)
             if md_and_a:
-                create_management_discussion(
-                    session,
-                    db_filing.id,
-                    db_company.id,
-                    report_date,
-                    md_and_a
+                create_source_document(
+                    db=session,
+                    filing_id=db_filing.id,
+                    company_id=db_company.id,
+                    report_date=report_date,
+                    document_type="management_discussion",
+                    document_name="Management's Discussion and Analysis",
+                    content=md_and_a
                 )
                 logger.info(f"Stored management discussion for {ticker} {year}")
         except Exception as e:

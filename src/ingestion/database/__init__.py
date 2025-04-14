@@ -36,6 +36,7 @@ from .models import (
     Filing,
     FinancialConcept,
     IncomeStatementValue,
+    SourceDocument,
 )
 
 # Initialize all models and provide a clean import API
@@ -45,7 +46,7 @@ __all__ = [
 
     # Models
     "Company", "Filing", "FinancialConcept", "BalanceSheetValue", "IncomeStatementValue",
-    "CashFlowStatementValue", "CoverPageValue",
+    "CashFlowStatementValue", "CoverPageValue", "SourceDocument",
 
     # Company CRUD
     "create_company", "get_company_by_id", "get_company_by_cik",

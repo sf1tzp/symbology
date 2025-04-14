@@ -4,8 +4,8 @@ import sys
 from ingestion.edgar.accessors import edgar_login, get_company
 from src.ingestion.config import settings
 from src.ingestion.database.base import close_session, get_db_session, init_db
-from src.ingestion.database.crud_business_description import get_business_descriptions_by_company_id
 from src.ingestion.database.crud_company import get_companies_by_ticker, upsert_company
+from src.ingestion.database.crud_source_document import get_source_documents_by_company_id
 from src.ingestion.ten_k import batch_process_10k_filings, process_10k_filing
 from src.ingestion.utils.logging import configure_logging, get_logger
 
@@ -115,7 +115,10 @@ def run_demo():
 
         # Get the business description from the database
         session = get_db_session()
-        business_descriptions = get_business_descriptions_by_company_id(session, result["company_id"])
+        source_documents = get_source_documents_by_company_id(session, result["company_id"])
+
+        # Filter to only get business descriptions
+        business_descriptions = [doc for doc in source_documents if doc.document_type == "business_description"]
 
         if business_descriptions:
             # Get the most recent business description

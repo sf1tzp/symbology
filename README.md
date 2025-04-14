@@ -46,7 +46,7 @@ The system is particularly focused on 10-K annual reports and extracts:
    ```
    # Database settings
    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/symbology
-   
+
    # API settings
    EDGAR_CONTACT=your-email@example.com
    ```

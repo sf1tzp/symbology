@@ -106,6 +106,12 @@ def get_income_statement_values(filing: Filing) -> pd.DataFrame:
     # Income statement uses slightly different columns to drop
     return _process_xbrl_dataframe(df, filing, columns_to_drop=['level', 'abstract', 'dimension'])
 
+def get_cash_flow_statement_values(filing: Filing) -> pd.DataFrame:
+    xbrl = XBRL.from_filing(filing)
+    df = xbrl.statements.cash_flow_statement().to_dataframe()
+    # Income statement uses slightly different columns to drop
+    return _process_xbrl_dataframe(df, filing, columns_to_drop=['level', 'abstract', 'dimension'])
+
 def debug_company(company: Company) -> None:
     filtered = { k: v for k, v in company.__dict__.items() if k != "filings" }
     print(json.dumps(filtered, indent=2, default=str))

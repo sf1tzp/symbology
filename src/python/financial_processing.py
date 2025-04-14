@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from .database.crud_financials import (
+from .database import (
     get_or_create_financial_concept,
     store_balance_sheet_value,
     store_cash_flow_statement_value,

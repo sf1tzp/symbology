@@ -1,6 +1,6 @@
-# Why use Raw SQL in some crud_financials.py functions?
+# Why use Raw SQL in some crud functions?
 
-In the crud_financials.py file, raw SQL is used in the `get_balance_sheet_by_date()` and `get_income_statement_by_date()` functions for performance reasons:
+Raw SQL is used in the `get_balance_sheet_by_date()` and `get_income_statement_by_date()` functions for performance reasons:
 
 1. **Window Function Support**: The code uses `ROW_NUMBER() OVER (PARTITION BY...)` window functions which are more verbose and complex to express in SQLAlchemy's ORM syntax, especially the ranking operations.
 

@@ -19,8 +19,8 @@ run: _create_venv
 test: _create_venv
     uv run -m pytest --cov=src.python src/tests
 
-lint fix: # just lint (--fix)
-    ~/.local/share/nvim/mason/bin/ruff check src/python "{{fix}}"
+lint *FLAGS:
+    ~/.local/share/nvim/mason/bin/ruff check src/python {{FLAGS}}
 
 start-db: _generate-pgadmin-config
     #!/usr/bin/env bash
@@ -44,7 +44,7 @@ _generate-pgadmin-config:
     jq -n \
       --arg name "Symbology Database" \
       --arg host "postgres" \
-      --argjson port "${POSTGRES_PORT:-5432}" \
+      --arg port "${POSTGRES_PORT:-5432}" \
       --arg db "${POSTGRES_DB:-postgres}" \
       --arg user "${POSTGRES_USER:-postgres}" \
       '{

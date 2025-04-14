@@ -60,7 +60,7 @@ def test_get_risk_factors(db_session, sample_company, sample_filing, sample_risk
 
     # Retrieve the risk factors
     retrieved = crud_risk_factors.get_risk_factors(db_session, risk_factors.id)
-    
+
     # Check that we got the right object
     assert retrieved.id == risk_factors.id
     assert retrieved.content == sample_risk_factors_data["content"]
@@ -78,7 +78,7 @@ def test_get_risk_factors_by_filing_id(db_session, sample_company, sample_filing
 
     # Retrieve the risk factors by filing id
     retrieved = crud_risk_factors.get_risk_factors_by_filing_id(db_session, sample_filing.id)
-    
+
     # Check that we got the right object
     assert retrieved.id == risk_factors.id
     assert retrieved.filing_id == sample_filing.id
@@ -105,7 +105,7 @@ def test_get_risk_factors_by_company_id(db_session, sample_company, sample_filin
         },
         session=db_session
     )
-    
+
     # Create another risk factors for the second filing
     another_risk_factors = crud_risk_factors.create_risk_factors(
         db=db_session,
@@ -117,10 +117,10 @@ def test_get_risk_factors_by_company_id(db_session, sample_company, sample_filin
 
     # Retrieve all risk factors for the company
     risk_factors_list = crud_risk_factors.get_risk_factors_by_company_id(db_session, sample_company.id)
-    
+
     # Check that we got two risk factors
     assert len(risk_factors_list) == 2
-    
+
     # Check that the risk factors are for the correct company
     for rf in risk_factors_list:
         assert rf.company_id == sample_company.id
@@ -141,10 +141,10 @@ def test_update_risk_factors(db_session, sample_company, sample_filing, sample_r
     updated = crud_risk_factors.update_risk_factors(
         db_session, risk_factors.id, updated_content
     )
-    
+
     # Check that the update was applied
     assert updated.content == updated_content
-    
+
     # Verify in the database directly
     db_risk_factors = db_session.query(RiskFactors).filter(RiskFactors.id == risk_factors.id).first()
     assert db_risk_factors.content == updated_content
@@ -163,7 +163,7 @@ def test_delete_risk_factors(db_session, sample_company, sample_filing, sample_r
     # Delete the risk factors
     result = crud_risk_factors.delete_risk_factors(db_session, risk_factors.id)
     assert result is True
-    
+
     # Verify it's gone
     assert crud_risk_factors.get_risk_factors(db_session, risk_factors.id) is None
 

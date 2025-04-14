@@ -60,7 +60,7 @@ def test_get_management_discussion(db_session, sample_company, sample_filing, sa
 
     # Retrieve the management discussion
     retrieved = crud_management_discussion.get_management_discussion(db_session, mgmt_discussion.id)
-    
+
     # Check that we got the right object
     assert retrieved.id == mgmt_discussion.id
     assert retrieved.content == sample_management_discussion_data["content"]
@@ -78,7 +78,7 @@ def test_get_management_discussion_by_filing_id(db_session, sample_company, samp
 
     # Retrieve the management discussion by filing id
     retrieved = crud_management_discussion.get_management_discussion_by_filing_id(db_session, sample_filing.id)
-    
+
     # Check that we got the right object
     assert retrieved.id == mgmt_discussion.id
     assert retrieved.filing_id == sample_filing.id
@@ -105,7 +105,7 @@ def test_get_management_discussions_by_company_id(db_session, sample_company, sa
         },
         session=db_session
     )
-    
+
     # Create another management discussion for the second filing
     another_mgmt_discussion = crud_management_discussion.create_management_discussion(
         db=db_session,
@@ -117,10 +117,10 @@ def test_get_management_discussions_by_company_id(db_session, sample_company, sa
 
     # Retrieve all management discussions for the company
     discussions = crud_management_discussion.get_management_discussions_by_company_id(db_session, sample_company.id)
-    
+
     # Check that we got two management discussions
     assert len(discussions) == 2
-    
+
     # Check that the management discussions are for the correct company
     for disc in discussions:
         assert disc.company_id == sample_company.id
@@ -141,10 +141,10 @@ def test_update_management_discussion(db_session, sample_company, sample_filing,
     updated = crud_management_discussion.update_management_discussion(
         db_session, mgmt_discussion.id, updated_content
     )
-    
+
     # Check that the update was applied
     assert updated.content == updated_content
-    
+
     # Verify in the database directly
     db_mgmt_discussion = db_session.query(ManagementDiscussion).filter(ManagementDiscussion.id == mgmt_discussion.id).first()
     assert db_mgmt_discussion.content == updated_content
@@ -163,7 +163,7 @@ def test_delete_management_discussion(db_session, sample_company, sample_filing,
     # Delete the management discussion
     result = crud_management_discussion.delete_management_discussion(db_session, mgmt_discussion.id)
     assert result is True
-    
+
     # Verify it's gone
     assert crud_management_discussion.get_management_discussion(db_session, mgmt_discussion.id) is None
 

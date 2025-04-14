@@ -13,8 +13,8 @@ deps:
     uv pip compile pyproject.toml -o requirements.lock
     uv pip install -r requirements.lock
 
-run: _create_venv
-    uv run src/python/main.py
+run *ARGS: _create_venv
+    uv run run.py {{ARGS}}
 
 test: _create_venv
     uv run -m pytest --cov=src.python src/tests

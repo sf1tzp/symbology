@@ -1,15 +1,65 @@
+import argparse
 import logging
+import sys
 
-from config import settings
-from database.base import close_session, init_db
-from database.crud_company import get_companies_by_ticker, upsert_company
-from ingestion.edgar import debug_company, edgar_login, get_company
+from src.python.config import settings
+from src.python.database.base import close_session, init_db
+from src.python.database.crud_company import get_companies_by_ticker, upsert_company
+from src.python.ingestion.edgar import debug_company, edgar_login, get_company
+from src.python.ten_k import batch_process_10k_filings
 
 
-def main():
-    # Set up logging
+def parse_args():
+    """
+    Parse command line arguments for the 10-K data ingestion pipeline.
+    """
+    parser = argparse.ArgumentParser(
+        description="Symbology: Financial data processing CLI"
+    )
+
+    # Create subparsers for different commands
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    # Add a "demo" command that runs the original demo code
+    _ = subparsers.add_parser("demo", help="Run the original demo code")
+
+    # Add a "10k" command for processing 10-K filings
+    tenk_parser = subparsers.add_parser("10k", help="Process 10-K filings from EDGAR")
+    tenk_parser.add_argument(
+        "--tickers",
+        "-t",
+        nargs="+",
+        required=True,
+        help="List of ticker symbols (e.g., AAPL MSFT GOOGL)"
+    )
+    tenk_parser.add_argument(
+        "--years",
+        "-y",
+        type=int,
+        nargs="+",
+        required=True,
+        help="List of years to process (e.g., 2022 2023)"
+    )
+    tenk_parser.add_argument(
+        "--edgar-contact",
+        type=str,
+        help="Email to use for EDGAR API (defaults to value from config)"
+    )
+
+    # If no arguments are provided, show help and exit
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+
+    return parser.parse_args()
+
+
+def run_demo():
+    """
+    Run the original demo functionality that queries information for Microsoft.
+    """
     logger = logging.getLogger(__name__)
-    logger.info("Starting application")
+    logger.info("Starting demo application")
 
     # Use the config class for Edgar API login
     logger.info(f"Using Edgar contact: {settings.api.edgar_contact}")
@@ -55,6 +105,66 @@ def main():
 
     # Close the session when you're done with all database operations
     close_session()
+
+
+def run_10k_ingestion(tickers, years, edgar_contact=None):
+    """
+    Run the 10-K data ingestion pipeline for the specified tickers and years.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting 10-K data ingestion for {len(tickers)} tickers and {len(years)} years")
+
+    # Initialize the database
+    init_db(settings.database.url)
+    logger.info("Database initialized")
+
+    # Use the contact email from settings if not provided
+    if edgar_contact is None:
+        edgar_contact = settings.api.edgar_contact
+
+    # Process the 10-K filings
+    logger.info(f"Using Edgar contact: {edgar_contact}")
+    results = batch_process_10k_filings(tickers, years, edgar_contact)
+
+    # Log the results
+    successful = [r for r in results if r["success"]]
+    failed = [r for r in results if not r["success"]]
+
+    logger.info(f"Processed {len(results)} filings")
+    logger.info(f"  - Successful: {len(successful)}")
+    logger.info(f"  - Failed: {len(failed)}")
+
+    # Log details about failures if any
+    if failed:
+        logger.warning("Failed filings:")
+        for f in failed:
+            logger.warning(f"  - {f['ticker']} ({f['year']}): {f['message']}")
+
+    # Close the session when you're done with all database operations
+    close_session()
+
+    return results
+
+
+def main():
+    # Set up logging
+    logger = logging.getLogger(__name__)
+
+    # Parse command line arguments
+    args = parse_args()
+
+    # Run the appropriate command
+    if args.command == "demo":
+        run_demo()
+    elif args.command == "10k":
+        run_10k_ingestion(
+            tickers=args.tickers,
+            years=args.years,
+            edgar_contact=args.edgar_contact
+        )
+    else:
+        logger.error(f"Unknown command: {args.command}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

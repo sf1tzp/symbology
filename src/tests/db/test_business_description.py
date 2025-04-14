@@ -60,7 +60,7 @@ def test_get_business_description(db_session, sample_company, sample_filing, sam
 
     # Retrieve the business description
     retrieved = crud_business_description.get_business_description(db_session, business_desc.id)
-    
+
     # Check that we got the right object
     assert retrieved.id == business_desc.id
     assert retrieved.content == sample_business_description_data["content"]
@@ -78,7 +78,7 @@ def test_get_business_description_by_filing_id(db_session, sample_company, sampl
 
     # Retrieve the business description by filing id
     retrieved = crud_business_description.get_business_description_by_filing_id(db_session, sample_filing.id)
-    
+
     # Check that we got the right object
     assert retrieved.id == business_desc.id
     assert retrieved.filing_id == sample_filing.id
@@ -105,7 +105,7 @@ def test_get_business_descriptions_by_company_id(db_session, sample_company, sam
         },
         session=db_session
     )
-    
+
     # Create another business description for the second filing
     another_business_desc = crud_business_description.create_business_description(
         db=db_session,
@@ -117,10 +117,10 @@ def test_get_business_descriptions_by_company_id(db_session, sample_company, sam
 
     # Retrieve all business descriptions for the company
     descriptions = crud_business_description.get_business_descriptions_by_company_id(db_session, sample_company.id)
-    
+
     # Check that we got two business descriptions
     assert len(descriptions) == 2
-    
+
     # Check that the business descriptions are for the correct company
     for desc in descriptions:
         assert desc.company_id == sample_company.id
@@ -141,10 +141,10 @@ def test_update_business_description(db_session, sample_company, sample_filing, 
     updated = crud_business_description.update_business_description(
         db_session, business_desc.id, updated_content
     )
-    
+
     # Check that the update was applied
     assert updated.content == updated_content
-    
+
     # Verify in the database directly
     db_business_desc = db_session.query(BusinessDescription).filter(BusinessDescription.id == business_desc.id).first()
     assert db_business_desc.content == updated_content
@@ -163,7 +163,7 @@ def test_delete_business_description(db_session, sample_company, sample_filing, 
     # Delete the business description
     result = crud_business_description.delete_business_description(db_session, business_desc.id)
     assert result is True
-    
+
     # Verify it's gone
     assert crud_business_description.get_business_description(db_session, business_desc.id) is None
 

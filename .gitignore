@@ -13,3 +13,5 @@ infra/database-data/
 infra/pgadmin-data/
 
 src/python/notebook.ipynb
+
+**/*.egg-info/

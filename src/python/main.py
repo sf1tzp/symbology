@@ -1,12 +1,16 @@
 import argparse
-import logging
 import sys
 
 from src.python.config import settings
-from src.python.database.base import close_session, init_db
+from src.python.database.base import close_session, get_db_session, init_db
+from src.python.database.crud_business_description import get_business_descriptions_by_company_id
 from src.python.database.crud_company import get_companies_by_ticker, upsert_company
 from src.python.ingestion.edgar import debug_company, edgar_login, get_company
-from src.python.ten_k import batch_process_10k_filings
+from src.python.ten_k import batch_process_10k_filings, process_10k_filing
+from src.python.utils.logging import configure_logging, get_logger
+
+# Initialize structlog
+logger = get_logger(__name__)
 
 
 def parse_args():
@@ -58,7 +62,6 @@ def run_demo():
     """
     Run the original demo functionality that queries information for Microsoft.
     """
-    logger = logging.getLogger(__name__)
     logger.info("Starting demo application")
 
     # Use the config class for Edgar API login
@@ -103,6 +106,35 @@ def run_demo():
     else:
         logger.error("Could not find MSFT in the database")
 
+    # Process MSFT 2024 10-K filing
+    logger.info("Processing MSFT 2024 10-K filing")
+    result = process_10k_filing(ticker, 2024, settings.api.edgar_contact)
+
+    if result["success"]:
+        logger.info(f"Successfully processed 10-K filing: {result['message']}")
+
+        # Get the business description from the database
+        session = get_db_session()
+        business_descriptions = get_business_descriptions_by_company_id(session, result["company_id"])
+
+        if business_descriptions:
+            # Get the most recent business description
+            latest_business_desc = max(business_descriptions, key=lambda x: x.report_date)
+
+            # Truncate the content to 140 characters
+            truncated_content = latest_business_desc.content[:540] + "..." if len(latest_business_desc.content) > 140 else latest_business_desc.content
+
+            logger.info(f"Business Description (truncated): {truncated_content}")
+        else:
+            logger.warning("No business description found for MSFT")
+
+        session.close()
+    else:
+        logger.error(f"Failed to process 10-K filing: {result['message']}")
+        if result.get("errors"):
+            for error in result["errors"]:
+                logger.error(f"Error: {error}")
+
     # Close the session when you're done with all database operations
     close_session()
 
@@ -111,7 +143,6 @@ def run_10k_ingestion(tickers, years, edgar_contact=None):
     """
     Run the 10-K data ingestion pipeline for the specified tickers and years.
     """
-    logger = logging.getLogger(__name__)
     logger.info(f"Starting 10-K data ingestion for {len(tickers)} tickers and {len(years)} years")
 
     # Initialize the database
@@ -148,7 +179,7 @@ def run_10k_ingestion(tickers, years, edgar_contact=None):
 
 def main():
     # Set up logging
-    logger = logging.getLogger(__name__)
+    configure_logging()
 
     # Parse command line arguments
     args = parse_args()

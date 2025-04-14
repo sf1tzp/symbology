@@ -33,8 +33,8 @@ start-db: _generate-pgadmin-config
 stop-db:
     nerdctl compose -f infra/database.yaml down
 
-logs-db:
-    nerdctl compose -f infra/database.yaml logs
+logs-db *FLAGS:
+    nerdctl compose -f infra/database.yaml logs {{FLAGS}}
 
 _generate-pgadmin-config:
     #!/usr/bin/env bash

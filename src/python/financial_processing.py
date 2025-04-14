@@ -3,8 +3,10 @@ Module for financial data processing and storage.
 This module contains shared functionality for processing and storing financial data.
 """
 from datetime import datetime
-import logging
 from typing import Any, Dict, Optional
+
+import pandas as pd
+from sqlalchemy.orm import Session
 
 from src.python.database import (
     get_or_create_financial_concept,
@@ -14,11 +16,10 @@ from src.python.database import (
     store_income_statement_value,
 )
 from src.python.database.models import Company, Filing
-import pandas as pd
-from sqlalchemy.orm import Session
+from src.python.utils.logging import get_logger
 
-# Configure logging
-logger = logging.getLogger(__name__)
+# Initialize structlog
+logger = get_logger(__name__)
 
 def process_balance_sheet_dataframe(
     company_id: int,

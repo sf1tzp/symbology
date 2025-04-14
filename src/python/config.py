@@ -1,9 +1,8 @@
-import logging
 import os
 
 # Load environment variables
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings
 
 load_dotenv()
@@ -76,28 +75,18 @@ class LoggingSettings(BaseSettings):
     """Logging configuration."""
 
     level: str = Field(default="INFO")
+    json_format: bool = Field(default=False)
 
     model_config = ConfigDict(
         env_prefix="",
         extra="ignore",
         json_schema_extra={
             "env": {
-                "level": "LOG_LEVEL"
+                "level": "LOG_LEVEL",
+                "json_format": "LOG_JSON_FORMAT"
             }
         }
     )
-
-    @field_validator("level")
-    def validate_log_level(cls, v: str) -> int:
-        """Convert log level string to logging constant."""
-        levels = {
-            "DEBUG": logging.DEBUG,
-            "INFO": logging.INFO,
-            "WARNING": logging.WARNING,
-            "ERROR": logging.ERROR,
-            "CRITICAL": logging.CRITICAL,
-        }
-        return levels.get(v.upper(), logging.INFO)
 
 
 class Settings(BaseSettings):
@@ -126,9 +115,3 @@ class Settings(BaseSettings):
 
 # Create and export a settings instance
 settings = Settings()
-
-# Configure logging
-logging.basicConfig(
-    level=settings.logging.level,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)

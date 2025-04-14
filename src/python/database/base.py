@@ -1,11 +1,12 @@
-import logging
 from typing import Tuple
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
 
-# Configure logging
-logger = logging.getLogger(__name__)
+from src.python.utils.logging import get_logger
+
+# Initialize structlog
+logger = get_logger(__name__)
 
 # Create Base class for all models
 Base = declarative_base()
@@ -36,11 +37,11 @@ def init_db(database_url: str) -> Tuple[object, object]:
 
         # Create all tables
         Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
+        logger.info("database_initialized", status="success")
 
         return engine, db_session
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
+        logger.error("database_initialization_failed", error=str(e), exc_info=True)
         raise
 
 def get_db_session():
@@ -50,6 +51,7 @@ def get_db_session():
         The current database session or raises an exception if not initialized
     """
     if db_session is None:
+        logger.error("database_session_error", error="Database not initialized")
         raise RuntimeError("Database not initialized. Call init_db first.")
     return db_session
 
@@ -59,4 +61,4 @@ def close_session() -> None:
     """
     if db_session is not None:
         db_session.remove()
-        logger.debug("Database session closed and removed")
+        logger.debug("database_session_closed")

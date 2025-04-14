@@ -1,7 +1,4 @@
 from datetime import datetime
-import logging
-import sys
-import traceback
 from typing import Dict, List, Union
 
 from src.python.database.base import get_db_session
@@ -23,39 +20,10 @@ from src.python.ingestion.edgar import (
     get_management_discussion,
     get_risk_factors,
 )
+from src.python.utils.logging import get_logger, log_exception
 
-# Configure logging
-logger = logging.getLogger(__name__)
-
-
-def log_exception(e: Exception, prefix: str = "") -> str:
-    """
-    Log an exception with full traceback information and return formatted error message.
-
-    Args:
-        e: The exception object
-        prefix: Optional prefix for the log message
-
-    Returns:
-        Formatted error message with traceback information
-    """
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-
-    # Get the stack trace as a list of strings
-    stack_trace = traceback.format_exception(exc_type, exc_value, exc_traceback)
-
-    # Extract the line where the error occurred
-    error_lines = [line for line in stack_trace if 'File "' in line]
-    error_location = error_lines[-1].strip() if error_lines else "Unknown location"
-
-    # Format the error message
-    error_msg = f"{prefix}{str(e)} at {error_location}"
-    logger.error(error_msg)
-
-    # Log the full traceback at debug level
-    logger.debug("Full traceback:\n%s", ''.join(stack_trace))
-
-    return error_msg
+# Initialize structlog
+logger = get_logger(__name__)
 
 
 def process_10k_filing(ticker: str, year: int, edgar_contact: str = "your-email@example.com") -> Dict[str, Union[bool, str, int]]:

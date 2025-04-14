@@ -70,6 +70,8 @@ class OpenAISettings(BaseModel):
     open_ai_host: str = "10.0.0.4"
     open_ai_port: str = "24098"
 
+    default_model: str = "hf.co/lmstudio-community/gemma-3-12b-it-GGUF:Q6_K"
+
 
 class LoggingSettings(BaseSettings):
     """Logging configuration."""

@@ -1,5 +1,14 @@
 # Import ingestion components
-from .edgar import debug_company, debug_filing, edgar_login, get_balance_sheet_values, get_company, get_income_statement_values
+from .edgar import (
+    debug_company,
+    debug_filing,
+    edgar_login,
+    get_balance_sheet_values,
+    get_cash_flow_statement_values,
+    get_company,
+    get_cover_page_values,
+    get_income_statement_values,
+)
 
 __all__ = [
     # Edgar components
@@ -9,4 +18,6 @@ __all__ = [
     "debug_filing",
     "get_balance_sheet_values",
     "get_income_statement_values",
+    "get_cash_flow_statement_values",
+    "get_cover_page_values",
 ]

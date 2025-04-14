@@ -61,21 +61,27 @@ def _process_xbrl_dataframe(df: pd.DataFrame, filing: Filing, columns_to_drop: O
     df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
 
     # Filter columns based on year
-    year = year_from_period_of_report(filing)
+    fiscal_date = filing.period_of_report
 
     # Build a list of columns to keep
     filtered_columns: List[str] = []
     for col in df.columns:
         try:
             # Try to parse as a date and match by year
-            col_date = datetime.strptime(col, '%Y-%m-%d')
-            if col_date.year == year:
+            _ = datetime.strptime(col, '%Y-%m-%d')
+            if col == fiscal_date:
                 filtered_columns.append(col)
         except ValueError:
             # Keep non-date columns (metadata)
             filtered_columns.append(col)
 
-    return df[filtered_columns]
+    df = df[filtered_columns]
+
+    # Remove rows where 'year' column is blank (NaN or empty string)
+    if fiscal_date in df.columns:
+        df = df[df[fiscal_date].notna() & (df[fiscal_date] != '')]
+
+    return df
 
 def get_balance_sheet_values(filing: Filing) -> pd.DataFrame:
     """
@@ -111,6 +117,26 @@ def get_cash_flow_statement_values(filing: Filing) -> pd.DataFrame:
     df = xbrl.statements.cash_flow_statement().to_dataframe()
     # Income statement uses slightly different columns to drop
     return _process_xbrl_dataframe(df, filing, columns_to_drop=['level', 'abstract', 'dimension'])
+
+def get_cover_page_values(filing: Filing) -> pd.DataFrame:
+    xbrl = XBRL.from_filing(filing)
+    df = xbrl.statements["CoverPage"].to_dataframe()
+
+    # Remove level, abstract, dimension columns
+    columns_to_drop = ['level', 'abstract', 'dimension']
+    df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
+
+    # Identify the date column (typically the last column)
+    date_columns = [col for col in df.columns if col not in ['concept', 'label']]
+
+    if date_columns:
+        # Rename the date column to filing.period_of_report
+        df = df.rename(columns={date_columns[0]: filing.period_of_report})
+
+        # Remove rows where the date column is empty or NA
+        df = df[df[filing.period_of_report].notna() & (df[filing.period_of_report] != '')]
+
+    return df
 
 def debug_company(company: Company) -> None:
     filtered = { k: v for k, v in company.__dict__.items() if k != "filings" }

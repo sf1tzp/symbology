@@ -49,6 +49,8 @@ class Company(Base):
     income_statement_values = relationship("IncomeStatementValue", back_populates="company")
     # Relationship with cash flow statement values
     cash_flow_statement_values = relationship("CashFlowStatementValue", back_populates="company")
+    # Relationship with cover page values
+    cover_page_values = relationship("CoverPageValue", back_populates="company")
 
     def __repr__(self):
         return f"<Company(name='{self.name}', cik={self.cik}, tickers={self.tickers})>"
@@ -88,6 +90,8 @@ class Filing(Base):
     income_statement_values = relationship("IncomeStatementValue", back_populates="filing")
     # Relationship with cash flow statement values
     cash_flow_statement_values = relationship("CashFlowStatementValue", back_populates="filing")
+    # Relationship with cover page values
+    cover_page_values = relationship("CoverPageValue", back_populates="filing")
 
     def __repr__(self):
         return f"<Filing(id={self.id}, type='{self.filing_type}', date={self.filing_date})>"
@@ -118,6 +122,8 @@ class FinancialConcept(Base):
     income_statement_values = relationship("IncomeStatementValue", back_populates="concept")
     # Relationship with cash flow statement values
     cash_flow_statement_values = relationship("CashFlowStatementValue", back_populates="concept")
+    # Relationship with cover page values
+    cover_page_values = relationship("CoverPageValue", back_populates="concept")
 
     def __repr__(self):
         return f"<FinancialConcept(concept_id='{self.concept_id}')>"
@@ -190,7 +196,7 @@ class IncomeStatementValue(Base):
     def to_json(self):
         """Convert IncomeStatementValue object to JSON string"""
         import json
-        return json.dumps(self.to_dict(), default.str)
+        return json.dumps(self.to_dict(), default=str)
 
 
 class CashFlowStatementValue(Base):
@@ -219,5 +225,35 @@ class CashFlowStatementValue(Base):
 
     def to_json(self):
         """Convert CashFlowStatementValue object to JSON string"""
+        import json
+        return json.dumps(self.to_dict(), default=str)
+
+
+class CoverPageValue(Base):
+    """Model for storing cover page values for companies."""
+    __tablename__ = "cover_page_values"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    filing_id = Column(Integer, ForeignKey("filings.id"), index=True, nullable=False)
+    concept_id = Column(Integer, ForeignKey("financial_concepts.id"), index=True, nullable=False)
+    value_date = Column(DateTime, index=True, nullable=False)
+    value = Column(Float)
+
+    # Relationships
+    company = relationship("Company", back_populates="cover_page_values")
+    filing = relationship("Filing", back_populates="cover_page_values")
+    concept = relationship("FinancialConcept", back_populates="cover_page_values")
+
+    def __repr__(self):
+        return f"<CoverPageValue(company_id={self.company_id}, concept_id={self.concept_id}, value_date={self.value_date})>"
+
+    def to_dict(self):
+        """Convert CoverPageValue object to dictionary"""
+        result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return result
+
+    def to_json(self):
+        """Convert CoverPageValue object to JSON string"""
         import json
         return json.dumps(self.to_dict(), default=str)

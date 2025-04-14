@@ -27,15 +27,23 @@ from .crud_financials import (
     get_all_concepts,
     get_balance_sheet_by_date,
     get_balance_sheet_values_by_company,
+    get_cash_flow_statement_by_date,
+    get_cash_flow_statement_values_by_company,
+    get_cover_page_by_date,
+    get_cover_page_values_by_company,
     get_income_statement_by_date,
     get_income_statement_values_by_company,
     get_or_create_financial_concept,
     store_balance_sheet_value,
+    store_cash_flow_statement_value,
+    store_cover_page_value,
     store_income_statement_value,
 )
 from .models import (
     BalanceSheetValue,
+    CashFlowStatementValue,
     Company,
+    CoverPageValue,
     Filing,
     FinancialConcept,
     IncomeStatementValue,
@@ -48,6 +56,7 @@ __all__ = [
 
     # Models
     "Company", "Filing", "FinancialConcept", "BalanceSheetValue", "IncomeStatementValue",
+    "CashFlowStatementValue", "CoverPageValue",
 
     # Company CRUD
     "create_company", "get_company_by_id", "get_company_by_cik",
@@ -61,8 +70,10 @@ __all__ = [
 
     # Financials CRUD
     "get_or_create_financial_concept", "get_all_concepts",
-    "store_balance_sheet_value", "store_income_statement_value",
-    "process_balance_sheet_dataframe", "process_income_statement_dataframe",
+    "store_balance_sheet_value", "store_income_statement_value", 
+    "store_cash_flow_statement_value", "store_cover_page_value",
     "get_balance_sheet_values_by_company", "get_income_statement_values_by_company",
+    "get_cash_flow_statement_values_by_company", "get_cover_page_values_by_company",
     "get_balance_sheet_by_date", "get_income_statement_by_date",
+    "get_cash_flow_statement_by_date", "get_cover_page_by_date",
 ]

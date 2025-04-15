@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import (
     Boolean,
     Column,
@@ -18,29 +19,33 @@ from .base import Base
 class Company(Base):
     __tablename__ = "companies"
 
+# {'cik': 789019,
+#  'name': 'MICROSOFT CORP',
+#  'display_name': 'MICROSOFT CORP',
+#  'is_company': True,
+#  'tickers': ['MSFT'],
+#  'exchanges': ['Nasdaq'],
+#  'sic': '7372',
+#  'industry': 'Services-Prepackaged Software',
+#  'fiscal_year_end': '0630',
+#  'entity_type': 'operating',
+#  'ein': '911144442',
+#  'former_names': []}
     id = Column(Integer, primary_key=True)
     cik = Column(Integer, index=True, unique=True)
     name = Column(String(255), nullable=False)
+    display_name = Column(String(255))
+    is_company = Column(Boolean)
     tickers = Column(JSON)  # List of ticker symbols
     exchanges = Column(JSON)  # List of exchanges
     sic = Column(String(10))
-    sic_description = Column(String(255))
-    category = Column(String(100))
+    industry = Column(String(100))
     fiscal_year_end = Column(String(4))
     entity_type = Column(String(50))
-    phone = Column(String(20))
-    flags = Column(String(100))
-    business_address = Column(Text)
-    mailing_address = Column(Text)
-    insider_transaction_for_owner_exists = Column(Boolean, default=False)
-    insider_transaction_for_issuer_exists = Column(Boolean, default=False)
     ein = Column(String(20))
-    description = Column(Text)
-    website = Column(String(255))
-    investor_website = Column(String(255))
-    state_of_incorporation = Column(String(2))
-    state_of_incorporation_description = Column(String(50))
     former_names = Column(JSON)  # List of former company names
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now())
+    updated_at = Column(DateTime, nullable=True, onupdate=lambda: datetime.now())
 
     # Relationship with filings
     filings = relationship("Filing", back_populates="company", cascade="all, delete-orphan")
@@ -82,6 +87,8 @@ class Filing(Base):
     description = Column(Text)
     url = Column(String(255))
     data = Column(JSON)  # For storing parsed filing data
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now())
+    updated_at = Column(DateTime, nullable=True, onupdate=lambda: datetime.now())
 
     # Relationship with company
     company = relationship("Company", back_populates="filings")
@@ -118,6 +125,8 @@ class FinancialConcept(Base):
     concept_id = Column(String(255), index=True, unique=True, nullable=False)  # e.g., "us-gaap_CashAndCashEquivalentsAtCarryingValue"
     description = Column(Text)
     labels = Column(JSON)  # Array of different labels used for this concept
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now())
+    updated_at = Column(DateTime, nullable=True, onupdate=lambda: datetime.now())
 
     # Relationship with balance sheet values
     balance_sheet_values = relationship("BalanceSheetValue", back_populates="concept")
@@ -152,6 +161,8 @@ class BalanceSheetValue(Base):
     concept_id = Column(Integer, ForeignKey("financial_concepts.id"), index=True, nullable=False)
     value_date = Column(DateTime, index=True, nullable=False)
     value = Column(Float)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now())
+    updated_at = Column(DateTime, nullable=True, onupdate=lambda: datetime.now())
 
     # Relationships
     company = relationship("Company", back_populates="balance_sheet_values")
@@ -182,6 +193,8 @@ class IncomeStatementValue(Base):
     concept_id = Column(Integer, ForeignKey("financial_concepts.id"), index=True, nullable=False)
     value_date = Column(DateTime, index=True, nullable=False)
     value = Column(Float)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now())
+    updated_at = Column(DateTime, nullable=True, onupdate=lambda: datetime.now())
 
     # Relationships
     company = relationship("Company", back_populates="income_statement_values")
@@ -212,6 +225,8 @@ class CashFlowStatementValue(Base):
     concept_id = Column(Integer, ForeignKey("financial_concepts.id"), index=True, nullable=False)
     value_date = Column(DateTime, index=True, nullable=False)
     value = Column(Float)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now())
+    updated_at = Column(DateTime, nullable=True, onupdate=lambda: datetime.now())
 
     # Relationships
     company = relationship("Company", back_populates="cash_flow_statement_values")
@@ -242,6 +257,8 @@ class CoverPageValue(Base):
     concept_id = Column(Integer, ForeignKey("financial_concepts.id"), index=True, nullable=False)
     value_date = Column(DateTime, index=True, nullable=False)
     value = Column(Float)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now())
+    updated_at = Column(DateTime, nullable=True, onupdate=lambda: datetime.now())
 
     # Relationships
     company = relationship("Company", back_populates="cover_page_values")
@@ -451,4 +468,4 @@ class CompletionRating(Base):
     def to_json(self):
         """Convert CompletionRating object to JSON string"""
         import json
-        return json.dumps(self.to_dict(), default=str)
+        return json.dumps(self.to_dict(), default.str)

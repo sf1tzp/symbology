@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from ingestion.edgar.accessors import edgar_login, get_company
+from ingestion.edgar_db.accessors import edgar_login, get_company
 from src.ingestion.config import settings
 from src.ingestion.database.base import close_session, get_db_session, init_db
 from src.ingestion.database.crud_company import get_companies_by_ticker, upsert_company

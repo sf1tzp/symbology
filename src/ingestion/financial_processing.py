@@ -345,7 +345,7 @@ def store_balance_sheet_data(edgar_filing: Any, db_company: Company, db_filing: 
     """
     try:
         # Get balance sheet dataframe
-        from ingestion.edgar.accessors import get_balance_sheet_values
+        from ingestion.edgar_db.accessors import get_balance_sheet_values
         balance_sheet_df = get_balance_sheet_values(edgar_filing)
 
         # Process and store in database
@@ -376,7 +376,7 @@ def store_income_statement_data(edgar_filing: Any, db_company: Company, db_filin
     """
     try:
         # Get income statement dataframe
-        from ingestion.edgar.accessors import get_income_statement_values
+        from ingestion.edgar_db.accessors import get_income_statement_values
         income_stmt_df = get_income_statement_values(edgar_filing)
 
         # Process and store in database using our specialized income statement function
@@ -407,7 +407,7 @@ def store_cash_flow_statement_data(edgar_filing: Any, db_company: Company, db_fi
     """
     try:
         # Get cash flow statement dataframe
-        from ingestion.edgar.accessors import get_cash_flow_statement_values
+        from ingestion.edgar_db.accessors import get_cash_flow_statement_values
         cash_flow_stmt_df = get_cash_flow_statement_values(edgar_filing)
 
         # Process and store in database
@@ -438,7 +438,7 @@ def store_cover_page_data(edgar_filing: Any, db_company: Company, db_filing: Fil
     """
     try:
         # Get cover page dataframe
-        from ingestion.edgar.accessors import get_cover_page_values
+        from ingestion.edgar_db.accessors import get_cover_page_values
         cover_page_df = get_cover_page_values(edgar_filing)
 
         # Process and store in database

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Union
 
-from ingestion.edgar.accessors import (
+from ingestion.edgar_db.accessors import (
     edgar_login,
     get_10k_filing,
     get_balance_sheet_values,

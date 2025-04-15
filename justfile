@@ -23,7 +23,7 @@ summarize:
     uv run run.py summarize --document-id 3 --template-id 2 --temperature 0.7
 
 test: _create_venv
-    uv run -m pytest --cov=src.ingestion src/tests
+    uv run -m pytest --cov=src.api --cov=src.ingestion src/tests/
 
 lint *FLAGS:
     ~/.local/share/nvim/mason/bin/ruff check src/ingestion {{FLAGS}}

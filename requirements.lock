@@ -65,6 +65,7 @@ httpcore==1.0.8
     # via httpx
 httpx==0.28.1
     # via
+    #   symbology (pyproject.toml)
     #   edgartools
     #   jupyterlab
     #   ollama
@@ -316,6 +317,8 @@ stack-data==0.6.3
     # via ipython
 stamina==25.1.0
     # via edgartools
+structlog==24.1.0
+    # via symbology (pyproject.toml)
 tabulate==0.9.0
     # via edgartools
 tenacity==9.1.2

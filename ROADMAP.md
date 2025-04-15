@@ -16,13 +16,17 @@ The initial 0.1.0 release includes:
 The next release will focus on AI inference and prompt engineering capabilities:
 
 ### AI Integration
-- [ ] Implement fully customizable prompts
-- [ ] Support configurable query parameters (temperature, top_k, etc.)
-- [ ] Create pipeline to pull source data from database, make requests to OpenAI endpoint, and store results
-- [ ] Implement storage for query metadata including user ratings and comments on generated text
+- [x] Implement fully customizable prompts
+- [x] Support configurable query parameters (temperature, top_k, etc.)
+- [x] Create pipeline to pull source data from database, make requests to OpenAI endpoint, and store results
+- [x] Implement storage for query metadata including user ratings and comments on generated text
 
-### Inference Workflow
-- [ ] Build framework for setting system/user/assistant role prompts
+### REST API
+
+This python program should listen on a configurable HOST and PORT
+- routes should be facilitated to exercise the CRUD workflows
+
+### Prompt Engineering / Inference Workflow
 - [ ] Develop interface for configuring query parameters
 - [ ] Create selector for source documents (by ticker/year → form type → section)
 - [ ] Implement source retrieval from DB with fallback to process_10k

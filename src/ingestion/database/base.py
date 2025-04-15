@@ -1,7 +1,7 @@
-from typing import Tuple
+from typing import Generator, Tuple
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
+from sqlalchemy.orm import declarative_base, scoped_session, Session, sessionmaker
 
 from src.ingestion.utils.logging import get_logger
 
@@ -54,6 +54,27 @@ def get_db_session():
         logger.error("database_session_error", error="Database not initialized")
         raise RuntimeError("Database not initialized. Call init_db first.")
     return db_session
+
+def get_db() -> Generator[Session, None, None]:
+    """FastAPI dependency for getting a database session.
+
+    This function is designed to be used with FastAPI's dependency injection.
+    It yields a session that will be closed automatically after the request is complete.
+
+    Yields:
+        A SQLAlchemy session
+    """
+    if SessionLocal is None:
+        logger.error("database_session_error", error="Database not initialized")
+        raise RuntimeError("Database not initialized. Call init_db first.")
+
+    db = SessionLocal()
+    try:
+        logger.debug("database_session_created_for_request")
+        yield db
+    finally:
+        logger.debug("database_session_closed_after_request")
+        db.close()
 
 def close_session() -> None:
     """Close the current session and remove it from the registry.

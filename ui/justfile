@@ -1,0 +1,18 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2148
+
+ui:
+    npm --prefix ui run dev
+
+ui-lint:
+    npm --prefix ui run lint | tee ui-lint.log
+
+# Add these commands once we set up the npm scripts
+ui-format:
+    npm --prefix ui run format
+
+ui-check:
+    npm --prefix ui run check
+
+ui-deps:
+    npm --prefix ui install

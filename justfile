@@ -11,4 +11,5 @@ _create_venv:
 
 import "src/justfile"
 import "infra/justfile"
+import "ui/justfile"
 

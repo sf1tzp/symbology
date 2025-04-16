@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Dict, Any, List
 
 # Import the Filing model and functions
-from src.ingestion.database.filings import (
+from src.database.filings import (
     Filing,
     get_filing_ids,
     get_filing,
@@ -13,9 +13,9 @@ from src.ingestion.database.filings import (
     update_filing,
     delete_filing
 )
-from src.ingestion.database.companies import Company, create_company
-from src.ingestion.database.documents import Document
-from src.ingestion.database.base import Base
+from src.database.companies import Company, create_company
+from src.database.documents import Document
+from src.database.base import Base
 
 # Sample company data fixture
 @pytest.fixture
@@ -151,7 +151,7 @@ def test_get_filing_by_id(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -172,7 +172,7 @@ def test_get_filing_by_id(db_session, sample_filing_data):
 def test_create_filing_function(db_session, sample_filing_data):
     """Test the create_filing helper function."""
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -209,7 +209,7 @@ def test_update_filing(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -246,7 +246,7 @@ def test_update_filing_with_invalid_company(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -272,7 +272,7 @@ def test_delete_filing(db_session, sample_filing_data):
     filing_id = filing.id
 
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -302,7 +302,7 @@ def test_get_filing_ids(db_session, multiple_filing_data):
         filing_ids.append(filing.id)
 
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -345,7 +345,7 @@ def test_get_filing_with_string_uuid(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -366,7 +366,7 @@ def test_update_with_invalid_attributes(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -406,7 +406,7 @@ def test_cascade_delete_company(db_session, create_test_company, sample_filing_d
 def test_upsert_filing_by_accession_number(db_session, create_test_company, sample_filing_data):
     """Test the upsert_filing_by_accession_number helper function for creating and updating filings."""
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -441,7 +441,7 @@ def test_upsert_filing_by_accession_number(db_session, create_test_company, samp
 def test_upsert_filing_without_accession_number(db_session, create_test_company):
     """Test that upsert_filing_by_accession_number function raises ValueError when accession number is missing."""
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -463,7 +463,7 @@ def test_upsert_filing_without_accession_number(db_session, create_test_company)
 def test_upsert_filing_invalid_company(db_session):
     """Test that upsert_filing_by_accession_number raises ValueError with non-existent company ID."""
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -491,7 +491,7 @@ def test_get_filing_by_accession_number(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.filings as filings_module
+    import src.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 

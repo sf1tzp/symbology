@@ -8,15 +8,15 @@ from typing import Any, Dict, Optional
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from src.ingestion.database import (
+from src.database import (
     get_or_create_financial_concept,
     store_balance_sheet_value,
     store_cash_flow_statement_value,
     store_cover_page_value,
     store_income_statement_value,
 )
-from src.ingestion.database.models import Company, Filing
-from src.ingestion.utils.logging import get_logger
+from src.database.models import Company, Filing
+from src.utils.logging import get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)
@@ -38,7 +38,7 @@ def process_balance_sheet_dataframe(
     Returns:
         Summary of processing results
     """
-    from src.ingestion.database.base import get_db_session
+    from src.database.base import get_db_session
     session = session or get_db_session()
 
     results = {
@@ -114,7 +114,7 @@ def process_income_statement_dataframe(
     Returns:
         Summary of processing results
     """
-    from src.ingestion.database.base import get_db_session
+    from src.database.base import get_db_session
     session = session or get_db_session()
 
     results = {
@@ -190,7 +190,7 @@ def process_cash_flow_statement_dataframe(
     Returns:
         Summary of processing results
     """
-    from src.ingestion.database.base import get_db_session
+    from src.database.base import get_db_session
     session = session or get_db_session()
 
     results = {
@@ -266,7 +266,7 @@ def process_cover_page_dataframe(
     Returns:
         Summary of processing results
     """
-    from src.ingestion.database.base import get_db_session
+    from src.database.base import get_db_session
     session = session or get_db_session()
 
     results = {

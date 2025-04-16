@@ -8,8 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.config import get_api_host, get_api_port
 from src.api.routes import router as api_router
-from src.ingestion.database.base import get_db, init_db
-from src.ingestion.utils.logging import configure_logging, get_logger
+from src.database.base import get_db, init_db
+from src.utils.logging import configure_logging, get_logger
 from src.ingestion.config import settings
 
 # Configure structured logging

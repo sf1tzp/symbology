@@ -6,11 +6,11 @@ from uuid import UUID
 from edgar import EntityData, Filing
 import pandas as pd
 
-from src.ingestion.database.companies import upsert_company_by_cik
-from src.ingestion.database.documents import find_or_create_document
-from src.ingestion.database.filings import upsert_filing_by_accession_number
-from src.ingestion.database.financial_concepts import find_or_create_financial_concept
-from src.ingestion.database.financial_values import upsert_financial_value
+from src.database.companies import upsert_company_by_cik
+from src.database.documents import find_or_create_document
+from src.database.filings import upsert_filing_by_accession_number
+from src.database.financial_concepts import find_or_create_financial_concept
+from src.database.financial_values import upsert_financial_value
 from src.ingestion.edgar_db.accessors import (
     _year_from_period_of_report,
     get_10k_filing,
@@ -23,7 +23,7 @@ from src.ingestion.edgar_db.accessors import (
     get_management_discussion,
     get_risk_factors,
 )
-from src.ingestion.utils.logging import get_logger
+from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -208,7 +208,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
 
         # Balance sheet
         balance_sheet_df = get_balance_sheet_values(filing)
-        for index, row in balance_sheet_df.iterrows():
+        for _index, row in balance_sheet_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
 
@@ -247,7 +247,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
 
         # Income statement
         income_df = get_income_statement_values(filing)
-        for index, row in income_df.iterrows():
+        for _index, row in income_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
 
@@ -286,7 +286,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
 
         # Cash flow statement
         cashflow_df = get_cash_flow_statement_values(filing)
-        for index, row in cashflow_df.iterrows():
+        for _index, row in cashflow_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
 
@@ -325,7 +325,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
 
         # Cover page data
         cover_df = get_cover_page_values(filing)
-        for index, row in cover_df.iterrows():
+        for _index, row in cover_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
 

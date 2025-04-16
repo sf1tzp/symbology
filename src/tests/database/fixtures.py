@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 #     sys.path.insert(0, project_root)
 
 # Import the models and settings
-from src.ingestion.database.base import Base
+from src.database.base import Base
 from src.ingestion.config import settings
 
 # Use PostgreSQL for testing with a separate test database

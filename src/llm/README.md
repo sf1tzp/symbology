@@ -56,7 +56,7 @@ The `completions.py` module provides functions for working with templates and st
 
 ```python
 from sqlalchemy.orm import Session
-from ingestion.database.base import SessionLocal
+from database.base import SessionLocal
 from ingestion.ai.completions import (
     create_predefined_prompt_templates,
     generate_and_store_completion,
@@ -127,7 +127,7 @@ finally:
 You can retrieve completions from the database using the CRUD operations:
 
 ```python
-from ingestion.database.crud_llm_completion import (
+from database.crud_llm_completion import (
     get_ai_completion,
     get_ai_completions,
     get_prompt_templates

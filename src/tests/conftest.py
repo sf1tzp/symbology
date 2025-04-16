@@ -12,7 +12,7 @@ if project_root not in sys.path:
 # os.environ["PYTHONPATH"] = project_root
 
 # Use the project's standard structured logging
-from src.ingestion.utils.logging import get_logger
+from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Import and reexport database fixtures

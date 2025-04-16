@@ -23,8 +23,8 @@ from src.ingestion.ingestion_helpers import (
     ingest_filing,
     ingest_filing_documents
 )
-from src.ingestion.database.base import init_db, close_session
-from src.ingestion.utils.logging import get_logger, configure_logging
+from src.database.base import init_db, close_session
+from src.utils.logging import get_logger, configure_logging
 from src.ingestion.config import settings
 
 # Configure logging using application settings

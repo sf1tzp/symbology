@@ -5,12 +5,12 @@ used in the symbology system.
 """
 
 # Import base database utilities
-from src.ingestion.database.base import Base, close_session, get_db, get_db_session, init_db
+from src.database.base import Base, close_session, get_db, get_db_session, init_db
 
 # Import models
 # Import CRUD functions
 # Companies
-from src.ingestion.database.companies import (
+from src.database.companies import (
     Company,
     create_company,
     delete_company,
@@ -20,7 +20,7 @@ from src.ingestion.database.companies import (
 )
 
 # Completions
-from src.ingestion.database.completions import (
+from src.database.completions import (
     Completion,
     create_completion,
     delete_completion,
@@ -30,7 +30,7 @@ from src.ingestion.database.completions import (
 )
 
 # Documents
-from src.ingestion.database.documents import (
+from src.database.documents import (
     create_document,
     delete_document,
     Document,
@@ -40,7 +40,7 @@ from src.ingestion.database.documents import (
 )
 
 # Filings
-from src.ingestion.database.filings import (
+from src.database.filings import (
     create_filing,
     delete_filing,
     Filing,
@@ -50,7 +50,7 @@ from src.ingestion.database.filings import (
 )
 
 # Financial Concepts
-from src.ingestion.database.financial_concepts import (
+from src.database.financial_concepts import (
     create_financial_concept,
     delete_financial_concept,
     FinancialConcept,
@@ -60,7 +60,7 @@ from src.ingestion.database.financial_concepts import (
 )
 
 # Financial Values
-from src.ingestion.database.financial_values import (
+from src.database.financial_values import (
     create_financial_value,
     delete_financial_value,
     FinancialValue,
@@ -70,7 +70,7 @@ from src.ingestion.database.financial_values import (
 )
 
 # Prompts
-from src.ingestion.database.prompts import (
+from src.database.prompts import (
     create_prompt,
     delete_prompt,
     get_prompt,
@@ -81,7 +81,7 @@ from src.ingestion.database.prompts import (
 )
 
 # Ratings
-from src.ingestion.database.ratings import (
+from src.database.ratings import (
     create_rating,
     delete_rating,
     get_rating,

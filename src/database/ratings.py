@@ -5,9 +5,9 @@ from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.ingestion.database.base import Base, get_db_session
-from src.ingestion.database.completions import Completion
-from src.ingestion.utils.logging import get_logger
+from src.database.base import Base, get_db_session
+from src.database.completions import Completion
+from src.utils.logging import get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)

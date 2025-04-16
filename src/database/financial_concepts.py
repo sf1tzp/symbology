@@ -5,12 +5,12 @@ from sqlalchemy import String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.ingestion.database.base import Base, get_db_session
-from src.ingestion.utils.logging import get_logger
+from src.database.base import Base, get_db_session
+from src.utils.logging import get_logger
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from src.ingestion.database.financial_values import FinancialValue
+    from src.database.financial_values import FinancialValue
 
 # Initialize structlog
 logger = get_logger(__name__)

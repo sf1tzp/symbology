@@ -2,7 +2,7 @@
 import os
 from typing import Optional
 
-from src.ingestion.utils.logging import get_logger
+from src.utils.logging import get_logger
 
 # Create logger for this module
 logger = get_logger(__name__)

@@ -1,7 +1,7 @@
 """API routes configuration."""
 from fastapi import APIRouter
 
-from src.ingestion.utils.logging import get_logger
+from src.utils.logging import get_logger
 
 # Create logger for this module
 logger = get_logger(__name__)

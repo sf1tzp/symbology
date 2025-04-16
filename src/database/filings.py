@@ -5,14 +5,14 @@ from uuid import UUID, uuid4
 from sqlalchemy import Date, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.ingestion.database.base import Base, get_db_session
-from src.ingestion.database.companies import Company
-from src.ingestion.utils.logging import get_logger
+from src.database.base import Base, get_db_session
+from src.database.companies import Company
+from src.utils.logging import get_logger
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from src.ingestion.database.documents import Document
-    from src.ingestion.database.financial_values import FinancialValue
+    from src.database.documents import Document
+    from src.database.financial_values import FinancialValue
 
 # Initialize structlog
 logger = get_logger(__name__)

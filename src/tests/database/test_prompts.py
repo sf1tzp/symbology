@@ -4,7 +4,7 @@ from typing import Dict, Any, List
 from sqlalchemy.exc import IntegrityError
 
 # Import the Prompt model and functions
-from src.ingestion.database.prompts import (
+from src.database.prompts import (
     Prompt,
     PromptRole,
     get_prompt_ids,
@@ -13,8 +13,8 @@ from src.ingestion.database.prompts import (
     update_prompt,
     delete_prompt
 )
-from src.ingestion.database.completions import Completion, create_completion
-from src.ingestion.database.base import Base
+from src.database.completions import Completion, create_completion
+from src.database.base import Base
 
 # Sample prompt data fixtures
 @pytest.fixture
@@ -211,7 +211,7 @@ def test_create_prompt_with_enum(db_session):
 def test_create_prompt_function(db_session, sample_user_prompt_data):
     """Test the create_prompt helper function."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -236,7 +236,7 @@ def test_create_prompt_function(db_session, sample_user_prompt_data):
 def test_create_prompt_duplicate_name(db_session, create_test_system_prompt, sample_system_prompt_data):
     """Test that creating a prompt with a duplicate name raises an error."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -251,7 +251,7 @@ def test_create_prompt_duplicate_name(db_session, create_test_system_prompt, sam
 def test_create_prompt_invalid_role(db_session):
     """Test that creating a prompt with an invalid role raises an error."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -275,7 +275,7 @@ def test_create_prompt_invalid_role(db_session):
 def test_get_prompt_by_id(db_session, create_test_system_prompt):
     """Test retrieving a prompt by ID using the get_prompt function."""
     # Mock the db_session global with our test session
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -302,7 +302,7 @@ def test_get_prompt_by_id(db_session, create_test_system_prompt):
 def test_update_prompt(db_session, create_test_user_prompt):
     """Test updating a prompt using the update_prompt function."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -339,7 +339,7 @@ def test_update_prompt(db_session, create_test_user_prompt):
 def test_update_prompt_role(db_session, create_test_user_prompt):
     """Test updating a prompt's role."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -373,7 +373,7 @@ def test_update_prompt_role(db_session, create_test_user_prompt):
 def test_update_prompt_name_duplicate(db_session, create_test_prompts):
     """Test that updating a prompt with a duplicate name raises an error."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -391,7 +391,7 @@ def test_update_prompt_name_duplicate(db_session, create_test_prompts):
 def test_update_prompt_json_fields(db_session, create_test_system_prompt):
     """Test updating JSON fields in a prompt."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -424,7 +424,7 @@ def test_update_prompt_json_fields(db_session, create_test_system_prompt):
 def test_update_with_invalid_attributes(db_session, create_test_system_prompt):
     """Test updating a prompt with invalid attributes."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -449,7 +449,7 @@ def test_update_with_invalid_attributes(db_session, create_test_system_prompt):
 def test_delete_prompt(db_session, create_test_assistant_prompt):
     """Test deleting a prompt using the delete_prompt function."""
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -496,7 +496,7 @@ def test_get_prompt_ids(db_session, multiple_prompt_data):
         prompt_ids.append(prompt.id)
 
     # Mock the db_session global
-    import src.ingestion.database.prompts as prompts_module
+    import src.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -540,7 +540,7 @@ def test_prompt_completion_relationship(db_session, create_test_system_prompt, c
 def test_create_completion_with_prompts(db_session, create_test_system_prompt, create_test_user_prompt):
     """Test creating a completion with prompt references using the create_completion function."""
     # Mock the db_session global
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 

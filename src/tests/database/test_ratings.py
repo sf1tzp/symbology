@@ -4,7 +4,7 @@ from datetime import date
 from typing import Dict, Any, List
 
 # Import the Rating model and functions
-from src.ingestion.database.ratings import (
+from src.database.ratings import (
     Rating,
     get_rating_ids,
     get_rating,
@@ -12,12 +12,12 @@ from src.ingestion.database.ratings import (
     update_rating,
     delete_rating
 )
-from src.ingestion.database.completions import Completion
-from src.ingestion.database.documents import Document
-from src.ingestion.database.prompts import Prompt, PromptRole
-from src.ingestion.database.filings import Filing
-from src.ingestion.database.companies import Company
-from src.ingestion.database.base import Base
+from src.database.completions import Completion
+from src.database.documents import Document
+from src.database.prompts import Prompt, PromptRole
+from src.database.filings import Filing
+from src.database.companies import Company
+from src.database.base import Base
 
 # Sample company and filing data fixtures
 @pytest.fixture
@@ -259,7 +259,7 @@ def test_get_rating_by_id(db_session, sample_rating_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -281,12 +281,12 @@ def test_get_rating_by_id(db_session, sample_rating_data):
 def test_create_rating_function(db_session, sample_rating_data):
     """Test the create_rating helper function."""
     # Mock the db_session global
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
     # Mock the completions module's get_db_session too, since it's imported in ratings.py
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_completions_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -314,12 +314,12 @@ def test_create_rating_function(db_session, sample_rating_data):
 def test_validation_of_content_score(db_session, sample_completion_data, create_test_document):
     """Test validation of content score range."""
     # Mock the db_session global
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
     # Mock the completions module's get_db_session too
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_completions_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -350,12 +350,12 @@ def test_validation_of_content_score(db_session, sample_completion_data, create_
 def test_validation_of_format_score(db_session, sample_completion_data, create_test_document):
     """Test validation of format score range."""
     # Mock the db_session global
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
     # Mock the completions module's get_db_session too
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_completions_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -391,7 +391,7 @@ def test_update_rating(db_session, sample_rating_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -430,7 +430,7 @@ def test_delete_rating(db_session, sample_rating_data):
     rating_id = rating.id
 
     # Mock the db_session global
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -460,7 +460,7 @@ def test_get_rating_ids(db_session, multiple_rating_data):
         rating_ids.append(rating.id)
 
     # Mock the db_session global
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -486,7 +486,7 @@ def test_update_with_invalid_attributes(db_session, sample_rating_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -516,7 +516,7 @@ def test_get_rating_with_string_uuid(db_session, sample_rating_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.ratings as ratings_module
+    import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 

@@ -6,12 +6,12 @@ from sqlalchemy import Enum, String, Text
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
 
-from src.ingestion.database.base import Base, get_db_session
-from src.ingestion.utils.logging import get_logger
+from src.database.base import Base, get_db_session
+from src.utils.logging import get_logger
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from src.ingestion.database.completions import Completion
+    from src.database.completions import Completion
 
 # Initialize structlog
 logger = get_logger(__name__)

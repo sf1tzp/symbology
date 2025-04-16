@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Dict, Any, List
 
 # Import the FinancialValue model and functions
-from src.ingestion.database.financial_values import (
+from src.database.financial_values import (
     FinancialValue,
     get_financial_value_ids,
     get_financial_value,
@@ -14,10 +14,10 @@ from src.ingestion.database.financial_values import (
     update_financial_value,
     delete_financial_value
 )
-from src.ingestion.database.companies import Company, create_company
-from src.ingestion.database.financial_concepts import FinancialConcept, create_financial_concept
-from src.ingestion.database.filings import Filing, create_filing
-from src.ingestion.database.base import Base
+from src.database.companies import Company, create_company
+from src.database.financial_concepts import FinancialConcept, create_financial_concept
+from src.database.filings import Filing, create_filing
+from src.database.base import Base
 
 # Sample company data fixture
 @pytest.fixture
@@ -205,7 +205,7 @@ def test_get_financial_value_by_id(db_session, sample_financial_value_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -226,7 +226,7 @@ def test_get_financial_value_by_id(db_session, sample_financial_value_data):
 def test_create_financial_value_function(db_session, sample_financial_value_data):
     """Test the create_financial_value helper function."""
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -255,7 +255,7 @@ def test_update_financial_value(db_session, sample_financial_value_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -293,7 +293,7 @@ def test_delete_financial_value(db_session, sample_financial_value_data):
     value_id = financial_value.id
 
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -323,7 +323,7 @@ def test_get_financial_value_ids(db_session, multiple_financial_value_data):
         value_ids.append(financial_value.id)
 
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -396,7 +396,7 @@ def test_update_with_invalid_attributes(db_session, sample_financial_value_data)
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -426,7 +426,7 @@ def test_get_financial_value_with_string_uuid(db_session, sample_financial_value
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -443,7 +443,7 @@ def test_get_financial_value_with_string_uuid(db_session, sample_financial_value
 def test_upsert_financial_value(db_session, create_test_company, create_test_concept, create_test_filing):
     """Test the upsert_financial_value helper function."""
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -502,7 +502,7 @@ def test_upsert_financial_value_with_different_filing(db_session, create_test_co
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -547,7 +547,7 @@ def test_get_financial_values_by_filing(db_session, create_test_company, create_
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 
@@ -577,7 +577,7 @@ def test_get_financial_values_by_company_and_date(db_session, create_test_compan
     test_date = multiple_financial_value_data[0]["value_date"]
 
     # Mock the db_session global
-    import src.ingestion.database.financial_values as values_module
+    import src.database.financial_values as values_module
     original_get_db_session = values_module.get_db_session
     values_module.get_db_session = lambda: db_session
 

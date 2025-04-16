@@ -4,8 +4,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.ingestion.database.base import Base, get_db_session
-from src.ingestion.utils.logging import get_logger
+from src.database.base import Base, get_db_session
+from src.utils.logging import get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)

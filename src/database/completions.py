@@ -5,14 +5,14 @@ from sqlalchemy import Column, Float, ForeignKey, String, Table
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
 
-from src.ingestion.database.base import Base, get_db_session
-from src.ingestion.utils.logging import get_logger
+from src.database.base import Base, get_db_session
+from src.utils.logging import get_logger
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from src.ingestion.database.documents import Document
-    from src.ingestion.database.prompts import Prompt
-    from src.ingestion.database.ratings import Rating
+    from src.database.documents import Document
+    from src.database.prompts import Prompt
+    from src.database.ratings import Rating
 
 # Initialize structlog
 logger = get_logger(__name__)
@@ -127,7 +127,7 @@ def create_completion(completion_data: Dict[str, Any]) -> Completion:
 
         # Add document associations if provided
         if document_ids:
-            from src.ingestion.database.documents import Document
+            from src.database.documents import Document
             documents = session.query(Document).filter(Document.id.in_(document_ids)).all()
             completion.source_documents.extend(documents)
 
@@ -159,7 +159,7 @@ def update_completion(completion_id: Union[UUID, str], completion_data: Dict[str
 
         # Handle document associations if provided
         if 'document_ids' in completion_data:
-            from src.ingestion.database.documents import Document
+            from src.database.documents import Document
             document_ids = completion_data.pop('document_ids')
 
             # Clear existing associations and add new ones

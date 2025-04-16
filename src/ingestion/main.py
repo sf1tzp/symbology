@@ -1,9 +1,9 @@
 import argparse
 
+from src.database.base import close_session, get_db_session, init_db
+from src.database.companies import Company, delete_company
 from src.ingestion.config import settings
-from src.ingestion.database.base import close_session, get_db_session, init_db
-from src.ingestion.database.companies import Company, delete_company
-from src.ingestion.utils.logging import configure_logging, get_logger
+from src.utils.logging import configure_logging, get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)
@@ -129,9 +129,9 @@ def main():
     configure_logging()
 
     # Parse command line arguments
-    args = parse_args()
+    _args = parse_args()
 
-
+    # TODO: Implement command handling based on args
 
 
 if __name__ == "__main__":

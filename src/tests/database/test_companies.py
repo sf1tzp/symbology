@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Dict, Any
 
 # Import the Company model and functions
-from src.ingestion.database.companies import (
+from src.database.companies import (
     Company,
     get_company_ids,
     get_company,
@@ -13,7 +13,7 @@ from src.ingestion.database.companies import (
     update_company,
     delete_company
 )
-from src.ingestion.database.base import Base
+from src.database.base import Base
 
 # Sample company data fixtures
 @pytest.fixture
@@ -130,7 +130,7 @@ def test_get_company_by_id(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -151,7 +151,7 @@ def test_get_company_by_id(db_session, sample_company_data):
 def test_create_company_function(db_session, sample_company_data):
     """Test the create_company helper function."""
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -180,7 +180,7 @@ def test_update_company(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -221,7 +221,7 @@ def test_delete_company(db_session, sample_company_data):
     company_id = company.id
 
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -251,7 +251,7 @@ def test_get_company_ids(db_session, multiple_company_data):
         company_ids.append(company.id)
 
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -312,7 +312,7 @@ def test_update_with_invalid_attributes(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -342,7 +342,7 @@ def test_get_company_with_string_uuid(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -358,7 +358,7 @@ def test_get_company_with_string_uuid(db_session, sample_company_data):
 def test_upsert_company_by_cik(db_session, sample_company_data):
     """Test the upsert_company_by_cik helper function for creating and updating companies."""
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -396,7 +396,7 @@ def test_upsert_company_by_cik(db_session, sample_company_data):
 def test_upsert_company_without_cik(db_session):
     """Test that upsert_company_by_cik function raises ValueError when CIK is missing."""
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -421,7 +421,7 @@ def test_get_company_by_cik(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.companies as companies_module
+    import src.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 

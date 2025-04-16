@@ -48,7 +48,7 @@ The database is initialized using the `init_db` function from `base.py`, which r
 Example:
 
 ```python
-from src.ingestion.database import init_db, get_company, create_company
+from src.database import init_db, get_company, create_company
 
 # Initialize the database
 init_db("postgresql://user:password@localhost/symbology")

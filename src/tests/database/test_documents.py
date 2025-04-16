@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Dict, Any, List
 
 # Import the Document model and functions
-from src.ingestion.database.documents import (
+from src.database.documents import (
     Document,
     get_document_ids,
     get_document,
@@ -13,9 +13,9 @@ from src.ingestion.database.documents import (
     update_document,
     delete_document
 )
-from src.ingestion.database.companies import Company, create_company
-from src.ingestion.database.filings import Filing, create_filing
-from src.ingestion.database.base import Base
+from src.database.companies import Company, create_company
+from src.database.filings import Filing, create_filing
+from src.database.base import Base
 
 # Sample company data fixture
 @pytest.fixture
@@ -173,7 +173,7 @@ def test_get_document_by_id(db_session, sample_document_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -194,7 +194,7 @@ def test_get_document_by_id(db_session, sample_document_data):
 def test_create_document_function(db_session, sample_document_data):
     """Test the create_document helper function."""
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -223,7 +223,7 @@ def test_update_document(db_session, sample_document_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -261,7 +261,7 @@ def test_delete_document(db_session, sample_document_data):
     document_id = document.id
 
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -291,7 +291,7 @@ def test_get_document_ids(db_session, multiple_document_data):
         document_ids.append(document.id)
 
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -317,7 +317,7 @@ def test_update_with_invalid_attributes(db_session, sample_document_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -347,7 +347,7 @@ def test_get_document_with_string_uuid(db_session, sample_document_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -464,7 +464,7 @@ def test_create_multiple_documents_for_filing(db_session, create_test_filing, mu
 def test_find_or_create_document(db_session, create_test_company, create_test_filing):
     """Test the find_or_create_document helper function."""
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -525,7 +525,7 @@ def test_find_or_create_document_update_existing(db_session, create_test_company
     document_id = document.id
 
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -554,7 +554,7 @@ def test_get_documents_by_filing(db_session, create_test_company, create_test_fi
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.documents as documents_module
+    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 

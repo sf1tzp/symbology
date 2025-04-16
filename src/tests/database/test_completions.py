@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Dict, Any, List
 
 # Import the Completion model and functions
-from src.ingestion.database.completions import (
+from src.database.completions import (
     Completion,
     get_completion_ids,
     get_completion,
@@ -13,11 +13,11 @@ from src.ingestion.database.completions import (
     update_completion,
     delete_completion
 )
-from src.ingestion.database.documents import Document, create_document
-from src.ingestion.database.prompts import Prompt, create_prompt
-from src.ingestion.database.filings import Filing, create_filing
-from src.ingestion.database.companies import Company, create_company
-from src.ingestion.database.base import Base
+from src.database.documents import Document, create_document
+from src.database.prompts import Prompt, create_prompt
+from src.database.filings import Filing, create_filing
+from src.database.companies import Company, create_company
+from src.database.base import Base
 
 # Sample company data fixture
 @pytest.fixture
@@ -134,7 +134,7 @@ def sample_user_prompt_data() -> Dict[str, Any]:
 def create_test_prompts(db_session, sample_system_prompt_data, sample_user_prompt_data):
     """Create and return system and user test prompts."""
     # Convert string roles to enum values
-    from src.ingestion.database.prompts import PromptRole
+    from src.database.prompts import PromptRole
     system_prompt_data = sample_system_prompt_data.copy()
     system_prompt_data["role"] = PromptRole.SYSTEM
 
@@ -288,7 +288,7 @@ def test_get_completion_by_id(db_session, sample_completion_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -309,7 +309,7 @@ def test_get_completion_by_id(db_session, sample_completion_data):
 def test_create_completion_function(db_session, sample_completion_data, create_multiple_documents):
     """Test the create_completion helper function."""
     # Mock the db_session global
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -343,7 +343,7 @@ def test_update_completion(db_session, sample_completion_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -380,7 +380,7 @@ def test_update_completion_documents(db_session, sample_completion_data, create_
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -419,7 +419,7 @@ def test_delete_completion(db_session, sample_completion_data):
     completion_id = completion.id
 
     # Mock the db_session global
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -449,7 +449,7 @@ def test_get_completion_ids(db_session, multiple_completion_data):
         completion_ids.append(completion.id)
 
     # Mock the db_session global
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -475,7 +475,7 @@ def test_update_with_invalid_attributes(db_session, sample_completion_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 
@@ -505,7 +505,7 @@ def test_get_completion_with_string_uuid(db_session, sample_completion_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.ingestion.database.completions as completions_module
+    import src.database.completions as completions_module
     original_get_db_session = completions_module.get_db_session
     completions_module.get_db_session = lambda: db_session
 

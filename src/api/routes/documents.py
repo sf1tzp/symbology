@@ -1,5 +1,6 @@
 """Documents API routes."""
 from uuid import UUID
+
 from fastapi import APIRouter, HTTPException
 
 from src.database.documents import get_document

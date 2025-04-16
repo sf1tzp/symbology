@@ -1,23 +1,24 @@
-import uuid
-import pytest
 from datetime import date
 from decimal import Decimal
-from sqlalchemy.exc import IntegrityError
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+import uuid
+
+import pytest
+
+from src.database.companies import Company
+from src.database.filings import Filing
+from src.database.financial_concepts import FinancialConcept
 
 # Import the FinancialValue model and functions
 from src.database.financial_values import (
-    FinancialValue,
-    get_financial_value_ids,
-    get_financial_value,
     create_financial_value,
+    delete_financial_value,
+    FinancialValue,
+    get_financial_value,
+    get_financial_value_ids,
     update_financial_value,
-    delete_financial_value
 )
-from src.database.companies import Company, create_company
-from src.database.financial_concepts import FinancialConcept, create_financial_concept
-from src.database.filings import Filing, create_filing
-from src.database.base import Base
+
 
 # Sample company data fixture
 @pytest.fixture

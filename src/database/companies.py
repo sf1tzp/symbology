@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, String, any_
+from sqlalchemy import any_, Boolean, Date, String
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
 

@@ -1,8 +1,8 @@
 """Tests for the filing API endpoints."""
-import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import patch
-from uuid import UUID, uuid4
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
 
 from src.api.main import app
 

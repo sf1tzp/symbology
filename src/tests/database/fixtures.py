@@ -1,22 +1,21 @@
-import logging
-import os
-import sys
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+# Import the models and settings
+from src.database.base import Base
+from src.ingestion.config import settings
+from src.utils.logging import configure_logging, get_logger
+
 # Configure logging for tests
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+configure_logging(log_level="INFO")
+logger = get_logger(__name__)
 
 # # Add the project root directory to the Python path for imports
 # project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 # if project_root not in sys.path:
 #     sys.path.insert(0, project_root)
 
-# Import the models and settings
-from src.database.base import Base
-from src.ingestion.config import settings
 
 # Use PostgreSQL for testing with a separate test database
 TEST_DATABASE_NAME = "symbology-test"

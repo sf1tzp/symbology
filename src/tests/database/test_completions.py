@@ -1,23 +1,17 @@
-import uuid
-import pytest
 from datetime import date
-from sqlalchemy.exc import IntegrityError
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+import uuid
+
+import pytest
+
+from src.database.companies import Company
 
 # Import the Completion model and functions
-from src.database.completions import (
-    Completion,
-    get_completion_ids,
-    get_completion,
-    create_completion,
-    update_completion,
-    delete_completion
-)
-from src.database.documents import Document, create_document
-from src.database.prompts import Prompt, create_prompt
-from src.database.filings import Filing, create_filing
-from src.database.companies import Company, create_company
-from src.database.base import Base
+from src.database.completions import Completion, create_completion, delete_completion, get_completion, get_completion_ids, update_completion
+from src.database.documents import Document
+from src.database.filings import Filing
+from src.database.prompts import Prompt
+
 
 # Sample company data fixture
 @pytest.fixture

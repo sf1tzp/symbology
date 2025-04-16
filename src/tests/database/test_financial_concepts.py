@@ -1,19 +1,19 @@
+from typing import Any, Dict, List
 import uuid
+
 import pytest
-from uuid import UUID
 from sqlalchemy.exc import IntegrityError
-from typing import Dict, Any, List
 
 # Import the FinancialConcept model and functions
 from src.database.financial_concepts import (
-    FinancialConcept,
-    get_financial_concept_ids,
-    get_financial_concept,
     create_financial_concept,
+    delete_financial_concept,
+    FinancialConcept,
+    get_financial_concept,
+    get_financial_concept_ids,
     update_financial_concept,
-    delete_financial_concept
 )
-from src.database.base import Base
+
 
 # Sample financial concept data fixtures
 @pytest.fixture
@@ -21,7 +21,8 @@ def sample_gaap_revenue_concept() -> Dict[str, Any]:
     """Sample GAAP revenue concept data for testing."""
     return {
         "name": "Revenue",
-        "description": "The income generated from sale of goods or services, or any other use of capital or assets, associated with the main operations of an organization before any costs or expenses are deducted.",
+        "description": "The income generated from sale of goods or services, or any other use of capital or assets, "
+                       "associated with the main operations of an organization before any costs or expenses are deducted.",
         "labels": ["Revenue", "Sales", "Net Sales", "Income", "Turnover"]
     }
 

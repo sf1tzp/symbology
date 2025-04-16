@@ -1,7 +1,8 @@
 import os
 import sys
-import pytest
-from datetime import datetime
+
+from src.tests.database.fixtures import create_test_database, db_engine, db_session, TEST_DATABASE_NAME, TEST_DATABASE_URL
+from src.utils.logging import get_logger
 
 # Add the project root directory to the Python path for imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
@@ -12,15 +13,8 @@ if project_root not in sys.path:
 # os.environ["PYTHONPATH"] = project_root
 
 # Use the project's standard structured logging
-from src.utils.logging import get_logger
+
 logger = get_logger(__name__)
 
 # Import and reexport database fixtures
-from src.tests.database.fixtures import (
-    create_test_database,
-    db_engine,
-    db_session,
-    TEST_DATABASE_NAME,
-    TEST_DATABASE_URL
-)
 

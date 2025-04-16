@@ -1,16 +1,13 @@
 """FastAPI application for Symbology API."""
-import logging
-import os
-import uvicorn
-
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 from src.api.config import get_api_host, get_api_port
 from src.api.routes import router as api_router
-from src.database.base import get_db, init_db
-from src.utils.logging import configure_logging, get_logger
+from src.database.base import init_db
 from src.ingestion.config import settings
+from src.utils.logging import configure_logging, get_logger
 
 # Configure structured logging
 configure_logging(log_level="INFO")

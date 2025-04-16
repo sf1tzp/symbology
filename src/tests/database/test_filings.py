@@ -1,21 +1,15 @@
-import uuid
-import pytest
 from datetime import date
+from typing import Any, Dict, List
+import uuid
+
+import pytest
 from sqlalchemy.exc import IntegrityError
-from typing import Dict, Any, List
+
+from src.database.companies import Company
 
 # Import the Filing model and functions
-from src.database.filings import (
-    Filing,
-    get_filing_ids,
-    get_filing,
-    create_filing,
-    update_filing,
-    delete_filing
-)
-from src.database.companies import Company, create_company
-from src.database.documents import Document
-from src.database.base import Base
+from src.database.filings import create_filing, delete_filing, Filing, get_filing, get_filing_ids, update_filing
+
 
 # Sample company data fixture
 @pytest.fixture

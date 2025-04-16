@@ -11,21 +11,15 @@ Usage:
 Note: This script requires a valid EDGAR database connection.
 """
 
-import sys
-import os
-from datetime import date
 import argparse
+import sys
 from uuid import UUID
 
-from src.ingestion.edgar_db.accessors import edgar_login
-from src.ingestion.ingestion_helpers import (
-    ingest_company,
-    ingest_filing,
-    ingest_filing_documents
-)
-from src.database.base import init_db, close_session
-from src.utils.logging import get_logger, configure_logging
+from src.database.base import close_session, init_db
 from src.ingestion.config import settings
+from src.ingestion.edgar_db.accessors import edgar_login
+from src.ingestion.ingestion_helpers import ingest_company, ingest_filing, ingest_filing_documents
+from src.utils.logging import configure_logging, get_logger
 
 # Configure logging using application settings
 configure_logging(

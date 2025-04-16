@@ -1,23 +1,18 @@
-import uuid
-import pytest
 from datetime import date
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+import uuid
 
-# Import the Rating model and functions
-from src.database.ratings import (
-    Rating,
-    get_rating_ids,
-    get_rating,
-    create_rating,
-    update_rating,
-    delete_rating
-)
+import pytest
+
+from src.database.companies import Company
 from src.database.completions import Completion
 from src.database.documents import Document
-from src.database.prompts import Prompt, PromptRole
 from src.database.filings import Filing
-from src.database.companies import Company
-from src.database.base import Base
+from src.database.prompts import Prompt, PromptRole
+
+# Import the Rating model and functions
+from src.database.ratings import create_rating, delete_rating, get_rating, get_rating_ids, Rating, update_rating
+
 
 # Sample company and filing data fixtures
 @pytest.fixture

@@ -1,17 +1,11 @@
 """API routes configuration."""
 from fastapi import APIRouter
 
+from src.api.routes import companies, documents, filings
 from src.utils.logging import get_logger
 
 # Create logger for this module
 logger = get_logger(__name__)
-
-# Import individual route modules
-from src.api.routes import (
-    companies,
-    filings,
-    documents,
-)
 
 # Create main router
 router = APIRouter()

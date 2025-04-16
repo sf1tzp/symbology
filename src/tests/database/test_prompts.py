@@ -1,20 +1,13 @@
+from typing import Any, Dict, List
 import uuid
+
 import pytest
-from typing import Dict, Any, List
-from sqlalchemy.exc import IntegrityError
+
+from src.database.completions import Completion, create_completion
 
 # Import the Prompt model and functions
-from src.database.prompts import (
-    Prompt,
-    PromptRole,
-    get_prompt_ids,
-    get_prompt,
-    create_prompt,
-    update_prompt,
-    delete_prompt
-)
-from src.database.completions import Completion, create_completion
-from src.database.base import Base
+from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole, update_prompt
+
 
 # Sample prompt data fixtures
 @pytest.fixture

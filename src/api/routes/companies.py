@@ -1,14 +1,10 @@
 """Companies API routes."""
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
+
 from fastapi import APIRouter, HTTPException, Query
 
-from src.api.schemas import CompanySearchRequest, CompanyIdRequest
-from src.database.companies import (
-    get_company, 
-    get_company_by_ticker,
-    get_company_by_cik
-)
+from src.database.companies import get_company, get_company_by_cik, get_company_by_ticker
 from src.utils.logging import get_logger
 
 # Create logger for this module

@@ -1,6 +1,7 @@
 """API request and response schemas."""
 from typing import Optional
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 

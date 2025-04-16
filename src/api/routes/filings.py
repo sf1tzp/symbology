@@ -1,10 +1,10 @@
 """Filings API routes."""
-from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, Query
 
-from src.database.filings import get_filing, get_filings_by_company
+from fastapi import APIRouter, HTTPException
+
 from src.database.documents import get_documents_by_filing
+from src.database.filings import get_filing, get_filings_by_company
 from src.utils.logging import get_logger
 
 # Create logger for this module

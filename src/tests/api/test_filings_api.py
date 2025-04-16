@@ -45,6 +45,7 @@ SAMPLE_FILING_DOCUMENTS = [
         "filing_id": SAMPLE_FILING_ID,
         "company_id": SAMPLE_COMPANY_ID,
         "document_type": "10-K",
+        "document_name": "Annual Report 10-K",
         "filename": "test_10k.htm",
         "description": "Annual Report",
         "sequence": 1,
@@ -56,6 +57,7 @@ SAMPLE_FILING_DOCUMENTS = [
         "filing_id": SAMPLE_FILING_ID,
         "company_id": SAMPLE_COMPANY_ID,
         "document_type": "EX-101",
+        "document_name": "Exhibit 101",
         "filename": "test_ex101.htm",
         "description": "Exhibit 101",
         "sequence": 2,
@@ -156,8 +158,8 @@ class TestFilingApi:
         data = response.json()
         assert len(data) == 2
         assert data[0]["id"] == str(SAMPLE_DOCUMENT_ID)
-        assert data[0]["document_type"] == "10-K"
-        assert data[1]["document_type"] == "EX-101"
+        assert data[0]["document_name"] == "Annual Report 10-K"
+        assert data[1]["document_name"] == "Exhibit 101"
 
         # Verify the mocks were called with the correct arguments
         mock_get_filing.assert_called_once_with(SAMPLE_FILING_ID)

@@ -2,8 +2,9 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, status
 
+from src.api.schemas import CompanyResponse
 from src.database.companies import get_company, get_company_by_cik, get_company_by_ticker
 from src.utils.logging import get_logger
 
@@ -13,7 +14,15 @@ logger = get_logger(__name__)
 # Create router
 router = APIRouter()
 
-@router.get("/{company_id}")
+@router.get(
+    "/{company_id}",
+    response_model=CompanyResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        404: {"description": "Company not found"},
+        500: {"description": "Internal server error"}
+    }
+)
 async def get_company_by_id(company_id: UUID):
     """Get a company by its ID."""
     logger.info("api_get_company_by_id", company_id=str(company_id))
@@ -22,7 +31,16 @@ async def get_company_by_id(company_id: UUID):
         raise HTTPException(status_code=404, detail="Company not found")
     return company
 
-@router.get("/")
+@router.get(
+    "/",
+    response_model=CompanyResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {"description": "Bad request - missing required parameters"},
+        404: {"description": "Company not found"},
+        500: {"description": "Internal server error"}
+    }
+)
 async def search_companies(
     ticker: Optional[str] = Query(None, description="Company ticker symbol"),
     cik: Optional[str] = Query(None, description="Company CIK")

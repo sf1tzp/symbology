@@ -1,25 +1,27 @@
 <script lang="ts">
-  import CompanySelector from './components/company/CompanySelector.svelte';
-  import FilingsSelector from './components/filings/FilingsSelector.svelte';
-  import DocumentSelector from './components/documents/DocumentSelector.svelte';
-  import DocumentViewer from './components/documents/DocumentViewer.svelte';
+  import CompanySelector from '$components/company/CompanySelector.svelte';
 </script>
 
 <main>
-  <h1>Symbology</h1>
+  <header>
+    <h1>Symbology Test</h1>
+  </header>
+
   <div class="dashboard">
     <div class="selectors">
       <CompanySelector />
-      <FilingsSelector />
-      <DocumentSelector />
-    </div>
-    <div class="viewer">
-      <DocumentViewer />
     </div>
   </div>
 </main>
 
 <style>
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
   .dashboard {
     display: flex;
     flex-direction: column;
@@ -33,10 +35,6 @@
 
     .selectors {
       width: 30%;
-    }
-
-    .viewer {
-      width: 70%;
     }
   }
 </style>

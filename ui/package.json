@@ -9,28 +9,29 @@
         "preview": "vite preview",
         "check": "svelte-check --tsconfig ./tsconfig.json",
         "lint": "eslint 'src/**/*.{js,ts,svelte}'",
-        "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}'"
+        "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}'",
+        "generate-api-types": "node ./scripts/generate-api-types.js"
     },
     "devDependencies": {
         "@eslint/js": "^8.56.0",
-        "@sveltejs/vite-plugin-svelte": "^3.0.2",
-        "@tsconfig/svelte": "^5.0.2",
         "eslint": "^8.56.0",
-        "eslint-plugin-svelte": "^2.35.1",
         "prettier": "^3.2.4",
-        "prettier-plugin-svelte": "^3.1.2",
-        "svelte": "^4.2.12",
-        "svelte-check": "^3.6.2",
-        "svelte-eslint-parser": "^0.33.1",
+        "svelte": "5.27.0",
+        "svelte-eslint-parser": "v1.1.2",
         "tslib": "^2.6.2",
         "typescript": "^5.3.3",
         "typescript-eslint": "^7.1.1",
-        "vite": "^5.1.5"
+        "vite": "v6.3.0"
     },
     "dependencies": {
+        "@sveltejs/vite-plugin-svelte": "^5.0.3",
+        "@tsconfig/svelte": "^5.0.4",
         "@types/dompurify": "^3.0.5",
         "dompurify": "^3.2.5",
+        "eslint-plugin-svelte": "^3.5.1",
         "loglevel": "^1.9.2",
+        "prettier-plugin-svelte": "^3.3.3",
+        "svelte-check": "^4.1.6",
         "svelte-routing": "^2.11.0"
     }
 }

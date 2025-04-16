@@ -1,65 +1,70 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { getLogger } from '$utils/logger';
+  import { fetchApi } from '$utils/generated-api-types';
+  import type { CompanyResponse } from '$utils/generated-api-types';
+  import config from '$utils/config';
 
   const logger = getLogger('CompanySelector');
 
-  let companies = [];
-  let selectedCompany = null;
-  let loading = false;
-  let error = null;
+  // Using Svelte 5 runes
+  let ticker = $state('');
+  let selectedCompany = $state<CompanyResponse | null>(null);
+  let loading = $state(false);
+  let error = $state<string | null>(null);
 
-  // Function declaration moved to module scope
-  function selectCompany(company) {
-    selectedCompany = company;
-    // Dispatch an event to notify parent components
-    const event = new CustomEvent('company-selected', { detail: company });
-    window.dispatchEvent(event);
-  }
+  // Function to search for a company by ticker
+  async function searchCompany() {
+    if (!ticker) {
+      error = 'Please enter a ticker symbol';
+      return;
+    }
 
-  // Fetch companies function moved out of onMount
-  async function fetchCompanies() {
     try {
       loading = true;
-      const response = await fetch('/api/companies');
-      if (!response.ok) throw new Error('Failed to fetch companies');
-      companies = await response.json();
+      error = null;
+      selectedCompany = null;
+
+      const company = await fetchApi<CompanyResponse>(
+        `${config.api.baseUrl}/companies/?ticker=${ticker.toUpperCase()}`
+      );
+      selectedCompany = company;
+
+      // Dispatch event for other components
+      const event = new CustomEvent('company-selected', { detail: company });
+      window.dispatchEvent(event);
     } catch (err) {
-      error = err.message;
-      logger.error('Error fetching companies:', err);
+      error = err instanceof Error ? err.message : String(err);
+      logger.error('Error searching company by ticker:', err);
+      selectedCompany = null;
     } finally {
       loading = false;
     }
   }
-
-  onMount(() => {
-    fetchCompanies();
-  });
 </script>
 
-/* eslint-disable no-inner-declarations */
 <div class="company-selector">
   <h2>Company Selector</h2>
 
-  {#if loading}
-    <p>Loading companies...</p>
-  {:else if error}
+  <div class="search-container">
+    <input
+      type="text"
+      bind:value={ticker}
+      placeholder="Enter ticker symbol (e.g., AAPL)"
+      onkeydown={(e) => e.key === 'Enter' && searchCompany()}
+    />
+    <button onclick={searchCompany} disabled={loading}>
+      {loading ? 'Searching...' : 'Search'}
+    </button>
+  </div>
+
+  {#if error}
     <p class="error">Error: {error}</p>
-  {:else if companies.length === 0}
-    <p>No companies found</p>
-  {:else}
-    <select on:change={(e) => selectCompany(companies.find((c) => c.id === e.target.value))}>
-      <option value="">Select a company</option>
-      {#each companies as company}
-        <option value={company.id}>{company.name} ({company.ticker})</option>
-      {/each}
-    </select>
   {/if}
 
   {#if selectedCompany}
     <div class="company-details">
       <h3>{selectedCompany.name}</h3>
-      <p>Ticker: {selectedCompany.ticker}</p>
+      <p>Ticker: {selectedCompany.tickers}</p>
       <p>CIK: {selectedCompany.cik}</p>
     </div>
   {/if}
@@ -73,14 +78,39 @@
     margin-bottom: 1rem;
   }
 
-  .error {
-    color: red;
+  .search-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
   }
 
-  select {
-    width: 100%;
+  input {
+    flex: 1;
     padding: 0.5rem;
-    margin-bottom: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+
+  button {
+    padding: 0.5rem 1rem;
+    background-color: #4285f4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background-color: #3367d6;
+  }
+
+  button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+
+  .error {
+    color: red;
   }
 
   .company-details {

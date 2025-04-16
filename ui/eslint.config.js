@@ -45,6 +45,13 @@ export default tseslint.config(
         }
     },
     {
+        // FIXME: Fix generated api types to not have `any` fields
+        files: ['**/*.d.ts', '**/generated-api-types.ts'],
+        rules: {
+            '@typescript-eslint/no-explicit-any': 'off'
+        }
+    },
+    {
         linterOptions: {
             reportUnusedDisableDirectives: true,
         },

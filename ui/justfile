@@ -1,21 +1,22 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2148
 
-_update-api-types:
-    npm --prefix run generate-api-types
+generate-api-types:
+    node scripts/generate-api-types.js
 
 run-ui *ARGS:
-    npm --prefix ui run dev "{{ARGS}}"
+    npm run dev -- --host
 
 lint-ui *ARGS:
-    npm --prefix ui run lint "{{ARGS}}" | tee ui-lint.log
+    npm run lint {{ARGS}} | tee ui-lint.log
 
 # Add these commands once we set up the npm scripts
-ui-format:
-    npm --prefix ui run format
+format-ui:
+    npm run format
 
-ui-check:
-    npm --prefix ui run check
+check-ui:
+    npm run check
 
-ui-deps:
-    npm --prefix ui install
+deps-ui:
+    rm -rf node_modules
+    npm install

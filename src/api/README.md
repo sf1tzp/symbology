@@ -58,3 +58,31 @@ When the server is running, you can access the auto-generated API documentation:
 
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
+
+### OpenAPI Documentation Features
+
+The API uses FastAPI's built-in OpenAPI documentation capabilities with enhanced customization:
+
+1. **Detailed Schema Documentation**: All request and response schemas are fully documented using Pydantic models with:
+   - Field descriptions
+   - Type annotations
+   - Example values
+   - Required vs. optional field indicators
+
+2. **Customized Swagger UI**: The API uses a customized version of Swagger UI with:
+   - Modern UI theme from the latest Swagger UI distribution
+   - Organized endpoint grouping by tags (companies, filings, documents)
+   - Interactive "Try it out" functionality to test API calls directly
+
+3. **Response Documentation**: Each endpoint documents:
+   - Success responses with example data
+   - Possible error responses (404, 400, 500) with descriptions
+   - Response content types
+
+4. **API Metadata**: The documentation includes:
+   - API version information
+   - Contact information
+   - License details
+   - General API description
+
+The documentation is automatically generated from the code annotations in the route handlers and Pydantic schemas, ensuring it always stays in sync with the actual implementation.

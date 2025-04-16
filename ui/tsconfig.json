@@ -8,6 +8,10 @@
         "allowJs": true,
         "checkJs": true,
         "isolatedModules": true,
+        "noEmit": true,
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
         "baseUrl": ".",
         "paths": {
             "$src/*": [

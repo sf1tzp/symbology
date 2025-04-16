@@ -1,0 +1,113 @@
+{
+  "nodes": [
+    {
+      "type": "text",
+      "id": "d88206440a07d318",
+      "x": -180,
+      "y": -20,
+      "width": 250,
+      "height": 280,
+      "text": "# Filing Documents\n\nScrollable list of documents associated with a filing"
+    },
+    {
+      "type": "text",
+      "id": "f7678cd3750bc5f5",
+      "x": -500,
+      "y": -20,
+      "width": 260,
+      "height": 280,
+      "text": "# Filings\n\nScrollable list of filing names\n"
+    },
+    {
+      "type": "text",
+      "id": "f616a3103b21f736",
+      "x": 140,
+      "y": -20,
+      "width": 240,
+      "height": 280,
+      "text": "# View Document\n\nDocument Content"
+    },
+    {
+      "type": "text",
+      "id": "e7bde8791ae7f942",
+      "x": -780,
+      "y": -25,
+      "width": 220,
+      "height": 290,
+      "text": "# Select Company\n\n- Text input 'Ticker' search\n- Autopopulating list of company names & ticker\n"
+    },
+    {
+      "type": "text",
+      "id": "03063cc4c378110e",
+      "x": -380,
+      "y": 720,
+      "width": 238,
+      "height": 67,
+      "text": "## Database"
+    }
+  ],
+  "edges": [
+    {
+      "id": "0c4db5439caf5692",
+      "fromNode": "e7bde8791ae7f942",
+      "fromSide": "right",
+      "toNode": "f7678cd3750bc5f5",
+      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "d646e0e60dd58307",
+      "fromNode": "f7678cd3750bc5f5",
+      "fromSide": "right",
+      "toNode": "d88206440a07d318",
+      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "2090e1e3ddb03a3d",
+      "fromNode": "d88206440a07d318",
+      "fromSide": "right",
+      "toNode": "f616a3103b21f736",
+      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e9ee540930704cd8",
+      "fromNode": "e7bde8791ae7f942",
+      "fromSide": "bottom",
+      "toNode": "03063cc4c378110e",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "get_company(ticker)"
+    },
+    {
+      "id": "5aa63b3c589cb293",
+      "fromNode": "f7678cd3750bc5f5",
+      "fromSide": "bottom",
+      "toNode": "03063cc4c378110e",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "get_filings(company_id)"
+    },
+    {
+      "id": "cb42d40ed27788a5",
+      "fromNode": "d88206440a07d318",
+      "fromSide": "bottom",
+      "toNode": "03063cc4c378110e",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "get_documents(filing_id)"
+    },
+    {
+      "id": "c0a7836a-c851-4f10-84d0-414e4a4eb59e",
+      "fromNode": "f616a3103b21f736",
+      "fromSide": "bottom",
+      "toNode": "03063cc4c378110e",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "get_document(document_id)",
+      "style": "solid",
+      "shape": "curved"
+    }
+  ]
+}

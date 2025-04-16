@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, String
+from sqlalchemy import Boolean, Date, String, any_
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
 
@@ -233,4 +233,26 @@ def get_company_by_cik(cik: str) -> Optional[Company]:
         return company
     except Exception as e:
         logger.error("get_company_by_cik_failed", cik=cik, error=str(e), exc_info=True)
+        raise
+
+def get_company_by_ticker(ticker: str) -> Optional[Company]:
+    """Get a company by one of its ticker symbols.
+
+    Args:
+        ticker: Ticker symbol of the company to retrieve
+
+    Returns:
+        Company object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+        # Since tickers is an array field, we need to use the 'any' operator
+        company = session.query(Company).filter(ticker.upper() == any_(Company.tickers)).first()
+        if company:
+            logger.info("retrieved_company_by_ticker", company_id=str(company.id), ticker=ticker)
+        else:
+            logger.warning("company_by_ticker_not_found", ticker=ticker)
+        return company
+    except Exception as e:
+        logger.error("get_company_by_ticker_failed", ticker=ticker, error=str(e), exc_info=True)
         raise

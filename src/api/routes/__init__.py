@@ -10,8 +10,7 @@ logger = get_logger(__name__)
 from src.api.routes import (
     companies,
     filings,
-    financial_statements,
-    llm_completions,
+    documents,
 )
 
 # Create main router
@@ -20,13 +19,11 @@ router = APIRouter()
 # Include all sub-routers
 router.include_router(companies.router, prefix="/companies", tags=["companies"])
 router.include_router(filings.router, prefix="/filings", tags=["filings"])
-router.include_router(financial_statements.router, prefix="/financials", tags=["financials"])
-router.include_router(llm_completions.router, prefix="/completions", tags=["completions"])
+router.include_router(documents.router, prefix="/documents", tags=["documents"])
 
 logger.info("api_routes_configured",
            endpoints=[
                "/companies",
                "/filings",
-               "/financials",
-               "/completions"
+               "/documents",
            ])

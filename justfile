@@ -27,7 +27,7 @@ summarize:
 
 # test and lint outputs are logged to make it easy to include as llm context
 test: _create_venv
-    uv run -m pytest --cov=src src/tests/ | tee test.log
+    uv run -m pytest --cov=src.database --cov=src.ingestion --cov=src.api src/tests/ --json-report --json-report-file=test.log
 
 lint *FLAGS: # lint --fix
     ~/.local/share/nvim/mason/bin/ruff check src/ingestion {{FLAGS}} | tee lint.log

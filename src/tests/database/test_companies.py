@@ -438,3 +438,34 @@ def test_get_company_by_cik(db_session, sample_company_data):
     finally:
         # Restore the original function
         companies_module.get_db_session = original_get_db_session
+
+def test_get_company_by_ticker(db_session, sample_company_data):
+    """Test the get_company_by_ticker helper function."""
+    # First create a company with tickers
+    company = Company(**sample_company_data)
+    db_session.add(company)
+    db_session.commit()
+
+    # Mock the db_session global
+    import src.database.companies as companies_module
+    original_get_db_session = companies_module.get_db_session
+    companies_module.get_db_session = lambda: db_session
+
+    try:
+        # Test retrieving by ticker (case-insensitive)
+        retrieved = companies_module.get_company_by_ticker("aapl")  # lowercase
+        assert retrieved is not None
+        assert retrieved.id == company.id
+        assert retrieved.name == "Apple Inc."
+
+        # Also test with uppercase
+        retrieved_upper = companies_module.get_company_by_ticker("AAPL")
+        assert retrieved_upper is not None
+        assert retrieved_upper.id == company.id
+
+        # Test with non-existent ticker
+        non_existent = companies_module.get_company_by_ticker("NONEXISTENT")
+        assert non_existent is None
+    finally:
+        # Restore the original function
+        companies_module.get_db_session = original_get_db_session

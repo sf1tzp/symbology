@@ -17,12 +17,61 @@ tests/
 ├── __init__.py        # Package initialization
 ├── conftest.py        # Global pytest configuration and fixtures
 ├── README.md          # This documentation
+├── api/               # Tests for API endpoints
+│   ├── test_*.py      # Tests for specific API routes
 ├── database/          # Tests for database models and operations
 │   ├── fixtures.py    # Database-specific test fixtures
 │   ├── test_*.py      # Tests for database models and operations
 └── ingestion/         # Tests for data ingestion components
     └── test_*.py      # Tests for data ingestion functionality
 ```
+
+## API Testing
+
+The project includes tests for API endpoints using FastAPI's `TestClient`. These tests ensure that the API routes handle requests correctly, return appropriate responses, and properly integrate with the underlying database functions.
+
+### API Test Structure
+
+API tests are organized in the `src/tests/api/` directory with separate test files for different resource endpoints:
+
+- `test_documents_api.py`: Tests for document retrieval endpoints
+- `test_filings_api.py`: Tests for filing operations and related document retrieval
+- `test_companies_api.py`: Tests for company search and retrieval endpoints
+
+### Testing Approach
+
+The API tests use mocking to isolate the API routes from actual database calls:
+
+```python
+@patch("src.api.routes.documents.get_document")
+def test_get_document_by_id_found(self, mock_get_document):
+    # Setup the mock to return sample data
+    mock_get_document.return_value = SAMPLE_DOCUMENT_DATA
+
+    # Make the API call using FastAPI's TestClient
+    response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}")
+
+    # Assert the response status code and data
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(SAMPLE_DOCUMENT_ID)
+
+    # Verify the mock was called with the correct arguments
+    mock_get_document.assert_called_once_with(SAMPLE_DOCUMENT_ID)
+```
+
+Each test class focuses on a specific API resource and includes tests for:
+
+1. Successful requests with proper responses
+2. Error cases (404 Not Found, 400 Bad Request)
+3. Edge cases and validation errors
+
+The API tests verify that:
+- Routes handle valid requests correctly
+- Routes return appropriate HTTP status codes
+- Response bodies match expected formats
+- Error handling is implemented properly
+- Database functions are called with expected parameters
 
 ## Key Pytest Features Used
 

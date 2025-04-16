@@ -256,3 +256,26 @@ def get_filing_by_accession_number(accession_number: str) -> Optional[Filing]:
                     exc_info=True)
         raise
 
+def get_filings_by_company(company_id: Union[UUID, str]) -> List[Filing]:
+    """Get all filings associated with a company.
+
+    Args:
+        company_id: UUID of the company
+
+    Returns:
+        List of Filing objects
+    """
+    try:
+        session = get_db_session()
+        filings = session.query(Filing).filter(Filing.company_id == company_id).all()
+        logger.info("retrieved_filings_by_company",
+                   company_id=str(company_id),
+                   count=len(filings))
+        return filings
+    except Exception as e:
+        logger.error("get_filings_by_company_failed",
+                    company_id=str(company_id),
+                    error=str(e),
+                    exc_info=True)
+        raise
+

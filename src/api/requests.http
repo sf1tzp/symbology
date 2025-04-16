@@ -1,0 +1,74 @@
+# API Host
+@hostname = localhost
+@port = 8000
+
+# Example IDs
+@company_id = 370782e3-5dc1-47c2-99d6-4675080d1589
+@filing_id = 3c1bcf22-1cc8-444f-8398-0dfcc101cb11
+@document_id = c031add2-d0a9-4595-a53b-99a821f1d6a5
+
+# API Health Endpoint
+GET http://{{hostname}}:{{port}}/
+
+###
+
+# 1. Search for a company by ticker (example: AAPL)
+GET http://{{hostname}}:{{port}}/api/companies?ticker=AAPL
+Accept: application/json
+
+###
+
+# 2. Search for a company by CIK (alternative way)
+# # FIXME: We do not yet support 0 padding on cik
+# (probably because we store in a string format:
+# # HTTP/1.1 404 Not Found
+# date: Wed, 16 Apr 2025 15:07:31 GMT
+# server: uvicorn
+# content-length: 50
+# content-type: application/json
+# Connection: close
+
+# {
+#   "detail": "Company with CIK 0000320193 not found"
+# }
+GET http://{{hostname}}:{{port}}/api/companies?cik=0000320193
+Accept: application/json
+
+###
+
+# 3. Get a specific company by ID (save company_id from step 1 or 2)
+# Replace {company_id} with an actual UUID
+GET http://{{hostname}}:{{port}}/api/companies/{{company_id}}
+Accept: application/json
+
+###
+
+# 4. Get all filings for a company
+# Replace {company_id} with the company UUID from step 1, 2, or 3
+GET http://{{hostname}}:{{port}}/api/filings/by-company/{{company_id}}
+Accept: application/json
+
+###
+
+# 5. Get a specific filing by ID
+# Replace {filing_id} with a filing UUID from step 4
+GET http://{{hostname}}:{{port}}/api/filings/{{filing_id}}
+Accept: application/json
+
+###
+
+# 6. Get all documents associated with a filing
+# Replace {filing_id} with the filing UUID from step 4 or 5
+GET http://{{hostname}}:{{port}}/api/filings/{{filing_id}}/documents
+Accept: application/json
+
+###
+
+# 7. Get a specific document by ID
+# Replace {document_id} with a document UUID from step 6
+GET http://{{hostname}}:{{port}}/api/documents/{{document_id}}
+Accept: application/json
+
+###
+
+

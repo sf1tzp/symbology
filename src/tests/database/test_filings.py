@@ -508,3 +508,42 @@ def test_get_filing_by_accession_number(db_session, sample_filing_data):
     finally:
         # Restore the original function
         filings_module.get_db_session = original_get_db_session
+
+def test_get_filings_by_company(db_session, create_test_company, multiple_filing_data):
+    """Test retrieving all filings for a specific company."""
+    # Create multiple filings for the same company
+    filing_ids = []
+    for data in multiple_filing_data:
+        filing = Filing(**data)
+        db_session.add(filing)
+        db_session.commit()
+        filing_ids.append(filing.id)
+
+    # Mock the db_session global
+    import src.database.filings as filings_module
+    original_get_db_session = filings_module.get_db_session
+    filings_module.get_db_session = lambda: db_session
+
+    try:
+        # Get all filings for the company
+        company_id = create_test_company.id
+        filings = filings_module.get_filings_by_company(company_id)
+
+        # Verify we got back all the filings we created
+        assert len(filings) == len(filing_ids)
+
+        # Check that all filing IDs are in our list of created filing IDs
+        retrieved_ids = [filing.id for filing in filings]
+        for filing_id in filing_ids:
+            assert filing_id in retrieved_ids
+
+        # Test with string UUID
+        filings_str = filings_module.get_filings_by_company(str(company_id))
+        assert len(filings_str) == len(filing_ids)
+
+        # Test with non-existent company ID
+        non_existent_filings = filings_module.get_filings_by_company(uuid.uuid4())
+        assert len(non_existent_filings) == 0
+    finally:
+        # Restore the original function
+        filings_module.get_db_session = original_get_db_session

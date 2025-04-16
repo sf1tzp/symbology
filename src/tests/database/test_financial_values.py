@@ -439,3 +439,169 @@ def test_get_financial_value_with_string_uuid(db_session, sample_financial_value
     finally:
         # Restore the original function
         values_module.get_db_session = original_get_db_session
+
+def test_upsert_financial_value(db_session, create_test_company, create_test_concept, create_test_filing):
+    """Test the upsert_financial_value helper function."""
+    # Mock the db_session global
+    import src.ingestion.database.financial_values as values_module
+    original_get_db_session = values_module.get_db_session
+    values_module.get_db_session = lambda: db_session
+
+    try:
+        # Create a new financial value using upsert
+        value_date = date(2023, 12, 31)
+        result = values_module.upsert_financial_value(
+            company_id=create_test_company.id,
+            concept_id=create_test_concept.id,
+            value_date=value_date,
+            value=Decimal("1000000.50"),
+            filing_id=create_test_filing.id
+        )
+
+        assert result is not None
+        assert result.value == Decimal("1000000.50")
+        assert result.value_date == value_date
+        value_id = result.id
+
+        # Call upsert again with the same identifiers but different value - should update existing
+        updated_result = values_module.upsert_financial_value(
+            company_id=create_test_company.id,
+            concept_id=create_test_concept.id,
+            value_date=value_date,
+            value=Decimal("1200000.75"),
+            filing_id=create_test_filing.id
+        )
+
+        # Should be same financial value but with updated value
+        assert updated_result.id == value_id
+        assert updated_result.value == Decimal("1200000.75")
+        assert updated_result.value_date == value_date
+
+        # Test without filing_id
+        standalone_value = values_module.upsert_financial_value(
+            company_id=create_test_company.id,
+            concept_id=create_test_concept.id,
+            value_date=date(2023, 9, 30),
+            value=Decimal("900000.25")
+        )
+
+        assert standalone_value is not None
+        assert standalone_value.value == Decimal("900000.25")
+        assert standalone_value.filing_id is None
+    finally:
+        # Restore the original function
+        values_module.get_db_session = original_get_db_session
+
+def test_upsert_financial_value_with_different_filing(db_session, create_test_company, create_test_concept, create_test_filing, sample_filing_data):
+    """Test that upsert_financial_value creates a new value for the same identifiers but different filing."""
+    # Create a second filing
+    filing2_data = sample_filing_data.copy()
+    filing2_data["accession_number"] = "0000123456-23-000124"
+    filing2 = Filing(**filing2_data)
+    db_session.add(filing2)
+    db_session.commit()
+
+    # Mock the db_session global
+    import src.ingestion.database.financial_values as values_module
+    original_get_db_session = values_module.get_db_session
+    values_module.get_db_session = lambda: db_session
+
+    try:
+        # Create financial value for first filing
+        value_date = date(2023, 12, 31)
+        value1 = values_module.upsert_financial_value(
+            company_id=create_test_company.id,
+            concept_id=create_test_concept.id,
+            value_date=value_date,
+            value=Decimal("1000000.00"),
+            filing_id=create_test_filing.id
+        )
+
+        # Create financial value for second filing (same date, company, concept)
+        value2 = values_module.upsert_financial_value(
+            company_id=create_test_company.id,
+            concept_id=create_test_concept.id,
+            value_date=value_date,
+            value=Decimal("1100000.00"),
+            filing_id=filing2.id
+        )
+
+        # Should be different financial values
+        assert value1.id != value2.id
+        assert value1.value == Decimal("1000000.00")
+        assert value2.value == Decimal("1100000.00")
+        assert value1.filing_id != value2.filing_id
+    finally:
+        # Restore the original function
+        values_module.get_db_session = original_get_db_session
+
+def test_get_financial_values_by_filing(db_session, create_test_company, create_test_concept, create_test_filing, multiple_financial_value_data):
+    """Test the get_financial_values_by_filing helper function."""
+    # Create multiple financial values for the same filing
+    for data in multiple_financial_value_data:
+        # Add filing_id to all values
+        data_with_filing = data.copy()
+        data_with_filing["filing_id"] = create_test_filing.id
+        value = FinancialValue(**data_with_filing)
+        db_session.add(value)
+    db_session.commit()
+
+    # Mock the db_session global
+    import src.ingestion.database.financial_values as values_module
+    original_get_db_session = values_module.get_db_session
+    values_module.get_db_session = lambda: db_session
+
+    try:
+        # Get values for the filing
+        values = values_module.get_financial_values_by_filing(create_test_filing.id)
+
+        # Should have the same number of values as we created
+        assert len(values) == len(multiple_financial_value_data)
+
+        # Test with a filing ID that has no values
+        no_values = values_module.get_financial_values_by_filing(uuid.uuid4())
+        assert len(no_values) == 0
+    finally:
+        # Restore the original function
+        values_module.get_db_session = original_get_db_session
+
+def test_get_financial_values_by_company_and_date(db_session, create_test_company, create_test_concept, multiple_financial_value_data):
+    """Test the get_financial_values_by_company_and_date helper function."""
+    # Create multiple financial values for the company
+    for data in multiple_financial_value_data:
+        value = FinancialValue(**data)
+        db_session.add(value)
+    db_session.commit()
+
+    # We'll test with the first date in our test data
+    test_date = multiple_financial_value_data[0]["value_date"]
+
+    # Mock the db_session global
+    import src.ingestion.database.financial_values as values_module
+    original_get_db_session = values_module.get_db_session
+    values_module.get_db_session = lambda: db_session
+
+    try:
+        # Get values for the company and date
+        values = values_module.get_financial_values_by_company_and_date(
+            create_test_company.id, test_date
+        )
+
+        # Should be 1 value for this specific date
+        assert len(values) == 1
+        assert values[0].value_date == test_date
+
+        # Test with a date that has no values
+        no_values = values_module.get_financial_values_by_company_and_date(
+            create_test_company.id, date(2020, 1, 1)
+        )
+        assert len(no_values) == 0
+
+        # Test with a non-existent company
+        no_company_values = values_module.get_financial_values_by_company_and_date(
+            uuid.uuid4(), test_date
+        )
+        assert len(no_company_values) == 0
+    finally:
+        # Restore the original function
+        values_module.get_db_session = original_get_db_session

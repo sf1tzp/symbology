@@ -168,3 +168,69 @@ def delete_company(company_id: Union[UUID, str]) -> bool:
         session.rollback()
         logger.error("delete_company_failed", company_id=str(company_id), error=str(e), exc_info=True)
         raise
+
+
+def upsert_company_by_cik(company_data: Dict[str, Any]) -> Company:
+    """Create a company or update it if it already exists based on CIK.
+
+    Args:
+        company_data: Dictionary containing company attributes
+
+    Returns:
+        Created or updated Company object
+    """
+    try:
+        session = get_db_session()
+        cik = company_data.get('cik')
+
+        if not cik:
+            logger.error("upsert_company_failed", error="CIK is required")
+            raise ValueError("CIK is required for company upsert")
+
+        # Ensure CIK is a string when querying the database
+        existing_company = session.query(Company).filter(Company.cik == str(cik)).first()
+
+        if existing_company:
+            # Update existing company
+            for key, value in company_data.items():
+                if hasattr(existing_company, key):
+                    setattr(existing_company, key, value)
+                    # Flag JSON fields as modified to ensure changes are detected
+                    if key == 'former_names':
+                        attributes.flag_modified(existing_company, key)
+
+            session.commit()
+            logger.info("updated_existing_company", company_id=str(existing_company.id), cik=cik)
+            return existing_company
+        else:
+            # Create new company
+            company = Company(**company_data)
+            session.add(company)
+            session.commit()
+            logger.info("created_new_company", company_id=str(company.id), cik=cik)
+            return company
+    except Exception as e:
+        session.rollback()
+        logger.error("upsert_company_failed", error=str(e), exc_info=True)
+        raise
+
+def get_company_by_cik(cik: str) -> Optional[Company]:
+    """Get a company by its CIK.
+
+    Args:
+        cik: CIK of the company to retrieve
+
+    Returns:
+        Company object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+        company = session.query(Company).filter(Company.cik == cik).first()
+        if company:
+            logger.info("retrieved_company_by_cik", company_id=str(company.id), cik=cik)
+        else:
+            logger.warning("company_by_cik_not_found", cik=cik)
+        return company
+    except Exception as e:
+        logger.error("get_company_by_cik_failed", cik=cik, error=str(e), exc_info=True)
+        raise

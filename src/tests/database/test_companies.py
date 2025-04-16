@@ -354,3 +354,87 @@ def test_get_company_with_string_uuid(db_session, sample_company_data):
     finally:
         # Restore the original function
         companies_module.get_db_session = original_get_db_session
+
+def test_upsert_company_by_cik(db_session, sample_company_data):
+    """Test the upsert_company_by_cik helper function for creating and updating companies."""
+    # Mock the db_session global
+    import src.ingestion.database.companies as companies_module
+    original_get_db_session = companies_module.get_db_session
+    companies_module.get_db_session = lambda: db_session
+
+    try:
+        # Create a new company using upsert
+        result = companies_module.upsert_company_by_cik(sample_company_data)
+        assert result is not None
+        assert result.name == "Apple Inc."
+        assert result.cik == "0000320193"
+
+        # Now test updating the existing company via upsert
+        updated_data = {
+            "cik": "0000320193",  # Same CIK
+            "name": "Apple Corporation",
+            "display_name": "Apple Corp",
+            "tickers": ["AAPL", "APPL"]
+        }
+
+        updated_result = companies_module.upsert_company_by_cik(updated_data)
+
+        # Verify the company was updated, not created new
+        assert updated_result.id == result.id  # Same ID as before
+        assert updated_result.name == "Apple Corporation"
+        assert updated_result.display_name == "Apple Corp"
+        assert len(updated_result.tickers) == 2
+        assert "APPL" in updated_result.tickers
+
+        # Original fields not in update remain unchanged
+        assert updated_result.cik == "0000320193"
+        assert updated_result.sic == "3571"
+    finally:
+        # Restore the original function
+        companies_module.get_db_session = original_get_db_session
+
+def test_upsert_company_without_cik(db_session):
+    """Test that upsert_company_by_cik function raises ValueError when CIK is missing."""
+    # Mock the db_session global
+    import src.ingestion.database.companies as companies_module
+    original_get_db_session = companies_module.get_db_session
+    companies_module.get_db_session = lambda: db_session
+
+    try:
+        # Try to upsert without cik
+        invalid_data = {
+            "name": "Invalid Company",
+        }
+
+        # Should raise ValueError
+        with pytest.raises(ValueError, match="CIK is required"):
+            companies_module.upsert_company_by_cik(invalid_data)
+    finally:
+        # Restore the original function
+        companies_module.get_db_session = original_get_db_session
+
+def test_get_company_by_cik(db_session, sample_company_data):
+    """Test the get_company_by_cik helper function."""
+    # First create a company
+    company = Company(**sample_company_data)
+    db_session.add(company)
+    db_session.commit()
+
+    # Mock the db_session global
+    import src.ingestion.database.companies as companies_module
+    original_get_db_session = companies_module.get_db_session
+    companies_module.get_db_session = lambda: db_session
+
+    try:
+        # Test retrieving by CIK
+        retrieved = companies_module.get_company_by_cik("0000320193")
+        assert retrieved is not None
+        assert retrieved.id == company.id
+        assert retrieved.name == "Apple Inc."
+
+        # Test with non-existent CIK
+        non_existent = companies_module.get_company_by_cik("9999999999")
+        assert non_existent is None
+    finally:
+        # Restore the original function
+        companies_module.get_db_session = original_get_db_session

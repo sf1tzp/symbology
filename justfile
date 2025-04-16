@@ -19,13 +19,17 @@ run *ARGS: _create_venv
 delete *ARGS: _create_venv
     uv run run.py delete {{ARGS}}
 
+ingest *ARGS: # Run with defaults (AAPL, 2022)
+    uv run -m src.bin.edgar_ingestion --json-logs {{ARGS}} 2>&1 | tee ingest.log
+
 summarize:
     uv run run.py summarize --document-id 3 --template-id 2 --temperature 0.7
 
+# test and lint outputs are logged to make it easy to include as llm context
 test: _create_venv
     uv run -m pytest --cov=src.api --cov=src.ingestion src/tests/ | tee test.log
 
-lint *FLAGS:
+lint *FLAGS: # lint --fix
     ~/.local/share/nvim/mason/bin/ruff check src/ingestion {{FLAGS}} | tee lint.log
 
 start-db: _generate-pgadmin-config

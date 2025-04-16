@@ -159,3 +159,88 @@ def delete_document(document_id: Union[UUID, str]) -> bool:
         session.rollback()
         logger.error("delete_document_failed", document_id=str(document_id), error=str(e), exc_info=True)
         raise
+
+
+def find_or_create_document(company_id: UUID, document_name: str, content: Optional[str],
+                           filing_id: Optional[UUID] = None) -> Document:
+    """Find a document by company, filing, and name or create it if it doesn't exist.
+
+    Args:
+        company_id: UUID of the company
+        document_name: Name of the document
+        content: Content of the document
+        filing_id: UUID of the filing (optional)
+
+    Returns:
+        Found or created Document object
+    """
+    try:
+        session = get_db_session()
+
+        # Build query
+        query = session.query(Document).filter(
+            Document.company_id == company_id,
+            Document.document_name == document_name
+        )
+
+        if filing_id:
+            query = query.filter(Document.filing_id == filing_id)
+        else:
+            query = query.filter(Document.filing_id.is_(None))
+
+        existing_document = query.first()
+
+        if existing_document:
+            # Update content if provided
+            if content is not None:
+                existing_document.content = content
+                session.commit()
+                logger.info("updated_document_content",
+                           document_id=str(existing_document.id),
+                           document_name=document_name)
+            return existing_document
+        else:
+            # Create new document
+            document_data = {
+                'company_id': company_id,
+                'document_name': document_name,
+                'content': content
+            }
+            if filing_id:
+                document_data['filing_id'] = filing_id
+
+            document = Document(**document_data)
+            session.add(document)
+            session.commit()
+            logger.info("created_new_document",
+                       document_id=str(document.id),
+                       document_name=document_name)
+            return document
+    except Exception as e:
+        session.rollback()
+        logger.error("find_or_create_document_failed", error=str(e), exc_info=True)
+        raise
+
+
+def get_documents_by_filing(filing_id: UUID) -> List[Document]:
+    """Get all documents associated with a filing.
+
+    Args:
+        filing_id: UUID of the filing
+
+    Returns:
+        List of Document objects
+    """
+    try:
+        session = get_db_session()
+        documents = session.query(Document).filter(Document.filing_id == filing_id).all()
+        logger.info("retrieved_documents_by_filing",
+                   filing_id=str(filing_id),
+                   count=len(documents))
+        return documents
+    except Exception as e:
+        logger.error("get_documents_by_filing_failed",
+                    filing_id=str(filing_id),
+                    error=str(e),
+                    exc_info=True)
+        raise

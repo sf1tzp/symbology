@@ -27,6 +27,7 @@ def get_company(ticker: str) -> EntityData:
     Returns:
         EntityData object containing company information
     """
+
     return Company(ticker)
 
 def get_10k_filing(company: EntityData, year: int) -> Optional[Filing]:

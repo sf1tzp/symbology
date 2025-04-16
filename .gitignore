@@ -9,8 +9,7 @@ __pycache__
 
 uv.lock
 
-test.log
-lint.log
+*.log
 
 infra/database-data/
 infra/pgadmin-data/

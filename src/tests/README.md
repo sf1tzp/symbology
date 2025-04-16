@@ -1,156 +1,173 @@
-# Symbology Testing Strategy
+# Symbology Test Suite
 
-This directory contains tests for the Symbology application. The tests are organized by functional area and use pytest as the test framework.
+This directory contains the comprehensive test suite for the Symbology project, a Python application for retrieving, processing, and analyzing financial data from SEC EDGAR filings.
 
-## Testing Philosophy
+## Overview
 
-Our testing approach follows these principles:
+The test suite uses pytest as the testing framework and follows a structured approach to testing different components of the application:
 
-1. **Isolation**: Each test should run independently without relying on other tests.
-2. **Speed**: Tests should execute quickly to enable frequent test runs during development.
-3. **Comprehensiveness**: Tests should cover both happy paths and error scenarios.
-4. **Readability**: Tests should be easy to understand and maintain.
+- **Unit Tests**: Tests for individual functions and classes
+- **Integration Tests**: Tests for database interactions and API endpoints
+- **Functional Tests**: End-to-end tests for specific features
 
-## Test Structure
+## Directory Structure
 
-The tests are organized into the following directories:
-
-- `db/`: Tests for database models and CRUD operations
-- `ingestion/`: Tests for data ingestion functionality
-
-## Test Database
-
-Tests use a dedicated PostgreSQL test database (`symbology-test`) that is created and destroyed during the test session. This ensures tests don't interfere with development or production data.
-
-## Test Fixtures
-
-Common test fixtures are defined in `conftest.py`. These include:
-
-- `db_engine`: Creates a SQLAlchemy engine connected to the test database
-- `db_session`: Creates a fresh database session for each test
-- `sample_company_data`: Sample data for creating Company objects
-- `sample_filing_data`: Sample data for creating Filing objects
-- `sample_financial_concept_data`: Sample data for financial concepts
-- `sample_balance_sheet_data`: Sample balance sheet values
-- `sample_balance_sheet_df`: Sample balance sheet DataFrame for testing
-- `sample_income_statement_data`: Sample income statement values
-- `sample_income_statement_df`: Sample income statement DataFrame for testing
-
-## Mocking in Tests
-
-Several tests in this project use mocking to isolate components and test them independently without relying on external services or systems. We primarily use Python's `unittest.mock` library for this purpose.
-
-### MagicMock and Mock
-
-`MagicMock` is a powerful mocking class that automatically creates attributes and methods as needed, returning new `MagicMock` objects when accessed. This makes it ideal for mocking complex objects like the EDGAR API responses or XBRL objects.
-
-Key features of `MagicMock` used in our tests:
-
-- **Method Chaining**: Allows mocking nested method calls (e.g., `mock_xbrl.statements.balance_sheet.to_dataframe()`)
-- **Return Value Configuration**: Setting specific return values with `return_value`
-- **Call Tracking**: Verifying that methods were called with the right parameters
-- **Call Assertions**: Assertions like `mock_method.assert_called_once_with(expected_args)`
-
-Example from `test_edgar_financials.py`:
-```python
-# Create mock objects in a chain
-mock_xbrl_instance = MagicMock()
-mock_balance_sheet = MagicMock()
-mock_xbrl.return_value = mock_xbrl_instance
-mock_xbrl_instance.statements.balance_sheet.return_value = mock_balance_sheet
-mock_balance_sheet.to_dataframe.return_value = sample_dataframe
+```
+tests/
+├── __init__.py        # Package initialization
+├── conftest.py        # Global pytest configuration and fixtures
+├── README.md          # This documentation
+├── database/          # Tests for database models and operations
+│   ├── fixtures.py    # Database-specific test fixtures
+│   ├── test_*.py      # Tests for database models and operations
+└── ingestion/         # Tests for data ingestion components
+    └── test_*.py      # Tests for data ingestion functionality
 ```
 
-### Patch Decorator
+## Key Pytest Features Used
 
-The `@patch` decorator is used to replace objects within a specific scope (like a test method). This allows us to temporarily replace functions or classes with mock objects during test execution.
+### Fixtures
 
-In our tests, `@patch` is used to:
+Fixtures are a powerful feature of pytest that provide a way to set up and tear down test resources. The project uses fixtures extensively:
 
-- Replace external API calls (`get_balance_sheet_values`, `XBRL.from_filing`)
-- Avoid actual file system or database access during tests
-- Control the behavior of complex dependencies
-
-Example:
 ```python
-@patch('src.python.ingestion.edgar.XBRL.from_filing')
-def test_get_balance_sheet_values(self, mock_xbrl):
-    # The real XBRL.from_filing is replaced with mock_xbrl for this test
+@pytest.fixture
+def sample_company_data():
+    """Sample company data for testing."""
+    return {
+        "name": "Apple Inc.",
+        "cik": "0000320193",
+        # Additional fields...
+    }
 ```
 
-### Best Practices for Mocking
+Access fixtures in tests by including them as parameters:
 
-Our tests follow these mocking best practices:
+```python
+def test_create_company(db_session, sample_company_data):
+    # The fixture values are passed as parameters
+    company = Company(**sample_company_data)
+    # ...
+```
 
-1. **Mock at boundaries**: Only mock external services or complex dependencies
-2. **Verify interactions**: Assert that mocks were called with expected parameters
-3. **Isolate tests**: Each test should work independently regardless of external systems
-4. **Be specific**: Mock only what's necessary, no more
-5. **Preserve interfaces**: Mocks should behave like the real objects they replace
+### Database Testing
 
-Mocking has been particularly useful for testing our EDGAR integration without making actual API calls to the SEC servers during tests.
+The `conftest.py` file sets up database testing infrastructure:
 
-## Implemented Tests
+- `create_test_database`: Creates a test database for the test session
+- `db_engine`: SQLAlchemy engine connected to the test database
+- `db_session`: SQLAlchemy session for interacting with the test database
 
-### Database Tests (`db/`)
+Database tests use these fixtures to run against an isolated test database:
 
-#### Company Model Tests (`test_company.py`)
-- Company creation, retrieval, updating, and deletion
-- Unique constraint enforcement (CIK must be unique)
-- Ticker-based searching
-- Upsert operations (insert or update)
-- Conversion to dictionary/JSON
+```python
+def test_create_company(db_session, sample_company_data):
+    company = Company(**sample_company_data)
+    db_session.add(company)
+    db_session.commit()
 
-#### Filing Model Tests (`test_filing.py`)
-- Filing creation, retrieval, updating, and deletion
-- Unique constraint enforcement (accession number must be unique)
-- Date-based and type-based searching
-- Company-Filing relationship tests
-- Upsert operations (insert or update)
-- Conversion to dictionary/JSON
+    # Assertions...
+```
 
-#### Financial Data Tests (`test_financials.py`)
-- Financial concept creation and label mapping
-- Balance sheet value storage and retrieval
-- Income statement value storage and retrieval
-- Processing of balance sheet dataframes
-- Processing of income statement dataframes
-- Date-based financial data retrieval
-- Relationship tests between financial models
-- Concept-to-label mapping verification
-- Company-BalanceSheetValue relationship tests
-- Company-IncomeStatementValue relationship tests
-- Filing-BalanceSheetValue relationship tests
-- Filing-IncomeStatementValue relationship tests
-- Concept-BalanceSheetValue relationship tests
-- Concept-IncomeStatementValue relationship tests
+### Test Parameterization
 
-### Ingestion Tests (`ingestion/`)
+For testing multiple similar scenarios, we use pytest's parameterization:
 
-#### Edgar Financial Data Tests (`test_edgar_financials.py`)
-- Balance sheet data extraction from EDGAR filings
-- Income statement data extraction from EDGAR filings
-- Storage of extracted data in the database
-- Integration between EDGAR parsing and database storage
-- Testing balance sheet data storage functionality
-- Testing income statement data storage functionality
+```python
+@pytest.mark.parametrize("input_data,expected_result", [
+    ({"value1": 1, "value2": 2}, 3),
+    ({"value1": -1, "value2": 1}, 0),
+    # Additional test cases...
+])
+def test_function_with_multiple_inputs(input_data, expected_result):
+    result = function_under_test(input_data["value1"], input_data["value2"])
+    assert result == expected_result
+```
+
+### Mocking
+
+We use mocking to isolate components during testing:
+
+```python
+def test_function_with_mocking(db_session, mocker):
+    # Mock external dependencies
+    mock_service = mocker.patch("src.module.external_service")
+    mock_service.get_data.return_value = {"test": "data"}
+
+    # Test the function that depends on external_service
+    result = function_under_test()
+
+    # Verify mock was called correctly
+    mock_service.get_data.assert_called_once()
+    # Additional assertions...
+```
+
+### Exception Testing
+
+Testing for expected exceptions:
+
+```python
+def test_duplicate_cik(db_session, sample_company_data):
+    # Create first company
+    company1 = Company(**sample_company_data)
+    db_session.add(company1)
+    db_session.commit()
+
+    # Try to create second company with same CIK
+    company2 = Company(**sample_company_data)
+    db_session.add(company2)
+
+    # Should raise IntegrityError due to unique constraint
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+```
 
 ## Running Tests
 
-Tests can be run using the following command:
+To run the entire test suite:
 
 ```bash
 just test
 ```
 
-This will execute all tests and report any failures.
-
-## Test Coverage
-
-To generate a test coverage report, run:
+To run a specific test file:
 
 ```bash
-just test-coverage
+pytest src/tests/database/test_companies.py -v
 ```
 
-(Note: test-coverage command needs to be implemented in the justfile)
+To run a specific test function:
+
+```bash
+pytest src/tests/database/test_companies.py::test_create_company -v
+```
+
+## Writing New Tests
+
+When writing new tests, follow these guidelines:
+
+1. **Use fixtures** for test setup and shared resources
+2. **One assertion per test** when possible
+3. **Descriptive test names** that explain what is being tested
+4. **Isolate tests** so they don't depend on other tests
+5. **Clean up resources** using fixture teardown
+
+Example of a well-structured test:
+
+```python
+def test_get_company_by_ticker(db_session, sample_company_data):
+    """Test retrieving a company by ticker symbol."""
+    # Setup - create the test data
+    company = Company(**sample_company_data)
+    db_session.add(company)
+    db_session.commit()
+
+    # Exercise - call the function under test
+    result = get_company_by_ticker("AAPL")
+
+    # Verify - check the results
+    assert result is not None
+    assert result.id == company.id
+    assert result.name == "Apple Inc."
+```
+

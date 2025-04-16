@@ -164,3 +164,120 @@ def delete_financial_value(value_id: Union[UUID, str]) -> bool:
         session.rollback()
         logger.error("delete_financial_value_failed", value_id=str(value_id), error=str(e), exc_info=True)
         raise
+
+
+def upsert_financial_value(company_id: UUID, concept_id: UUID, value_date: date,
+                          value: Decimal, filing_id: Optional[UUID] = None) -> FinancialValue:
+    """Create or update a financial value for a company, concept, and date.
+
+    Args:
+        company_id: UUID of the company
+        concept_id: UUID of the financial concept
+        value_date: Date of the financial value
+        value: Numeric value of the financial data point
+        filing_id: UUID of the related filing (optional)
+
+    Returns:
+        Created or updated FinancialValue object
+    """
+    try:
+        session = get_db_session()
+
+        # Build query
+        query = session.query(FinancialValue).filter(
+            FinancialValue.company_id == company_id,
+            FinancialValue.concept_id == concept_id,
+            FinancialValue.value_date == value_date
+        )
+
+        if filing_id:
+            query = query.filter(FinancialValue.filing_id == filing_id)
+        else:
+            query = query.filter(FinancialValue.filing_id.is_(None))
+
+        existing_value = query.first()
+
+        if existing_value:
+            # Update value
+            existing_value.value = value
+            session.commit()
+            logger.info("updated_existing_financial_value",
+                       value_id=str(existing_value.id),
+                       company_id=str(company_id),
+                       concept_id=str(concept_id))
+            return existing_value
+        else:
+            # Create new financial value
+            value_data = {
+                'company_id': company_id,
+                'concept_id': concept_id,
+                'value_date': value_date,
+                'value': value
+            }
+            if filing_id:
+                value_data['filing_id'] = filing_id
+
+            financial_value = FinancialValue(**value_data)
+            session.add(financial_value)
+            session.commit()
+            logger.info("created_new_financial_value",
+                       value_id=str(financial_value.id),
+                       company_id=str(company_id),
+                       concept_id=str(concept_id))
+            return financial_value
+    except Exception as e:
+        session.rollback()
+        logger.error("upsert_financial_value_failed", error=str(e), exc_info=True)
+        raise
+
+def get_financial_values_by_filing(filing_id: UUID) -> List[FinancialValue]:
+    """Get all financial values associated with a filing.
+
+    Args:
+        filing_id: UUID of the filing
+
+    Returns:
+        List of FinancialValue objects
+    """
+    try:
+        session = get_db_session()
+        values = session.query(FinancialValue).filter(FinancialValue.filing_id == filing_id).all()
+        logger.info("retrieved_financial_values_by_filing",
+                   filing_id=str(filing_id),
+                   count=len(values))
+        return values
+    except Exception as e:
+        logger.error("get_financial_values_by_filing_failed",
+                    filing_id=str(filing_id),
+                    error=str(e),
+                    exc_info=True)
+        raise
+
+def get_financial_values_by_company_and_date(company_id: UUID, value_date: date) -> List[FinancialValue]:
+    """Get all financial values for a company on a specific date.
+
+    Args:
+        company_id: UUID of the company
+        value_date: Date of the financial values
+
+    Returns:
+        List of FinancialValue objects
+    """
+    try:
+        session = get_db_session()
+        values = session.query(FinancialValue).filter(
+            FinancialValue.company_id == company_id,
+            FinancialValue.value_date == value_date
+        ).all()
+        logger.info("retrieved_financial_values_by_company_and_date",
+                   company_id=str(company_id),
+                   value_date=str(value_date),
+                   count=len(values))
+        return values
+    except Exception as e:
+        logger.error("get_financial_values_by_company_and_date_failed",
+                    company_id=str(company_id),
+                    value_date=str(value_date),
+                    error=str(e),
+                    exc_info=True)
+        raise

@@ -171,3 +171,89 @@ def delete_financial_concept(concept_id: Union[UUID, str]) -> bool:
         session.rollback()
         logger.error("delete_financial_concept_failed", concept_id=str(concept_id), error=str(e), exc_info=True)
         raise
+
+
+def find_or_create_financial_concept(name: str, description: Optional[str] = None,
+                                    labels: Optional[List[str]] = None) -> FinancialConcept:
+    """Find a financial concept by name or create it if it doesn't exist.
+
+    Args:
+        name: Unique name of the financial concept
+        description: Description of the financial concept
+        labels: List of alternative labels for the concept
+
+    Returns:
+        Found or created FinancialConcept object
+    """
+    try:
+        session = get_db_session()
+        existing_concept = session.query(FinancialConcept).filter(FinancialConcept.name == name).first()
+
+        if existing_concept:
+            # Update if new data provided
+            update_needed = False
+
+            if description is not None and existing_concept.description != description:
+                existing_concept.description = description
+                update_needed = True
+
+            if labels is not None:
+                # Check if labels are different
+                if set(existing_concept.labels) != set(labels):
+                    # Merge labels without duplicates
+                    merged_labels = list(set(existing_concept.labels + labels))
+                    existing_concept.labels = merged_labels
+                    update_needed = True
+
+            if update_needed:
+                session.commit()
+                logger.info("updated_existing_financial_concept",
+                           concept_id=str(existing_concept.id),
+                           name=name)
+
+            return existing_concept
+        else:
+            # Create new concept
+            concept_data = {'name': name}
+            if description is not None:
+                concept_data['description'] = description
+            if labels is not None:
+                concept_data['labels'] = labels
+
+            concept = FinancialConcept(**concept_data)
+            session.add(concept)
+            session.commit()
+            logger.info("created_new_financial_concept",
+                       concept_id=str(concept.id),
+                       name=name)
+            return concept
+    except Exception as e:
+        session.rollback()
+        logger.error("find_or_create_financial_concept_failed", error=str(e), exc_info=True)
+        raise
+
+def get_financial_concept_by_name(name: str) -> Optional[FinancialConcept]:
+    """Get a financial concept by its name.
+
+    Args:
+        name: Name of the financial concept to retrieve
+
+    Returns:
+        FinancialConcept object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+        concept = session.query(FinancialConcept).filter(FinancialConcept.name == name).first()
+        if concept:
+            logger.info("retrieved_financial_concept_by_name",
+                       concept_id=str(concept.id),
+                       name=name)
+        else:
+            logger.warning("financial_concept_by_name_not_found", name=name)
+        return concept
+    except Exception as e:
+        logger.error("get_financial_concept_by_name_failed",
+                    name=name,
+                    error=str(e),
+                    exc_info=True)
+        raise

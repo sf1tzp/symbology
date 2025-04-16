@@ -1,0 +1,377 @@
+from datetime import date
+from decimal import Decimal
+from typing import Dict, Optional, Tuple
+from uuid import UUID
+
+from edgar import EntityData, Filing
+import pandas as pd
+
+from src.ingestion.database.companies import upsert_company_by_cik
+from src.ingestion.database.documents import find_or_create_document
+from src.ingestion.database.filings import upsert_filing_by_accession_number
+from src.ingestion.database.financial_concepts import find_or_create_financial_concept
+from src.ingestion.database.financial_values import upsert_financial_value
+from src.ingestion.edgar_db.accessors import (
+    _year_from_period_of_report,
+    get_10k_filing,
+    get_balance_sheet_values,
+    get_business_description,
+    get_cash_flow_statement_values,
+    get_company,
+    get_cover_page_values,
+    get_income_statement_values,
+    get_management_discussion,
+    get_risk_factors,
+)
+from src.ingestion.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+def ingest_company(ticker: str) -> Tuple[EntityData, UUID]:
+    """Fetch company data from EDGAR and store in database.
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Tuple of (EDGAR company data, company UUID in database)
+    """
+    try:
+        # Get company data from EDGAR
+        edgar_company = get_company(ticker)
+
+        # Prepare data for database
+        company_data = {
+            'cik': edgar_company.cik,
+            'name': edgar_company.name,
+            'display_name': edgar_company.display_name,
+            'is_company': edgar_company.is_company,
+            'tickers': edgar_company.tickers,
+            'exchanges': edgar_company.exchanges if hasattr(edgar_company, 'exchanges') else [],
+            'sic': edgar_company.sic,
+            'sic_description': edgar_company.sic_description,
+            'entity_type': edgar_company.entity_type if hasattr(edgar_company, 'entity_type') else None,
+            'ein': edgar_company.ein if hasattr(edgar_company, 'ein') else None,
+            'former_names': edgar_company.former_names if hasattr(edgar_company, 'former_names') else [],
+        }
+
+        # Handle fiscal_year_end conversion from MMDD string to date
+        if hasattr(edgar_company, 'fiscal_year_end') and edgar_company.fiscal_year_end:
+            # If it's in MMDD format, convert to a proper date
+            if isinstance(edgar_company.fiscal_year_end, str) and len(edgar_company.fiscal_year_end) == 4:
+                try:
+                    # Create a date with current year and MM-DD from fiscal_year_end
+                    month = int(edgar_company.fiscal_year_end[:2])
+                    day = int(edgar_company.fiscal_year_end[2:])
+                    fiscal_date = date(date.today().year, month, day)
+                    company_data['fiscal_year_end'] = fiscal_date
+                except (ValueError, TypeError):
+                    logger.warning("invalid_fiscal_year_end_format",
+                                  value=edgar_company.fiscal_year_end,
+                                  cik=edgar_company.cik)
+                    company_data['fiscal_year_end'] = None
+            else:
+                company_data['fiscal_year_end'] = edgar_company.fiscal_year_end
+        else:
+            company_data['fiscal_year_end'] = None
+
+        # Store in database
+        db_company = upsert_company_by_cik(company_data)
+
+        logger.info("company_ingested",
+                   ticker=ticker,
+                   cik=edgar_company.cik,
+                   company_id=str(db_company.id))
+
+        return edgar_company, db_company.id
+    except Exception as e:
+        logger.error("ingest_company_failed", ticker=ticker, error=str(e), exc_info=True)
+        raise
+
+def ingest_filing(company_id: UUID, edgar_company: EntityData, year: int) -> Tuple[Optional[Filing], Optional[UUID]]:
+    """Fetch 10-K filing from EDGAR and store in database.
+
+    Args:
+        company_id: UUID of the company in database
+        edgar_company: EDGAR company data
+        year: Year of the filing
+
+    Returns:
+        Tuple of (EDGAR filing data, filing UUID in database) or (None, None) if not found
+    """
+    try:
+        # Get filing from EDGAR
+        filing = get_10k_filing(edgar_company, year)
+        if not filing:
+            logger.warning("no_filing_found", company_id=str(company_id), year=year)
+            return None, None
+
+        # Prepare data for database
+        filing_data = {
+            'company_id': company_id,
+            'accession_number': filing.accession_number,
+            'filing_type': filing.form,
+            'filing_date': filing.filing_date,
+            'filing_url': filing.filing_url if hasattr(filing, 'filing_url') else None,
+            'period_of_report': filing.period_of_report
+        }
+
+        # Store in database
+        db_filing = upsert_filing_by_accession_number(filing_data)
+
+        logger.info("filing_ingested",
+                   company_id=str(company_id),
+                   accession_number=filing.accession_number,
+                   filing_id=str(db_filing.id),
+                   year=_year_from_period_of_report(filing))
+
+        return filing, db_filing.id
+    except Exception as e:
+        logger.error("ingest_filing_failed", company_id=str(company_id), year=year, error=str(e), exc_info=True)
+        raise
+
+def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, company_name: str = None) -> Dict[str, UUID]:
+    """Extract document sections from a filing and store in database.
+
+    Args:
+        company_id: UUID of the company in database
+        filing_id: UUID of the filing in database
+        filing: EDGAR filing data
+        company_name: Name of the company (optional)
+
+    Returns:
+        Dictionary mapping document names to their UUIDs in database
+    """
+    try:
+        document_uuids = {}
+
+        # Format a base document name with company name, filing type, and date
+        # Use provided company_name or default to "Company"
+        formatted_base_name = f"{company_name or 'Company'} {filing.form} {filing.filing_date}"
+
+        # Business description
+        business_description = get_business_description(filing)
+        if business_description:
+            doc = find_or_create_document(
+                company_id=company_id,
+                filing_id=filing_id,
+                document_name=f"{formatted_base_name} - Business Description",
+                content=business_description
+            )
+            document_uuids['business_description'] = doc.id
+
+        # Risk factors
+        risk_factors = get_risk_factors(filing)
+        if risk_factors:
+            doc = find_or_create_document(
+                company_id=company_id,
+                filing_id=filing_id,
+                document_name=f"{formatted_base_name} - Risk Factors",
+                content=risk_factors
+            )
+            document_uuids['risk_factors'] = doc.id
+
+        # MD&A
+        mda = get_management_discussion(filing)
+        if mda:
+            doc = find_or_create_document(
+                company_id=company_id,
+                filing_id=filing_id,
+                document_name=f"{formatted_base_name} - Management Discussion",
+                content=mda
+            )
+            document_uuids['management_discussion'] = doc.id
+
+        return document_uuids
+    except Exception as e:
+        logger.error("ingest_filing_documents_failed",
+                    company_id=str(company_id),
+                    filing_id=str(filing_id),
+                    error=str(e),
+                    exc_info=True)
+        raise
+
+
+def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> Dict[str, int]:
+    """Extract financial data from filing and store concepts and values in database.
+
+    Args:
+        company_id: UUID of the company in database
+        filing_id: UUID of the filing in database
+        filing: EDGAR filing data
+
+    Returns:
+        Dictionary with counts of financial values stored by statement type
+    """
+    try:
+        counts = {'balance_sheet': 0, 'income_statement': 0, 'cash_flow': 0, 'cover_page': 0}
+
+        # Balance sheet
+        balance_sheet_df = get_balance_sheet_values(filing)
+        for index, row in balance_sheet_df.iterrows():
+            concept_name = row['concept']
+            concept_label = row['label'] if 'label' in row else None
+
+            concept = find_or_create_financial_concept(
+                name=concept_name,
+                description=concept_label,
+                labels=['balance_sheet']
+            )
+
+            # Get the value for the filing period date
+            report_date = filing.period_of_report
+            if isinstance(report_date, str):
+                report_date = date.fromisoformat(report_date)
+
+            if report_date.isoformat() in row:
+                value_str = row[report_date.isoformat()]
+            else:
+                # Skip if there's no value for this period
+                continue
+
+            if pd.notna(value_str) and value_str != '':
+                try:
+                    value = Decimal(str(value_str))
+                    upsert_financial_value(
+                        company_id=company_id,
+                        concept_id=concept.id,
+                        value_date=report_date,
+                        value=value,
+                        filing_id=filing_id
+                    )
+                    counts['balance_sheet'] += 1
+                except (ValueError, TypeError):
+                    logger.warning("invalid_balance_sheet_value",
+                                  concept=concept_name,
+                                  value=str(value_str))
+
+        # Income statement
+        income_df = get_income_statement_values(filing)
+        for index, row in income_df.iterrows():
+            concept_name = row['concept']
+            concept_label = row['label'] if 'label' in row else None
+
+            concept = find_or_create_financial_concept(
+                name=concept_name,
+                description=concept_label,
+                labels=['income_statement']
+            )
+
+            # Get the value for the filing period date
+            report_date = filing.period_of_report
+            if isinstance(report_date, str):
+                report_date = date.fromisoformat(report_date)
+
+            if report_date.isoformat() in row:
+                value_str = row[report_date.isoformat()]
+            else:
+                # Skip if there's no value for this period
+                continue
+
+            if pd.notna(value_str) and value_str != '':
+                try:
+                    value = Decimal(str(value_str))
+                    upsert_financial_value(
+                        company_id=company_id,
+                        concept_id=concept.id,
+                        value_date=report_date,
+                        value=value,
+                        filing_id=filing_id
+                    )
+                    counts['income_statement'] += 1
+                except (ValueError, TypeError):
+                    logger.warning("invalid_income_statement_value",
+                                  concept=concept_name,
+                                  value=str(value_str))
+
+        # Cash flow statement
+        cashflow_df = get_cash_flow_statement_values(filing)
+        for index, row in cashflow_df.iterrows():
+            concept_name = row['concept']
+            concept_label = row['label'] if 'label' in row else None
+
+            concept = find_or_create_financial_concept(
+                name=concept_name,
+                description=concept_label,
+                labels=['cash_flow']
+            )
+
+            # Get the value for the filing period date
+            report_date = filing.period_of_report
+            if isinstance(report_date, str):
+                report_date = date.fromisoformat(report_date)
+
+            if report_date.isoformat() in row:
+                value_str = row[report_date.isoformat()]
+            else:
+                # Skip if there's no value for this period
+                continue
+
+            if pd.notna(value_str) and value_str != '':
+                try:
+                    value = Decimal(str(value_str))
+                    upsert_financial_value(
+                        company_id=company_id,
+                        concept_id=concept.id,
+                        value_date=report_date,
+                        value=value,
+                        filing_id=filing_id
+                    )
+                    counts['cash_flow'] += 1
+                except (ValueError, TypeError):
+                    logger.warning("invalid_cash_flow_value",
+                                  concept=concept_name,
+                                  value=str(value_str))
+
+        # Cover page data
+        cover_df = get_cover_page_values(filing)
+        for index, row in cover_df.iterrows():
+            concept_name = row['concept']
+            concept_label = row['label'] if 'label' in row else None
+
+            concept = find_or_create_financial_concept(
+                name=concept_name,
+                description=concept_label,
+                labels=['cover_page']
+            )
+
+            # Get the value for the filing period date
+            report_date = filing.period_of_report
+            if isinstance(report_date, str):
+                report_date = date.fromisoformat(report_date)
+
+            if report_date.isoformat() in row:
+                value_str = row[report_date.isoformat()]
+            else:
+                # Skip if there's no value for this period
+                continue
+
+            if pd.notna(value_str) and value_str != '':
+                try:
+                    value = Decimal(str(value_str))
+                    upsert_financial_value(
+                        company_id=company_id,
+                        concept_id=concept.id,
+                        value_date=report_date,
+                        value=value,
+                        filing_id=filing_id
+                    )
+                    counts['cover_page'] += 1
+                except (ValueError, TypeError):
+                    # Some cover page values might not be numeric
+                    # Store as a document instead
+                    find_or_create_document(
+                        company_id=company_id,
+                        filing_id=filing_id,
+                        document_name=f"cover_page_{concept_name}",
+                        content=str(value_str)
+                    )
+
+        return counts
+    except Exception as e:
+        logger.error("ingest_financial_data_failed",
+                    company_id=str(company_id),
+                    filing_id=str(filing_id),
+                    error=str(e),
+                    exc_info=True)
+        raise

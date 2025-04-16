@@ -85,7 +85,18 @@ class OpenAISettings(BaseModel):
 
 
 class LoggingSettings(BaseSettings):
-    """Logging configuration."""
+    """
+    Logging configuration settings.
+
+    Attributes:
+        level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        json_format: Whether to output logs in JSON format
+                    (useful for production environments and log aggregation)
+
+    Environment variables:
+        LOG_LEVEL: Override the log level
+        LOG_JSON_FORMAT: Set to "true" or "1" to enable JSON logging format
+    """
 
     level: str = Field(default="INFO")
     json_format: bool = Field(default=False)

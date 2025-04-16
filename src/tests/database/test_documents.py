@@ -460,3 +460,119 @@ def test_create_multiple_documents_for_filing(db_session, create_test_filing, mu
     # Check from the filing side
     filing = db_session.query(Filing).filter_by(id=create_test_filing.id).first()
     assert len(filing.documents) == len(multiple_document_data)
+
+def test_find_or_create_document(db_session, create_test_company, create_test_filing):
+    """Test the find_or_create_document helper function."""
+    # Mock the db_session global
+    import src.ingestion.database.documents as documents_module
+    original_get_db_session = documents_module.get_db_session
+    documents_module.get_db_session = lambda: db_session
+
+    try:
+        # Create a new document using find_or_create
+        document = documents_module.find_or_create_document(
+            company_id=create_test_company.id,
+            filing_id=create_test_filing.id,
+            document_name="Risk Factors",
+            content="This is the risk factors content."
+        )
+
+        assert document is not None
+        assert document.document_name == "Risk Factors"
+        assert document.content == "This is the risk factors content."
+        document_id = document.id
+
+        # Call find_or_create again with the same parameters - should return existing document
+        document2 = documents_module.find_or_create_document(
+            company_id=create_test_company.id,
+            filing_id=create_test_filing.id,
+            document_name="Risk Factors",
+            content="This is updated risk factors content."
+        )
+
+        # Should be same document but with updated content
+        assert document2.id == document_id
+        assert document2.document_name == "Risk Factors"
+        assert document2.content == "This is updated risk factors content."
+
+        # Now test creating a document without a filing ID
+        standalone_doc = documents_module.find_or_create_document(
+            company_id=create_test_company.id,
+            document_name="Standalone Document",
+            content="This is a document not associated with a filing.",
+            filing_id=None
+        )
+
+        assert standalone_doc is not None
+        assert standalone_doc.document_name == "Standalone Document"
+        assert standalone_doc.filing_id is None
+    finally:
+        # Restore the original function
+        documents_module.get_db_session = original_get_db_session
+
+def test_find_or_create_document_update_existing(db_session, create_test_company, create_test_filing):
+    """Test the find_or_create_document helper function when updating an existing document."""
+    # First create a document directly
+    document_data = {
+        "company_id": create_test_company.id,
+        "filing_id": create_test_filing.id,
+        "document_name": "MD&A",
+        "content": "Original management discussion content."
+    }
+    document = Document(**document_data)
+    db_session.add(document)
+    db_session.commit()
+    document_id = document.id
+
+    # Mock the db_session global
+    import src.ingestion.database.documents as documents_module
+    original_get_db_session = documents_module.get_db_session
+    documents_module.get_db_session = lambda: db_session
+
+    try:
+        # Now try to find or create a document with the same identifiers
+        updated_doc = documents_module.find_or_create_document(
+            company_id=create_test_company.id,
+            filing_id=create_test_filing.id,
+            document_name="MD&A",
+            content="Updated management discussion content."
+        )
+
+        # Should be the same document but with updated content
+        assert updated_doc.id == document_id
+        assert updated_doc.content == "Updated management discussion content."
+    finally:
+        # Restore the original function
+        documents_module.get_db_session = original_get_db_session
+
+def test_get_documents_by_filing(db_session, create_test_company, create_test_filing, multiple_document_data):
+    """Test the get_documents_by_filing helper function."""
+    # Create multiple documents for the same filing
+    for data in multiple_document_data:
+        document = Document(**data)
+        db_session.add(document)
+    db_session.commit()
+
+    # Mock the db_session global
+    import src.ingestion.database.documents as documents_module
+    original_get_db_session = documents_module.get_db_session
+    documents_module.get_db_session = lambda: db_session
+
+    try:
+        # Get documents for the filing
+        documents = documents_module.get_documents_by_filing(create_test_filing.id)
+
+        # Should have the same number of documents as we created
+        assert len(documents) == len(multiple_document_data)
+
+        # Check that the document names match what we created
+        doc_names = [doc.document_name for doc in documents]
+        for data in multiple_document_data:
+            assert data["document_name"] in doc_names
+
+        # Test with a filing ID that has no documents
+        no_docs = documents_module.get_documents_by_filing(uuid.uuid4())
+        assert len(no_docs) == 0
+    finally:
+        # Restore the original function
+        documents_module.get_db_session = original_get_db_session

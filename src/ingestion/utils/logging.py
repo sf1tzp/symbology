@@ -3,6 +3,20 @@ Logging configuration for the Symbology project.
 
 This module provides a consistent logging setup using structlog for
 structured logging throughout the application.
+
+Usage:
+    # Configure logging using application settings
+    from src.ingestion.config import settings
+    from src.ingestion.utils.logging import configure_logging
+
+    configure_logging(
+        log_level=settings.logging.level,
+        json_format=settings.logging.json_format
+    )
+
+    # Get a logger
+    logger = get_logger(__name__)
+    logger.info("application_started", version="1.0.0")
 """
 import logging
 import sys
@@ -23,6 +37,13 @@ def configure_logging(log_level: str = "INFO",
         log_level: The log level to use (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         json_format: Whether to output logs in JSON format (useful for production)
         extra_processors: Additional structlog processors to add to the chain
+
+    Examples:
+        # Configure basic logging
+        configure_logging(log_level="INFO")
+
+        # Configure JSON logging for production environments
+        configure_logging(log_level="WARNING", json_format=True)
     """
     # Set the log level for the standard library's logging
     log_level_int = getattr(logging, log_level)

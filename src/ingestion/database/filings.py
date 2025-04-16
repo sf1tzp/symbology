@@ -176,3 +176,83 @@ def delete_filing(filing_id: Union[UUID, str]) -> bool:
         logger.error("delete_filing_failed", filing_id=str(filing_id), error=str(e), exc_info=True)
         raise
 
+
+def upsert_filing_by_accession_number(filing_data: Dict[str, Any]) -> Filing:
+    """Create a filing or update it if it already exists based on accession number.
+
+    Args:
+        filing_data: Dictionary containing filing attributes
+
+    Returns:
+        Created or updated Filing object
+    """
+    try:
+        session = get_db_session()
+        accession_number = filing_data.get('accession_number')
+
+        if not accession_number:
+            logger.error("upsert_filing_failed", error="Accession number is required")
+            raise ValueError("Accession number is required for filing upsert")
+
+        existing_filing = session.query(Filing).filter(Filing.accession_number == accession_number).first()
+
+        if existing_filing:
+            # Update existing filing
+            for key, value in filing_data.items():
+                if hasattr(existing_filing, key):
+                    setattr(existing_filing, key, value)
+
+            session.commit()
+            logger.info("updated_existing_filing",
+                       filing_id=str(existing_filing.id),
+                       accession_number=accession_number)
+            return existing_filing
+        else:
+            # Create new filing
+            # Check if company exists
+            company_id = filing_data.get('company_id')
+            company = session.query(Company).filter(Company.id == company_id).first()
+            if not company:
+                logger.error("upsert_filing_failed",
+                            error=f"Company with ID {company_id} not found")
+                raise ValueError(f"Company with ID {company_id} not found")
+
+            filing = Filing(**filing_data)
+            session.add(filing)
+            session.commit()
+            logger.info("created_new_filing",
+                       filing_id=str(filing.id),
+                       accession_number=accession_number)
+            return filing
+    except Exception as e:
+        session.rollback()
+        logger.error("upsert_filing_failed", error=str(e), exc_info=True)
+        raise
+
+def get_filing_by_accession_number(accession_number: str) -> Optional[Filing]:
+    """Get a filing by its accession number.
+
+    Args:
+        accession_number: Accession number of the filing to retrieve
+
+    Returns:
+        Filing object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+        filing = session.query(Filing).filter(Filing.accession_number == accession_number).first()
+        if filing:
+            logger.info("retrieved_filing_by_accession_number",
+                       filing_id=str(filing.id),
+                       accession_number=accession_number)
+        else:
+            logger.warning("filing_by_accession_number_not_found",
+                          accession_number=accession_number)
+        return filing
+    except Exception as e:
+        logger.error("get_filing_by_accession_number_failed",
+                    accession_number=accession_number,
+                    error=str(e),
+                    exc_info=True)
+        raise
+

@@ -368,3 +368,117 @@ def test_get_financial_concept_with_string_uuid(db_session, sample_gaap_assets_c
     finally:
         # Restore the original function
         concepts_module.get_db_session = original_get_db_session
+
+def test_find_or_create_financial_concept(db_session):
+    """Test the find_or_create_financial_concept helper function."""
+    # Mock the db_session global
+    import src.ingestion.database.financial_concepts as concepts_module
+    original_get_db_session = concepts_module.get_db_session
+    concepts_module.get_db_session = lambda: db_session
+
+    try:
+        # Create a new concept using find_or_create
+        concept = concepts_module.find_or_create_financial_concept(
+            name="Revenue",
+            description="The income generated from sale of goods or services.",
+            labels=["income_statement"]
+        )
+
+        assert concept is not None
+        assert concept.name == "Revenue"
+        assert concept.description == "The income generated from sale of goods or services."
+        assert "income_statement" in concept.labels
+        concept_id = concept.id
+
+        # Call find_or_create again with the same name - should return existing concept
+        concept2 = concepts_module.find_or_create_financial_concept(
+            name="Revenue",
+            description="Total revenues of the company.",
+            labels=["income_statement", "top_line"]
+        )
+
+        # Should be same concept but with updated info
+        assert concept2.id == concept_id
+        assert concept2.description == "Total revenues of the company."
+        assert "income_statement" in concept2.labels
+        assert "top_line" in concept2.labels
+        assert len(concept2.labels) == 2
+
+        # Test with just a name
+        minimal_concept = concepts_module.find_or_create_financial_concept(
+            name="OperatingIncome"
+        )
+
+        assert minimal_concept is not None
+        assert minimal_concept.name == "OperatingIncome"
+        assert minimal_concept.description is None
+        assert minimal_concept.labels == []
+    finally:
+        # Restore the original function
+        concepts_module.get_db_session = original_get_db_session
+
+def test_find_or_create_financial_concept_merges_labels(db_session):
+    """Test that find_or_create_financial_concept merges labels properly."""
+    # First create a concept directly
+    concept_data = {
+        "name": "GrossProfit",
+        "description": "Revenue minus cost of goods sold.",
+        "labels": ["income_statement", "profit"]
+    }
+    concept = FinancialConcept(**concept_data)
+    db_session.add(concept)
+    db_session.commit()
+    concept_id = concept.id
+
+    # Mock the db_session global
+    import src.ingestion.database.financial_concepts as concepts_module
+    original_get_db_session = concepts_module.get_db_session
+    concepts_module.get_db_session = lambda: db_session
+
+    try:
+        # Now try to find_or_create with same name but different labels
+        updated_concept = concepts_module.find_or_create_financial_concept(
+            name="GrossProfit",
+            description="Revenue minus COGS.",
+            labels=["profit", "core_metric", "margin"]
+        )
+
+        # Should be the same concept with merged labels
+        assert updated_concept.id == concept_id
+        assert updated_concept.description == "Revenue minus COGS."
+
+        # Should have merged labels without duplicates
+        assert len(updated_concept.labels) == 4
+        assert "income_statement" in updated_concept.labels
+        assert "profit" in updated_concept.labels
+        assert "core_metric" in updated_concept.labels
+        assert "margin" in updated_concept.labels
+    finally:
+        # Restore the original function
+        concepts_module.get_db_session = original_get_db_session
+
+def test_get_financial_concept_by_name(db_session, sample_gaap_net_income_concept):
+    """Test the get_financial_concept_by_name helper function."""
+    # First create a concept
+    concept = FinancialConcept(**sample_gaap_net_income_concept)
+    db_session.add(concept)
+    db_session.commit()
+
+    # Mock the db_session global
+    import src.ingestion.database.financial_concepts as concepts_module
+    original_get_db_session = concepts_module.get_db_session
+    concepts_module.get_db_session = lambda: db_session
+
+    try:
+        # Test retrieving by name
+        retrieved = concepts_module.get_financial_concept_by_name("NetIncome")
+        assert retrieved is not None
+        assert retrieved.id == concept.id
+        assert retrieved.description == sample_gaap_net_income_concept["description"]
+
+        # Test with non-existent name
+        non_existent = concepts_module.get_financial_concept_by_name("NonExistentConcept")
+        assert non_existent is None
+    finally:
+        # Restore the original function
+        concepts_module.get_db_session = original_get_db_session

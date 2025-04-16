@@ -402,3 +402,109 @@ def test_cascade_delete_company(db_session, create_test_company, sample_filing_d
 
     # Verify that the filing was also deleted
     assert db_session.query(Filing).filter_by(id=filing_id).first() is None
+
+def test_upsert_filing_by_accession_number(db_session, create_test_company, sample_filing_data):
+    """Test the upsert_filing_by_accession_number helper function for creating and updating filings."""
+    # Mock the db_session global
+    import src.ingestion.database.filings as filings_module
+    original_get_db_session = filings_module.get_db_session
+    filings_module.get_db_session = lambda: db_session
+
+    try:
+        # Create a new filing using upsert
+        result = filings_module.upsert_filing_by_accession_number(sample_filing_data)
+        assert result is not None
+        assert result.accession_number == "0000123456-23-000123"
+        assert result.filing_type == "10-K"
+
+        # Now test updating the existing filing via upsert
+        updated_data = {
+            "accession_number": "0000123456-23-000123",  # Same accession number
+            "filing_type": "10-K/A",  # Amended filing
+            "filing_url": "https://updated-url.com/filing.html"
+        }
+
+        updated_result = filings_module.upsert_filing_by_accession_number(updated_data)
+
+        # Verify the filing was updated, not created new
+        assert updated_result.id == result.id  # Same ID as before
+        assert updated_result.filing_type == "10-K/A"
+        assert updated_result.filing_url == "https://updated-url.com/filing.html"
+
+        # Original fields not in update remain unchanged
+        assert updated_result.accession_number == "0000123456-23-000123"
+        assert updated_result.filing_date == date(2023, 12, 31)
+    finally:
+        # Restore the original function
+        filings_module.get_db_session = original_get_db_session
+
+def test_upsert_filing_without_accession_number(db_session, create_test_company):
+    """Test that upsert_filing_by_accession_number function raises ValueError when accession number is missing."""
+    # Mock the db_session global
+    import src.ingestion.database.filings as filings_module
+    original_get_db_session = filings_module.get_db_session
+    filings_module.get_db_session = lambda: db_session
+
+    try:
+        # Try to upsert without accession number
+        invalid_data = {
+            "company_id": create_test_company.id,
+            "filing_type": "10-K",
+            "filing_date": date(2023, 12, 31)
+        }
+
+        # Should raise ValueError
+        with pytest.raises(ValueError, match="Accession number is required"):
+            filings_module.upsert_filing_by_accession_number(invalid_data)
+    finally:
+        # Restore the original function
+        filings_module.get_db_session = original_get_db_session
+
+def test_upsert_filing_invalid_company(db_session):
+    """Test that upsert_filing_by_accession_number raises ValueError with non-existent company ID."""
+    # Mock the db_session global
+    import src.ingestion.database.filings as filings_module
+    original_get_db_session = filings_module.get_db_session
+    filings_module.get_db_session = lambda: db_session
+
+    try:
+        # Try to upsert with non-existent company ID
+        invalid_data = {
+            "company_id": uuid.uuid4(),  # Random non-existent company ID
+            "accession_number": "0000123456-23-000999",
+            "filing_type": "10-K",
+            "filing_date": date(2023, 12, 31)
+        }
+
+        # Should raise ValueError about company not found
+        with pytest.raises(ValueError, match="Company with ID"):
+            filings_module.upsert_filing_by_accession_number(invalid_data)
+    finally:
+        # Restore the original function
+        filings_module.get_db_session = original_get_db_session
+
+def test_get_filing_by_accession_number(db_session, sample_filing_data):
+    """Test the get_filing_by_accession_number helper function."""
+    # First create a filing
+    filing = Filing(**sample_filing_data)
+    db_session.add(filing)
+    db_session.commit()
+
+    # Mock the db_session global
+    import src.ingestion.database.filings as filings_module
+    original_get_db_session = filings_module.get_db_session
+    filings_module.get_db_session = lambda: db_session
+
+    try:
+        # Test retrieving by accession number
+        retrieved = filings_module.get_filing_by_accession_number("0000123456-23-000123")
+        assert retrieved is not None
+        assert retrieved.id == filing.id
+        assert retrieved.filing_type == "10-K"
+
+        # Test with non-existent accession number
+        non_existent = filings_module.get_filing_by_accession_number("9999999999-99-999999")
+        assert non_existent is None
+    finally:
+        # Restore the original function
+        filings_module.get_db_session = original_get_db_session

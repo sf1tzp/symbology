@@ -1,69 +1,126 @@
-from .base import Base, close_session, db_session, engine, get_db_session, init_db
-from .crud_balance_sheet import get_balance_sheet_by_date, get_balance_sheet_values_by_company, store_balance_sheet_value
-from .crud_cash_flow import get_cash_flow_statement_by_date, get_cash_flow_statement_values_by_company, store_cash_flow_statement_value
+"""Database package for symbology ingestion.
 
-# Re-export the CRUD functions for easy import
-from .crud_company import (
+This package contains database models and CRUD functions for all entities
+used in the symbology system.
+"""
+
+# Import base database utilities
+from src.ingestion.database.base import Base, close_session, get_db, get_db_session, init_db
+
+# Import models
+# Import CRUD functions
+# Companies
+from src.ingestion.database.companies import (
+    Company,
     create_company,
     delete_company,
-    get_all_companies,
-    get_companies_by_ticker,
-    get_company_by_cik,
-    get_company_by_id,
+    get_company,
+    get_company_ids,
     update_company,
-    upsert_company,
 )
-from .crud_cover_page import get_cover_page_by_date, get_cover_page_values_by_company, store_cover_page_value
-from .crud_filing import (
+
+# Completions
+from src.ingestion.database.completions import (
+    Completion,
+    create_completion,
+    delete_completion,
+    get_completion,
+    get_completion_ids,
+    update_completion,
+)
+
+# Documents
+from src.ingestion.database.documents import (
+    create_document,
+    delete_document,
+    Document,
+    get_document,
+    get_document_ids,
+    update_document,
+)
+
+# Filings
+from src.ingestion.database.filings import (
     create_filing,
     delete_filing,
-    get_all_filings,
-    get_filing_by_accession_number,
-    get_filing_by_id,
-    get_filings_by_company_id,
-    get_filings_by_date_range,
-    get_filings_by_type,
-    update_filing,
-    upsert_filing,
-)
-from .crud_financial_concepts import get_all_concepts, get_or_create_financial_concept
-from .crud_income_statement import get_income_statement_by_date, get_income_statement_values_by_company, store_income_statement_value
-from .models import (
-    BalanceSheetValue,
-    CashFlowStatementValue,
-    Company,
-    CoverPageValue,
     Filing,
-    FinancialConcept,
-    IncomeStatementValue,
-    SourceDocument,
+    get_filing,
+    get_filing_ids,
+    update_filing,
 )
 
-# Initialize all models and provide a clean import API
+# Financial Concepts
+from src.ingestion.database.financial_concepts import (
+    create_financial_concept,
+    delete_financial_concept,
+    FinancialConcept,
+    get_financial_concept,
+    get_financial_concept_ids,
+    update_financial_concept,
+)
+
+# Financial Values
+from src.ingestion.database.financial_values import (
+    create_financial_value,
+    delete_financial_value,
+    FinancialValue,
+    get_financial_value,
+    get_financial_value_ids,
+    update_financial_value,
+)
+
+# Prompts
+from src.ingestion.database.prompts import (
+    create_prompt,
+    delete_prompt,
+    get_prompt,
+    get_prompt_ids,
+    Prompt,
+    PromptRole,
+    update_prompt,
+)
+
+# Ratings
+from src.ingestion.database.ratings import (
+    create_rating,
+    delete_rating,
+    get_rating,
+    get_rating_ids,
+    Rating,
+    update_rating,
+)
+
 __all__ = [
-    # Database session
-    "engine", "db_session", "init_db", "close_session", "Base", "get_db_session",
+    # Base
+    "Base", "init_db", "get_db_session", "get_db", "close_session",
 
     # Models
-    "Company", "Filing", "FinancialConcept", "BalanceSheetValue", "IncomeStatementValue",
-    "CashFlowStatementValue", "CoverPageValue", "SourceDocument",
+    "Company", "Filing", "Document", "FinancialConcept", "FinancialValue",
+    "Completion", "Rating", "Prompt", "PromptRole",
 
-    # Company CRUD
-    "create_company", "get_company_by_id", "get_company_by_cik",
-    "get_companies_by_ticker", "update_company", "delete_company",
-    "get_all_companies", "upsert_company",
+    # Company functions
+    "get_company_ids", "get_company", "create_company", "update_company", "delete_company",
 
-    # Filing CRUD
-    "create_filing", "get_filing_by_id", "get_filing_by_accession_number",
-    "get_filings_by_company_id", "get_filings_by_type", "get_filings_by_date_range",
-    "update_filing", "delete_filing", "get_all_filings", "upsert_filing",
+    # Filing functions
+    "get_filing_ids", "get_filing", "create_filing", "update_filing", "delete_filing",
 
-    # Financials CRUD
-    "get_or_create_financial_concept", "get_all_concepts",
-    "store_balance_sheet_value", "store_income_statement_value",
-    "store_cash_flow_statement_value", "store_cover_page_value",
-    "get_balance_sheet_values_by_company", "get_income_statement_values_by_company",
-    "get_cash_flow_statement_values_by_company", "get_cover_page_values_by_company",
-    "get_balance_sheet_by_date", "get_income_statement_by_date",
-    "get_cash_flow_statement_by_date", "get_cover_page_by_date",
+    # Document functions
+    "get_document_ids", "get_document", "create_document", "update_document", "delete_document",
+
+    # Financial Concept functions
+    "get_financial_concept_ids", "get_financial_concept", "create_financial_concept",
+    "update_financial_concept", "delete_financial_concept",
+
+    # Financial Value functions
+    "get_financial_value_ids", "get_financial_value", "create_financial_value",
+    "update_financial_value", "delete_financial_value",
+
+    # Completion functions
+    "get_completion_ids", "get_completion", "create_completion", "update_completion", "delete_completion",
+
+    # Rating functions
+    "get_rating_ids", "get_rating", "create_rating", "update_rating", "delete_rating",
+
+    # Prompt functions
+    "get_prompt_ids", "get_prompt", "create_prompt", "update_prompt", "delete_prompt",
 ]

@@ -1,0 +1,178 @@
+from datetime import date
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
+from uuid import UUID, uuid4
+
+from sqlalchemy import Date, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from src.ingestion.database.base import Base, get_db_session
+from src.ingestion.database.companies import Company
+from src.ingestion.utils.logging import get_logger
+
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from src.ingestion.database.documents import Document
+    from src.ingestion.database.financial_values import FinancialValue
+
+# Initialize structlog
+logger = get_logger(__name__)
+
+class Filing(Base):
+    """Filing model representing SEC filings information."""
+
+    __tablename__ = "filings"
+
+    # Primary identifier
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+
+    # Foreign keys
+    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+
+    # Relationships
+    company: Mapped[Company] = relationship("Company", back_populates="filings")
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="filing", cascade="all, delete-orphan")
+    financial_values: Mapped[List["FinancialValue"]] = relationship("FinancialValue", back_populates="filing", cascade="all, delete-orphan")
+
+    # Filing details
+    accession_number: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    filing_type: Mapped[str] = mapped_column(String(20), index=True)
+    filing_date: Mapped[date] = mapped_column(Date, index=True)
+    filing_url: Mapped[Optional[str]] = mapped_column(String(255))
+    period_of_report: Mapped[Optional[date]] = mapped_column(Date, index=True)
+
+    def __repr__(self) -> str:
+        return f"<Filing(id={self.id}, company_id={self.company_id}, accession_number='{self.accession_number}')>"
+
+
+def get_filing_ids() -> List[UUID]:
+    """Get a list of all filing IDs in the database.
+
+    Returns:
+        List of filing UUIDs
+    """
+    try:
+        session = get_db_session()
+        filing_ids = [filing_id for filing_id, in session.query(Filing.id).all()]
+        logger.info("retrieved_filing_ids", count=len(filing_ids))
+        return filing_ids
+    except Exception as e:
+        logger.error("get_filing_ids_failed", error=str(e), exc_info=True)
+        raise
+
+
+def get_filing(filing_id: Union[UUID, str]) -> Optional[Filing]:
+    """Get a filing by its ID.
+
+    Args:
+        filing_id: UUID of the filing to retrieve
+
+    Returns:
+        Filing object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+        filing = session.query(Filing).filter(Filing.id == filing_id).first()
+        if filing:
+            logger.info("retrieved_filing", filing_id=str(filing_id))
+        else:
+            logger.warning("filing_not_found", filing_id=str(filing_id))
+        return filing
+    except Exception as e:
+        logger.error("get_filing_failed", filing_id=str(filing_id), error=str(e), exc_info=True)
+        raise
+
+
+def create_filing(filing_data: Dict[str, Any]) -> Filing:
+    """Create a new filing in the database.
+
+    Args:
+        filing_data: Dictionary containing filing attributes
+
+    Returns:
+        Newly created Filing object
+    """
+    try:
+        session = get_db_session()
+
+        # Check if company exists
+        company_id = filing_data.get('company_id')
+        company = session.query(Company).filter(Company.id == company_id).first()
+        if not company:
+            logger.error("create_filing_failed", error=f"Company with ID {company_id} not found")
+            raise ValueError(f"Company with ID {company_id} not found")
+
+        filing = Filing(**filing_data)
+        session.add(filing)
+        session.commit()
+        logger.info("created_filing", filing_id=str(filing.id), company_id=str(filing.company_id))
+        return filing
+    except Exception as e:
+        session.rollback()
+        logger.error("create_filing_failed", error=str(e), exc_info=True)
+        raise
+
+
+def update_filing(filing_id: Union[UUID, str], filing_data: Dict[str, Any]) -> Optional[Filing]:
+    """Update an existing filing in the database.
+
+    Args:
+        filing_id: UUID of the filing to update
+        filing_data: Dictionary containing filing attributes to update
+
+    Returns:
+        Updated Filing object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+        filing = session.query(Filing).filter(Filing.id == filing_id).first()
+        if not filing:
+            logger.warning("update_filing_not_found", filing_id=str(filing_id))
+            return None
+
+        # If company_id is being updated, check if new company exists
+        if 'company_id' in filing_data:
+            company = session.query(Company).filter(Company.id == filing_data['company_id']).first()
+            if not company:
+                logger.error("update_filing_failed", error=f"Company with ID {filing_data['company_id']} not found")
+                raise ValueError(f"Company with ID {filing_data['company_id']} not found")
+
+        for key, value in filing_data.items():
+            if hasattr(filing, key):
+                setattr(filing, key, value)
+            else:
+                logger.warning("update_filing_invalid_attribute", filing_id=str(filing_id), attribute=key)
+
+        session.commit()
+        logger.info("updated_filing", filing_id=str(filing.id), company_id=str(filing.company_id))
+        return filing
+    except Exception as e:
+        session.rollback()
+        logger.error("update_filing_failed", filing_id=str(filing_id), error=str(e), exc_info=True)
+        raise
+
+
+def delete_filing(filing_id: Union[UUID, str]) -> bool:
+    """Delete a filing from the database.
+
+    Args:
+        filing_id: UUID of the filing to delete
+
+    Returns:
+        True if filing was deleted, False if not found
+    """
+    try:
+        session = get_db_session()
+        filing = session.query(Filing).filter(Filing.id == filing_id).first()
+        if not filing:
+            logger.warning("delete_filing_not_found", filing_id=str(filing_id))
+            return False
+
+        session.delete(filing)
+        session.commit()
+        logger.info("deleted_filing", filing_id=str(filing_id))
+        return True
+    except Exception as e:
+        session.rollback()
+        logger.error("delete_filing_failed", filing_id=str(filing_id), error=str(e), exc_info=True)
+        raise
+

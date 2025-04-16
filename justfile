@@ -26,7 +26,7 @@ test: _create_venv
     uv run -m pytest --cov=src.api --cov=src.ingestion src/tests/ | tee test.log
 
 lint *FLAGS:
-    ~/.local/share/nvim/mason/bin/ruff check src/ingestion {{FLAGS}}
+    ~/.local/share/nvim/mason/bin/ruff check src/ingestion {{FLAGS}} | tee lint.log
 
 start-db: _generate-pgadmin-config
     #!/usr/bin/env bash

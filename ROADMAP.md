@@ -30,7 +30,24 @@ The main release objectives of v0.1.0 are to
   - Document Viewer
 - Integrate those components with their associated API routes
 
+We should also review the various program configurations:
+- src/ingestion/config.py seems the most robust
+  - Probably move this to src/utils
+  - need to ensure sections for each endpoint, at the minimum:
+    - OPEN_AI_API_HOST / PORT (default localhost:11434)
+    - DATABASE_HOST / PORT (default localhost:5432)
+    - PGADMIN_HOST / PORT (default localhost:8080)
+    - SYMBOLOGY_API_HOST / PORT (default localhost:8000)
+    - SYMBOLOGY_UI_HOST / PORT (default localhost:5173)
+
+- src/api/main can use src/utils/config.py
+- Update justfile recipes to use correct env var passing
+
 ## Future
+
+### UI Tweaks
+- Reactive / Collapseable Cards
+- Prepare side by side layout for Prompt Engineering:
 
 ### Prompt Engineering / Inference Workflow
 - [ ] Develop interface for configuring query parameters

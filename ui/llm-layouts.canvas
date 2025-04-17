@@ -1,0 +1,248 @@
+{
+  "nodes": [
+    {
+      "type": "text",
+      "id": "cbe9343e-3722-424c-b476-1fe3b2dcc401",
+      "x": 480,
+      "y": 180,
+      "width": 200,
+      "height": 60,
+      "text": "CompanySelector (Collapsed)"
+    },
+    {
+      "type": "text",
+      "id": "3998fef1-2ed3-4ae3-8d45-e420091bc9e6",
+      "x": 700,
+      "y": 180,
+      "width": 180,
+      "height": 60,
+      "text": "FilingSelector\n(Collapsed)"
+    },
+    {
+      "type": "text",
+      "id": "76e15fa2-75cb-4d92-8056-834dc15e8950",
+      "x": 900,
+      "y": 180,
+      "width": 200,
+      "height": 60,
+      "text": "DocumentSelector (Collapsed)"
+    },
+    {
+      "type": "text",
+      "id": "e61d8f1b-86e7-4429-a757-befffa39a3d2",
+      "x": 300,
+      "y": 260,
+      "width": 300,
+      "height": 360,
+      "text": "DocumentViewer\n\n(Slid off the left side of the screen unless focused)"
+    },
+    {
+      "type": "text",
+      "id": "8b83814d-671e-47b0-bfc5-59b32d1bdf86",
+      "x": 460,
+      "y": 640,
+      "width": 320,
+      "height": 120,
+      "text": "System Prompt Widget\n- ( Display the prompt when viewing a completion)"
+    },
+    {
+      "type": "text",
+      "id": "225f4475-b0bc-43df-a2a9-f436580965a6",
+      "x": 800,
+      "y": 260,
+      "width": 300,
+      "height": 360,
+      "text": "Completion Text View (Markdown)\n\n- When reviewing an existing completion, show the rendered markdown here.\n"
+    },
+    {
+      "type": "text",
+      "id": "d4d38604-872f-410b-9424-8edab60c20bc",
+      "x": 800,
+      "y": 640,
+      "width": 300,
+      "height": 120,
+      "text": "User Prompt Widget\n\n- (Display the prompt when viewing a completion)"
+    },
+    {
+      "type": "text",
+      "id": "04f37bb7-4733-4458-b0e8-868f27f4330d",
+      "x": 1120,
+      "y": 640,
+      "width": 180,
+      "height": 120,
+      "text": "Open AI Parameter Customization"
+    },
+    {
+      "type": "text",
+      "id": "c8cf3cb5-9ee0-4df8-888e-ed1275255cf8",
+      "x": 1120,
+      "y": 400,
+      "width": 180,
+      "height": 220,
+      "text": "Ratings Widget\n\n---\n\nSave Button"
+    },
+    {
+      "type": "text",
+      "id": "8316b5df-a910-4cd9-aff5-80bcd8e7c8e5",
+      "x": 1120,
+      "y": 260,
+      "width": 180,
+      "height": 120,
+      "text": "Additional Context Widget"
+    },
+    {
+      "type": "text",
+      "id": "6e064d54-a395-40eb-bcdd-1d9fd4a0a3bf",
+      "x": 620,
+      "y": 260,
+      "width": 160,
+      "height": 220,
+      "text": "(List of un-reviewed completions for the selected document, if any)"
+    },
+    {
+      "type": "text",
+      "id": "849737a7-3b38-473b-b9dd-1158e189f9ac",
+      "x": 620,
+      "y": 500,
+      "width": 160,
+      "height": 120,
+      "text": "Click here to generate a new completion"
+    },
+    {
+      "type": "text",
+      "id": "fa0108c0-cee0-45f9-a586-b1e9412491b2",
+      "x": 1120,
+      "y": 180,
+      "width": 180,
+      "height": 60,
+      "text": "Top right stuff"
+    },
+    {
+      "type": "text",
+      "id": "e71d9471-c3b1-4631-80a4-34056d98089d",
+      "x": 1760,
+      "y": 180,
+      "width": 200,
+      "height": 60,
+      "text": "CompanySelector (Collapsed)"
+    },
+    {
+      "type": "text",
+      "id": "9a423607-38cc-44ae-a4a3-0fd1d4fcd448",
+      "x": 1980,
+      "y": 180,
+      "width": 180,
+      "height": 60,
+      "text": "FilingSelector\n(Collapsed)"
+    },
+    {
+      "type": "text",
+      "id": "af939ea3-a6f3-4848-9b4d-90e72a2d3e03",
+      "x": 2180,
+      "y": 180,
+      "width": 200,
+      "height": 60,
+      "text": "DocumentSelector (Collapsed)"
+    },
+    {
+      "type": "text",
+      "id": "3ffbf121-1124-4372-b531-e63ec46ca690",
+      "x": 1580,
+      "y": 260,
+      "width": 300,
+      "height": 360,
+      "text": "DocumentViewer\n\n(Slid off the left side of the screen unless focused)"
+    },
+    {
+      "type": "text",
+      "id": "d02c5489-ed3d-4139-b514-10419b2844fd",
+      "x": 2080,
+      "y": 260,
+      "width": 300,
+      "height": 240,
+      "text": "System Prompt Picker/Editor\n- (When generating a new completion, allow the user to pick an existing system prompt or edit a new one"
+    },
+    {
+      "type": "text",
+      "id": "0d696dfc-eea8-4ead-8859-fce9a3ce8c4e",
+      "x": 2080,
+      "y": 520,
+      "width": 300,
+      "height": 240,
+      "text": "User Prompt Picker/Editor\n\n- When generating a new completion, allow the user to pick an existing user prompt or edit a new one"
+    },
+    {
+      "type": "text",
+      "id": "619c5f2a-c9dd-4427-84d4-dd6a3b3ab533",
+      "x": 2400,
+      "y": 400,
+      "width": 180,
+      "height": 160,
+      "text": "Open AI Parameter Customization"
+    },
+    {
+      "type": "text",
+      "id": "703465b5-9095-4df7-8b19-efc949c2273c",
+      "x": 2400,
+      "y": 260,
+      "width": 180,
+      "height": 120,
+      "text": "Additional Context Widget"
+    },
+    {
+      "type": "text",
+      "id": "9225fa51-b644-4e8d-9f89-fb13dd187fe0",
+      "x": 1900,
+      "y": 260,
+      "width": 160,
+      "height": 220,
+      "text": "(List of un-reviewed completions for the selected document, if any)"
+    },
+    {
+      "type": "text",
+      "id": "f155e7e3-b42e-4bb7-93d5-38ec034eb980",
+      "x": 1900,
+      "y": 500,
+      "width": 160,
+      "height": 120,
+      "text": "Click here to generate a new completion"
+    },
+    {
+      "type": "text",
+      "id": "ab5959ac-f8d9-4bd6-9764-061788b67cc0",
+      "x": 2400,
+      "y": 180,
+      "width": 180,
+      "height": 60,
+      "text": "Top right stuff"
+    },
+    {
+      "type": "text",
+      "id": "b19bb5b8-ed25-4fd2-b0f3-416b251a940f",
+      "x": 2400,
+      "y": 580,
+      "width": 180,
+      "height": 180,
+      "text": "Assistant Prompt Picker/Editor\n\n- Stats (input token count)"
+    },
+    {
+      "type": "text",
+      "id": "d59e349c-ce8b-44dc-8225-eddaaf4dfd23",
+      "x": 727.7663146777251,
+      "y": 47.59534750278887,
+      "width": 260,
+      "height": 80,
+      "text": "# Review Board"
+    },
+    {
+      "type": "text",
+      "id": "c38ad572-0a5e-488a-a544-13597836eedb",
+      "x": 1980,
+      "y": 40,
+      "width": 300,
+      "height": 80,
+      "text": "# Generate Board"
+    }
+  ],
+  "edges": []
+}

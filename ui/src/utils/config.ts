@@ -93,7 +93,17 @@ const pgadminSettings: PGAdminSettings = {
 const apiSettings: ApiSettings = {
   host: import.meta.env.SYMBOLOGY_API_HOST || 'localhost',
   port: Number(import.meta.env.SYMBOLOGY_API_PORT) || 8000,
-  baseUrl: `//${import.meta.env.SYMBOLOGY_API_HOST || 'localhost'}:${import.meta.env.SYMBOLOGY_API_PORT || 8000}/api`,
+
+  // Build baseUrl dynamically to support cross-device access
+  get baseUrl() {
+    // In development mode, use the current device's hostname or IP
+    if (ENV === 'development') {
+      // Get the current window's hostname
+      const hostname = window.location.hostname;
+      return `http://${hostname}:${this.port}/api`;
+    }
+    return `http://${this.host}:${this.port}/api`;
+  },
   timeout: 30000,
 };
 

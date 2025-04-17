@@ -3,7 +3,11 @@
   import { fetchApi } from '$utils/generated-api-types';
   import type { CompanyResponse } from '$utils/generated-api-types';
   import config from '$utils/config';
+  import { createEventDispatcher } from 'svelte';
 
+  const dispatch = createEventDispatcher<{
+    companySelected: CompanyResponse;
+  }>();
   const logger = getLogger('CompanySelector');
 
   // Using Svelte 5 runes
@@ -24,17 +28,24 @@
       error = null;
       selectedCompany = null;
 
-      const company = await fetchApi<CompanyResponse>(
-        `${config.api.baseUrl}/companies/?ticker=${ticker.toUpperCase()}`
-      );
-      selectedCompany = company;
+      const apiUrl = `${config.api.baseUrl}/companies/?ticker=${ticker.toUpperCase()}`;
+      logger.info(`Searching for company with ticker: ${ticker.toUpperCase()}`, { apiUrl });
 
-      // Dispatch event for other components
-      const event = new CustomEvent('company-selected', { detail: company });
-      window.dispatchEvent(event);
+      const company = await fetchApi<CompanyResponse>(apiUrl);
+      selectedCompany = company;
+      logger.info(`Company found: ${company.name}`, { company });
+
+      // Dispatch event using Svelte's event system
+      dispatch('companySelected', company);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-      logger.error('Error searching company by ticker:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('Error searching company by ticker:', {
+        ticker: ticker.toUpperCase(),
+        apiUrl: `${config.api.baseUrl}/companies/?ticker=${ticker.toUpperCase()}`,
+        error: errorMessage,
+      });
+
+      error = errorMessage;
       selectedCompany = null;
     } finally {
       loading = false;
@@ -42,7 +53,7 @@
   }
 </script>
 
-<div class="company-selector">
+<div class="company-selector card">
   <h2>Company Selector</h2>
 
   <div class="search-container">
@@ -63,60 +74,57 @@
 
   {#if selectedCompany}
     <div class="company-details">
-      <h3>{selectedCompany.name}</h3>
-      <p>Ticker: {selectedCompany.tickers}</p>
-      <p>CIK: {selectedCompany.cik}</p>
+      <h3>{selectedCompany.name} ({selectedCompany.tickers})</h3>
     </div>
   {/if}
 </div>
 
 <style>
   .company-selector {
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 1rem;
-    margin-bottom: 1rem;
+    margin-bottom: var(--space-md);
   }
 
   .search-container {
     display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
   }
 
   input {
     flex: 1;
-    padding: 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    padding: var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
   }
 
   button {
-    padding: 0.5rem 1rem;
-    background-color: #4285f4;
+    padding: var(--space-sm) var(--space-md);
+    background-color: var(--color-primary);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--border-radius);
     cursor: pointer;
+    transition: background-color 0.2s ease;
   }
 
   button:hover {
-    background-color: #3367d6;
+    background-color: var(--color-primary-hover);
   }
 
   button:disabled {
-    background-color: #cccccc;
+    background-color: var(--color-text-light);
     cursor: not-allowed;
   }
 
   .error {
-    color: red;
+    color: var(--color-error);
   }
 
   .company-details {
-    margin-top: 1rem;
-    padding: 1rem;
-    background-color: #f5f5f5;
-    border-radius: 4px;
+    background-color: var(--color-surface);
+    padding: var(--space-sm);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--color-primary);
+    margin-bottom: var(--space-md);
   }
 </style>

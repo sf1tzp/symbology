@@ -98,12 +98,31 @@ export function isApiError(obj: any): obj is ApiError {
  * Helper to fetch data from the API with proper error handling
  */
 export async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options);
+  try {
+    const response = await fetch(url, options);
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'An error occurred');
+    if (!response.ok) {
+      // Try to parse error response as JSON
+      let errorDetail: string;
+      try {
+        const errorData = await response.json();
+        errorDetail = errorData.detail || `HTTP error ${response.status}`;
+      } catch (e) {
+        // If parsing fails, use status text
+        errorDetail = `${response.status} ${response.statusText}`;
+      }
+
+      throw new Error(`Load failed: ${errorDetail}`);
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    // Add network error handling
+    if (error instanceof Error) {
+      if (error.message.includes('Failed to fetch') || error.message.includes('Network request failed')) {
+        throw new Error(`Network error: Cannot connect to API at ${url}. Make sure the API server is running and accessible on your network.`);
+      }
+    }
+    throw error;
   }
-
-  return response.json() as Promise<T>;
 }

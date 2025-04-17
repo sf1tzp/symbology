@@ -7,7 +7,7 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Default values
-DEFAULT_HOST = "127.0.0.1"
+DEFAULT_HOST = "0.0.0.0"  # Listen on all interfaces instead of just localhost
 DEFAULT_PORT = 8000
 
 # Environment variable names

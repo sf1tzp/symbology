@@ -29,6 +29,7 @@ The main release objectives of v0.1.0 are to
   - Document Selector
   - Document Viewer
 - Integrate those components with their associated API routes
+- Include linting and testing
 
 We should also review the various program configurations:
 - src/ingestion/config.py seems the most robust
@@ -42,6 +43,7 @@ We should also review the various program configurations:
 
 - src/api/main can use src/utils/config.py
 - Update justfile recipes to use correct env var passing
+- Database IDs should use uuid v7
 
 ## Future
 
@@ -56,3 +58,21 @@ We should also review the various program configurations:
 - [ ] Design UI for presenting generated text for review
 - [ ] Add functionality for capturing user ratings and comments
 - [ ] Store generated text in DB alongside prompt and query metadata
+
+
+## Public Release
+
+- Must disclaim this is not financial advice
+- Must add license
+
+- Fundamental Ratios
+
+
+## Stretch
+
+# Detailed stock price charting / trend analysis
+
+# Search recent news
+# - avg topics of n most recent headlines about x
+#   - compare long term headlines with recent for trending signals
+#

@@ -241,3 +241,7 @@ def _year_from_period_of_report(filing: Filing) -> int:
     """
     date = datetime.strptime(filing.period_of_report, '%Y-%m-%d')
     return date.year
+
+# TODO: Look for other documents,
+#   - letter from CEO
+#   - auditors notes

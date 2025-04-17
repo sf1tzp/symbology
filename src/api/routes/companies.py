@@ -46,6 +46,7 @@ async def search_companies(
     cik: Optional[str] = Query(None, description="Company CIK")
 ):
     """Search for companies by ticker or CIK."""
+    # TODO: If no companies are found, invoke the ingestion pipeline for the ticker / cik, and download the latest 10 ten-k filings
     if ticker:
         logger.info("api_search_companies_by_ticker", ticker=ticker)
         company = get_company_by_ticker(ticker)

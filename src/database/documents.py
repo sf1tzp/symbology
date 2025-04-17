@@ -222,6 +222,7 @@ def find_or_create_document(company_id: UUID, document_name: str, content: Optio
         raise
 
 
+# FIXME: This function should not return the document contents
 def get_documents_by_filing(filing_id: UUID) -> List[Document]:
     """Get all documents associated with a filing.
 

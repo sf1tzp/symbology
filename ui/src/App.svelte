@@ -40,6 +40,7 @@
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }
 
+  // FIXME: If a company / filing / document are selected, we should stay there if the page refreshes
   function handleCompanySelected(event: CustomEvent<CompanyResponse>) {
     selectedCompany = event.detail;
     selectedFiling = null;

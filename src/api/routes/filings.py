@@ -56,6 +56,8 @@ async def get_company_filings(company_id: UUID):
         500: {"description": "Internal server error"}
     }
 )
+
+# FIXME: This function should not return the document contents
 async def get_filing_documents(filing_id: UUID):
     """Get all documents associated with a filing."""
     logger.info("api_get_filing_documents", filing_id=str(filing_id))

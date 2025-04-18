@@ -1,12 +1,16 @@
 """Companies API routes."""
 from typing import Optional
 from uuid import UUID
+import datetime
 
 from fastapi import APIRouter, HTTPException, Query, status
 
 from src.api.schemas import CompanyResponse
 from src.database.companies import get_company, get_company_by_cik, get_company_by_ticker
 from src.utils.logging import get_logger
+from src.ingestion.edgar_db.accessors import edgar_login
+from src.ingestion.ingestion_helpers import ingest_company, ingest_filing, ingest_filing_documents, ingest_financial_data
+from src.utils.config import settings
 
 # Create logger for this module
 logger = get_logger(__name__)
@@ -43,19 +47,106 @@ async def get_company_by_id(company_id: UUID):
 )
 async def search_companies(
     ticker: Optional[str] = Query(None, description="Company ticker symbol"),
-    cik: Optional[str] = Query(None, description="Company CIK")
+    cik: Optional[str] = Query(None, description="Company CIK"),
+    auto_ingest: bool = Query(True, description="Automatically ingest company if not found")
 ):
-    """Search for companies by ticker or CIK."""
-    # TODO: If no companies are found, invoke the ingestion pipeline for the ticker / cik, and download the latest 10 ten-k filings
+    """Search for companies by ticker or CIK.
+
+    If the company is not found and auto_ingest is True, this endpoint will attempt to:
+    1. Ingest company data from EDGAR
+    2. Ingest the 5 most recent 10-K filings
+    """
+    company = None
+
     if ticker:
         logger.info("api_search_companies_by_ticker", ticker=ticker)
         company = get_company_by_ticker(ticker)
+
+        # If company not found and auto_ingest is enabled, try to ingest it
+        if not company and auto_ingest:
+            try:
+                logger.info("auto_ingesting_company", ticker=ticker)
+
+                # Setup EDGAR login
+                edgar_login(settings.edgar_api.edgar_contact)
+
+                # Step 1: Ingest company data
+                edgar_company, company_id = ingest_company(ticker)
+
+                # Get the current year to determine which years to fetch
+                current_year = datetime.datetime.now().year
+
+                # Step 2: Ingest the 5 most recent 10-K filings (or as many as available)
+                filing_years = range(current_year - 1, current_year - 6, -1)
+                for year in filing_years:
+                    try:
+                        logger.info("auto_ingesting_filing", ticker=ticker, year=year)
+                        filing, filing_id = ingest_filing(company_id, edgar_company, year)
+
+                        if filing and filing_id:
+                            # Step 3: Ingest documents for this filing
+                            document_uuids = ingest_filing_documents(
+                                company_id, filing_id, filing, edgar_company.name
+                            )
+
+                            # Step 4: Ingest financial data for this filing
+                            financial_counts = ingest_financial_data(
+                                company_id, filing_id, filing
+                            )
+
+                            logger.info(
+                                "auto_ingest_filing_successful",
+                                ticker=ticker,
+                                year=year,
+                                document_count=len(document_uuids),
+                                financial_values_count=sum(financial_counts.values())
+                            )
+                        else:
+                            logger.warning(
+                                "auto_ingest_no_filing_found", ticker=ticker, year=year
+                            )
+                    except Exception as e:
+                        logger.error(
+                            "auto_ingest_filing_failed",
+                            ticker=ticker,
+                            year=year,
+                            error=str(e),
+                            exc_info=True
+                        )
+
+                # Step 5: Get the newly ingested company
+                company = get_company(company_id)
+                logger.info(
+                    "auto_ingest_company_successful",
+                    ticker=ticker,
+                    company_id=str(company_id)
+                )
+            except Exception as e:
+                logger.error(
+                    "auto_ingest_company_failed",
+                    ticker=ticker,
+                    error=str(e),
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to automatically ingest company with ticker {ticker}: {str(e)}"
+                )
+
         if not company:
             raise HTTPException(status_code=404, detail=f"Company with ticker {ticker} not found")
         return company
     elif cik:
         logger.info("api_search_companies_by_cik", cik=cik)
         company = get_company_by_cik(cik)
+
+        # If company not found and auto_ingest is enabled, try to ingest it
+        if not company and auto_ingest:
+            # For CIK ingestion, we can't directly use the ticker-based function
+            # We'd need to adapt the ingestion process for CIK input
+            # This could be an enhancement for a future version
+            logger.warning("auto_ingest_by_cik_not_implemented", cik=cik)
+
         if not company:
             raise HTTPException(status_code=404, detail=f"Company with CIK {cik} not found")
         return company

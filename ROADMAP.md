@@ -48,7 +48,7 @@ The v0.1.0 release includes:
 ## Next (v0.1.1)
 
 ### Enhance API Functionality
-- [ ] Automatically ingest company if not found (get past 5 10-Ks)
+- [x] Automatically ingest company if not found (get past 5 10-Ks)
 
 ### UI Tweaks
 - [ ] Search Bar Enhancements

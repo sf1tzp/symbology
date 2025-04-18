@@ -19,10 +19,10 @@ The v0.0.2 release included:
 - Addition of `src/api` with endpoints to support basic UI components
 - Adaptation of `src/tests` to cover the new database and API functions
 
-## Next (v0.1.0)
+## (v0.1.0)
 
-The main release objectives of v0.1.0 are to
-- [ ] bootstrap a svelete UI
+The v0.1.0 release includes:
+- [x] bootstrap a svelete UI
     - create basic components:
       - Company Selector
       - Filings Selector
@@ -43,29 +43,31 @@ The main release objectives of v0.1.0 are to
   - src/api/main can use src/utils/config.py
   - Update justfile recipes to use correct env var passing
 
-- Database IDs should use uuid v7
+- [x] Database IDs should use uuid v7
 
-## Future
+## Next (v0.1.1)
+
+### Enhance API Functionality
+- [ ] Automatically ingest company if not found (get past 5 10-Ks)
 
 ### UI Tweaks
-- Reactive / Collapseable Cards
-- Prepare side by side layout for Prompt Engineering:
+- [ ] Search Bar Enhancements
+  - Auto Populate Company Search bar with results
+  - Filter list down as typing
+- [ ] Reactive / Collapseable Cards
+- [ ] Prepare side by side layout for Prompt Engineering:
 
 ### Prompt Engineering / Inference Workflow
-- [ ] Develop interface for configuring query parameters
-- [ ] Create selector for source documents (by ticker/year → form type → section)
-- [ ] Implement source retrieval from DB with fallback to process_10k
-- [ ] Design UI for presenting generated text for review
-- [ ] Add functionality for capturing user ratings and comments
-- [ ] Store generated text in DB alongside prompt and query metadata
+- [ ] Add components for Prompt Engineering UI [canvas](ui/llm-layouts.canvas)
+- [ ] Add routes to support Prompt Engineering UI
 
 
-## Public Release
+## Public Release TODOs
 
 - Must disclaim this is not financial advice
 - Must add license
 
-- Fundamental Ratios
+- Display Fundamental Ratios
 
 
 ## Stretch

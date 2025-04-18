@@ -4,6 +4,7 @@
   import type { DocumentResponse } from '$utils/generated-api-types';
   import config from '$utils/config';
   import { createEventDispatcher } from 'svelte';
+  import { onDestroy } from 'svelte';
 
   const dispatch = createEventDispatcher<{
     documentSelected: DocumentResponse;
@@ -19,6 +20,15 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
 
+  // New state variables for collapsible behavior
+  let isListCollapsed = $state(false);
+  let hoverTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear timeout on destroy
+  onDestroy(() => {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+  });
+
   // Watch for changes in filingId and fetch documents
   $effect(() => {
     logger.debug('[DocumentSelector] Effect watching filingId triggered', { filingId });
@@ -30,6 +40,7 @@
       );
       documents = [];
       selectedDocument = null;
+      isListCollapsed = false; // Reset collapsed state when filing changes
     }
   });
 
@@ -58,6 +69,36 @@
   function selectDocument(document: DocumentResponse) {
     selectedDocument = document;
     dispatch('documentSelected', document);
+
+    // Collapse the documents list when a document is selected
+    if (document) {
+      isListCollapsed = true;
+    }
+  }
+
+  // Functions to handle mouse events for expanding the list
+  function handleMouseEnter() {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (isListCollapsed && selectedDocument) {
+      isListCollapsed = false;
+    }
+  }
+
+  function handleMouseLeave() {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (selectedDocument && !loading) {
+      // Add a small delay before collapsing to prevent jumpy UI
+      hoverTimeout = setTimeout(() => {
+        isListCollapsed = true;
+      }, 300);
+    }
+  }
+
+  // Function to handle focus events for accessibility
+  function handleFocus() {
+    if (isListCollapsed && selectedDocument) {
+      isListCollapsed = false;
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent, document: DocumentResponse) {
@@ -69,8 +110,16 @@
   }
 </script>
 
-<div class="document-selector card">
-  <h2>Documents</h2>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="document-selector card collapsible-component"
+  class:has-selected={selectedDocument !== null}
+  class:is-collapsed={isListCollapsed}
+  onmouseenter={handleMouseEnter}
+  onmouseleave={handleMouseLeave}
+  onfocusin={handleFocus}
+>
+  <h2 class="collapsible-heading" class:is-collapsed={isListCollapsed}>Documents</h2>
 
   {#if !filingId}
     <p class="placeholder">Please select a filing to view its documents</p>
@@ -81,31 +130,46 @@
   {:else if documents.length === 0}
     <p>No documents found for this filing</p>
   {:else}
-    <div class="documents-list scrollable" role="listbox" aria-label="Documents list">
-      {#each documents as document}
-        <div
-          class="document-item {selectedDocument?.id === document.id ? 'selected' : ''}"
-          onclick={() => selectDocument(document)}
-          onkeydown={(e) => handleKeyDown(e, document)}
-          tabindex="0"
-          role="option"
-          aria-selected={selectedDocument?.id === document.id}
-        >
-          <h3>{document.document_name || 'Unnamed Document'}</h3>
+    <!-- Show documents list -->
+    <div class="documents-container">
+      <!-- Selected document is always visible -->
+      {#if selectedDocument}
+        <div class="document-item selected-item" tabindex="0" role="option" aria-selected={true}>
+          <h3>{selectedDocument.document_name || 'Unnamed Document'}</h3>
         </div>
-      {/each}
-    </div>
-  {/if}
+      {/if}
 
-  {#if selectedDocument && filingId}
-    <div class="selected-document-info">
-      <h3>Selected: {selectedDocument.document_name || 'Unnamed Document'}</h3>
+      <!-- Other documents (collapsible) -->
+      <div
+        class="documents-list scrollable collapsible-content"
+        class:is-collapsed={isListCollapsed}
+        role="listbox"
+        aria-label="Documents list"
+      >
+        {#each documents as document}
+          <!-- Skip selected document since it's already shown above -->
+          {#if document.id !== selectedDocument?.id}
+            <div
+              class="document-item hover-lift"
+              onclick={() => selectDocument(document)}
+              onkeydown={(e) => handleKeyDown(e, document)}
+              tabindex="0"
+              role="option"
+              aria-selected={false}
+            >
+              <h3>{document.document_name || 'Unnamed Document'}</h3>
+            </div>
+          {/if}
+        {/each}
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
   .document-selector {
+    position: relative;
+    min-height: 50px;
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
     padding: var(--space-md);
@@ -116,12 +180,23 @@
     font-style: italic;
   }
 
+  /* New container to organize the layout */
+  .documents-container {
+    display: flex;
+    flex-direction: column;
+  }
+
   .documents-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
     margin-top: var(--space-md);
     max-height: 300px;
+  }
+
+  /* When collapsed, reduce height and fade out */
+  .documents-list.is-collapsed {
+    margin-top: 0;
   }
 
   .document-item {
@@ -137,10 +212,9 @@
     border-color: var(--color-primary);
   }
 
-  .document-item.selected {
-    border-color: var(--color-primary);
-    border-width: 2px;
-    background-color: var(--color-surface);
+  .document-item.selected-item {
+    cursor: default;
+    margin-bottom: var(--space-sm);
   }
 
   .document-item h3 {
@@ -150,5 +224,25 @@
 
   .error {
     color: var(--color-error);
+  }
+
+  /* Additional styles for collapsible behavior */
+  .collapsible-component.has-selected.is-collapsed .collapsible-heading {
+    margin-bottom: 0;
+  }
+
+  .collapsible-content.is-collapsed {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+  }
+
+  .collapsible-heading.is-collapsed {
+    margin-bottom: 0;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 </style>

@@ -19,6 +19,10 @@
   // Flag to control when to update the button text
   let showLoadingText = $state(false);
 
+  // New state for controlling search UI visibility
+  let isSearchCollapsed = $state(false);
+  let hoverTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+
   // New states for search results and dropdown
   let searchResults = $state<CompanyResponse[]>([]);
   let showDropdown = $state(false);
@@ -36,6 +40,7 @@
     if (searchTimeout) clearTimeout(searchTimeout);
     if (blurTimeout) clearTimeout(blurTimeout);
     if (spinnerTimeout) clearTimeout(spinnerTimeout);
+    if (hoverTimeout) clearTimeout(hoverTimeout);
     if (loadingMessageInterval) clearInterval(loadingMessageInterval);
   });
 
@@ -44,6 +49,39 @@
     companyCleared: void;
   }>();
   const logger = getLogger('CompanySelector');
+
+  // Function to handle when a company is selected
+  function handleCompanySelected(company: CompanyResponse) {
+    // Collapse the search UI when a company is selected
+    if (company) {
+      isSearchCollapsed = true;
+    }
+  }
+
+  // Functions to handle mouse events for expanding the search UI
+  function handleMouseEnter() {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (isSearchCollapsed && selectedCompany) {
+      isSearchCollapsed = false;
+    }
+  }
+
+  function handleMouseLeave() {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (selectedCompany && !loading) {
+      // Add a small delay before collapsing to prevent jumpy UI
+      hoverTimeout = setTimeout(() => {
+        isSearchCollapsed = true;
+      }, 300);
+    }
+  }
+
+  // Function to handle focus events for accessibility
+  function handleFocus() {
+    if (isSearchCollapsed && selectedCompany) {
+      isSearchCollapsed = false;
+    }
+  }
 
   // Function to start updating loading message during long operations
   function startLoadingMessageUpdates() {
@@ -236,6 +274,7 @@
     ticker = company.tickers && company.tickers.length > 0 ? company.tickers[0] : ''; // Safely access tickers
     showDropdown = false; // Hide the dropdown
     dispatch('companySelected', company);
+    handleCompanySelected(company); // Call our new function to collapse UI
   }
 
   // Handle keyboard navigation in dropdown
@@ -311,10 +350,18 @@
   }
 </script>
 
-<div class="company-selector card">
-  <h2>Company Selector</h2>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="company-selector card collapsible-component"
+  class:has-selected={selectedCompany !== null}
+  class:is-collapsed={isSearchCollapsed}
+  onmouseenter={handleMouseEnter}
+  onmouseleave={handleMouseLeave}
+  onfocusin={handleFocus}
+>
+  <h2 class="collapsible-heading" class:is-collapsed={isSearchCollapsed}>Company Selector</h2>
 
-  <div class="search-container">
+  <div class="search-container collapsible-content" class:is-collapsed={isSearchCollapsed}>
     <div class="search-input-wrapper">
       <input
         type="text"
@@ -323,39 +370,40 @@
         oninput={handleInput}
         onblur={handleBlur}
         onkeydown={handleInputKeydown}
+        onfocus={handleFocus}
       />
-      {#if showDropdown && searchResults.length > 0}
-        <div
-          class="search-results-dropdown"
-          onmousedown={cancelBlur}
-          ontouchstart={cancelBlur}
-          role="listbox"
-          aria-label="Company search results"
-          tabindex="0"
-        >
-          {#each searchResults as company, index}
-            <!-- Using button instead of div for better accessibility -->
-            <button
-              type="button"
-              class="search-result-item {currentFocusIndex === index
-                ? 'search-result-focused'
-                : ''}"
-              onclick={() => selectCompanyFromDropdown(company)}
-              onkeydown={(e) => handleKeydown(e, company)}
-              role="option"
-              aria-selected={selectedCompany === company || currentFocusIndex === index}
-            >
-              <div class="company-name">{company.name}</div>
-              <div class="company-ticker">{company.tickers?.join(', ') || ''}</div>
-            </button>
-          {/each}
-        </div>
-      {/if}
     </div>
     <button onclick={searchCompany} disabled={loading}>
       {loading && showLoadingText ? 'Searching' : 'Search'}
     </button>
   </div>
+
+  <!-- Move dropdown outside of collapsible container -->
+  {#if showDropdown && searchResults.length > 0}
+    <div
+      class="search-results-dropdown"
+      onmousedown={cancelBlur}
+      ontouchstart={cancelBlur}
+      role="listbox"
+      aria-label="Company search results"
+      tabindex="0"
+    >
+      {#each searchResults as company, index}
+        <!-- Using button instead of div for better accessibility -->
+        <button
+          type="button"
+          class="search-result-item {currentFocusIndex === index ? 'search-result-focused' : ''}"
+          onclick={() => selectCompanyFromDropdown(company)}
+          onkeydown={(e) => handleKeydown(e, company)}
+          role="option"
+          aria-selected={selectedCompany === company || currentFocusIndex === index}
+        >
+          <div class="company-name">{company.name}</div>
+          <div class="company-ticker">{company.tickers?.join(', ') || ''}</div>
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if loading && !showDropdown && showLoadingSpinner}
     <div class="loading-container">
@@ -365,11 +413,11 @@
   {/if}
 
   {#if error}
-    <p class="error">Error: {error}</p>
+    <p class="error-message">Error: {error}</p>
   {/if}
 
   {#if selectedCompany}
-    <div class="company-details">
+    <div class="company-details selected-item">
       <h3>{selectedCompany.name} ({selectedCompany.tickers?.join(', ') || ''})</h3>
     </div>
   {/if}
@@ -377,22 +425,20 @@
 
 <style>
   .company-selector {
-    margin-bottom: var(--space-md);
-    /* Set a min-height to prevent layout shifts */
-    min-height: 150px;
-  }
-
-  .search-container {
-    display: flex;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-md);
-    position: relative; /* Ensure proper positioning context */
+    /* Position is needed for dropdown, min-height handled by utility class */
+    position: relative;
   }
 
   .search-input-wrapper {
     position: relative;
     flex: 1;
     z-index: 100; /* Increase z-index to ensure dropdown appears above everything */
+  }
+
+  .search-container {
+    display: flex;
+    gap: var(--space-sm);
+    position: relative; /* Ensure proper positioning context */
   }
 
   input {
@@ -425,52 +471,22 @@
     cursor: not-allowed;
   }
 
-  .error {
-    color: var(--color-error);
-  }
-
   .company-details {
     background-color: var(--color-surface);
+    margin-top: var(--space-sm);
     padding: var(--space-sm);
     border-radius: var(--border-radius);
-    border-left: 4px solid var(--color-primary);
-    margin-bottom: var(--space-md);
-  }
-
-  .loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: var(--space-md) 0;
-  }
-
-  .loading-spinner {
-    border: 3px solid rgba(0, 0, 0, 0.1);
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border-left-color: var(--color-primary);
-    animation: spin 1s linear infinite;
     margin-bottom: var(--space-sm);
-    margin-top: var(--space-md);
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
+    /* Remove any border properties to avoid conflicts with selected-item */
   }
 
   .loading-text {
     font-weight: 500;
     color: var(--color-text);
-    margin-bottom: var(--space-sm);
+    margin-bottom: var (--space-sm);
   }
 
-  /* New styles for dropdown */
+  /* Search results dropdown */
   .search-results-dropdown {
     position: absolute;
     width: 100%;
@@ -482,8 +498,13 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     margin-top: 2px;
     z-index: 1000; /* Very high z-index */
-    top: 100%;
+    top: 66%;
     left: 0;
+  }
+
+  /* Ensure dropdown is always interactive regardless of parent state */
+  .search-results-dropdown {
+    pointer-events: auto !important;
   }
 
   .search-result-item {
@@ -520,5 +541,10 @@
   .company-ticker {
     font-size: 0.9em;
     color: var(--color-text-light);
+  }
+
+  /* Add visual indicator for collapsed state */
+  .company-selector.has-selected:after {
+    opacity: 1;
   }
 </style>

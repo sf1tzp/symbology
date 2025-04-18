@@ -4,6 +4,7 @@
   import type { FilingResponse } from '$utils/generated-api-types';
   import config from '$utils/config';
   import { createEventDispatcher } from 'svelte';
+  import { onDestroy } from 'svelte';
 
   const dispatch = createEventDispatcher<{
     filingSelected: FilingResponse;
@@ -19,6 +20,15 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
 
+  // New state variable for collapsible behavior
+  let isListCollapsed = $state(false);
+  let hoverTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear timeout on destroy
+  onDestroy(() => {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+  });
+
   // Watch for changes in companyId and fetch filings
   $effect(() => {
     logger.debug('[FilingsSelector] Effect watching companyId triggered', { companyId });
@@ -30,6 +40,7 @@
       );
       filings = [];
       selectedFiling = null;
+      isListCollapsed = false; // Reset collapsed state when company changes
     }
   });
 
@@ -58,6 +69,36 @@
   function selectFiling(filing: FilingResponse) {
     selectedFiling = filing;
     dispatch('filingSelected', filing);
+
+    // Collapse the filings list when a filing is selected
+    if (filing) {
+      isListCollapsed = true;
+    }
+  }
+
+  // Functions to handle mouse events for expanding the list
+  function handleMouseEnter() {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (isListCollapsed && selectedFiling) {
+      isListCollapsed = false;
+    }
+  }
+
+  function handleMouseLeave() {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (selectedFiling && !loading) {
+      // Add a small delay before collapsing to prevent jumpy UI
+      hoverTimeout = setTimeout(() => {
+        isListCollapsed = true;
+      }, 300);
+    }
+  }
+
+  // Function to handle focus events for accessibility
+  function handleFocus() {
+    if (isListCollapsed && selectedFiling) {
+      isListCollapsed = false;
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent, filing: FilingResponse) {
@@ -69,66 +110,101 @@
   }
 </script>
 
-<div class="filings-selector card">
-  <h2>Filings</h2>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="filings-selector card collapsible-component"
+  class:has-selected={selectedFiling !== null}
+  class:is-collapsed={isListCollapsed}
+  onmouseenter={handleMouseEnter}
+  onmouseleave={handleMouseLeave}
+  onfocusin={handleFocus}
+>
+  <h2 class="collapsible-heading" class:is-collapsed={isListCollapsed}>Filings</h2>
 
   {#if !companyId}
     <p class="placeholder">Please select a company to view its filings</p>
   {:else if loading}
     <p>Loading filings...</p>
   {:else if error}
-    <p class="error">Error: {error}</p>
+    <p class="error-message">Error: {error}</p>
   {:else if filings.length === 0}
     <p>No filings found for this company</p>
   {:else}
-    <div class="filings-list scrollable" role="listbox" aria-label="Filings list">
-      {#each filings as filing}
-        <div
-          class="filing-item {selectedFiling?.id === filing.id ? 'selected' : ''}"
-          onclick={() => selectFiling(filing)}
-          onkeydown={(e) => handleKeyDown(e, filing)}
-          tabindex="0"
-          role="option"
-          aria-selected={selectedFiling?.id === filing.id}
-        >
+    <!-- Show filings list -->
+    <div class="filings-container">
+      <!-- Selected filing is always visible -->
+      {#if selectedFiling}
+        <div class="filing-item selected-item" tabindex="0" role="option" aria-selected={true}>
           <h3>
-            {filing.filing_type}
-            {#if filing.filing_url}
+            {selectedFiling.filing_type}
+            {#if selectedFiling.filing_url}
               <a
-                href={filing.filing_url}
+                href={selectedFiling.filing_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="source-link">view source</a
               >
             {/if}
           </h3>
-          {#if filing.period_of_report}
+          {#if selectedFiling.period_of_report}
             <p>
               Fiscal Year Ending: <strong
-                >{new Date(filing.period_of_report).toLocaleDateString()}</strong
+                >{new Date(selectedFiling.period_of_report).toLocaleDateString()}</strong
               >
             </p>
           {/if}
         </div>
-      {/each}
-    </div>
-  {/if}
-
-  {#if selectedFiling && companyId}
-    <div class="selected-filing-info">
-      <h3>Selected: {selectedFiling.filing_type}</h3>
-      {#if selectedFiling.period_of_report}
-        <p>
-          Period: {new Date(selectedFiling.period_of_report).toLocaleDateString()}
-        </p>
       {/if}
+
+      <!-- Other filings (collapsible) -->
+      <div
+        class="filings-list scrollable collapsible-content"
+        class:is-collapsed={isListCollapsed}
+        role="listbox"
+        aria-label="Filings list"
+      >
+        {#each filings as filing}
+          <!-- Skip selected filing since it's already shown above -->
+          {#if filing.id !== selectedFiling?.id}
+            <div
+              class="filing-item hover-lift"
+              onclick={() => selectFiling(filing)}
+              onkeydown={(e) => handleKeyDown(e, filing)}
+              tabindex="0"
+              role="option"
+              aria-selected={false}
+            >
+              <h3>
+                {filing.filing_type}
+                {#if filing.filing_url}
+                  <a
+                    href={filing.filing_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="source-link">view source</a
+                  >
+                {/if}
+              </h3>
+              {#if filing.period_of_report}
+                <p>
+                  Fiscal Year Ending: <strong
+                    >{new Date(filing.period_of_report).toLocaleDateString()}</strong
+                  >
+                </p>
+              {/if}
+            </div>
+          {/if}
+        {/each}
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
   .filings-selector {
-    margin-bottom: var(--space-md);
+    /* Remove redundant styles that are now in utility classes */
+    position: relative;
+    min-height: 50px;
   }
 
   .placeholder {
@@ -136,12 +212,23 @@
     font-style: italic;
   }
 
+  /* New container to organize the layout */
+  .filings-container {
+    display: flex;
+    flex-direction: column;
+  }
+
   .filings-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
     margin-top: var(--space-md);
-    max-height: 300px;
+    /* Max-height is already in collapsible-content class */
+  }
+
+  /* When collapsed, reduce height and fade out - handled by utility class now */
+  .filings-list.is-collapsed {
+    margin-top: 0;
   }
 
   .filing-item {
@@ -155,12 +242,14 @@
 
   .filing-item:hover {
     border-color: var(--color-primary);
+    /* Transform and box-shadow now handled by hover-lift */
   }
 
-  .filing-item.selected {
-    border-color: var(--color-primary);
-    border-width: 2px;
-    background-color: var(--color-surface);
+  /* Remove border properties from this rule as they'll be handled by the selected-item class */
+  .filing-item.selected-item {
+    cursor: default;
+    margin-bottom: var(--space-sm);
+    /* Remove any border-related properties from here */
   }
 
   .filing-item h3 {
@@ -176,8 +265,9 @@
     font-size: 0.9rem;
   }
 
-  .error {
-    color: var(--color-error);
+  /* Add margin for the button */
+  .filing-item.selected-item p {
+    margin-bottom: var(--space-md);
   }
 
   .source-link {
@@ -189,4 +279,24 @@
   .source-link:hover {
     text-decoration: underline;
   }
+
+  .change-button {
+    padding: var(--space-xs) var(--space-md);
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s ease;
+    /* Display at the bottom of the filing-item */
+    display: block;
+    margin-top: var(--space-sm);
+  }
+
+  .change-button:hover {
+    background-color: var(--color-primary-hover);
+  }
+
+  /* Headings are now managed by utility classes */
 </style>

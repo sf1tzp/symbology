@@ -69,6 +69,7 @@ The v0.1.0 release includes:
 
 - Display Fundamental Ratios
 
+- 'Like what you see, but can't find what you're looking for? Support the project and request coverage on patreon'
 
 ## Stretch
 

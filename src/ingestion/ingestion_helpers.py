@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Dict, Optional, Tuple
 from uuid import UUID
 
@@ -71,7 +71,10 @@ def ingest_company(ticker: str) -> Tuple[EntityData, UUID]:
                                   cik=edgar_company.cik)
                     company_data['fiscal_year_end'] = None
             else:
-                company_data['fiscal_year_end'] = edgar_company.fiscal_year_end
+                logger.warning("invalid_fiscal_year_end_format",
+                              value=edgar_company.fiscal_year_end,
+                              cik=edgar_company.cik)
+                company_data['fiscal_year_end'] = None
         else:
             company_data['fiscal_year_end'] = None
 
@@ -279,7 +282,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                         filing_id=filing_id
                     )
                     counts['income_statement'] += 1
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, InvalidOperation):
                     logger.warning("invalid_income_statement_value",
                                   concept=concept_name,
                                   value=str(value_str))
@@ -357,15 +360,10 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                         filing_id=filing_id
                     )
                     counts['cover_page'] += 1
-                except (ValueError, TypeError):
-                    # Some cover page values might not be numeric
-                    # Store as a document instead
-                    find_or_create_document(
-                        company_id=company_id,
-                        filing_id=filing_id,
-                        document_name=f"cover_page_{concept_name}",
-                        content=str(value_str)
-                    )
+                except (ValueError, TypeError, InvalidOperation):
+                    logger.warning("invalid_cover_page_value",
+                                  concept=concept_name,
+                                  value=str(value_str))
 
         return counts
     except Exception as e:

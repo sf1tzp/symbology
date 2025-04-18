@@ -1,8 +1,9 @@
 from typing import Any, Dict, List, Optional, Union
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
 from src.utils.logging import get_logger
@@ -16,7 +17,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     # Primary identifier
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
     # Foreign keys
     filing_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("filings.id", ondelete="CASCADE"), index=True)

@@ -1,10 +1,11 @@
 from datetime import date
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import any_, Boolean, Date, String
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
+from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
 from src.utils.logging import get_logger
@@ -24,7 +25,7 @@ class Company(Base):
     __tablename__ = "companies"
 
     # Primary identifiers
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     cik: Mapped[Optional[str]] = mapped_column(String(10), unique=True, index=True)
 
     # Relationships

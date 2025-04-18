@@ -1,10 +1,11 @@
 from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import Date, ForeignKey, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
 from src.utils.logging import get_logger
@@ -18,7 +19,7 @@ class FinancialValue(Base):
     __tablename__ = "financial_values"
 
     # Primary identifier
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
     # Foreign keys
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)

@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import Column, Float, ForeignKey, String, Table
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
+from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
 from src.utils.logging import get_logger
@@ -31,7 +32,7 @@ class Completion(Base):
     __tablename__ = "completions"
 
     # Primary identifier
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
     # Relationships
     # Note: no cascade delete for these relationships

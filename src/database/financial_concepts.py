@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
 from src.utils.logging import get_logger
@@ -21,7 +22,7 @@ class FinancialConcept(Base):
     __tablename__ = "financial_concepts"
 
     # Primary identifier
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
     # Financial concept details
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)

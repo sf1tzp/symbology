@@ -1,7 +1,6 @@
 # shellcheck shell=bash
-# shellcheck disable=SC2148
-# shellcheck disable=SC2035
-# shellcheck disable=SC2050
+# shellcheck disable=SC2035,SC2050,SC2148
+
 set dotenv-load
 
 _create_venv:

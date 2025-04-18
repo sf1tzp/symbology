@@ -30,9 +30,8 @@ The Svelte application in the src directory is a financial document viewer appli
 
 2. **vite-env.d.ts**:
    This file extends the Vite environment variable types with custom environment variables used by the application, including:
-   - Database connection details (POSTGRES_USER, POSTGRES_PASSWORD, etc.)
+   - Database connection details (DATABASE_USER, DATABASE_PASSWORD, etc.)
    - API configuration (SYMBOLOGY_API_HOST, SYMBOLOGY_API_PORT)
-   - External service configurations (EDGAR_CONTACT, OPENAI_HOST, etc.)
    - Logging configurations (LOG_LEVEL, LOG_JSON_FORMAT)
 
 ### Application Structure:

@@ -4,10 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 import uvicorn
 
-from src.api.config import get_api_host, get_api_port
 from src.api.routes import router as api_router
 from src.database.base import init_db
-from src.ingestion.config import settings
+from src.utils.config import settings
 from src.utils.logging import configure_logging, get_logger
 
 # Configure structured logging
@@ -93,8 +92,8 @@ async def redoc_html():
 
 def start_api():
     """Start the FastAPI application using uvicorn."""
-    host = get_api_host()
-    port = get_api_port()
+    host = settings.symbology_api.host
+    port = settings.symbology_api.port
 
     logger.info("starting_api_server", host=host, port=port)
     uvicorn.run(

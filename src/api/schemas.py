@@ -46,7 +46,7 @@ class CompanyResponse(BaseModel):
     former_names: List[Dict[str, Any]] = Field(default_factory=list, description="List of former company names")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "cik": "0000320193",
@@ -81,7 +81,7 @@ class FilingResponse(BaseModel):
     period_of_report: Optional[date] = Field(None, description="Period covered by the report")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174001",
                 "company_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -103,7 +103,7 @@ class DocumentResponse(BaseModel):
     content: Optional[str] = Field(None, description="Text content of the document")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174002",
                 "filing_id": "123e4567-e89b-12d3-a456-426614174001",
@@ -120,7 +120,7 @@ class DocumentContentResponse(BaseModel):
     content: str = Field(..., description="Document content (HTML)")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174002",
                 "content": "<div><p>This is the document content...</p></div>"

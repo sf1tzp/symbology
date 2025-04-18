@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# shellcheck disable=SC2148
+# shellcheck disable=SC2035,SC2050,SC2148
 
 generate-api-types:
     node scripts/generate-api-types.js

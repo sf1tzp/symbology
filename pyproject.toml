@@ -6,27 +6,39 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "edgartools==3.15.0",
+    "fastapi==0.115.12",
     "httpx==0.28.1",
-    "jupyter==1.1.1",
     "ollama==0.4.7",
+    "psycopg2==2.9.10",
     "pydantic==2.11.3",
+    "pydantic-settings==2.9.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+    "pytest-json-report>=1.5.0",
     "python-dotenv==1.0.0",
     "sqlalchemy==2.0.40",
     "structlog==24.1.0",
+    "uuid7==0.1.0",
+    "uvicorn==0.34.1",
 ]
 
 # [tool.uv.workspace]
 # members = ["src/python"]
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic.*:",
+    "ignore::UserWarning:pydantic.*:",
+]
 
 [tool.ruff]
 # Enable flake8-bugbear (`B`) rules, and isort (`I`) for import sorting
 lint.select = ["E", "F", "B", "I"]
+# Allow unused variables when underscore-prefixed
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Exclude a variety of commonly ignored directories
 exclude = [".git", ".eggs", "__pycache__", "build", "dist", "*.ipynb"]
 # Same as Black
 line-length = 160
-# Allow unused variables when underscore-prefixed
-lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Target Python 3.13
 target-version = "py313"
 

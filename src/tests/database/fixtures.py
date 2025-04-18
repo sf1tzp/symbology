@@ -4,8 +4,8 @@ from sqlalchemy.orm import sessionmaker
 
 # Import the models and settings
 from src.database.base import Base
-from src.ingestion.config import settings
 from src.utils.logging import configure_logging, get_logger
+from utils.config import settings
 
 # Configure logging for tests
 configure_logging(log_level="INFO")
@@ -19,13 +19,13 @@ logger = get_logger(__name__)
 
 # Use PostgreSQL for testing with a separate test database
 TEST_DATABASE_NAME = "symbology-test"
-TEST_DATABASE_URL = f"postgresql://{settings.database.postgres_user}:{settings.database.postgres_password}@{settings.database.host}:{settings.database.port}/{TEST_DATABASE_NAME}"
+TEST_DATABASE_URL = f"postgresql://{settings.database.user}:{settings.database.password}@{settings.database.host}:{settings.database.port}/{TEST_DATABASE_NAME}"
 
 @pytest.fixture(scope="session", autouse=True)
 def create_test_database():
     """Create and drop the test database before and after all tests."""
     # Connect to default PostgreSQL database to create/drop test database
-    default_db_url = f"postgresql://{settings.database.postgres_user}:{settings.database.postgres_password}@{settings.database.host}:{settings.database.port}/postgres"
+    default_db_url = f"postgresql://{settings.database.user}:{settings.database.password}@{settings.database.host}:{settings.database.port}/postgres"
     default_engine = create_engine(default_db_url)
 
     # Create test database if it doesn't exist

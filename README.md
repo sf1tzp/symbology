@@ -67,29 +67,32 @@ As we approach the v0.1.0 release, the project now includes:
 2. **Set up environment variables**
    Create a `.env` file in the project root:
    ```
-   # Database settings
-   POSTGRES_USER=postgres
-   POSTGRES_PASSWORD=postgres
-   POSTGRES_DB=symbology
+   EDGAR_CONTACT=admin@example.com
+
    DATABASE_HOST=localhost
    DATABASE_PORT=5432
 
-   # API settings
-   SYMBOLOGY_API_HOST=localhost
-   SYMBOLOGY_API_PORT=8000
-   EDGAR_CONTACT=your-email@example.com
+   DATABASE_USER=postgres
+   DATABASE_PASSWORD=postgres
+   DATABASE_NAME=symbology
 
-   # UI settings
-   SYMBOLOGY_UI_HOST=localhost
-   SYMBOLOGY_UI_PORT=5173
+   PGADMIN_EMAIL=admin@example.com
+   PGADMIN_PASSWORD=postgres
 
-   # LLM settings
    OPENAI_HOST=localhost
    OPENAI_PORT=11434
+
+   SYMBOLOGY_API_HOST=localhost
+   SYMBOLOGY_API_PORT=8000
+
+   SYMBOLOGY_UI_HOST=localhost
+   SYMBOLOGY_UI_PORT=5173
    ```
 
 3. **Install backend dependencies using UV**
    ```bash
+   uv venv
+   source .venv/bin/activate
    uv pip install -r requirements.lock
    ```
 
@@ -102,9 +105,9 @@ As we approach the v0.1.0 release, the project now includes:
 
 5. **Start the services**
    ```bash
-   just start-db      # Start PostgreSQL database
-   just start-api     # Start the API server
-   just start-ui      # Start the UI development server
+   just run db      # Start PostgreSQL database
+   just run api     # Start the API server
+   just run ui      # Start the UI development server
    ```
 
 ## Usage
@@ -178,7 +181,8 @@ The database consists of several interconnected tables:
 ### Running Tests
 
 ```bash
-just test
+just test py
+just test ui
 ```
 
 ### Code Style
@@ -186,7 +190,8 @@ just test
 The project uses Ruff for linting and code formatting:
 
 ```bash
-just lint
+just lint py
+just lint ui
 ```
 
 ### Upcoming Features

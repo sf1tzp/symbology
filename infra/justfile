@@ -1,14 +1,17 @@
 # shellcheck shell=bash
-# shellcheck disable=SC2148
+# shellcheck disable=SC2148,SC2035,SC1083
 # set dotenv-load
 
 start-db: _generate-pgadmin-config
     #!/usr/bin/env bash
+    set -euo pipefail
     nerdctl compose --env-file .env -f infra/database.yaml up --detach
     # Wait for PostgreSQL to be ready
     sleep 2
     # Create the symbology database only if it doesn't exist
-    nerdctl exec postgres psql -U postgres -c "SELECT 1 FROM pg_database WHERE datname = 'symbology'" | grep -q 1 || nerdctl exec postgres psql -U postgres -c 'CREATE DATABASE symbology;'
+    nerdctl exec postgres psql -U "${DATABASE_USER}" \
+      -c "SELECT 1 FROM pg_database WHERE datname = '${DATABASE_NAME}'" | grep -q 1 \
+      || nerdctl exec postgres psql -U "${DATABASE_USER}" -c "CREATE DATABASE ${DATABASE_NAME};"
 
 stop-db:
     nerdctl compose -f infra/database.yaml down
@@ -18,36 +21,39 @@ logs-db *FLAGS: # just logs-db -f
 
 _generate-pgadmin-config:
     #!/usr/bin/env bash
-    mkdir -p infra/pgadmin-data
+    set -euo pipefail
 
-    # Generate pgadmin-servers.json using jq
+    mkdir -p infra/pgadmin
+
+    # Generate pgadmin servers.json
     jq -n \
       --arg name "Symbology Database" \
-      --arg host "postgres" \
-      --arg port "${POSTGRES_PORT:-5432}" \
-      --arg db "${POSTGRES_DB:-postgres}" \
-      --arg user "${POSTGRES_USER:-postgres}" \
+      --arg host "${DATABASE_HOST:-localhost}" \
+      --arg port "${DATABASE_PORT:-5432}" \
+      --arg db "${DATABASE_NAME:-postgres}" \
+      --arg user "${DATABASE_USER:-postgres}" \
       '{
         "Servers": {
           "1": {
             "Name": $name,
             "Group": "Servers",
             "Host": $host,
-            "Port": $port,
-            "MaintenanceDB": $db,
+            "Port": $port | tonumber ,
+            "MaintenanceDB": "postgres",
             "Username": $user,
             "SSLMode": "prefer",
             "PassFile": "/pgpass",
             "Comment": "Symbology application database"
           }
         }
-      }' > infra/pgadmin-data/pgadmin-servers.json
+      }' > infra/pgadmin/servers.json
 
     # Generate pgpass file from environment variables
-    echo "postgres:${POSTGRES_PORT:-5432}:postgres:${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-adminpassword}" >> infra/pgadmin-data/pgpass
-    echo "postgres:${POSTGRES_PORT:-5432}:symbology:${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-adminpassword}" >> infra/pgadmin-data/pgpass
+    echo \
+      "${DATABASE_HOST:-localhost}:${DATABASE_PORT:-5432}:*:${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}" \
+      > infra/pgadmin/pgpass
 
     # Set correct permissions for pgpass file
-    chmod 600 infra/pgadmin-data/pgpass
+    chmod 600 infra/pgadmin/pgpass
 
     echo "PGAdmin configuration files created successfully"

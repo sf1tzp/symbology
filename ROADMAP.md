@@ -71,6 +71,10 @@ The v0.1.0 release includes:
   - Add progress indicators for ingestion process
   - See detailed plan in [migrate-to-websockets.md](migrate-to-websockets.md)
 
+- When ingesting data, show filings, update the list of shown filings as they are ingested
+- ingest data in parallel
+
+
 ## Public Release TODOs
 
 - Must disclaim this is not financial advice

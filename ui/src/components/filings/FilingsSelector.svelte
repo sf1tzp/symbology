@@ -167,7 +167,7 @@
           <!-- Skip selected filing since it's already shown above -->
           {#if filing.id !== selectedFiling?.id}
             <div
-              class="filing-item hover-lift"
+              class="filing-item"
               onclick={() => selectFiling(filing)}
               onkeydown={(e) => handleKeyDown(e, filing)}
               tabindex="0"
@@ -186,7 +186,7 @@
                 {/if}
               </h3>
               {#if filing.period_of_report}
-                <p>
+                <p class="meta">
                   Fiscal Year Ending: <strong
                     >{new Date(filing.period_of_report).toLocaleDateString()}</strong
                   >
@@ -249,7 +249,7 @@
   .filing-item.selected-item {
     cursor: default;
     margin-bottom: var(--space-sm);
-    /* Remove any border-related properties from here */
+    padding: var(--space-md); /* Ensure consistent padding */
   }
 
   .filing-item h3 {
@@ -267,7 +267,7 @@
 
   /* Add margin for the button */
   .filing-item.selected-item p {
-    margin-bottom: var(--space-md);
+    margin-bottom: 0;
   }
 
   .source-link {
@@ -278,24 +278,6 @@
 
   .source-link:hover {
     text-decoration: underline;
-  }
-
-  .change-button {
-    padding: var(--space-xs) var(--space-md);
-    background-color: var(--color-primary);
-    color: white;
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.2s ease;
-    /* Display at the bottom of the filing-item */
-    display: block;
-    margin-top: var(--space-sm);
-  }
-
-  .change-button:hover {
-    background-color: var(--color-primary-hover);
   }
 
   /* Headings are now managed by utility classes */

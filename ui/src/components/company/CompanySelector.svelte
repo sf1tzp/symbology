@@ -419,6 +419,7 @@
   {#if selectedCompany}
     <div class="company-details selected-item">
       <h3>{selectedCompany.name} ({selectedCompany.tickers?.join(', ') || ''})</h3>
+      <p class="meta">cik: {selectedCompany.cik}</p>
     </div>
   {/if}
 </div>
@@ -472,12 +473,31 @@
   }
 
   .company-details {
-    background-color: var(--color-surface);
-    margin-top: var(--space-sm);
-    padding: var(--space-sm);
-    border-radius: var(--border-radius);
+    /* margin-top: var(--space-sm); */
+    padding: var(--space-md); /* Consistent padding with other selectors */
+  }
+
+  .company-details.selected-item {
+    cursor: default;
     margin-bottom: var(--space-sm);
-    /* Remove any border properties to avoid conflicts with selected-item */
+    padding: var(--space-md); /* Ensure consistent padding */
+  }
+
+  .company-details h3 {
+    margin: 0 0 var(--space-xs) 0;
+    color: var(--color-text);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .company-details p {
+    margin: var(--space-xs) 0 0 0;
+    font-size: 0.9rem;
+  }
+
+  /* Add margin for the button */
+  .company-details.selected-item p {
+    margin-bottom: 0;
   }
 
   .loading-text {

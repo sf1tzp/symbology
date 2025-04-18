@@ -150,7 +150,7 @@
           <!-- Skip selected document since it's already shown above -->
           {#if document.id !== selectedDocument?.id}
             <div
-              class="document-item hover-lift"
+              class="document-item"
               onclick={() => selectDocument(document)}
               onkeydown={(e) => handleKeyDown(e, document)}
               tabindex="0"
@@ -215,6 +215,7 @@
   .document-item.selected-item {
     cursor: default;
     margin-bottom: var(--space-sm);
+    padding: var(--space-md); /* Ensure consistent padding */
   }
 
   .document-item h3 {
@@ -239,10 +240,5 @@
 
   .collapsible-heading.is-collapsed {
     margin-bottom: 0;
-  }
-
-  .hover-lift:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 </style>

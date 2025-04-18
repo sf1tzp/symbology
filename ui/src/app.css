@@ -233,7 +233,9 @@ body {
 
 /* Hover effect utilities */
 .hover-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .hover-lift:hover {
@@ -271,4 +273,43 @@ body {
   flex-direction: column;
   align-items: center;
   margin: var(--space-md) 0;
+}
+
+/* Side by side layout utilities */
+.side-by-side-container {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-md);
+  width: 100%;
+}
+
+.panel {
+  flex: 1;
+  min-width: 0;
+  /* Prevents flex items from overflowing */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Responsive layout utilities */
+@media (max-width: 1024px) {
+  .side-by-side-container {
+    flex-direction: column;
+  }
+}
+
+/* Compact selector utilities for horizontal layout */
+.compact-selector {
+  padding: var(--space-sm);
+}
+
+.compact-selector h2 {
+  font-size: 1rem;
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--color-text-light);
+  margin: 0;
 }

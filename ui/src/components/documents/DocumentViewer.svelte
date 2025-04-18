@@ -78,7 +78,7 @@
 
 <style>
   .document-viewer {
-    height: 95%;
+    height: 100%;
     display: flex;
     flex-direction: column;
   }
@@ -111,12 +111,6 @@
 
   .document-header h2 {
     margin: 0 0 var(--space-xs) 0;
-  }
-
-  .meta {
-    font-size: 0.8rem;
-    color: var(--color-text-light);
-    margin: 0;
   }
 
   .document-content {

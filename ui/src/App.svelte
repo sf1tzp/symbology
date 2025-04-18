@@ -4,6 +4,7 @@
   import FilingsSelector from '$components/filings/FilingsSelector.svelte';
   import DocumentSelector from '$components/documents/DocumentSelector.svelte';
   import DocumentViewer from '$components/documents/DocumentViewer.svelte';
+  import PlaceholderCard from '$components/ui/PlaceholderCard.svelte';
   import type {
     CompanyResponse,
     FilingResponse,
@@ -14,6 +15,21 @@
   let selectedCompany = $state<CompanyResponse | null>(null);
   let selectedFiling = $state<FilingResponse | null>(null);
   let selectedDocument = $state<DocumentResponse | null>(null);
+
+  // Track if horizontal layout has ever been activated
+  let hasActivatedHorizontalLayout = $state(false);
+
+  // Derived state to check if all selections are made
+  let allSelectionsReady = $derived(
+    selectedCompany !== null && selectedFiling !== null && selectedDocument !== null
+  );
+
+  // Effect to "latch" the horizontal layout once all selections have been made
+  $effect(() => {
+    if (allSelectionsReady) {
+      hasActivatedHorizontalLayout = true;
+    }
+  });
 
   // Theme state
   let isDarkMode = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -92,8 +108,9 @@
     </button>
   </header>
 
-  <div class="dashboard">
-    <div class="selectors">
+  <div class="dashboard" class:side-by-side-layout={hasActivatedHorizontalLayout}>
+    <!-- Selectors row - always visible but changes layout based on selections -->
+    <div class="selectors" class:selectors-horizontal={hasActivatedHorizontalLayout}>
       <CompanySelector
         on:companySelected={handleCompanySelected}
         on:companyCleared={handleCompanyCleared}
@@ -104,9 +121,22 @@
         on:documentSelected={handleDocumentSelected}
       />
     </div>
-    <div class="content-area">
-      <DocumentViewer document={selectedDocument} />
-    </div>
+
+    <!-- Content area with conditional layout -->
+    {#if hasActivatedHorizontalLayout}
+      <div class="content-area-split">
+        <div class="content-panel">
+          <DocumentViewer document={selectedDocument} />
+        </div>
+        <div class="content-panel">
+          <PlaceholderCard />
+        </div>
+      </div>
+    {:else}
+      <div class="content-area">
+        <DocumentViewer document={selectedDocument} />
+      </div>
+    {/if}
   </div>
 </main>
 
@@ -163,29 +193,79 @@
     gap: var(--space-md);
   }
 
+  /* Side-by-side layout specific styles */
+  .side-by-side-layout {
+    flex-direction: column;
+  }
+
   .selectors {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
+    z-index: 100;
+  }
+
+  /* Horizontal selectors when all selections are made */
+  .selectors-horizontal {
+    flex-direction: row;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    z-index: 1000;
+  }
+
+  .selectors-horizontal :global(.card) {
+    flex: 1;
+    min-width: 250px;
+    margin-right: var(--space-sm);
+  }
+
+  .selectors-horizontal :global(.card:last-child) {
+    margin-right: 0;
   }
 
   .content-area {
     height: calc(100vh - 150px);
   }
 
+  /* Split content area for side-by-side layout */
+  .content-area-split {
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-md);
+    height: calc(100vh - 350px);
+  }
+
+  .content-panel {
+    flex: 1;
+    min-width: 0; /* Allows proper flexbox shrinking */
+    max-height: 100%;
+  }
+
   @media (min-width: 768px) {
-    .dashboard {
+    .dashboard:not(.side-by-side-layout) {
       flex-direction: row;
     }
 
-    .selectors {
+    .dashboard:not(.side-by-side-layout) .selectors {
       width: 30%;
       max-width: 350px;
     }
 
-    .content-area {
+    .dashboard:not(.side-by-side-layout) .content-area {
       width: 70%;
       flex-grow: 1;
+    }
+
+    /* For small screens, revert to vertical layout even when all selections are made */
+    @media (max-width: 1024px) {
+      .side-by-side-layout .content-area-split {
+        flex-direction: column;
+        height: auto;
+      }
+
+      .side-by-side-layout .content-panel {
+        height: calc(50vh - 150px);
+      }
     }
   }
 </style>

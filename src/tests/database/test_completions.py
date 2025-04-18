@@ -7,7 +7,15 @@ import pytest
 from src.database.companies import Company
 
 # Import the Completion model and functions
-from src.database.completions import Completion, create_completion, delete_completion, get_completion, get_completion_ids, update_completion
+from src.database.completions import (
+    Completion,
+    create_completion,
+    delete_completion,
+    get_completion,
+    get_completion_ids,
+    get_completions_by_document,
+    update_completion,
+)
 from src.database.documents import Document
 from src.database.filings import Filing
 from src.database.prompts import Prompt
@@ -580,3 +588,62 @@ def test_context_text_json_operations(db_session, sample_minimal_completion_data
     # Verify the update was persisted
     updated = db_session.query(Completion).filter_by(id=completion.id).first()
     assert updated.context_text[0]["content"] == "Updated content"
+
+def test_get_completions_by_document(db_session, multiple_completion_data, create_multiple_documents):
+    """Test retrieving completions by document ID."""
+    # Create completions with different document associations
+    completions = []
+    for i, data in enumerate(multiple_completion_data):
+        completion = Completion(**data)
+
+        # Associate each completion with different documents
+        # First completion: documents 0, 1
+        # Second completion: documents 1, 2
+        # Third completion: document 2 only
+        if i == 0:
+            completion.source_documents.extend([create_multiple_documents[0], create_multiple_documents[1]])
+        elif i == 1:
+            completion.source_documents.extend([create_multiple_documents[1], create_multiple_documents[2]])
+        elif i == 2:
+            completion.source_documents.append(create_multiple_documents[2])
+
+        db_session.add(completion)
+        db_session.commit()
+        completions.append(completion)
+
+    # Mock the db_session global
+    import src.database.completions as completions_module
+    original_get_db_session = completions_module.get_db_session
+    completions_module.get_db_session = lambda: db_session
+
+    try:
+        # Test get_completions_by_document for document 0 (only in first completion)
+        doc0_completions = get_completions_by_document(create_multiple_documents[0].id)
+        assert len(doc0_completions) == 1
+        assert doc0_completions[0].id == completions[0].id
+
+        # Test get_completions_by_document for document 1 (in first and second completion)
+        doc1_completions = get_completions_by_document(create_multiple_documents[1].id)
+        assert len(doc1_completions) == 2
+        completion_ids = [comp.id for comp in doc1_completions]
+        assert completions[0].id in completion_ids
+        assert completions[1].id in completion_ids
+
+        # Test get_completions_by_document for document 2 (in second and third completion)
+        doc2_completions = get_completions_by_document(create_multiple_documents[2].id)
+        assert len(doc2_completions) == 2
+        completion_ids = [comp.id for comp in doc2_completions]
+        assert completions[1].id in completion_ids
+        assert completions[2].id in completion_ids
+
+        # Test with string UUID
+        string_id_completions = get_completions_by_document(str(create_multiple_documents[0].id))
+        assert len(string_id_completions) == 1
+        assert string_id_completions[0].id == completions[0].id
+
+        # Test with non-existent document ID
+        non_existent = get_completions_by_document(uuid.uuid4())
+        assert len(non_existent) == 0
+    finally:
+        # Restore the original function
+        completions_module.get_db_session = original_get_db_session

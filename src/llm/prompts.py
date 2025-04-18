@@ -8,12 +8,19 @@ This module provides:
 """
 
 from enum import Enum
-import logging
 from typing import Optional
 
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+class PromptRole(str, Enum):
+    """Enumeration of valid prompt roles."""
+    SYSTEM = "system"
+    ASSISTANT = "assistant"
+    USER = "user"
 
 
 class PromptType(str, Enum):

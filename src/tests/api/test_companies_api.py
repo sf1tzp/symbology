@@ -1,15 +1,15 @@
 """Tests for the company API endpoints."""
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from uuid_extensions import uuid7
 
 from src.api.main import app
 
 client = TestClient(app)
 
 # Sample company data for tests
-SAMPLE_COMPANY_ID = uuid4()
+SAMPLE_COMPANY_ID = uuid7()
 SAMPLE_COMPANY_DATA = {
     "id": SAMPLE_COMPANY_ID,
     "name": "Test Company",
@@ -167,11 +167,11 @@ class TestCompanyApi:
 
         # Setup filing ingestion mocks
         filing_mock = MagicMock()
-        filing_id = uuid4()
+        filing_id = uuid7()
         mock_ingest_filing.return_value = (filing_mock, filing_id)
 
         # Setup document ingestion mocks
-        doc_uuids = [uuid4() for _ in range(3)]
+        doc_uuids = [uuid7() for _ in range(3)]
         mock_ingest_filing_documents.return_value = doc_uuids
 
         # Setup financial data ingestion mocks

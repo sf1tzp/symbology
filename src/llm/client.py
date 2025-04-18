@@ -12,9 +12,8 @@ from typing import Any, Dict, List, Optional, Union
 import httpx
 from pydantic import BaseModel, Field
 
+from src.utils.config import settings
 from src.utils.logging import get_logger
-
-from ..config import settings
 
 logger = get_logger(__name__)
 

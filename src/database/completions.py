@@ -86,6 +86,34 @@ def get_completion_ids() -> List[UUID]:
         raise
 
 
+def get_completions_by_document(document_id: Union[UUID, str]) -> List[Completion]:
+    """Get all completions that use a specific document as a source.
+
+    Args:
+        document_id: UUID of the document to filter completions by
+
+    Returns:
+        List of Completion objects that reference the specified document
+    """
+    try:
+        session = get_db_session()
+
+        # Query completions that have the specified document in source_documents
+        completions = (
+            session.query(Completion)
+            .join(completion_document_association, Completion.id == completion_document_association.c.completion_id)
+            .filter(completion_document_association.c.document_id == document_id)
+            .all()
+        )
+
+        logger.info("retrieved_completions_by_document", document_id=str(document_id), count=len(completions))
+        return completions
+    except Exception as e:
+        logger.error("get_completions_by_document_failed", document_id=str(document_id),
+                     error=str(e), exc_info=True)
+        raise
+
+
 def get_completion(completion_id: Union[UUID, str]) -> Optional[Completion]:
     """Get a completion by its ID.
 

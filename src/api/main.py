@@ -10,8 +10,10 @@ from src.utils.config import settings
 from src.utils.logging import configure_logging, get_logger
 
 # Configure structured logging
-configure_logging(log_level="INFO")
+configure_logging(settings.logging.level)
 logger = get_logger(__name__)
+
+logger.info(f"running with log level {settings.logging.level}")
 
 # Initialize database connection
 database_url = settings.database.url

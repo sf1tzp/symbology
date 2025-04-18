@@ -21,7 +21,8 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 
 // Configuration
-const API_URL = 'http://localhost:8000/openapi.json';
+// FIXME: Use config
+const API_URL = 'http://10.0.0.3:8000/openapi.json';
 // Get current file directory in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

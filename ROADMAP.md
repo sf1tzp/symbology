@@ -61,6 +61,15 @@ The v0.1.0 release includes:
 - [ ] Add components for Prompt Engineering UI [canvas](ui/llm-layouts.canvas)
 - [ ] Add routes to support Prompt Engineering UI
 
+## Future Enhancements (v0.2.0)
+
+### WebSocket Integration
+- [ ] Implement real-time ingestion updates with WebSockets
+  - Add WebSocket server to FastAPI backend
+  - Add WebSocket client to Svelte frontend
+  - Refactor ingestion process to provide real-time status updates
+  - Add progress indicators for ingestion process
+  - See detailed plan in [migrate-to-websockets.md](migrate-to-websockets.md)
 
 ## Public Release TODOs
 

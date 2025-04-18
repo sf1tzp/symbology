@@ -200,3 +200,33 @@ class TestFilingApi:
         # Verify the mocks were called with the correct arguments
         mock_get_filing.assert_called_once_with(SAMPLE_FILING_ID)
         mock_get_documents_by_filing.assert_called_once_with(SAMPLE_FILING_ID)
+
+    def test_get_filing_by_id_invalid_uuid(self):
+        """Test retrieving a filing with an invalid UUID format."""
+        # Test with an invalid UUID
+        invalid_uuid = "not-a-valid-uuid"
+        response = client.get(f"/api/filings/{invalid_uuid}")
+
+        # Assertions
+        assert response.status_code == 422
+        assert "uuid_parsing" in str(response.json())
+
+    def test_get_company_filings_invalid_uuid(self):
+        """Test retrieving filings for a company with an invalid UUID format."""
+        # Test with an invalid UUID
+        invalid_uuid = "not-a-valid-uuid"
+        response = client.get(f"/api/filings/by-company/{invalid_uuid}")
+
+        # Assertions
+        assert response.status_code == 422
+        assert "uuid_parsing" in str(response.json())
+
+    def test_get_filing_documents_invalid_uuid(self):
+        """Test retrieving documents for a filing with an invalid UUID format."""
+        # Test with an invalid UUID
+        invalid_uuid = "not-a-valid-uuid"
+        response = client.get(f"/api/filings/{invalid_uuid}/documents")
+
+        # Assertions
+        assert response.status_code == 422
+        assert "uuid_parsing" in str(response.json())

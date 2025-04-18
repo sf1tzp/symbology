@@ -25,7 +25,7 @@ def test_get_all_completion_ids(mock_get_completion_ids):
     response = client.get("/api/completions/")
     assert response.status_code == 200
     assert len(response.json()) == 3
-    
+
     # Make sure the returned UUIDs match what we set in our mock
     returned_uuids = [uuid.UUID(str(uuid_str)) for uuid_str in response.json()]
     for test_uuid in test_uuids:
@@ -39,10 +39,10 @@ def test_get_completion_by_document_id(mock_get_completions_by_document):
     test_doc_id_a = uuid.UUID('574441ac-2d04-45b0-bf11-288e9c3db99a')
     test_comp_id_a1 = uuid.UUID('574441ac-2d04-45b0-bf11-288e9c3da99a')
     test_comp_id_a2 = uuid.UUID('574441ac-2d04-45b0-bf11-288e9c3da99b')
-    
+
     test_doc_id_b = uuid.UUID('574441ac-2d04-45b0-bf11-288e9c3db99b')
     test_comp_id_b = uuid.UUID('574441ac-2d04-45b0-bf11-288e9c3da99c')
-    
+
     # Set up different return values for different document IDs
     def get_completions_side_effect(doc_id):
         if str(doc_id).endswith("a"):
@@ -104,7 +104,7 @@ def test_get_completion_by_id(mock_get_completion):
     test_id_3 = uuid.UUID('123e4567-e89b-12d3-a456-426614174003')
     test_id_4 = uuid.UUID('123e4567-e89b-12d3-a456-426614174004')
     test_id_5 = uuid.UUID('123e4567-e89b-12d3-a456-426614174005')
-    
+
     # Define a side effect to support different completion IDs
     def get_completion_side_effect(completion_id):
         if completion_id == test_id_1:
@@ -160,7 +160,7 @@ def test_create_completion(mock_create_completion):
     test_id_4 = uuid.UUID('123e4567-e89b-12d3-a456-426614174004')
     test_id_5 = uuid.UUID('123e4567-e89b-12d3-a456-426614174005')
     test_id_6 = uuid.UUID('123e4567-e89b-12d3-a456-426614174006')
-    
+
     mock_create_completion.return_value = Completion(
         id=test_id_6,
         system_prompt_id=test_id_3,
@@ -196,3 +196,34 @@ def test_create_completion(mock_create_completion):
     assert call_arg["temperature"] == 0.8
     # The document_ids should be converted to UUID objects
     assert call_arg["document_ids"][0] == test_id_5
+
+
+def test_invalid_uuid_format():
+    """Test providing invalid UUID formats returns a 400 Bad Request."""
+    # Test with an invalid completion_id in the URL path
+    invalid_uuid = "not-a-valid-uuid"
+    response = client.get(f"/api/completions/{invalid_uuid}")
+
+    assert response.status_code == 422
+    assert "uuid_parsing" in str(response.json())
+
+    # Test with an invalid document_id in the query parameter
+    response = client.get(f"/api/completions/?document_id={invalid_uuid}")
+
+    assert response.status_code == 422
+    assert "uuid_parsing" in str(response.json())
+
+    # Test with invalid UUIDs in the request body
+    invalid_request_data = {
+        "system_prompt_id": "not-a-valid-uuid",
+        "user_prompt_id": "another-invalid-uuid",
+        "document_ids": ["not-a-valid-doc-uuid"],
+        "context_text": [{"role": "user", "content": "Test with invalid UUIDs"}],
+        "model": "gpt-4",
+        "temperature": 0.7
+    }
+
+    response = client.post("/api/completions/", json=invalid_request_data)
+
+    assert response.status_code == 422
+    assert "uuid_parsing" in str(response.json())

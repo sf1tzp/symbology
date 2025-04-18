@@ -66,6 +66,16 @@ class TestCompanyApi:
         # Verify the mock was called with the correct arguments
         mock_get_company.assert_called_once_with(SAMPLE_COMPANY_ID)
 
+    def test_get_company_by_id_invalid_uuid(self):
+        """Test retrieving a company with an invalid UUID format."""
+        # Test with an invalid UUID
+        invalid_uuid = "not-a-valid-uuid"
+        response = client.get(f"/api/companies/id/{invalid_uuid}")
+
+        # Assertions
+        assert response.status_code == 422
+        assert "uuid_parsing" in str(response.json())
+
     @patch("src.api.routes.companies.get_company_by_ticker")
     def test_search_companies_by_ticker_found(self, mock_get_company_by_ticker):
         """Test searching for a company by ticker when it exists."""

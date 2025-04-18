@@ -60,3 +60,23 @@ class TestDocumentApi:
 
         # Verify the mock was called with the correct arguments
         mock_get_document.assert_called_once_with(SAMPLE_DOCUMENT_ID)
+
+    def test_get_document_by_id_invalid_uuid(self):
+        """Test retrieving a document with an invalid UUID format."""
+        # Test with an invalid UUID
+        invalid_uuid = "not-a-valid-uuid"
+        response = client.get(f"/api/documents/{invalid_uuid}")
+
+        # Assertions
+        assert response.status_code == 422
+        assert "uuid_parsing" in str(response.json())
+
+    def test_get_document_content_invalid_uuid(self):
+        """Test retrieving document content with an invalid UUID format."""
+        # Test with an invalid UUID
+        invalid_uuid = "not-a-valid-uuid"
+        response = client.get(f"/api/documents/{invalid_uuid}/content")
+
+        # Assertions
+        assert response.status_code == 422
+        assert "uuid_parsing" in str(response.json())

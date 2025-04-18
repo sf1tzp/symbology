@@ -51,3 +51,11 @@ import "src/justfile"
 import "infra/justfile"
 import "ui/justfile"
 
+# Release management (TODO)
+_tag version:
+  git tag {{version}}
+  git push origin tag {{version}}
+
+_untag version:
+  git tag -d {{version}}
+  git push --delete origin {{version}}

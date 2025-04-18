@@ -21,9 +21,13 @@
 
   // Watch for changes in companyId and fetch filings
   $effect(() => {
+    logger.debug('[FilingsSelector] Effect watching companyId triggered', { companyId });
     if (companyId) {
       fetchFilings();
     } else {
+      logger.debug(
+        '[FilingsSelector] Clearing filings and selectedFiling because companyId is undefined'
+      );
       filings = [];
       selectedFiling = null;
     }
@@ -107,6 +111,17 @@
           {/if}
         </div>
       {/each}
+    </div>
+  {/if}
+
+  {#if selectedFiling && companyId}
+    <div class="selected-filing-info">
+      <h3>Selected: {selectedFiling.filing_type}</h3>
+      {#if selectedFiling.period_of_report}
+        <p>
+          Period: {new Date(selectedFiling.period_of_report).toLocaleDateString()}
+        </p>
+      {/if}
     </div>
   {/if}
 </div>

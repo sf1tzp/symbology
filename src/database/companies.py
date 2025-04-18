@@ -257,3 +257,48 @@ def get_company_by_ticker(ticker: str) -> Optional[Company]:
     except Exception as e:
         logger.error("get_company_by_ticker_failed", ticker=ticker, error=str(e), exc_info=True)
         raise
+
+def search_companies_by_query(query: str, limit: int = 10) -> List[Company]:
+    """Search for companies by partial ticker or name.
+
+    Args:
+        query: Search string to match against company names or tickers
+        limit: Maximum number of results to return
+
+    Returns:
+        List of matching Company objects
+    """
+    try:
+        from sqlalchemy import func
+
+        session = get_db_session()
+        upper_query = query.upper()
+
+        # Use array_to_string function to convert the tickers array to a searchable string
+        # The second parameter ' ' is the delimiter between array elements
+        companies = session.query(Company).filter(
+            # Search in name (case-insensitive)
+            (Company.name.ilike(f'%{query}%')) |
+            # Search in tickers array using PostgreSQL array_to_string function
+            (func.array_to_string(Company.tickers, ' ').ilike(f'%{upper_query}%'))
+        ).limit(limit).all()
+
+        logger.info("search_companies_by_query", query=query, result_count=len(companies))
+        return companies
+    except Exception as e:
+        logger.error("search_companies_by_query_failed", query=query, error=str(e), exc_info=True)
+        session.rollback()  # Make sure to rollback the failed transaction
+
+        # Fallback to searching just by name if the complex query fails
+        try:
+            new_session = get_db_session()
+            companies = new_session.query(Company).filter(
+                Company.name.ilike(f'%{query}%')
+            ).limit(limit).all()
+
+            logger.info("search_companies_by_query_name_only", query=query, result_count=len(companies))
+            return companies
+        except Exception as inner_e:
+            logger.error("search_companies_by_query_all_attempts_failed", query=query, error=str(inner_e), exc_info=True)
+            new_session.rollback()
+            return []

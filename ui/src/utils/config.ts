@@ -17,7 +17,6 @@ interface ApiSettings {
   timeout: number;
 }
 
-
 /**
  * Logging settings interface
  */
@@ -65,6 +64,5 @@ export const config: AppSettings = {
   api: apiSettings,
   logging: loggingSettings,
 };
-
 
 export default config;

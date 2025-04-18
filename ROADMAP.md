@@ -51,7 +51,7 @@ The v0.1.0 release includes:
 - [x] Automatically ingest company if not found (get past 5 10-Ks)
 
 ### UI Tweaks
-- [ ] Search Bar Enhancements
+- [x] Search Bar Enhancements
   - Auto Populate Company Search bar with results
   - Filter list down as typing
 - [ ] Reactive / Collapseable Cards

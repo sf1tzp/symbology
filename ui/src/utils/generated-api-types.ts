@@ -119,8 +119,13 @@ export async function fetchApi<T>(url: string, options?: RequestInit): Promise<T
   } catch (error) {
     // Add network error handling
     if (error instanceof Error) {
-      if (error.message.includes('Failed to fetch') || error.message.includes('Network request failed')) {
-        throw new Error(`Network error: Cannot connect to API at ${url}. Make sure the API server is running and accessible on your network.`);
+      if (
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('Network request failed')
+      ) {
+        throw new Error(
+          `Network error: Cannot connect to API at ${url}. Make sure the API server is running and accessible on your network.`
+        );
       }
     }
     throw error;

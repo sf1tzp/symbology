@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getLogger } from '$utils/logger';
   import CompanySelector from '$components/company/CompanySelector.svelte';
   import FilingsSelector from '$components/filings/FilingsSelector.svelte';
   import DocumentSelector from '$components/documents/DocumentSelector.svelte';
@@ -8,6 +9,7 @@
     FilingResponse,
     DocumentResponse,
   } from '$utils/generated-api-types';
+  const logger = getLogger('CompanySelector');
 
   let selectedCompany = $state<CompanyResponse | null>(null);
   let selectedFiling = $state<FilingResponse | null>(null);
@@ -29,6 +31,18 @@
     }
   });
 
+  // Effect to reset filing and document when company becomes unset
+  $effect(() => {
+    logger.debug('[App] Effect watching selectedCompany triggered', { selectedCompany });
+    if (selectedCompany === null) {
+      logger.debug(
+        '[App] Clearing selectedFiling and selectedDocument because selectedCompany is null'
+      );
+      selectedFiling = null;
+      selectedDocument = null;
+    }
+  });
+
   // Apply theme changes
   function toggleTheme() {
     isDarkMode = !isDarkMode;
@@ -43,6 +57,13 @@
   // FIXME: If a company / filing / document are selected, we should stay there if the page refreshes
   function handleCompanySelected(event: CustomEvent<CompanyResponse>) {
     selectedCompany = event.detail;
+    selectedFiling = null;
+    selectedDocument = null;
+  }
+
+  function handleCompanyCleared() {
+    logger.debug('[App] Company cleared event received, clearing all selections');
+    selectedCompany = null;
     selectedFiling = null;
     selectedDocument = null;
   }
@@ -73,7 +94,10 @@
 
   <div class="dashboard">
     <div class="selectors">
-      <CompanySelector on:companySelected={handleCompanySelected} />
+      <CompanySelector
+        on:companySelected={handleCompanySelected}
+        on:companyCleared={handleCompanyCleared}
+      />
       <FilingsSelector companyId={selectedCompany?.id} on:filingSelected={handleFilingSelected} />
       <DocumentSelector
         filingId={selectedFiling?.id}

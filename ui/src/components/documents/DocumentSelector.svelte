@@ -21,9 +21,13 @@
 
   // Watch for changes in filingId and fetch documents
   $effect(() => {
+    logger.debug('[DocumentSelector] Effect watching filingId triggered', { filingId });
     if (filingId) {
       fetchDocuments();
     } else {
+      logger.debug(
+        '[DocumentSelector] Clearing documents and selectedDocument because filingId is undefined'
+      );
       documents = [];
       selectedDocument = null;
     }
@@ -90,6 +94,12 @@
           <h3>{document.document_name || 'Unnamed Document'}</h3>
         </div>
       {/each}
+    </div>
+  {/if}
+
+  {#if selectedDocument && filingId}
+    <div class="selected-document-info">
+      <h3>Selected: {selectedDocument.document_name || 'Unnamed Document'}</h3>
     </div>
   {/if}
 </div>

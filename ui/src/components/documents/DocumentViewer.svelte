@@ -11,13 +11,19 @@
   // Using Svelte 5 runes
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let documentContent = $state<string | null>(null);
 
   // Watch for changes in document and fetch content
   $effect(() => {
+    logger.debug('[DocumentViewer] Effect watching document triggered', {
+      documentId: document?.id,
+    });
     if (document) {
       fetchDocumentContent(document.id);
     } else {
+      logger.debug('[DocumentViewer] Clearing document content because document is null');
       error = null;
+      documentContent = null;
     }
   });
 
@@ -32,6 +38,13 @@
       if (!response.ok) {
         throw new Error(`Failed to fetch document content: ${response.statusText}`);
       }
+
+      // Assume the response contains the document content as text
+      documentContent = await response.text();
+      logger.debug('[DocumentViewer] Document content loaded', {
+        documentId,
+        contentLength: documentContent?.length,
+      });
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
       logger.error('Error fetching document content:', err);
@@ -58,7 +71,7 @@
       <p class="meta">Document ID: {document.id}</p>
     </div>
     <div class="document-content scrollable">
-      <pre>{document.content}</pre>
+      <pre>{document.content || 'No content available'}</pre>
     </div>
   {/if}
 </div>

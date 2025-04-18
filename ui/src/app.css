@@ -15,7 +15,7 @@
   /* Gruvbox yellow */
   --color-text: #3c3836;
   /* Gruvbox dark0 */
-  --color-text-light: #504945;
+  --color-text-light: #d5c4a1;
   /* Gruvbox dark2 */
   --color-background: #d4d0c0;
   /* Gruvbox light0 */
@@ -25,6 +25,8 @@
   /* Gruvbox light3 */
   --color-error: #cc241d;
   /* Gruvbox red */
+  --color-input-background: #e9e5d6;
+  /* Slightly darker than background for light theme */
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -52,7 +54,7 @@
 }
 
 /* Dark theme */
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --color-primary: #8ec07c;
   /* Gruvbox light green */
   --color-primary-hover: #689d6a;
@@ -71,6 +73,8 @@
   /* Gruvbox dark2 */
   --color-error: #fb4934;
   /* Gruvbox light red */
+  --color-input-background: #d5c4a1;
+  /* Slightly lighter than background for dark theme */
 }
 
 /* System-based dark theme fallback (for initial load) */
@@ -101,7 +105,9 @@ body {
   min-height: 100vh;
   background-color: var(--color-background);
   color: var(--color-text);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 #app {
@@ -117,7 +123,9 @@ body {
   box-shadow: var(--box-shadow);
   padding: var(--space-md);
   border: 1px solid var(--color-border);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  transition:
+    background-color 0.1s ease,
+    border-color 0.1s ease;
 }
 
 .scrollable {

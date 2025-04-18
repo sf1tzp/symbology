@@ -2,10 +2,11 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import sveltePlugin from 'eslint-plugin-svelte';
 import svelteParser from 'svelte-eslint-parser';
-
+import svelteConfig from './svelte.config.js';
 export default tseslint.config(
     js.configs.recommended,
     ...tseslint.configs.recommended,
+    ...sveltePlugin.configs.recommended,
     {
         ignores: ['node_modules/**', 'dist/**']
     },
@@ -13,6 +14,18 @@ export default tseslint.config(
         languageOptions: {
             parserOptions: {
                 warnOnUnsupportedTypeScriptVersion: false
+            }
+        }
+    },
+    {
+        files: ['**/*.svelte', '**/*.svelte.js'],
+        languageOptions: {
+            parserOptions: {
+                // We recommend importing and specifying svelte.config.js.
+                // By doing so, some rules in eslint-plugin-svelte will automatically read the configuration and adjust their behavior accordingly.
+                // While certain Svelte settings may be statically loaded from svelte.config.js even if you don’t specify it,
+                // explicitly specifying it ensures better compatibility and functionality.
+                svelteConfig
             }
         }
     },

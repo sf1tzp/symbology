@@ -10,10 +10,13 @@ from src.utils.config import settings
 from src.utils.logging import configure_logging, get_logger
 
 # Configure structured logging
-configure_logging(settings.logging.level)
+configure_logging(
+    settings.logging.level,
+    json_format=settings.logging.json_format
+)
 logger = get_logger(__name__)
 
-logger.info(f"running with log level {settings.logging.level}")
+logger.debug(f"running with log level {settings.logging.level}")
 
 # Initialize database connection
 database_url = settings.database.url
@@ -51,6 +54,7 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+# FIXME: not suitable for prod
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allows all origins

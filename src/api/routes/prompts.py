@@ -1,10 +1,11 @@
 """API routes for prompts."""
+
 from typing import List
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from src.api.schemas import PromptCreateRequest, PromptResponse, PromptRole
+from src.api.schemas.prompts import PromptCreateRequest, PromptResponse, PromptRole
 from src.database import prompts as prompts_db
 from src.utils.logging import get_logger
 
@@ -25,7 +26,11 @@ async def get_prompts_by_role(role: PromptRole):
     try:
         session = prompts_db.get_db_session()
         db_role = prompts_db.PromptRole(role.value)
-        db_prompts = session.query(prompts_db.Prompt).filter(prompts_db.Prompt.role == db_role).all()
+        db_prompts = (
+            session.query(prompts_db.Prompt)
+            .filter(prompts_db.Prompt.role == db_role)
+            .all()
+        )
 
         prompts_list = []
         for prompt in db_prompts:
@@ -37,16 +42,22 @@ async def get_prompts_by_role(role: PromptRole):
                     role=prompt.role.value,
                     template=prompt.template,
                     template_vars=prompt.template_vars,
-                    default_vars=prompt.default_vars
+                    default_vars=prompt.default_vars,
                 )
             )
 
-        logger.info("retrieved_prompts_by_role", role=role.value, count=len(prompts_list))
+        logger.info(
+            "retrieved_prompts_by_role", role=role.value, count=len(prompts_list)
+        )
         return prompts_list
 
     except Exception as e:
-        logger.error("get_prompts_by_role_failed", role=role.value, error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve prompts: {str(e)}") from e
+        logger.error(
+            "get_prompts_by_role_failed", role=role.value, error=str(e), exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve prompts: {str(e)}"
+        ) from e
 
 
 @router.post("/", response_model=PromptResponse, status_code=201)
@@ -77,7 +88,7 @@ async def create_prompt(prompt: PromptCreateRequest):
             role=db_prompt.role.value,
             template=db_prompt.template,
             template_vars=db_prompt.template_vars,
-            default_vars=db_prompt.default_vars
+            default_vars=db_prompt.default_vars,
         )
 
         logger.info("created_prompt", prompt_id=str(db_prompt.id), name=db_prompt.name)
@@ -89,8 +100,12 @@ async def create_prompt(prompt: PromptCreateRequest):
 
     except IntegrityError as e:
         logger.error("create_prompt_integrity_error", error=str(e))
-        raise HTTPException(status_code=409, detail=f"Prompt already exists: {str(e)}") from e
+        raise HTTPException(
+            status_code=409, detail=f"Prompt already exists: {str(e)}"
+        ) from e
 
     except Exception as e:
         logger.error("create_prompt_failed", error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create prompt: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create prompt: {str(e)}"
+        ) from e

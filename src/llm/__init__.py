@@ -5,16 +5,12 @@ This package provides functionalities for interacting with OpenAI API
 and implementing prompt engineering for financial document analysis.
 """
 
-from .client import CompletionRequest, CompletionResponse, Message, OpenAIClient
-from .prompts import create_custom_template, get_prompt_template, PromptTemplate, PromptType
+from .client import create_chat_completion
+from .prompts import format_user_prompt, SYSTEM_PROMPTS, USER_PROMPT_TEMPLATES
 
 __all__ = [
-    'Message',
-    'CompletionRequest',
-    'CompletionResponse',
-    'OpenAIClient',
-    'PromptType',
-    'PromptTemplate',
-    'get_prompt_template',
-    'create_custom_template',
+    'create_chat_completion',
+    'format_user_prompt'
+    'USER_PROMPT_TEMPLATES',
+    'SYSTEM_PROMPTS',
 ]

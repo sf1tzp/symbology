@@ -151,6 +151,7 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
         # Format a base document name with company name, filing type, and date
         # Use provided company_name or default to "Company"
         formatted_base_name = f"{company_name or 'Company'} {filing.form} {filing.filing_date}"
+        logger.info(f"ingesting documents for {formatted_base_name}")
 
         # Business description
         business_description = get_business_description(filing)
@@ -158,7 +159,7 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
             doc = find_or_create_document(
                 company_id=company_id,
                 filing_id=filing_id,
-                document_name=f"{formatted_base_name} - Business Description",
+                document_name="business_description",
                 content=business_description
             )
             document_uuids['business_description'] = doc.id
@@ -169,7 +170,7 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
             doc = find_or_create_document(
                 company_id=company_id,
                 filing_id=filing_id,
-                document_name=f"{formatted_base_name} - Risk Factors",
+                document_name="risk_factors",
                 content=risk_factors
             )
             document_uuids['risk_factors'] = doc.id
@@ -180,7 +181,7 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
             doc = find_or_create_document(
                 company_id=company_id,
                 filing_id=filing_id,
-                document_name=f"{formatted_base_name} - Management Discussion",
+                document_name="management_discussion",
                 content=mda
             )
             document_uuids['management_discussion'] = doc.id

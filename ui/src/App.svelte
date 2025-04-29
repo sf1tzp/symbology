@@ -129,7 +129,7 @@
           <DocumentViewer document={selectedDocument} />
         </div>
         <div class="content-panel">
-          <PlaceholderCard />
+          <PlaceholderCard documentId={selectedDocument?.id} />
         </div>
       </div>
     {:else}

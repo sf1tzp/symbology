@@ -18,3 +18,5 @@ infra/pgadmin/
 **/*.egg-info/
 
 ui/node_modules/
+
+outputs/

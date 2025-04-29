@@ -26,6 +26,7 @@ from src.database.completions import (
     delete_completion,
     get_completion,
     get_completion_ids,
+    get_completions_by_document,
     update_completion,
 )
 
@@ -117,6 +118,7 @@ __all__ = [
 
     # Completion functions
     "get_completion_ids", "get_completion", "create_completion", "update_completion", "delete_completion",
+    "get_completions_by_document",
 
     # Rating functions
     "get_rating_ids", "get_rating", "create_rating", "update_rating", "delete_rating",

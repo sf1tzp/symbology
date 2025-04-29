@@ -47,19 +47,42 @@ The v0.1.0 release includes:
 
 ## Next (v0.1.1)
 
+
+
 ### Enhance API Functionality
 - [x] Automatically ingest company if not found (get past 5 10-Ks)
+- [ ] Auto-populate search suggestions for 'not ingested' tickers
 
 ### UI Tweaks
 - [x] Search Bar Enhancements
   - Auto Populate Company Search bar with results
   - Filter list down as typing
-- [ ] Reactive / Collapseable Cards
-- [ ] Prepare side by side layout for Prompt Engineering:
+
+- [x] Reactive / Collapseable Cards
+  - for example, CompanySelector:
+    - Currently, when a company is selected, we show a `company-details` div
+    - Ideally, when a company is selected we should hide the search bar and heading
+    - After a company is selected, when the user hovers / focuses the `company-selector` we should show the search bar and heading again
+
+- [ ] Prepare side by side layout :
+  - When Company, Filing, and Document are selected (And DocumentViewer content is loaded)
+  - Let's shift the UI into a horizontal layout:
+    - Along the top row we should show our three selector components
+    - In the second row, we should have two cards:
+      - First, the DocumentViewer component
+      - Second, a similarly styled placeholder component
 
 ### Prompt Engineering / Inference Workflow
-- [ ] Add components for Prompt Engineering UI [canvas](ui/llm-layouts.canvas)
 - [ ] Add routes to support Prompt Engineering UI
+  - Prompts
+    - get prompts by role
+    - create prompt
+
+  - Generate Completion
+
+
+  - Get Completions (by document id)
+- [ ] Add components for Prompt Engineering UI [canvas](ui/llm-layouts.canvas)
 
 ## Future Enhancements (v0.2.0)
 

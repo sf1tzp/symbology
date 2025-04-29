@@ -53,6 +53,7 @@ export default tseslint.config(
         rules: {
             ...sveltePlugin.configs.recommended.rules,
             // Disable problematic rules for Svelte components
+            'svelte/a11y_no_static_element_interactions': 'off',
             'no-inner-declarations': 'off',
             'svelte/no-at-html-tags': 'off' // Since we're using DOMPurify for sanitization
         }

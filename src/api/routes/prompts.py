@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from src.api.schemas import PromptCreateRequest, PromptResponse, PromptRole
+# from src.api.schemas import PromptCreateRequest, PromptResponse, PromptRole
 from src.database import prompts as prompts_db
 from src.utils.logging import get_logger
 

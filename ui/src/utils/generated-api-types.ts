@@ -33,6 +33,42 @@ export interface CompanyResponse {
   former_names?: object[];
 }
 
+export interface CompletionCreateRequest {
+  /** ID of the system prompt */
+  system_prompt_id?: any;
+  /** ID of the user prompt */
+  user_prompt_id?: any;
+  /** List of document IDs used as sources */
+  document_ids?: any;
+  /** Context information for the completion */
+  context_text?: object[];
+  /** LLM model identifier used for completion */
+  model: string;
+  /** Temperature parameter for the LLM */
+  temperature?: any;
+  /** Top-p parameter for the LLM */
+  top_p?: any;
+}
+
+export interface CompletionResponse {
+  /** Unique identifier for the completion */
+  id: string;
+  /** ID of the system prompt */
+  system_prompt_id?: any;
+  /** ID of the user prompt */
+  user_prompt_id?: any;
+  /** Context information for the completion */
+  context_text: object[];
+  /** LLM model identifier used for completion */
+  model: string;
+  /** Temperature parameter for the LLM */
+  temperature?: any;
+  /** Top-p parameter for the LLM */
+  top_p?: any;
+  /** List of document IDs used as sources */
+  source_documents?: string[];
+}
+
 export interface DocumentContentResponse {
   /** Unique identifier for the document */
   id: string;
@@ -74,6 +110,40 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export interface PromptCreateRequest {
+  /** Name of the prompt */
+  name: string;
+  /** Description of the prompt */
+  description?: any;
+  /** Role of the prompt (system, assistant, user) */
+  role: PromptRole;
+  /** Prompt template text */
+  template: string;
+  /** List of template variables */
+  template_vars?: string[];
+  /** Default values for template variables */
+  default_vars?: Record<string, any>;
+}
+
+export interface PromptResponse {
+  /** Unique identifier for the prompt */
+  id: string;
+  /** Name of the prompt */
+  name: string;
+  /** Description of the prompt */
+  description?: any;
+  /** Role of the prompt (system, assistant, user) */
+  role: string;
+  /** Prompt template text */
+  template: string;
+  /** List of template variables */
+  template_vars: string[];
+  /** Default values for template variables */
+  default_vars: Record<string, any>;
+}
+
+export interface PromptRole {}
+
 export interface ValidationError {
   loc: any[];
   msg: string;
@@ -98,36 +168,12 @@ export function isApiError(obj: any): obj is ApiError {
  * Helper to fetch data from the API with proper error handling
  */
 export async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
-  try {
-    const response = await fetch(url, options);
+  const response = await fetch(url, options);
 
-    if (!response.ok) {
-      // Try to parse error response as JSON
-      let errorDetail: string;
-      try {
-        const errorData = await response.json();
-        errorDetail = errorData.detail || `HTTP error ${response.status}`;
-      } catch (e) {
-        // If parsing fails, use status text
-        errorDetail = `${response.status} ${response.statusText}`;
-      }
-
-      throw new Error(`Load failed: ${errorDetail}`);
-    }
-
-    return response.json() as Promise<T>;
-  } catch (error) {
-    // Add network error handling
-    if (error instanceof Error) {
-      if (
-        error.message.includes('Failed to fetch') ||
-        error.message.includes('Network request failed')
-      ) {
-        throw new Error(
-          `Network error: Cannot connect to API at ${url}. Make sure the API server is running and accessible on your network.`
-        );
-      }
-    }
-    throw error;
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'An error occurred');
   }
+
+  return response.json() as Promise<T>;
 }

@@ -5,6 +5,7 @@ annotated-types==0.7.0
 anyio==4.9.0
     # via
     #   httpx
+    #   openai
     #   starlette
 beautifulsoup4==4.13.3
     # via edgartools
@@ -19,6 +20,8 @@ click==8.1.8
     # via uvicorn
 coverage==7.8.0
     # via pytest-cov
+distro==1.9.0
+    # via openai
 edgartools==3.15.0
     # via symbology (pyproject.toml)
 fastapi==0.115.12
@@ -38,6 +41,7 @@ httpx==0.28.1
     #   symbology (pyproject.toml)
     #   edgartools
     #   ollama
+    #   openai
 humanize==4.12.2
     # via edgartools
 idna==3.10
@@ -47,6 +51,8 @@ idna==3.10
     #   requests
 iniconfig==2.1.0
     # via pytest
+jiter==0.9.0
+    # via openai
 lxml==5.3.2
     # via edgartools
 markdown-it-py==3.0.0
@@ -60,6 +66,8 @@ numpy==2.2.4
     #   pandas
     #   rank-bm25
 ollama==0.4.7
+    # via symbology (pyproject.toml)
+openai==1.75.0
     # via symbology (pyproject.toml)
 orjson==3.10.16
     # via edgartools
@@ -81,6 +89,7 @@ pydantic==2.11.3
     #   edgartools
     #   fastapi
     #   ollama
+    #   openai
     #   pydantic-settings
 pydantic-core==2.33.1
     # via pydantic
@@ -119,7 +128,9 @@ rich==14.0.0
 six==1.17.0
     # via python-dateutil
 sniffio==1.3.1
-    # via anyio
+    # via
+    #   anyio
+    #   openai
 soupsieve==2.6
     # via beautifulsoup4
 sqlalchemy==2.0.40
@@ -137,11 +148,14 @@ tenacity==9.1.2
 textdistance==4.6.3
     # via edgartools
 tqdm==4.67.1
-    # via edgartools
+    # via
+    #   edgartools
+    #   openai
 typing-extensions==4.13.2
     # via
     #   beautifulsoup4
     #   fastapi
+    #   openai
     #   pydantic
     #   pydantic-core
     #   sqlalchemy

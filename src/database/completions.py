@@ -58,11 +58,13 @@ class Completion(Base):
         back_populates="user_completions"
     )
 
-    # Context and parameters
+    content: Mapped[str] = mapped_column(String, default="")
+
+    # Extra Context
     context_text: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
 
     # OpenAI parameters
-    model: Mapped[str] = mapped_column(String(50))
+    model: Mapped[str] = mapped_column(String(255))
     temperature: Mapped[Optional[float]] = mapped_column(Float, default=0.7)
     top_p: Mapped[Optional[float]] = mapped_column(Float, default=1.0)
 

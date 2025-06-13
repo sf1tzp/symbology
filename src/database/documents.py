@@ -11,6 +11,13 @@ from src.utils.logging import get_logger
 # Initialize structlog
 logger = get_logger(__name__)
 
+from enum import Enum
+class DocumentType(Enum):
+    BUSINESS_DESCRIPTION = "business_description"
+    MANAGEMENT_DISCUSSION = "management_discussion"
+    RISK_FACTORS = "risk_factors"
+
+
 class Document(Base):
     """Document model representing document information associated with filings."""
 
@@ -30,6 +37,7 @@ class Document(Base):
     # Document details
     document_name: Mapped[str] = mapped_column(String(255))
     content: Mapped[Optional[str]] = mapped_column(Text)
+    document_type: Mapped[DocumentType] = mapped_column(Text)
 
     def __repr__(self) -> str:
         return f"<Document(id={self.id}, document_name='{self.document_name}')>"

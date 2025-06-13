@@ -3,6 +3,7 @@ from unittest.mock import patch
 import uuid
 
 from fastapi.testclient import TestClient
+from openai import OpenAIError
 
 from src.api.main import app
 from src.database.completions import Completion
@@ -196,6 +197,66 @@ def test_create_completion(mock_create_completion):
     assert call_arg["temperature"] == 0.8
     # The document_ids should be converted to UUID objects
     assert call_arg["document_ids"][0] == test_id_5
+
+
+@patch("src.api.routes.completions.create_chat_completion")
+@patch("src.api.routes.completions.create_completion")
+def test_create_completion_openai_error(mock_create_completion, mock_create_chat_completion):
+    """Test that OpenAI API errors are properly handled."""
+    # Mock OpenAI API error
+    mock_create_chat_completion.side_effect = OpenAIError("API rate limit exceeded")
+
+    test_id_3 = uuid.UUID('123e4567-e89b-12d3-a456-426614174003')
+    test_id_4 = uuid.UUID('123e4567-e89b-12d3-a456-426614174004')
+    test_id_5 = uuid.UUID('123e4567-e89b-12d3-a456-426614174005')
+
+    request_data = {
+        "system_prompt_id": str(test_id_3),
+        "user_prompt_id": str(test_id_4),
+        "document_ids": [str(test_id_5)],
+        "context_text": [{"role": "user", "content": "This should fail"}],
+        "model": "gpt-4",
+        "temperature": 0.8
+    }
+
+    response = client.post("/api/completions/", json=request_data)
+
+    # Should return a bad gateway error
+    assert response.status_code == 502
+    assert "Error calling OpenAI API" in response.json()["detail"]
+
+    # Verify that create_completion was NOT called
+    mock_create_completion.assert_not_called()
+
+
+@patch("src.api.routes.completions.create_chat_completion")
+@patch("src.api.routes.completions.create_completion")
+def test_create_completion_unexpected_error(mock_create_completion, mock_create_chat_completion):
+    """Test that unexpected errors during API calls are properly handled."""
+    # Mock unexpected error
+    mock_create_chat_completion.side_effect = Exception("Unexpected error in LLM service")
+
+    test_id_3 = uuid.UUID('123e4567-e89b-12d3-a456-426614174003')
+    test_id_4 = uuid.UUID('123e4567-e89b-12d3-a456-426614174004')
+    test_id_5 = uuid.UUID('123e4567-e89b-12d3-a456-426614174005')
+
+    request_data = {
+        "system_prompt_id": str(test_id_3),
+        "user_prompt_id": str(test_id_4),
+        "document_ids": [str(test_id_5)],
+        "context_text": [{"role": "user", "content": "This should fail due to unexpected error"}],
+        "model": "gpt-4",
+        "temperature": 0.8
+    }
+
+    response = client.post("/api/completions/", json=request_data)
+
+    # Should return an internal server error
+    assert response.status_code == 500
+    assert "Failed to generate completion" in response.json()["detail"]
+
+    # Verify that create_completion was NOT called
+    mock_create_completion.assert_not_called()
 
 
 def test_invalid_uuid_format():

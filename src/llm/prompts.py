@@ -5,6 +5,7 @@ This module provides:
 1. Pre-defined prompt templates for different analysis types
 """
 
+from enum import Enum
 from pathlib import Path
 
 from src.utils.logging import get_logger
@@ -12,36 +13,42 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 SYSTEM_PROMPTS = {}
-with open(Path("src/llm/system_prompts/business_description.md")) as file:
+with open(Path("src/llm/system_prompts/business_description.md.tpl")) as file:
     SYSTEM_PROMPTS["business_description"] = file.read()
 
-with open(Path("src/llm/system_prompts/management_discussion.md")) as file:
+with open(Path("src/llm/system_prompts/management_discussion.md.tpl")) as file:
     SYSTEM_PROMPTS["management_discussion"] = file.read()
 
-with open(Path("src/llm/system_prompts/risk_factors.md")) as file:
+with open(Path("src/llm/system_prompts/risk_factors.md.tpl")) as file:
     SYSTEM_PROMPTS["risk_factors"] = file.read()
 
 USER_PROMPT_TEMPLATES = {
     "risk_factors": """
-    Please analyze the following Risk Factors section from {company_name}'s {year} 10-K filing:
+    Please analyze the following Risk Factors section from {company_name}'s 10-K filing for fiscal year ending {period_of_report}:
 
-    {content}
+    {document_text}
     """,
 
     "management_discussion": """
-    Please analyze the following Management's Discussion and Analysis section from {company_name}'s {year} 10-K filing:
+    Please analyze the following Management's Discussion and Analysis section from {company_name}'s 10-K filing for fiscal year ending {period_of_report}:
 
-    {content}
+    {document_text}
     """,
 
     "business_description": """
-    Please provide a business summary based on the following information from {company_name}'s {year} 10-K filing:
+    Please provide a business summary based on the following information from {company_name}'s 10-K filing for fiscal year ending {period_of_report}:
 
-    {content}
+    {document_text}
     """
 }
 
-def format_user_prompt(prompt: str, **kwargs) -> str:
+class PromptRole(Enum):
+    """Enum defining possible roles in a conversation with an LLM."""
+    SYSTEM = "system"
+    USER = "user"
+    ASSISTANT = "assistant"
+
+def format_prompt_template(prompt: str, **kwargs) -> str:
     """
     Format the user prompt template with provided values.
 

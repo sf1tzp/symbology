@@ -6,7 +6,7 @@ This module provides functionality to:
 2. Send prompts with configurable parameters
 3. Process and return responses
 """
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 from src.utils.config import settings
 from src.utils.logging import get_logger
@@ -40,7 +40,7 @@ def create_chat_completion(model: str, temperature: float, system_prompt: str, u
 
         return response.choices[0].message.content
 
-    except client.exceptions.OpenAIError as e:
+    except OpenAIError as e:
         logger.error(f"OpenAI API error: {e}")
         raise
     except Exception as e:

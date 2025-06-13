@@ -20,11 +20,11 @@ class CompletionCreateRequest(BaseModel):
         None, description="ID of the system prompt"
     )
     user_prompt_id: Optional[UUID] = Field(None, description="ID of the user prompt")
-    document_ids: Optional[List[UUID]] = Field(
-        None, description="List of document IDs used as sources"
+    document_id: Optional[UUID] = Field(
+        None, description="Document ID used as source"
     )
-    context_text: List[Dict[str, Any]] = Field(
-        default_factory=list, description="Context information for the completion"
+    context_text: Optional[List[str]] = Field(
+        default_factory=list, description="Extra context to include in the user prompt"
     )
     model: str = Field(..., description="LLM model identifier used for completion")
     temperature: Optional[float] = Field(

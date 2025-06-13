@@ -59,6 +59,7 @@ class OpenAISettings(BaseSettings):
     port: str = Field(default="11434")
     default_model: str = Field(default="my-gemma:latest")
     is_ollama: bool = Field(default=True)
+    api_key: str = Field(default="ollama")
 
     model_config = SettingsConfigDict(
         env_prefix="OPENAI_API_",

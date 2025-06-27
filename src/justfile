@@ -9,7 +9,7 @@ run-api *ARGS: _create_venv
     uv run -m src.api.main "{{ARGS}}"
 
 run-ingest *ARGS: # Run with defaults (AAPL, 2022)
-    uv run -m src.bin.edgar_ingestion {{ARGS}} 2>&1 | tee ingest.log
+    uv run -m src.bin.edgar_ingestion {{ARGS}}
 
 # summarize:
 #     uv run run.py summarize --document-id 3 --template-id 2 --temperature 0.7

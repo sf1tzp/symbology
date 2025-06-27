@@ -13,6 +13,8 @@ Note: This script requires a valid EDGAR database connection.
 
 import argparse
 import sys
+from datetime import datetime
+from typing import List, Union
 from uuid import UUID
 
 from src.database.base import close_session, init_db
@@ -28,6 +30,61 @@ configure_logging(
 )
 
 logger = get_logger(__name__)
+
+def parse_tickers(ticker_input: str) -> List[str]:
+    """
+    Parse ticker input that can be comma-separated or space-separated.
+
+    Args:
+        ticker_input: String containing one or more ticker symbols
+
+    Returns:
+        List of ticker symbols, cleaned and uppercased
+    """
+    if not ticker_input:
+        return []
+
+    # Split by comma or space and clean up
+    tickers = []
+    for ticker in ticker_input.replace(',', ' ').split():
+        ticker = ticker.strip().upper()
+        if ticker:
+            tickers.append(ticker)
+
+    return tickers
+
+def get_years_to_process(year_arg: Union[str, int], last_n_years: int = None) -> List[int]:
+    """
+    Generate list of years to process based on arguments.
+
+    Args:
+        year_arg: Year specification (single year, range like "2020-2023", or None)
+        last_n_years: Number of recent years to process
+
+    Returns:
+        List of years to process
+    """
+    current_year = datetime.now().year
+
+    if last_n_years:
+        # Process the last N years including current year
+        return list(range(current_year - last_n_years + 1, current_year + 1))
+
+    if isinstance(year_arg, int):
+        return [year_arg]
+
+    if isinstance(year_arg, str) and '-' in year_arg:
+        # Handle year ranges like "2020-2023"
+        try:
+            start_year, end_year = map(int, year_arg.split('-'))
+            if start_year > end_year:
+                start_year, end_year = end_year, start_year
+            return list(range(start_year, end_year + 1))
+        except ValueError:
+            raise ValueError(f"Invalid year range format: {year_arg}. Use format like '2020-2023'")
+
+    # Default to last 5 years if no specific year provided
+    return list(range(current_year - 4, current_year + 1))
 
 def process_company(ticker: str) -> UUID:
     """
@@ -193,11 +250,32 @@ def setup_database(db_url: str = None):
         raise
 
 def main():
-    parser = argparse.ArgumentParser(description='EDGAR data ingestion script')
+    parser = argparse.ArgumentParser(
+        description='EDGAR data ingestion script',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --ticker AAPL                          # Single ticker, last 5 years
+  %(prog)s --ticker "AAPL,MSFT,GOOGL"            # Multiple tickers
+  %(prog)s --ticker AAPL --year 2023             # Specific year
+  %(prog)s --ticker AAPL --year 2020-2023        # Year range
+  %(prog)s --ticker AAPL --last-n-years 3        # Last 3 years
+  %(prog)s --ticker AAPL --dry-run               # See what would be processed
+  %(prog)s --ticker AAPL --end-to-end --quiet    # Full pipeline, minimal output
+        """
+    )
+
     parser.add_argument('--ticker', type=str, default='AAPL',
-                        help='Stock ticker symbol (default: AAPL)')
-    parser.add_argument('--year', type=int, default=2022,
-                        help='Filing year (default: 2022)')
+                        help='Stock ticker symbol(s). Can be comma-separated (e.g., "AAPL,MSFT") (default: AAPL)')
+    parser.add_argument('--year', type=str, default=None,
+                        help='Filing year, year range (e.g., "2020-2023"), or omit for last 5 years')
+    parser.add_argument('--last-n-years', type=int, default=None,
+                        help='Process the last N years (overrides --year)')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Show what would be processed without actually doing it')
+    parser.add_argument('--quiet', action='store_true',
+                        help='Reduce output verbosity')
+
     parser.add_argument('--email', type=str, default=settings.edgar_api.edgar_contact,
                         help=f'Email for EDGAR API access (default: {settings.edgar_api.edgar_contact})')
     parser.add_argument('--db-url', type=str, default=settings.database.url,
@@ -209,13 +287,46 @@ def main():
     parser.add_argument('--log-level', type=str, default=settings.logging.level,
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                         help=f'Set logging level (default: {settings.logging.level})')
+
     args = parser.parse_args()
 
+    # Parse tickers into a list
+    tickers = parse_tickers(args.ticker)
+    if not tickers:
+        logger.error("No valid tickers provided")
+        return 1
+
+    # Determine years to process
+    try:
+        if args.year and args.last_n_years:
+            logger.error("Cannot specify both --year and --last-n-years")
+            return 1
+
+        years = get_years_to_process(args.year, args.last_n_years)
+    except ValueError as e:
+        logger.error("Invalid year specification", error=str(e))
+        return 1
+
     # Configure logging with command line options that override config settings
-    if args.log_level != settings.logging.level or args.json_logs != settings.logging.json_format:
-        configure_logging(log_level=args.log_level, json_format=args.json_logs)
+    log_level = 'WARNING' if args.quiet else args.log_level
+    if log_level != settings.logging.level or args.json_logs != settings.logging.json_format:
+        configure_logging(log_level=log_level, json_format=args.json_logs)
         logger.info("Logging reconfigured with command line options",
-                   log_level=args.log_level, json_format=args.json_logs)
+                   log_level=log_level, json_format=args.json_logs)
+
+    # Show what will be processed
+    logger.info("Processing plan",
+                tickers=tickers,
+                years=years,
+                total_operations=len(tickers) * len(years),
+                dry_run=args.dry_run)
+
+    if args.dry_run:
+        print(f"\nDry run - would process:")
+        print(f"  Tickers: {', '.join(tickers)}")
+        print(f"  Years: {', '.join(map(str, years))}")
+        print(f"  Total operations: {len(tickers) * len(years)}")
+        return 0
 
     try:
         # Initialize database
@@ -225,45 +336,67 @@ def main():
         logger.info("Setting up EDGAR login", email=args.email)
         edgar_login(args.email)
 
-        try:
-            if args.end_to_end:
-                # Run the end-to-end ingestion
-                results = process_end_to_end(args.ticker, args.year)
+        # Process all ticker/year combinations
+        total_operations = len(tickers) * len(years)
+        current_operation = 0
+        failed_operations = []
+        successful_operations = 0
 
-                if not results["success"]:
-                    logger.error("End-to-end ingestion failed")
-                    return 1
-            else:
-                # Run individual ingestion processes
-                company_id, edgar_company = process_company(args.ticker)
+        for ticker in tickers:
+            for year in years:
+                current_operation += 1
+                if not args.quiet:
+                    logger.info(f"Processing {current_operation}/{total_operations}",
+                              ticker=ticker, year=year)
 
-                # Process filing ingestion
-                filing, filing_id = process_filing(company_id, edgar_company, args.year)
+                try:
+                    if args.end_to_end:
+                        # Run the end-to-end ingestion
+                        results = process_end_to_end(ticker, year)
+                        if results["success"]:
+                            successful_operations += 1
+                        else:
+                            failed_operations.append((ticker, year, results.get("error", "Unknown error")))
+                    else:
+                        # Run individual ingestion processes
+                        company_id, edgar_company = process_company(ticker)
 
-                # Process document ingestion if filing was found
-                if filing and filing_id:
-                    document_uuids = process_documents(company_id, filing_id, filing, edgar_company.name)
+                        # Process filing ingestion
+                        filing, filing_id = process_filing(company_id, edgar_company, year)
 
-                    # Print summary of results
-                    logger.info("Ingestion completed successfully",
-                               company_id=str(company_id),
-                               filing_id=str(filing_id) if filing_id else None,
-                               document_count=len(document_uuids) if 'document_uuids' in locals() else 0)
-                else:
-                    logger.warning("Ingestion completed with no filing found",
-                                  company_id=str(company_id),
-                                  year=args.year)
+                        # Process document ingestion if filing was found
+                        if filing and filing_id:
+                            document_uuids = process_documents(company_id, filing_id, filing, edgar_company.name)
+                            successful_operations += 1
+                        else:
+                            logger.warning("No filing found", ticker=ticker, year=year)
+                            failed_operations.append((ticker, year, "No filing found"))
 
-        except Exception as e:
-            logger.error("Ingestion failed", error=str(e), exc_info=True)
-            return 1
+                except Exception as e:
+                    logger.error("Operation failed", ticker=ticker, year=year, error=str(e))
+                    failed_operations.append((ticker, year, str(e)))
+
+        # Print final summary
+        logger.info("Ingestion batch completed",
+                   total_operations=total_operations,
+                   successful=successful_operations,
+                   failed=len(failed_operations))
+
+        if failed_operations and not args.quiet:
+            logger.warning("Failed operations summary")
+            for ticker, year, error in failed_operations:
+                logger.warning(f"  {ticker} {year}: {error}")
+
+        return 1 if failed_operations else 0
+
+    except Exception as e:
+        logger.error("Batch ingestion failed", error=str(e), exc_info=True)
+        return 1
 
     finally:
         # Close database session
         close_session()
         logger.info("Database session closed")
 
-    return 0
-
-if __name__ == "__main__":
+if main() == "__main__":
     sys.exit(main())

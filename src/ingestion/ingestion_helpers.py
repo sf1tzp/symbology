@@ -7,7 +7,7 @@ from edgar import EntityData, Filing
 import pandas as pd
 
 from src.database.companies import upsert_company_by_cik
-from src.database.documents import find_or_create_document
+from src.database.documents import DocumentType, find_or_create_document
 from src.database.filings import upsert_filing_by_accession_number
 from src.database.financial_concepts import find_or_create_financial_concept
 from src.database.financial_values import upsert_financial_value
@@ -133,7 +133,7 @@ def ingest_filing(company_id: UUID, edgar_company: EntityData, year: int) -> Tup
         logger.error("ingest_filing_failed", company_id=str(company_id), year=year, error=str(e), exc_info=True)
         raise
 
-def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, company_name: str = None) -> Dict[str, UUID]:
+def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, company_name: str = None) -> Dict[DocumentType, UUID]:
     """Extract document sections from a filing and store in database.
 
     Args:
@@ -159,9 +159,10 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
                 company_id=company_id,
                 filing_id=filing_id,
                 document_name=f"{formatted_base_name} - Business Description",
+                document_type=DocumentType.DESCRIPTION,
                 content=business_description
             )
-            document_uuids['business_description'] = doc.id
+            document_uuids[DocumentType.DESCRIPTION] = doc.id
 
         # Risk factors
         risk_factors = get_risk_factors(filing)
@@ -170,9 +171,10 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
                 company_id=company_id,
                 filing_id=filing_id,
                 document_name=f"{formatted_base_name} - Risk Factors",
+                document_type=DocumentType.RISK_FACTORS,
                 content=risk_factors
             )
-            document_uuids['risk_factors'] = doc.id
+            document_uuids[DocumentType.RISK_FACTORS] = doc.id
 
         # MD&A
         mda = get_management_discussion(filing)
@@ -181,9 +183,10 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
                 company_id=company_id,
                 filing_id=filing_id,
                 document_name=f"{formatted_base_name} - Management Discussion",
+                document_type=DocumentType.MDA,
                 content=mda
             )
-            document_uuids['management_discussion'] = doc.id
+            document_uuids[DocumentType.MDA] = doc.id
 
         return document_uuids
     except Exception as e:

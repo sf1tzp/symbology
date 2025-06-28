@@ -469,6 +469,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
             company_id=create_test_company.id,
             filing_id=create_test_filing.id,
             document_name="Risk Factors",
+            document_type=documents_module.DocumentType.RISK_FACTORS,
             content="This is the risk factors content."
         )
 
@@ -482,6 +483,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
             company_id=create_test_company.id,
             filing_id=create_test_filing.id,
             document_name="Risk Factors",
+            document_type=documents_module.DocumentType.RISK_FACTORS,
             content="This is updated risk factors content."
         )
 
@@ -494,6 +496,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
         standalone_doc = documents_module.find_or_create_document(
             company_id=create_test_company.id,
             document_name="Standalone Document",
+            document_type=documents_module.DocumentType.DESCRIPTION,
             content="This is a document not associated with a filing.",
             filing_id=None
         )
@@ -508,10 +511,14 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
 def test_find_or_create_document_update_existing(db_session, create_test_company, create_test_filing):
     """Test the find_or_create_document helper function when updating an existing document."""
     # First create a document directly
+    # Import the documents module
+    import src.database.documents as documents_module
+
     document_data = {
         "company_id": create_test_company.id,
         "filing_id": create_test_filing.id,
         "document_name": "MD&A",
+        "document_type": documents_module.DocumentType.MDA,
         "content": "Original management discussion content."
     }
     document = Document(**document_data)
@@ -520,7 +527,6 @@ def test_find_or_create_document_update_existing(db_session, create_test_company
     document_id = document.id
 
     # Mock the db_session global
-    import src.database.documents as documents_module
     original_get_db_session = documents_module.get_db_session
     documents_module.get_db_session = lambda: db_session
 
@@ -530,6 +536,7 @@ def test_find_or_create_document_update_existing(db_session, create_test_company
             company_id=create_test_company.id,
             filing_id=create_test_filing.id,
             document_name="MD&A",
+            document_type=documents_module.DocumentType.MDA,
             content="Updated management discussion content."
         )
 

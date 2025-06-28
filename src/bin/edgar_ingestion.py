@@ -12,8 +12,8 @@ Note: This script requires a valid EDGAR database connection.
 """
 
 import argparse
-import sys
 from datetime import datetime
+import sys
 from typing import List, Union
 from uuid import UUID
 
@@ -80,8 +80,8 @@ def get_years_to_process(year_arg: Union[str, int], last_n_years: int = None) ->
             if start_year > end_year:
                 start_year, end_year = end_year, start_year
             return list(range(start_year, end_year + 1))
-        except ValueError:
-            raise ValueError(f"Invalid year range format: {year_arg}. Use format like '2020-2023'")
+        except ValueError as err:
+            raise ValueError(f"Invalid year range format: {year_arg}. Use format like '2020-2023'") from err
 
     # Default to last 5 years if no specific year provided
     return list(range(current_year - 4, current_year + 1))
@@ -322,7 +322,7 @@ Examples:
                 dry_run=args.dry_run)
 
     if args.dry_run:
-        print(f"\nDry run - would process:")
+        print("\nDry run - would process:")
         print(f"  Tickers: {', '.join(tickers)}")
         print(f"  Years: {', '.join(map(str, years))}")
         print(f"  Total operations: {len(tickers) * len(years)}")
@@ -366,7 +366,7 @@ Examples:
 
                         # Process document ingestion if filing was found
                         if filing and filing_id:
-                            document_uuids = process_documents(company_id, filing_id, filing, edgar_company.name)
+                            process_documents(company_id, filing_id, filing, edgar_company.name)
                             successful_operations += 1
                         else:
                             logger.warning("No filing found", ticker=ticker, year=year)

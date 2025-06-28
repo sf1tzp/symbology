@@ -4,6 +4,7 @@ from unittest import mock
 import pytest
 from uuid_extensions import uuid7
 
+from src.database.documents import DocumentType
 from src.ingestion.ingestion_helpers import ingest_filing_documents
 
 
@@ -56,9 +57,9 @@ def test_ingest_filing_documents_happy_path():
 
         # Verify document UUIDs were returned correctly
         assert document_uuids == {
-            'business_description': business_doc.id,
-            'risk_factors': risk_doc.id,
-            'management_discussion': mda_doc.id
+            DocumentType.DESCRIPTION: business_doc.id,
+            DocumentType.RISK_FACTORS: risk_doc.id,
+            DocumentType.MDA: mda_doc.id
         }
 
 
@@ -88,9 +89,11 @@ def test_ingest_filing_documents_missing_sections():
         assert mock_create_document.call_count == 1
 
         # Verify returned UUIDs only include business description
-        assert 'business_description' in document_uuids
-        assert 'risk_factors' not in document_uuids
-        assert 'management_discussion' not in document_uuids
+        # Use DocumentType.DESCRIPTION instead of string key
+        from src.database.documents import DocumentType
+        assert DocumentType.DESCRIPTION in document_uuids
+        assert DocumentType.RISK_FACTORS not in document_uuids
+        assert DocumentType.MDA not in document_uuids
 
 
 def test_ingest_filing_documents_default_company_name():

@@ -1,6 +1,8 @@
+from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid_extensions import uuid7
@@ -10,6 +12,12 @@ from src.utils.logging import get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)
+
+class DocumentType(Enum):
+    MDA = "management_discussion"
+    RISK_FACTORS = "risk_factors"
+    DESCRIPTION = "business_description"
+
 
 class Document(Base):
     """Document model representing document information associated with filings."""
@@ -29,6 +37,10 @@ class Document(Base):
 
     # Document details
     document_name: Mapped[str] = mapped_column(String(255))
+    document_type: Mapped[Optional[DocumentType]] = mapped_column(
+        SQLEnum(DocumentType, name="document_type_enum"), nullable=True
+    )
+
     content: Mapped[Optional[str]] = mapped_column(Text)
 
     def __repr__(self) -> str:
@@ -162,7 +174,7 @@ def delete_document(document_id: Union[UUID, str]) -> bool:
         raise
 
 
-def find_or_create_document(company_id: UUID, document_name: str, content: Optional[str],
+def find_or_create_document(company_id: UUID, document_name: str, document_type: DocumentType, content: Optional[str],
                            filing_id: Optional[UUID] = None) -> Document:
     """Find a document by company, filing, and name or create it if it doesn't exist.
 
@@ -205,6 +217,7 @@ def find_or_create_document(company_id: UUID, document_name: str, content: Optio
             document_data = {
                 'company_id': company_id,
                 'document_name': document_name,
+                'document_type': document_type,
                 'content': content
             }
             if filing_id:

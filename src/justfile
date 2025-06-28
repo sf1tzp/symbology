@@ -16,7 +16,7 @@ run-ingest *ARGS: # Run with defaults (AAPL, 2022)
 
 # test and lint outputs are logged to make it easy to include as llm context
 test-python *ARGS: _create_venv
-    uv run -m pytest --cov=src.database --cov=src.ingestion --cov=src.api src/tests/ {{ARGS}} | tee test.log
+    uv run -m pytest --cov=src.database --cov=src.ingestion --cov=src.api --cov=src.llm src/tests/ {{ARGS}} | tee test.log
 
 lint-python *FLAGS: # lint --fix
     ~/.local/share/nvim/mason/bin/ruff check src {{FLAGS}} | tee lint.log

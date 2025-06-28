@@ -8,10 +8,10 @@ This module provides:
 """
 
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel
 
+from src.database.documents import DocumentType
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -60,8 +60,8 @@ class PromptTemplate(BaseModel):
 
 
 # System prompt templates for different analysis types
-SYSTEM_PROMPTS = {
-    PromptType.RISK_ANALYSIS: """
+DOCUMENT_PROMPTS = {
+    DocumentType.RISK_FACTORS: """
 You are a financial analyst specializing in risk assessment. Your task is to analyze
 the risk factors section of a company's 10-K filing and provide a structured assessment.
 Focus on identifying the most significant risks, changes from previous years, and how
@@ -75,9 +75,11 @@ Provide your analysis in a clear, structured format with sections for:
 5. Overall Risk Assessment
 
 Base your analysis solely on the provided information without adding external knowledge.
+
+Provide only one message as your response, and do not ask a follow up question.
 """,
 
-    PromptType.MANAGEMENT_ASSESSMENT: """
+    DocumentType.MDA: """
 You are a management consultant evaluating the leadership team of a company based on their
 Management's Discussion and Analysis (MD&A) section of their 10-K filing. Your goal is to
 assess the management team's:
@@ -90,20 +92,7 @@ Provide a balanced assessment that identifies both strengths and weaknesses, sup
 each observation with specific evidence from the text.
 """,
 
-    PromptType.FINANCIAL_POSITION: """
-You are a financial analyst specializing in company valuation and financial health assessment.
-Analyze the provided financial statements and related disclosures to provide insights on:
-1. Financial health and stability
-2. Growth trajectory and trends
-3. Efficiency and operational performance
-4. Liquidity and solvency
-5. Investment considerations
-
-Highlight any significant changes from previous periods and potential red flags.
-Use specific metrics and data points to support your analysis.
-""",
-
-    PromptType.BUSINESS_SUMMARY: """
+    DocumentType.DESCRIPTION: """
 You are a business analyst creating a comprehensive summary of a company based on its
 10-K filing. Your task is to create a clear, concise overview of the company that includes:
 1. Core business model and revenue streams
@@ -117,99 +106,43 @@ business without subjective evaluation.
 """
 }
 
+AGGREGATE_PROMPT = """
+Summarize the historical changes in these documents.
 
-# User prompt templates for different analysis types
-USER_PROMPT_TEMPLATES = {
-    PromptType.RISK_ANALYSIS: """
-Please analyze the following Risk Factors section from {company_name}'s {year} 10-K filing:
+When you're done, add a table of contents section to the top.
 
-{risk_factors_text}
-
-{additional_instructions}
-""",
-
-    PromptType.MANAGEMENT_ASSESSMENT: """
-Please analyze the following Management's Discussion and Analysis section from {company_name}'s {year} 10-K filing:
-
-{md_a_text}
-
-{additional_instructions}
-""",
-
-    PromptType.FINANCIAL_POSITION: """
-Please analyze the following financial information from {company_name}'s {year} 10-K filing:
-
-BALANCE SHEET:
-{balance_sheet_text}
-
-INCOME STATEMENT:
-{income_statement_text}
-
-CASH FLOW STATEMENT:
-{cash_flow_text}
-
-{additional_notes}
-
-{additional_instructions}
-""",
-
-    PromptType.BUSINESS_SUMMARY: """
-Please provide a business summary based on the following information from {company_name}'s {year} 10-K filing:
-
-BUSINESS DESCRIPTION:
-{business_description_text}
-
-{additional_instructions}
 """
-}
 
 
-def get_prompt_template(prompt_type: PromptType, name: Optional[str] = None) -> PromptTemplate:
-    """
-    Get a prompt template for the specified type.
-
-    Args:
-        prompt_type: The type of prompt template to retrieve
-        name: Optional name for the template
-
-    Returns:
-        A PromptTemplate instance
-    """
-    if prompt_type not in SYSTEM_PROMPTS or prompt_type not in USER_PROMPT_TEMPLATES:
-        raise ValueError(f"Unsupported prompt type: {prompt_type}")
-
-    template_name = name or f"{prompt_type.value}_template"
-
-    return PromptTemplate(
-        name=template_name,
-        type=prompt_type,
-        system_prompt=SYSTEM_PROMPTS[prompt_type],
-        user_prompt_template=USER_PROMPT_TEMPLATES[prompt_type]
-    )
+def format_document_messages(document):
+    messages = [{
+        'role': PromptRole.SYSTEM.value,
+        'content': DOCUMENT_PROMPTS[document.document_type]
+    },
+    {
+        'role': PromptRole.USER.value,
+        'content': document.content
+    }]
+    return messages
 
 
-def create_custom_template(
-    name: str,
-    system_prompt: str,
-    user_prompt_template: str,
-    description: str = ""
-) -> PromptTemplate:
-    """
-    Create a custom prompt template.
 
-    Args:
-        name: Name for the template
-        system_prompt: System instructions for the model
-        user_prompt_template: Template for the user prompt
-        description: Optional description of the template
+def format_aggregate_messages(chat_contents):
+    formatted_contents = list(map(lambda date: f"""
+        ---
 
-    Returns:
-        A PromptTemplate instance
-    """
-    return PromptTemplate(
-        name=name,
-        type=PromptType.CUSTOM,
-        system_prompt=system_prompt,
-        user_prompt_template=user_prompt_template,
-        description=description
-    )
+        # Filed On: {date}
+
+        {chat_contents[date]}
+
+        """, sorted(chat_contents.keys())))
+
+    messages = [{
+        'role': PromptRole.SYSTEM.value,
+        'content': "Summarize the historical changes in these documents."
+    },
+    {
+        'role': PromptRole.USER.value,
+        'content': ("").join(formatted_contents)
+    }]
+    return messages

@@ -1,17 +1,9 @@
-"""
-OpenAI API client for making inference requests to the OpenAI endpoint.
-
-This module provides functionality to:
-1. Connect to the configured OpenAI endpoint
-2. Send prompts with configurable parameters
-3. Process and return responses
-"""
-
 from typing import Any, Dict, List, Optional, Union
 
-import httpx
+from ollama import Client
 from pydantic import BaseModel, Field
 
+from src.llm.models import MODEL_CONFIG
 from src.utils.config import settings
 from src.utils.logging import get_logger
 
@@ -56,112 +48,16 @@ class CompletionResponse(BaseModel):
     choices: List[Dict[str, Any]]
     usage: Dict[str, int]
 
+def init_client(url):
+    return Client(host=url)
 
-class OpenAIClient:
-    """Client for interacting with the OpenAI API."""
+def get_chat_response(client, model, messages):
+    model = MODEL_CONFIG[model]
+    response = client.chat(model=model["name"],
+        options= {
+            "num_ctx": model["ctx"],
+        },
+        messages = messages,
+    )
+    return response
 
-    def __init__(self):
-        """Initialize the OpenAI client with configuration from settings."""
-        self.base_url = f"http://{settings.openai.open_ai_host}:{settings.openai.open_ai_port}"
-        self.client = httpx.Client(timeout=300.0)  # 60 second timeout
-        # Test connection and log endpoint
-        logger.info(f"Initialized OpenAI client with endpoint: {self.base_url}")
-        try:
-            # Test API connectivity
-            response = self.client.get(f"{self.base_url}/v1/models")
-            response.raise_for_status()
-            logger.info("Successfully verified connection to OpenAI API")
-        except httpx.HTTPError as e:
-            logger.warning(f"Could not verify connection to OpenAI API: {e}")
-            logger.warning("Requests may fail if the API is not available")
-
-    def create_completion(self, request: CompletionRequest) -> CompletionResponse:
-        """
-        Send a completion request to the OpenAI API.
-
-        Args:
-            request: The completion request parameters
-
-        Returns:
-            The completion response from the API
-
-        Raises:
-            httpx.HTTPError: If the request fails
-        """
-        url = f"{self.base_url}/v1/chat/completions"
-
-        logger.debug(f"Sending request to {url}")
-
-        try:
-            response = self.client.post(
-                url,
-                json=request.to_dict(),
-                headers={"Content-Type": "application/json"}
-            )
-            response.raise_for_status()
-
-            return CompletionResponse(**response.json())
-
-        except httpx.HTTPError as e:
-            logger.error(f"Error making completion request: {str(e)}")
-            raise
-
-    def generate_text(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        context_texts: Optional[List[str]] = None,
-        temperature: float = 0.7,
-        max_tokens: int = 4000,
-        **kwargs
-    ) -> str:
-        """
-        Generate text completion from the OpenAI API using system and user prompts.
-
-        Args:
-            system_prompt: The system instructions for the model
-            user_prompt: The user query or content
-            context_texts: Optional list of texts to provide as additional context
-            temperature: Controls randomness (0.0-1.0)
-            max_tokens: Maximum tokens to generate
-            **kwargs: Additional parameters for the completion request
-
-        Returns:
-            The generated text from the completion
-        """
-        # Start with the system message (instructions to the AI)
-        messages = [
-            Message(role="system", content=system_prompt),
-        ]
-
-        # Prepare the user prompt with context if provided
-        if context_texts:
-            # First add the context to the system prompt instead of as a separate message
-            # This ensures the model treats it as background information rather than part of the conversation
-            context_formatted = "\n\n".join([
-                f"CONTEXT INFORMATION:\n{context}" for context in context_texts
-            ])
-
-            # Combine context with the user prompt so it's all in one message
-            full_prompt = f"{context_formatted}\n\n---\n\nUSER QUERY:\n{user_prompt}"
-            messages.append(Message(role="user", content=full_prompt))
-        else:
-            # Just add the user prompt without any context
-            messages.append(Message(role="user", content=user_prompt))
-
-        request = CompletionRequest(
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **kwargs
-        )
-
-        logger.info(f"Sending completion request with {len(messages)} messages, temperature={temperature}")
-
-        response = self.create_completion(request)
-
-        # Extract the assistant's message from the response
-        if response.choices and len(response.choices) > 0:
-            return response.choices[0]["message"]["content"]
-
-        return ""

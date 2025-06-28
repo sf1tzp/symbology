@@ -16,7 +16,7 @@ import requests
 # Add the project root to Python path so we can import modules
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 
-from src.llm.prompts import SYSTEM_PROMPTS, USER_PROMPT_TEMPLATES
+from src.llm.prompts import DOCUMENT_PROMPTS, USER_PROMPT_TEMPLATES
 from src.utils.config import settings
 from src.utils.logging import get_logger
 
@@ -88,7 +88,7 @@ def create_default_prompts(api_url: str, api_prefix: str, force: bool = False) -
     prompt_ids = {}
 
     # Create system prompts
-    for prompt_type, system_prompt in SYSTEM_PROMPTS.items():
+    for prompt_type, system_prompt in DOCUMENT_PROMPTS.items():
         prompt_name = f"System: {prompt_type.value.replace('_', ' ').title()}"
         template_vars = []
 

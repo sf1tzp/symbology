@@ -113,6 +113,10 @@ When you're done, add a table of contents section to the top.
 
 """
 
+AGGREGATE_SUMMARY_PROMPT = """
+Consider these historical reports. Write 100 words providing an overview of the company.
+"""
+
 
 def format_document_messages(document):
     messages = [{

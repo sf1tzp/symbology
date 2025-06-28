@@ -56,6 +56,9 @@ class Aggregate(Base):
     # The actual content of the aggregate
     content: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Generated summary of the aggregate content
+    summary: Mapped[Optional[str]] = mapped_column(Text)
+
     source_completions: Mapped[List["Completion"]] = relationship(
         "Completion",
         secondary=aggregate_completion_association,

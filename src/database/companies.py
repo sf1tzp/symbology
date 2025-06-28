@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import any_, Boolean, Date, String
+from sqlalchemy import any_, Boolean, Date, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
 from uuid_extensions import uuid7
@@ -45,6 +45,9 @@ class Company(Base):
     entity_type: Mapped[Optional[str]] = mapped_column(String(50))
     ein: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True)
     former_names: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
+
+    # Generated Content
+    summary: Mapped[Optional[str]] = mapped_column(Text)
 
     def __repr__(self) -> str:
         return f"<Company(id={self.id}, name='{self.name}', cik='{self.cik}')>"

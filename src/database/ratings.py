@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, Integer, String
@@ -7,23 +7,29 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
-from src.database.completions import Completion
 from src.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from src.database.aggregates import Aggregate
+    from src.database.completions import Completion
 
 # Initialize structlog
 logger = get_logger(__name__)
 
 class Rating(Base):
-    """Rating model representing user feedback on completions."""
+    """Rating model representing user feedback on completions and aggregates."""
 
     __tablename__ = "ratings"
 
     # Primary identifier
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
-    # Relationship to Completion
-    completion_id: Mapped[UUID] = mapped_column(ForeignKey("completions.id"), index=True)
-    completion: Mapped["Completion"] = relationship("Completion", back_populates="ratings")
+    # Relationships - can rate either a Completion or an Aggregate
+    completion_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("completions.id"), index=True, nullable=True)
+    completion: Mapped[Optional["Completion"]] = relationship("Completion", back_populates="ratings")
+
+    aggregate_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("aggregates.id"), index=True, nullable=True)
+    aggregate: Mapped[Optional["Aggregate"]] = relationship("Aggregate", back_populates="ratings")
 
     # Rating details
     content_score: Mapped[Optional[int]] = mapped_column(Integer)
@@ -32,7 +38,12 @@ class Rating(Base):
     tags: Mapped[List[str]] = mapped_column(ARRAY(String), default=list)
 
     def __repr__(self) -> str:
-        return f"<Rating(id={self.id}, completion_id={self.completion_id})>"
+        if self.completion_id:
+            return f"<Rating(id={self.id}, completion_id={self.completion_id})>"
+        elif self.aggregate_id:
+            return f"<Rating(id={self.id}, aggregate_id={self.aggregate_id})>"
+        else:
+            return f"<Rating(id={self.id})>"
 
 
 def get_rating_ids() -> List[UUID]:
@@ -85,13 +96,29 @@ def create_rating(rating_data: Dict[str, Any]) -> Rating:
     try:
         session = get_db_session()
 
-        # Check if completion exists
+        # Check if completion or aggregate exists (but not both)
         completion_id = rating_data.get('completion_id')
+        aggregate_id = rating_data.get('aggregate_id')
+
+        if completion_id and aggregate_id:
+            raise ValueError("Rating cannot be associated with both completion and aggregate")
+
+        if not completion_id and not aggregate_id:
+            raise ValueError("Rating must be associated with either a completion or aggregate")
+
         if completion_id:
+            from src.database.completions import Completion
             completion = session.query(Completion).filter(Completion.id == completion_id).first()
             if not completion:
                 logger.error("create_rating_failed", error=f"Completion with ID {completion_id} not found")
                 raise ValueError(f"Completion with ID {completion_id} not found")
+
+        if aggregate_id:
+            from src.database.aggregates import Aggregate
+            aggregate = session.query(Aggregate).filter(Aggregate.id == aggregate_id).first()
+            if not aggregate:
+                logger.error("create_rating_failed", error=f"Aggregate with ID {aggregate_id} not found")
+                raise ValueError(f"Aggregate with ID {aggregate_id} not found")
 
         # Validate scores
         if 'content_score' in rating_data and rating_data['content_score'] is not None:
@@ -105,7 +132,10 @@ def create_rating(rating_data: Dict[str, Any]) -> Rating:
         rating = Rating(**rating_data)
         session.add(rating)
         session.commit()
-        logger.info("created_rating", rating_id=str(rating.id), completion_id=str(rating.completion_id))
+
+        target_id = completion_id or aggregate_id
+        target_type = "completion" if completion_id else "aggregate"
+        logger.info("created_rating", rating_id=str(rating.id), target_type=target_type, target_id=str(target_id))
         return rating
     except Exception as e:
         session.rollback()
@@ -130,12 +160,20 @@ def update_rating(rating_id: Union[UUID, str], rating_data: Dict[str, Any]) -> O
             logger.warning("update_rating_not_found", rating_id=str(rating_id))
             return None
 
-        # If completion_id is being updated, check if new completion exists
-        if 'completion_id' in rating_data:
+        # If completion_id or aggregate_id is being updated, check if new completion or aggregate exists
+        if 'completion_id' in rating_data and rating_data['completion_id']:
+            from src.database.completions import Completion
             completion = session.query(Completion).filter(Completion.id == rating_data['completion_id']).first()
             if not completion:
                 logger.error("update_rating_failed", error=f"Completion with ID {rating_data['completion_id']} not found")
                 raise ValueError(f"Completion with ID {rating_data['completion_id']} not found")
+
+        if 'aggregate_id' in rating_data and rating_data['aggregate_id']:
+            from src.database.aggregates import Aggregate
+            aggregate = session.query(Aggregate).filter(Aggregate.id == rating_data['aggregate_id']).first()
+            if not aggregate:
+                logger.error("update_rating_failed", error=f"Aggregate with ID {rating_data['aggregate_id']} not found")
+                raise ValueError(f"Aggregate with ID {rating_data['aggregate_id']} not found")
 
         # Validate scores
         if 'content_score' in rating_data and rating_data['content_score'] is not None:

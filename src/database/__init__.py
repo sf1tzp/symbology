@@ -5,10 +5,20 @@ used in the symbology system.
 """
 
 # Import base database utilities
-from src.database.base import Base, close_session, get_db, get_db_session, init_db
-
 # Import models
 # Import CRUD functions
+# Aggregates
+from src.database.aggregates import (
+    Aggregate,
+    create_aggregate,
+    delete_aggregate,
+    get_aggregate,
+    get_aggregate_ids,
+    get_aggregates_by_completion,
+    update_aggregate,
+)
+from src.database.base import Base, close_session, get_db, get_db_session, init_db
+
 # Companies
 from src.database.companies import (
     Company,
@@ -97,7 +107,11 @@ __all__ = [
 
     # Models
     "Company", "Filing", "Document", "FinancialConcept", "FinancialValue",
-    "Completion", "Rating", "Prompt", "PromptRole",
+    "Completion", "Aggregate", "Rating", "Prompt", "PromptRole",
+
+    # Aggregate functions
+    "get_aggregate_ids", "get_aggregate", "create_aggregate", "update_aggregate", "delete_aggregate",
+    "get_aggregates_by_completion",
 
     # Company functions
     "get_company_ids", "get_company", "create_company", "update_company", "delete_company",

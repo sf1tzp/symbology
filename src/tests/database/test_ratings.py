@@ -90,9 +90,7 @@ def sample_system_prompt_data() -> Dict[str, Any]:
         "name": "Financial Assistant System Prompt",
         "role": PromptRole.SYSTEM,
         "description": "Standard system prompt for financial analysis",
-        "template": "You are a helpful financial assistant that provides information about companies.",
-        "template_vars": [],
-        "default_vars": {}
+        "content": "You are a helpful financial assistant that provides information about companies."
     }
 
 @pytest.fixture
@@ -102,9 +100,7 @@ def sample_user_prompt_data() -> Dict[str, Any]:
         "name": "Financial Summary User Prompt",
         "role": PromptRole.USER,
         "description": "Request for financial performance summary",
-        "template": "Summarize the financial performance of the company in the provided documents.",
-        "template_vars": [],
-        "default_vars": {}
+        "content": "Summarize the financial performance of the company in the provided documents."
     }
 
 @pytest.fixture
@@ -124,14 +120,10 @@ def sample_completion_data(create_test_prompts) -> Dict[str, Any]:
     system_prompt, user_prompt = create_test_prompts
     return {
         "system_prompt_id": system_prompt.id,
-        "user_prompt_id": user_prompt.id,
         "model": "gpt-4",
         "temperature": 0.7,
         "top_p": 1.0,
-        "context_text": [
-            {"role": "system", "content": system_prompt.template},
-            {"role": "user", "content": user_prompt.template}
-        ]
+        "num_ctx": 4096
     }
 
 @pytest.fixture

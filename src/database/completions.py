@@ -1,9 +1,10 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import Column, Float, ForeignKey, String, Table
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Table, Text
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
@@ -34,37 +35,32 @@ class Completion(Base):
     # Primary identifier
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
-    # Relationships
-    # Note: no cascade delete for these relationships
-    ratings: Mapped[List["Rating"]] = relationship("Rating", back_populates="completion")
+    # Timestamp fields
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    total_duration: Mapped[Optional[float]] = mapped_column(Float)
+
+    # The actual content of the completion
+    content: Mapped[Optional[str]] = mapped_column(Text)
+
     source_documents: Mapped[List["Document"]] = relationship(
         "Document",
         secondary=completion_document_association,
         backref="completions"
     )
 
-    # Prompt relationships
-    system_prompt_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("prompts.id"), index=True)
-    user_prompt_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("prompts.id"), index=True)
-
+    system_prompt_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("prompts.id", ondelete="SET NULL"), index=True)
     system_prompt: Mapped[Optional["Prompt"]] = relationship(
         "Prompt",
         foreign_keys=[system_prompt_id],
-        back_populates="system_completions"
     )
-    user_prompt: Mapped[Optional["Prompt"]] = relationship(
-        "Prompt",
-        foreign_keys=[user_prompt_id],
-        back_populates="user_completions"
-    )
-
-    # Context and parameters
-    context_text: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
 
     # OpenAI parameters
     model: Mapped[str] = mapped_column(String(50))
     temperature: Mapped[Optional[float]] = mapped_column(Float, default=0.7)
     top_p: Mapped[Optional[float]] = mapped_column(Float, default=1.0)
+    num_ctx: Mapped[Optional[int]] = mapped_column(Float, default=4096)
+
+    ratings: Mapped[Optional[List["Rating"]]] = relationship("Rating", back_populates="completion")
 
     def __repr__(self) -> str:
         return f"<Completion(id={self.id}, model='{self.model}')>"

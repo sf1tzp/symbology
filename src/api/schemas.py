@@ -1,5 +1,5 @@
 """API request and response schemas."""
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -129,14 +129,13 @@ class DocumentContentResponse(BaseModel):
             }
         }
 
+
 class PromptCreateRequest(BaseModel):
     """Request schema for creating a prompt."""
     name: str = Field(..., description="Name of the prompt")
     description: Optional[str] = Field(None, description="Description of the prompt")
     role: PromptRole = Field(..., description="Role of the prompt (system, assistant, user)")
-    template: str = Field(..., description="Prompt template text")
-    template_vars: List[str] = Field(default_factory=list, description="List of template variables")
-    default_vars: Dict[str, Any] = Field(default_factory=dict, description="Default values for template variables")
+    content: str = Field(..., description="Prompt content text")
 
 
 class PromptResponse(BaseModel):
@@ -145,9 +144,7 @@ class PromptResponse(BaseModel):
     name: str = Field(..., description="Name of the prompt")
     description: Optional[str] = Field(None, description="Description of the prompt")
     role: str = Field(..., description="Role of the prompt (system, assistant, user)")
-    template: str = Field(..., description="Prompt template text")
-    template_vars: List[str] = Field(..., description="List of template variables")
-    default_vars: Dict[str, Any] = Field(..., description="Default values for template variables")
+    content: str = Field(..., description="Prompt content text")
 
     class Config:
         json_schema_extra = {
@@ -156,9 +153,7 @@ class PromptResponse(BaseModel):
                 "name": "Financial Statement Analysis",
                 "description": "Analyzes financial statements from SEC filings",
                 "role": "system",
-                "template": "Analyze the {statement_type} for {company_name}:\n\n{content}",
-                "template_vars": ["statement_type", "company_name", "content"],
-                "default_vars": {"statement_type": "income statement"}
+                "content": "Analyze the financial statements for the company, focusing on key metrics and trends."
             }
         }
 
@@ -177,35 +172,56 @@ class CompletionIdRequest(BaseModel):
 class CompletionCreateRequest(BaseModel):
     """Request schema for creating a completion."""
     system_prompt_id: Optional[UUID] = Field(None, description="ID of the system prompt")
-    user_prompt_id: Optional[UUID] = Field(None, description="ID of the user prompt")
     document_ids: Optional[List[UUID]] = Field(None, description="List of document IDs used as sources")
-    context_text: List[Dict[str, Any]] = Field(default_factory=list, description="Context information for the completion")
     model: str = Field(..., description="LLM model identifier used for completion")
     temperature: Optional[float] = Field(0.7, description="Temperature parameter for the LLM")
     top_p: Optional[float] = Field(1.0, description="Top-p parameter for the LLM")
+    num_ctx: Optional[int] = Field(4096, description="Context window size for the LLM")
+
+
+class CompletionUpdateRequest(BaseModel):
+    """Request schema for updating a completion."""
+    system_prompt_id: Optional[UUID] = Field(None, description="ID of the system prompt")
+    document_ids: Optional[List[UUID]] = Field(None, description="List of document IDs used as sources")
+    model: Optional[str] = Field(None, description="LLM model identifier used for completion")
+    temperature: Optional[float] = Field(None, description="Temperature parameter for the LLM")
+    top_p: Optional[float] = Field(None, description="Top-p parameter for the LLM")
+    total_duration: Optional[float] = Field(None, description="Total duration of the completion in seconds")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "system_prompt_id": "123e4567-e89b-12d3-a456-426614174003",
+                "document_ids": ["123e4567-e89b-12d3-a456-426614174002"],
+                "temperature": 0.5,
+                "total_duration": 3.2
+            }
+        }
 
 
 class CompletionResponse(BaseModel):
     """Response schema for a completion."""
     id: UUID = Field(..., description="Unique identifier for the completion")
     system_prompt_id: Optional[UUID] = Field(None, description="ID of the system prompt")
-    user_prompt_id: Optional[UUID] = Field(None, description="ID of the user prompt")
-    context_text: List[Dict[str, Any]] = Field(..., description="Context information for the completion")
     model: str = Field(..., description="LLM model identifier used for completion")
     temperature: Optional[float] = Field(None, description="Temperature parameter for the LLM")
     top_p: Optional[float] = Field(None, description="Top-p parameter for the LLM")
+    num_ctx: Optional[int] = Field(None, description="Context window size for the LLM")
     source_documents: List[UUID] = Field(default_factory=list, description="List of document IDs used as sources")
+    created_at: datetime = Field(..., description="Timestamp when the completion was created")
+    total_duration: Optional[float] = Field(None, description="Total duration of the completion in seconds")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174004",
                 "system_prompt_id": "123e4567-e89b-12d3-a456-426614174003",
-                "user_prompt_id": "123e4567-e89b-12d3-a456-426614174005",
-                "context_text": [{"key": "input", "value": "Analysis of Apple's financials"}],
                 "model": "gpt-4",
                 "temperature": 0.7,
                 "top_p": 1.0,
-                "source_documents": ["123e4567-e89b-12d3-a456-426614174002"]
+                "num_ctx": 4096,
+                "source_documents": ["123e4567-e89b-12d3-a456-426614174002"],
+                "created_at": "2023-12-25T12:30:45.123456",
+                "total_duration": 2.5
             }
         }

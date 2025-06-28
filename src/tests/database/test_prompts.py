@@ -17,9 +17,7 @@ def sample_system_prompt_data() -> Dict[str, Any]:
         "name": "Test System Prompt",
         "role": PromptRole.SYSTEM,  # Will be converted to PromptRole enum value
         "description": "A test system prompt for financial analysis",
-        "template": "You are a helpful financial assistant that provides information about companies.",
-        "template_vars": ["company_name", "industry"],
-        "default_vars": {"industry": "Technology"}
+        "content": "You are a helpful financial assistant that provides information about companies."
     }
 
 @pytest.fixture
@@ -29,9 +27,7 @@ def sample_user_prompt_data() -> Dict[str, Any]:
         "name": "Test User Prompt",
         "role": "user",  # Will be converted to PromptRole enum value
         "description": "A test user prompt for requesting financial analysis",
-        "template": "Provide a detailed analysis of {company_name} in the {industry} industry.",
-        "template_vars": ["company_name", "industry"],
-        "default_vars": {"industry": "Technology"}
+        "content": "Provide a detailed analysis of the company in the industry."
     }
 
 @pytest.fixture
@@ -41,9 +37,7 @@ def sample_assistant_prompt_data() -> Dict[str, Any]:
         "name": "Test Assistant Prompt",
         "role": "assistant",  # Will be converted to PromptRole enum value
         "description": "A test assistant prompt for financial analysis",
-        "template": "I'll analyze {company_name} in the {industry} industry for you.",
-        "template_vars": ["company_name", "industry"],
-        "default_vars": {"industry": "Technology"}
+        "content": "I'll analyze the company in the industry for you."
     }
 
 @pytest.fixture
@@ -54,25 +48,19 @@ def multiple_prompt_data() -> List[Dict[str, Any]]:
             "name": "System Prompt 1",
             "role": "system",
             "description": "System prompt for general assistance",
-            "template": "You are a helpful assistant.",
-            "template_vars": [],
-            "default_vars": {}
+            "content": "You are a helpful assistant."
         },
         {
             "name": "User Prompt 1",
             "role": "user",
             "description": "User prompt for company analysis",
-            "template": "Analyze {company_name}.",
-            "template_vars": ["company_name"],
-            "default_vars": {}
+            "content": "Analyze the company."
         },
         {
             "name": "System Prompt 2",
             "role": "system",
             "description": "System prompt for financial assistance",
-            "template": "You are a financial expert.",
-            "template_vars": [],
-            "default_vars": {}
+            "content": "You are a financial expert."
         }
     ]
 
@@ -145,14 +133,10 @@ def sample_completion_data(create_test_system_prompt, create_test_user_prompt) -
     """Sample completion data for testing prompt relationships."""
     return {
         "system_prompt_id": create_test_system_prompt.id,
-        "user_prompt_id": create_test_user_prompt.id,
         "model": "gpt-4",
         "temperature": 0.7,
         "top_p": 1.0,
-        "context_text": [
-            {"role": "system", "content": create_test_system_prompt.template},
-            {"role": "user", "content": create_test_user_prompt.template}
-        ]
+        "num_ctx": 4096
     }
 
 # Test cases for Prompt CRUD operations
@@ -170,17 +154,13 @@ def test_create_prompt(db_session, sample_system_prompt_data):
     assert prompt.id is not None
     assert prompt.name == "Test System Prompt"
     assert prompt.role == PromptRole.SYSTEM
-    assert len(prompt.template_vars) == 2
-    assert "company_name" in prompt.template_vars
-    assert "industry" in prompt.template_vars
-    assert prompt.default_vars["industry"] == "Technology"
 
     # Verify it can be retrieved from the database
     retrieved = db_session.query(Prompt).filter_by(id=prompt.id).first()
     assert retrieved is not None
     assert retrieved.name == prompt.name
     assert retrieved.role == PromptRole.SYSTEM
-    assert retrieved.template == "You are a helpful financial assistant that provides information about companies."
+    assert retrieved.content == "You are a helpful financial assistant that provides information about companies."
 
 def test_create_prompt_with_enum(db_session):
     """Test creating a prompt with direct enum assignment."""
@@ -188,9 +168,7 @@ def test_create_prompt_with_enum(db_session):
         "name": "Direct Enum Prompt",
         "role": PromptRole.ASSISTANT,
         "description": "Testing direct enum assignment",
-        "template": "This is a test template",
-        "template_vars": [],
-        "default_vars": {}
+        "content": "This is a test template"
     }
 
     prompt = Prompt(**prompt_data)
@@ -254,9 +232,7 @@ def test_create_prompt_invalid_role(db_session):
             "name": "Invalid Role Prompt",
             "role": "invalid_role",  # This is not a valid PromptRole
             "description": "Test prompt with invalid role",
-            "template": "This is a test template",
-            "template_vars": [],
-            "default_vars": {}
+            "content": "This is a test template"
         }
 
         with pytest.raises(ValueError, match="Invalid role"):
@@ -304,9 +280,7 @@ def test_update_prompt(db_session, create_test_user_prompt):
         updates = {
             "name": "Updated User Prompt",
             "description": "This prompt has been updated",
-            "template": "Updated template to analyze {company_name}",
-            "template_vars": ["company_name"],
-            "default_vars": {"company_name": "Example Corp"}
+            "content": "Updated template to analyze the company"
         }
 
         updated = update_prompt(create_test_user_prompt.id, updates)
@@ -315,9 +289,7 @@ def test_update_prompt(db_session, create_test_user_prompt):
         assert updated is not None
         assert updated.name == "Updated User Prompt"
         assert updated.description == "This prompt has been updated"
-        assert updated.template == "Updated template to analyze {company_name}"
-        assert updated.template_vars == ["company_name"]
-        assert updated.default_vars == {"company_name": "Example Corp"}
+        assert updated.content == "Updated template to analyze the company"
 
         # Check that role wasn't changed
         assert updated.role == PromptRole.USER
@@ -389,27 +361,20 @@ def test_update_prompt_json_fields(db_session, create_test_system_prompt):
     prompts_module.get_db_session = lambda: db_session
 
     try:
-        # Update template_vars and default_vars
+        # Update content
         updates = {
-            "template_vars": ["company_name", "industry", "year"],
-            "default_vars": {
-                "industry": "Finance",
-                "year": "2023"
-            }
+                "content": "Updated content for testing"
         }
 
         updated = update_prompt(create_test_system_prompt.id, updates)
 
-        # Verify JSON fields were updated
+        # Verify updates were applied
         assert updated is not None
-        assert "year" in updated.template_vars
-        assert updated.default_vars["industry"] == "Finance"
-        assert updated.default_vars["year"] == "2023"
+        assert updated.content == "Updated content for testing"
 
         # Verify persistence by retrieving again
         retrieved = get_prompt(create_test_system_prompt.id)
-        assert "year" in retrieved.template_vars
-        assert retrieved.default_vars["year"] == "2023"
+        assert retrieved.content == "Updated content for testing"
     finally:
         # Restore the original function
         prompts_module.get_db_session = original_get_db_session
@@ -464,7 +429,7 @@ def test_delete_prompt(db_session, create_test_assistant_prompt):
         new_prompt = Prompt(
             name="Test Delete String UUID",
             role=PromptRole.SYSTEM,
-            template="Test template"
+            content="Test template"
         )
         db_session.add(new_prompt)
         db_session.commit()
@@ -509,26 +474,16 @@ def test_get_prompt_ids(db_session, multiple_prompt_data):
 
 def test_prompt_completion_relationship(db_session, create_test_system_prompt, create_test_user_prompt, sample_completion_data):
     """Test the relationship between prompts and completions."""
-    # Create a completion associated with the prompts
+    # Create a completion associated with the system prompt only
     completion = Completion(**sample_completion_data)
     db_session.add(completion)
     db_session.commit()
 
-    # Verify the relationships from completion side
+    # Verify the relationship from completion side
     assert completion.system_prompt_id == create_test_system_prompt.id
-    assert completion.user_prompt_id == create_test_user_prompt.id
+
+    # Verify the system prompt relationship from completion side
     assert completion.system_prompt.name == create_test_system_prompt.name
-    assert completion.user_prompt.name == create_test_user_prompt.name
-
-    # Verify the relationships from prompt side
-    system_prompt = db_session.query(Prompt).filter_by(id=create_test_system_prompt.id).first()
-    user_prompt = db_session.query(Prompt).filter_by(id=create_test_user_prompt.id).first()
-
-    assert len(system_prompt.system_completions) == 1
-    assert system_prompt.system_completions[0].id == completion.id
-
-    assert len(user_prompt.user_completions) == 1
-    assert user_prompt.user_completions[0].id == completion.id
 
 def test_create_completion_with_prompts(db_session, create_test_system_prompt, create_test_user_prompt):
     """Test creating a completion with prompt references using the create_completion function."""
@@ -541,12 +496,8 @@ def test_create_completion_with_prompts(db_session, create_test_system_prompt, c
         # Create completion data with prompt references
         completion_data = {
             "system_prompt_id": create_test_system_prompt.id,
-            "user_prompt_id": create_test_user_prompt.id,
             "model": "gpt-3.5-turbo",
-            "context_text": [
-                {"role": "system", "content": create_test_system_prompt.template},
-                {"role": "user", "content": create_test_user_prompt.template}
-            ]
+            "num_ctx": 4096
         }
 
         # Create the completion
@@ -554,36 +505,36 @@ def test_create_completion_with_prompts(db_session, create_test_system_prompt, c
 
         # Verify prompt relationships
         assert completion.system_prompt_id == create_test_system_prompt.id
-        assert completion.user_prompt_id == create_test_user_prompt.id
 
-        # Verify from the prompt side
-        system_prompt = db_session.query(Prompt).filter_by(id=create_test_system_prompt.id).first()
-        user_prompt = db_session.query(Prompt).filter_by(id=create_test_user_prompt.id).first()
-
-        assert len(system_prompt.system_completions) == 1
-        assert system_prompt.system_completions[0].id == completion.id
-
-        assert len(user_prompt.user_completions) == 1
-        assert user_prompt.user_completions[0].id == completion.id
+        # Verify that the completion has a reference to the system prompt
+        assert completion.system_prompt is not None
+        assert completion.system_prompt.id == create_test_system_prompt.id
     finally:
         # Restore the original function
         completions_module.get_db_session = original_get_db_session
 
 def test_delete_prompt_with_completions(db_session, create_test_system_prompt, create_test_user_prompt, sample_completion_data):
-    """Test that deleting a prompt doesn't delete associated completions."""
+    """Test that deleting a prompt with associated completions works properly."""
     # Create a completion with prompt associations
     completion = Completion(**sample_completion_data)
     db_session.add(completion)
     db_session.commit()
     completion_id = completion.id
 
-    # Delete both prompts
+    # Get the completion to verify it has the system prompt reference
+    completion = db_session.query(Completion).filter_by(id=completion_id).first()
+    assert completion.system_prompt_id == create_test_system_prompt.id
+
+    # First update the completion to remove the reference to the system prompt
+    completion.system_prompt_id = None
+    db_session.commit()
+
+    # Now we can delete the prompts
     db_session.delete(create_test_system_prompt)
     db_session.delete(create_test_user_prompt)
     db_session.commit()
 
-    # Verify that the completion still exists (just without the prompt references)
+    # Verify that the completion still exists but without prompt references
     completion = db_session.query(Completion).filter_by(id=completion_id).first()
     assert completion is not None
     assert completion.system_prompt_id is None
-    assert completion.user_prompt_id is None

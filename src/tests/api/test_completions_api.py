@@ -1,4 +1,5 @@
 """Tests for the completions API routes."""
+from datetime import datetime
 from unittest.mock import patch
 import uuid
 
@@ -51,14 +52,12 @@ def test_get_completion_by_document_id(mock_get_completions_by_document):
                 Completion(
                     id=test_comp_id_a1,
                     model="gpt-4",
-                    context_text=[{"role": "user", "content": "Test"}],
                     source_documents=[Document(id=test_doc_id_a)]
                 ),
                 # For document ID ending in a, add a second completion
                 Completion(
                     id=test_comp_id_a2,
                     model="gpt-4-turbo",
-                    context_text=[{"role": "user", "content": "Another test"}],
                     source_documents=[Document(id=test_doc_id_a)]
                 )
             ]
@@ -68,7 +67,6 @@ def test_get_completion_by_document_id(mock_get_completions_by_document):
                 Completion(
                     id=test_comp_id_b,
                     model="gpt-3.5-turbo",
-                    context_text=[{"role": "user", "content": "Single result test"}],
                     source_documents=[Document(id=test_doc_id_b)]
                 )
             ]
@@ -102,7 +100,6 @@ def test_get_completion_by_id(mock_get_completion):
     test_id_1 = uuid.UUID('123e4567-e89b-12d3-a456-426614174000')
     test_id_2 = uuid.UUID('123e4567-e89b-12d3-a456-426614174001')
     test_id_3 = uuid.UUID('123e4567-e89b-12d3-a456-426614174003')
-    test_id_4 = uuid.UUID('123e4567-e89b-12d3-a456-426614174004')
     test_id_5 = uuid.UUID('123e4567-e89b-12d3-a456-426614174005')
 
     # Define a side effect to support different completion IDs
@@ -111,18 +108,17 @@ def test_get_completion_by_id(mock_get_completion):
             return Completion(
                 id=test_id_1,
                 system_prompt_id=test_id_3,
-                user_prompt_id=test_id_4,
                 model="gpt-4",
                 temperature=0.7,
                 top_p=1.0,
-                context_text=[{"role": "user", "content": "Test completion"}],
+                created_at=datetime.now(),
                 source_documents=[Document(id=test_id_5)]
             )
         elif completion_id == test_id_2:
             return Completion(
                 id=test_id_2,
                 model="gpt-3.5-turbo",
-                context_text=[{"role": "user", "content": "Another test"}],
+                created_at=datetime.now(),
                 source_documents=[]  # No source documents
             )
         return None  # Not found
@@ -157,26 +153,22 @@ def test_get_completion_by_id(mock_get_completion):
 def test_create_completion(mock_create_completion):
     """Test creating a new completion."""
     test_id_3 = uuid.UUID('123e4567-e89b-12d3-a456-426614174003')
-    test_id_4 = uuid.UUID('123e4567-e89b-12d3-a456-426614174004')
     test_id_5 = uuid.UUID('123e4567-e89b-12d3-a456-426614174005')
     test_id_6 = uuid.UUID('123e4567-e89b-12d3-a456-426614174006')
 
     mock_create_completion.return_value = Completion(
         id=test_id_6,
         system_prompt_id=test_id_3,
-        user_prompt_id=test_id_4,
         model="gpt-4",
         temperature=0.8,
         top_p=1.0,
-        context_text=[{"role": "user", "content": "New test completion"}],
+        created_at=datetime.now(),
         source_documents=[Document(id=test_id_5)]
     )
 
     request_data = {
         "system_prompt_id": str(test_id_3),
-        "user_prompt_id": str(test_id_4),
         "document_ids": [str(test_id_5)],
-        "context_text": [{"role": "user", "content": "New test completion"}],
         "model": "gpt-4",
         "temperature": 0.8
     }
@@ -216,9 +208,7 @@ def test_invalid_uuid_format():
     # Test with invalid UUIDs in the request body
     invalid_request_data = {
         "system_prompt_id": "not-a-valid-uuid",
-        "user_prompt_id": "another-invalid-uuid",
         "document_ids": ["not-a-valid-doc-uuid"],
-        "context_text": [{"role": "user", "content": "Test with invalid UUIDs"}],
         "model": "gpt-4",
         "temperature": 0.7
     }

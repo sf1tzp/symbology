@@ -19,9 +19,7 @@ SAMPLE_SYSTEM_PROMPT = {
     "name": "Company Analysis",
     "description": "System prompt for analyzing companies",
     "role": DBPromptRole.SYSTEM,
-    "template": "You are a financial analyst assistant. Analyze {company_name}.",
-    "template_vars": ["company_name"],
-    "default_vars": {"company_name": "Apple Inc."}
+    "content": "You are a financial analyst assistant. Analyze the company."
 }
 
 SAMPLE_USER_PROMPT = {
@@ -29,9 +27,7 @@ SAMPLE_USER_PROMPT = {
     "name": "Financial Metrics Request",
     "description": "User prompt requesting financial metrics",
     "role": DBPromptRole.USER,
-    "template": "Provide key financial metrics for {company_name} in {year}.",
-    "template_vars": ["company_name", "year"],
-    "default_vars": {"company_name": "Apple Inc.", "year": "2024"}
+    "content": "Provide key financial metrics for the company in the requested time period."
 }
 
 
@@ -50,9 +46,7 @@ def test_get_prompts_by_role_system(mock_prompt_model, mock_get_session):
     sample_system_prompt.name = "Company Analysis"
     sample_system_prompt.description = "System prompt for analyzing companies"
     sample_system_prompt.role = DBPromptRole.SYSTEM
-    sample_system_prompt.template = "You are a financial analyst assistant. Analyze {company_name}."
-    sample_system_prompt.template_vars = ["company_name"]
-    sample_system_prompt.default_vars = {"company_name": "Apple Inc."}
+    sample_system_prompt.content = "You are a financial analyst assistant. Analyze the company."
 
     mock_filter.all.return_value = [sample_system_prompt]
 
@@ -66,7 +60,6 @@ def test_get_prompts_by_role_system(mock_prompt_model, mock_get_session):
     assert data[0]["id"] == str(SAMPLE_SYSTEM_PROMPT_ID)
     assert data[0]["name"] == "Company Analysis"
     assert data[0]["role"] == "system"
-    assert "company_name" in data[0]["template_vars"]
 
     # Verify the mock was called with the correct arguments
     mock_session.query.assert_called_once_with(mock_prompt_model)
@@ -88,9 +81,7 @@ def test_get_prompts_by_role_user(mock_prompt_model, mock_get_session):
     sample_user_prompt.name = "Financial Metrics Request"
     sample_user_prompt.description = "User prompt requesting financial metrics"
     sample_user_prompt.role = DBPromptRole.USER
-    sample_user_prompt.template = "Provide key financial metrics for {company_name} in {year}."
-    sample_user_prompt.template_vars = ["company_name", "year"]
-    sample_user_prompt.default_vars = {"company_name": "Apple Inc.", "year": "2024"}
+    sample_user_prompt.content = "Provide key financial metrics for the company in the requested time period."
 
     mock_filter.all.return_value = [sample_user_prompt]
 
@@ -104,8 +95,6 @@ def test_get_prompts_by_role_user(mock_prompt_model, mock_get_session):
     assert data[0]["id"] == str(SAMPLE_USER_PROMPT_ID)
     assert data[0]["name"] == "Financial Metrics Request"
     assert data[0]["role"] == "user"
-    assert "company_name" in data[0]["template_vars"]
-    assert "year" in data[0]["template_vars"]
 
     # Verify the mock was called with the correct arguments
     mock_session.query.assert_called_once_with(mock_prompt_model)
@@ -166,9 +155,7 @@ def test_create_prompt_success(mock_create_prompt):
     new_prompt.name = "New Test Prompt"
     new_prompt.description = "A test prompt for testing"
     new_prompt.role = DBPromptRole.SYSTEM
-    new_prompt.template = "Test template with {variable}"
-    new_prompt.template_vars = ["variable"]
-    new_prompt.default_vars = {"variable": "default value"}
+    new_prompt.content = "Test content for the new prompt"
 
     mock_create_prompt.return_value = new_prompt
 
@@ -177,9 +164,7 @@ def test_create_prompt_success(mock_create_prompt):
         "name": "New Test Prompt",
         "description": "A test prompt for testing",
         "role": "system",
-        "template": "Test template with {variable}",
-        "template_vars": ["variable"],
-        "default_vars": {"variable": "default value"}
+        "content": "Test content for the new prompt"
     }
 
     # Make the API call
@@ -196,23 +181,21 @@ def test_create_prompt_success(mock_create_prompt):
     mock_create_prompt.assert_called_once()
     call_arg = mock_create_prompt.call_args[0][0]
     assert call_arg["name"] == "New Test Prompt"
-    assert call_arg["template"] == "Test template with {variable}"
+    assert call_arg["content"] == "Test content for the new prompt"
 
 
 @patch("src.api.routes.prompts.prompts_db.create_prompt")
 def test_create_prompt_value_error(mock_create_prompt):
     """Test error handling for validation errors when creating a prompt."""
     # Setup the mock to raise a ValueError
-    mock_create_prompt.side_effect = ValueError("Template variables don't match the template")
+    mock_create_prompt.side_effect = ValueError("Invalid prompt data")
 
     # Create prompt request body with invalid data
     request_data = {
         "name": "Invalid Prompt",
         "description": "A prompt with invalid data",
         "role": "system",
-        "template": "Template with {variable1}",
-        "template_vars": ["variable2"],  # This doesn't match the template
-        "default_vars": {"variable2": "value"}
+        "content": "Content with {variable1}"
     }
 
     # Make the API call
@@ -220,7 +203,7 @@ def test_create_prompt_value_error(mock_create_prompt):
 
     # Assertions
     assert response.status_code == 400
-    assert "Template variables don't match" in response.json()["detail"]
+    assert "Invalid prompt data" in response.json()["detail"]
 
 
 @patch("src.api.routes.prompts.prompts_db.create_prompt")
@@ -237,9 +220,7 @@ def test_create_prompt_integrity_error(mock_create_prompt):
         "name": "Duplicate Prompt",
         "description": "A prompt that already exists",
         "role": "system",
-        "template": "Duplicate template",
-        "template_vars": [],
-        "default_vars": {}
+        "content": "Duplicate content"
     }
 
     # Make the API call
@@ -261,9 +242,7 @@ def test_create_prompt_exception(mock_create_prompt):
         "name": "Error Prompt",
         "description": "A prompt that causes an error",
         "role": "system",
-        "template": "Error template",
-        "template_vars": [],
-        "default_vars": {}
+        "content": "Error content"
     }
 
     # Make the API call

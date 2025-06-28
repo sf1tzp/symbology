@@ -35,9 +35,7 @@ async def get_prompts_by_role(role: PromptRole):
                     name=prompt.name,
                     description=prompt.description,
                     role=prompt.role.value,
-                    template=prompt.template,
-                    template_vars=prompt.template_vars,
-                    default_vars=prompt.default_vars
+                    content=prompt.content
                 )
             )
 
@@ -75,9 +73,7 @@ async def create_prompt(prompt: PromptCreateRequest):
             name=db_prompt.name,
             description=db_prompt.description,
             role=db_prompt.role.value,
-            template=db_prompt.template,
-            template_vars=db_prompt.template_vars,
-            default_vars=db_prompt.default_vars
+            content=db_prompt.content
         )
 
         logger.info("created_prompt", prompt_id=str(db_prompt.id), name=db_prompt.name)

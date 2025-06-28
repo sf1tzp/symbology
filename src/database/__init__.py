@@ -74,6 +74,7 @@ from src.database.prompts import (
     create_prompt,
     delete_prompt,
     get_prompt,
+    get_prompt_by_name,
     get_prompt_ids,
     Prompt,
     PromptRole,

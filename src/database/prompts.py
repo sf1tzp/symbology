@@ -3,8 +3,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
 from sqlalchemy import Enum, String, Text
-from sqlalchemy.dialects.postgresql import JSON
-from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
+from sqlalchemy.orm import attributes, Mapped, mapped_column
 from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
@@ -12,7 +11,7 @@ from src.utils.logging import get_logger
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from src.database.completions import Completion
+    pass
 
 # Initialize structlog
 logger = get_logger(__name__)
@@ -35,25 +34,9 @@ class Prompt(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text)
 
-    # Role information
     role: Mapped[PromptRole] = mapped_column(Enum(PromptRole), index=True)
+    content: Mapped[str] = mapped_column(Text)
 
-    # Template information
-    template_vars: Mapped[List[str]] = mapped_column(JSON, default=list)
-    default_vars: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
-    template: Mapped[str] = mapped_column(Text)
-
-    # Relationships
-    system_completions: Mapped[List["Completion"]] = relationship(
-        "Completion",
-        foreign_keys="Completion.system_prompt_id",
-        back_populates="system_prompt"
-    )
-    user_completions: Mapped[List["Completion"]] = relationship(
-        "Completion",
-        foreign_keys="Completion.user_prompt_id",
-        back_populates="user_prompt"
-    )
 
     def __repr__(self) -> str:
         return f"<Prompt(id={self.id}, name='{self.name}', role={self.role})>"
@@ -215,4 +198,26 @@ def delete_prompt(prompt_id: Union[UUID, str]) -> bool:
     except Exception as e:
         session.rollback()
         logger.error("delete_prompt_failed", prompt_id=str(prompt_id), error=str(e), exc_info=True)
+        raise
+
+
+def get_prompt_by_name(name: str) -> Optional[Prompt]:
+    """Get a prompt by its name.
+
+    Args:
+        name: Name of the prompt to retrieve
+
+    Returns:
+        Prompt object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+        prompt = session.query(Prompt).filter(Prompt.name == name).first()
+        if prompt:
+            logger.info("retrieved_prompt_by_name", name=name, prompt_id=str(prompt.id))
+        else:
+            logger.warning("prompt_by_name_not_found", name=name)
+        return prompt
+    except Exception as e:
+        logger.error("get_prompt_by_name_failed", name=name, error=str(e), exc_info=True)
         raise

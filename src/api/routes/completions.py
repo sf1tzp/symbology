@@ -5,8 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from pydantic import ValidationError
 
-from src.api.schemas import CompletionCreateRequest, CompletionResponse
-from src.database.completions import create_completion, get_completion, get_completion_ids, get_completions_by_document
+from src.api.schemas import CompletionCreateRequest, CompletionResponse, CompletionUpdateRequest
+from src.database.completions import create_completion, delete_completion, get_completion, get_completion_ids, get_completions_by_document, update_completion
 from src.utils.logging import get_logger
 
 router = APIRouter()
@@ -64,12 +64,13 @@ async def get_completion_by_id(completion_id: UUID):
         response = {
             "id": completion.id,
             "system_prompt_id": completion.system_prompt_id,
-            "user_prompt_id": completion.user_prompt_id,
-            "context_text": completion.context_text,
             "model": completion.model,
             "temperature": completion.temperature,
             "top_p": completion.top_p,
-            "source_documents": source_document_ids
+            "num_ctx": completion.num_ctx,
+            "source_documents": source_document_ids,
+            "created_at": completion.created_at,
+            "total_duration": completion.total_duration
         }
 
         return response
@@ -105,12 +106,13 @@ async def create_new_completion(request: CompletionCreateRequest):
         response = {
             "id": completion.id,
             "system_prompt_id": completion.system_prompt_id,
-            "user_prompt_id": completion.user_prompt_id,
-            "context_text": completion.context_text,
             "model": completion.model,
             "temperature": completion.temperature,
             "top_p": completion.top_p,
-            "source_documents": source_document_ids
+            "num_ctx": completion.num_ctx,
+            "source_documents": source_document_ids,
+            "created_at": completion.created_at,
+            "total_duration": completion.total_duration
         }
 
         logger.info("created_completion", completion_id=str(completion.id))
@@ -126,4 +128,86 @@ async def create_new_completion(request: CompletionCreateRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create completion: {str(e)}"
+        ) from e
+
+
+@router.put("/{completion_id}", response_model=CompletionResponse)
+async def update_existing_completion(completion_id: UUID, request: CompletionUpdateRequest):
+    """Update an existing completion."""
+    try:
+        # Transform request into the format expected by database function
+        completion_data = request.model_dump(exclude_unset=True)
+
+        # Update the completion in the database
+        completion = update_completion(completion_id, completion_data)
+
+        if not completion:
+            logger.warning("update_completion_not_found", completion_id=str(completion_id))
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Completion with ID {completion_id} not found"
+            )
+
+        # Convert the updated completion to the response schema
+        source_document_ids = [doc.id for doc in completion.source_documents]
+
+        response = {
+            "id": completion.id,
+            "system_prompt_id": completion.system_prompt_id,
+            "model": completion.model,
+            "temperature": completion.temperature,
+            "top_p": completion.top_p,
+            "num_ctx": completion.num_ctx,
+            "source_documents": source_document_ids,
+            "created_at": completion.created_at,
+            "total_duration": completion.total_duration
+        }
+
+        logger.info("updated_completion", completion_id=str(completion.id))
+        return response
+    except ValueError as e:
+        logger.error("invalid_uuid_or_data_format", completion_id=str(completion_id), error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid request data: {str(e)}"
+        ) from e
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("error_updating_completion", completion_id=str(completion_id), error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update completion: {str(e)}"
+        ) from e
+
+
+@router.delete("/{completion_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_existing_completion(completion_id: UUID):
+    """Delete a completion."""
+    try:
+        # Delete the completion from the database
+        success = delete_completion(completion_id)
+
+        if not success:
+            logger.warning("delete_completion_not_found", completion_id=str(completion_id))
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Completion with ID {completion_id} not found"
+            )
+
+        logger.info("deleted_completion", completion_id=str(completion_id))
+        return None
+    except ValueError as e:
+        logger.error("invalid_uuid_format", completion_id=str(completion_id), error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid UUID format: {str(e)}"
+        ) from e
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("error_deleting_completion", completion_id=str(completion_id), error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete completion: {str(e)}"
         ) from e

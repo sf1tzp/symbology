@@ -115,9 +115,7 @@ def sample_system_prompt_data() -> Dict[str, Any]:
         "name": "Financial Assistant System Prompt",
         "role": "system",  # Will be converted to PromptRole enum value
         "description": "Standard system prompt for financial analysis",
-        "template": "You are a helpful financial assistant that provides information about companies.",
-        "template_vars": [],
-        "default_vars": {}
+        "content": "You are a helpful financial assistant that provides information about companies."
     }
 
 @pytest.fixture
@@ -127,9 +125,7 @@ def sample_user_prompt_data() -> Dict[str, Any]:
         "name": "Financial Summary User Prompt",
         "role": "user",  # Will be converted to PromptRole enum value
         "description": "Request for financial performance summary",
-        "template": "Summarize the financial performance of the company in the provided documents.",
-        "template_vars": [],
-        "default_vars": {}
+        "content": "Summarize the financial performance of the company in the provided documents."
     }
 
 @pytest.fixture
@@ -154,27 +150,19 @@ def create_test_prompts(db_session, sample_system_prompt_data, sample_user_promp
 @pytest.fixture
 def sample_completion_data(create_test_prompts) -> Dict[str, Any]:
     """Sample completion data for testing."""
-    system_prompt, user_prompt = create_test_prompts
+    system_prompt, _ = create_test_prompts
     return {
         "system_prompt_id": system_prompt.id,
-        "user_prompt_id": user_prompt.id,
         "model": "gpt-4",
         "temperature": 0.7,
-        "top_p": 1.0,
-        "context_text": [
-            {"role": "system", "content": system_prompt.template},
-            {"role": "user", "content": user_prompt.template}
-        ]
+        "top_p": 1.0
     }
 
 @pytest.fixture
 def sample_minimal_completion_data() -> Dict[str, Any]:
     """Sample minimal completion data with only required fields."""
     return {
-        "model": "gpt-3.5-turbo",
-        "context_text": [
-            {"role": "user", "content": "Tell me about this company."}
-        ]
+        "model": "gpt-3.5-turbo"
     }
 
 @pytest.fixture
@@ -183,24 +171,15 @@ def multiple_completion_data() -> List[Dict[str, Any]]:
     return [
         {
             "model": "gpt-4",
-            "temperature": 0.8,
-            "context_text": [
-                {"role": "user", "content": "Analyze financial performance."}
-            ]
+            "temperature": 0.8
         },
         {
             "model": "gpt-3.5-turbo",
-            "temperature": 0.5,
-            "context_text": [
-                {"role": "user", "content": "Summarize key points."}
-            ]
+            "temperature": 0.5
         },
         {
             "model": "text-davinci-003",
-            "temperature": 0.3,
-            "context_text": [
-                {"role": "user", "content": "Extract financial metrics."}
-            ]
+            "temperature": 0.3
         }
     ]
 
@@ -215,14 +194,13 @@ def test_create_completion(db_session, sample_completion_data):
     # Verify it was created
     assert completion.id is not None
     assert completion.model == "gpt-4"
-    assert len(completion.context_text) == 2
 
     # Verify it can be retrieved from the database
     retrieved = db_session.query(Completion).filter_by(id=completion.id).first()
     assert retrieved is not None
     assert retrieved.model == completion.model
     assert retrieved.temperature == 0.7
-    assert len(retrieved.context_text) == 2
+    assert retrieved.system_prompt_id is not None
 
 def test_create_minimal_completion(db_session, sample_minimal_completion_data):
     """Test creating a completion with only required fields."""
@@ -236,7 +214,6 @@ def test_create_minimal_completion(db_session, sample_minimal_completion_data):
     assert completion.temperature == 0.7  # Default from model
     assert completion.top_p == 1.0  # Default from model
     assert completion.system_prompt_id is None
-    assert completion.user_prompt_id is None
 
 def test_completion_document_relationship(db_session, sample_minimal_completion_data, create_multiple_documents):
     """Test the relationship between completions and documents."""
@@ -259,7 +236,7 @@ def test_completion_document_relationship(db_session, sample_minimal_completion_
 
 def test_completion_prompt_relationship(db_session, sample_completion_data, create_test_prompts):
     """Test the relationship between completions and prompts."""
-    system_prompt, user_prompt = create_test_prompts
+    system_prompt, _ = create_test_prompts
 
     # Create a completion
     completion = Completion(**sample_completion_data)
@@ -268,19 +245,11 @@ def test_completion_prompt_relationship(db_session, sample_completion_data, crea
 
     # Verify the prompt relationships
     assert completion.system_prompt_id == system_prompt.id
-    assert completion.system_prompt.template == system_prompt.template
-    assert completion.user_prompt_id == user_prompt.id
-    assert completion.user_prompt.template == user_prompt.template
+    assert completion.system_prompt.content == system_prompt.content
 
-    # Check from the prompt side
+    # Check from the prompt side - note: this relationship may not exist in the updated model
     system = db_session.query(Prompt).filter_by(id=system_prompt.id).first()
-    user = db_session.query(Prompt).filter_by(id=user_prompt.id).first()
-
-    assert len(system.system_completions) > 0
-    assert system.system_completions[0].id == completion.id
-
-    assert len(user.user_completions) > 0
-    assert user.user_completions[0].id == completion.id
+    assert system is not None
 
 def test_get_completion_by_id(db_session, sample_completion_data):
     """Test retrieving a completion by ID using the get_completion function."""
@@ -365,7 +334,6 @@ def test_update_completion(db_session, sample_completion_data):
 
         # Check that other fields weren't changed
         assert updated.top_p == 1.0
-        assert len(updated.context_text) == 2
 
         # Test updating non-existent completion
         non_existent = update_completion(uuid.uuid4(), {"model": "test-model"})
@@ -558,36 +526,6 @@ def test_delete_prompt_doesnt_delete_completion(db_session, sample_completion_da
     completion = db_session.query(Completion).filter_by(id=completion_id).first()
     assert completion is not None
     assert completion.system_prompt_id is None
-    assert completion.user_prompt_id is None
-
-def test_context_text_json_operations(db_session, sample_minimal_completion_data):
-    """Test that the context_text JSON field works correctly."""
-    # Create a completion
-    completion = Completion(**sample_minimal_completion_data)
-    db_session.add(completion)
-    db_session.commit()
-
-    # Add an item to the context_text list and flag the attribute as modified
-    completion.context_text.append({"role": "assistant", "content": "I'll analyze the company for you."})
-    # Use the SQLAlchemy flag_modified function to mark the JSON field as changed
-    from sqlalchemy.orm import attributes
-    attributes.flag_modified(completion, "context_text")
-    db_session.commit()
-
-    # Verify the item was added correctly
-    retrieved = db_session.query(Completion).filter_by(id=completion.id).first()
-    assert len(retrieved.context_text) == 2
-    assert retrieved.context_text[1]["role"] == "assistant"
-    assert retrieved.context_text[1]["content"] == "I'll analyze the company for you."
-
-    # Update an existing item in the context_text list
-    retrieved.context_text[0]["content"] = "Updated content"
-    attributes.flag_modified(retrieved, "context_text")
-    db_session.commit()
-
-    # Verify the update was persisted
-    updated = db_session.query(Completion).filter_by(id=completion.id).first()
-    assert updated.context_text[0]["content"] == "Updated content"
 
 def test_get_completions_by_document(db_session, multiple_completion_data, create_multiple_documents):
     """Test retrieving completions by document ID."""

@@ -12,9 +12,36 @@ from src.database.aggregates import (
     get_aggregates_by_completion,
     update_aggregate,
 )
+from src.database.companies import Company
 from src.database.completions import Completion
 from src.database.prompts import Prompt, PromptRole
 
+
+# Sample company data fixture
+@pytest.fixture
+def sample_company_data() -> Dict[str, Any]:
+    """Sample company data for testing."""
+    return {
+        "name": "Test Company, Inc.",
+        "cik": "0000123456",
+        "display_name": "Test Co",
+        "is_company": True,
+        "tickers": ["TEST"],
+        "exchanges": ["NYSE"],
+        "sic": "7370",
+        "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+        "fiscal_year_end": "2023-12-31",
+        "entity_type": "Corporation",
+        "ein": "12-3456789"
+    }
+
+@pytest.fixture
+def create_test_company(db_session, sample_company_data):
+    """Create and return a test company."""
+    company = Company(**sample_company_data)
+    db_session.add(company)
+    db_session.commit()
+    return company
 
 # Sample aggregate data fixtures
 @pytest.fixture
@@ -489,6 +516,310 @@ def test_aggregate_with_invalid_attributes(db_session, sample_aggregate_data):
 
         # The invalid field should not be added to the object
         assert not hasattr(updated, "invalid_field")
+    finally:
+        # Restore the original function
+        aggregates_module.get_db_session = original_get_db_session
+
+
+def test_get_recent_aggregates_by_company(db_session, create_test_company):
+    """Test getting the most recent aggregates for each document type by company."""
+    from datetime import datetime, timedelta
+
+    # Mock the db_session global
+    import src.database.aggregates as aggregates_module
+    from src.database.aggregates import get_recent_aggregates_by_company
+    from src.database.documents import DocumentType
+    original_get_db_session = aggregates_module.get_db_session
+    aggregates_module.get_db_session = lambda: db_session
+
+    try:
+        company_id = create_test_company.id
+        base_time = datetime.now()
+
+        # Create multiple aggregates for different document types with different timestamps
+        # MDA aggregates - older and newer
+        mda_old = Aggregate(
+            company_id=company_id,
+            document_type=DocumentType.MDA,
+            model="gpt-4",
+            content="Old MDA aggregate",
+            created_at=base_time - timedelta(days=5)
+        )
+        mda_new = Aggregate(
+            company_id=company_id,
+            document_type=DocumentType.MDA,
+            model="gpt-4",
+            content="New MDA aggregate",
+            created_at=base_time - timedelta(days=1)
+        )
+
+        # RISK_FACTORS aggregates - older and newer
+        risk_old = Aggregate(
+            company_id=company_id,
+            document_type=DocumentType.RISK_FACTORS,
+            model="gpt-4",
+            content="Old risk factors aggregate",
+            created_at=base_time - timedelta(days=3)
+        )
+        risk_new = Aggregate(
+            company_id=company_id,
+            document_type=DocumentType.RISK_FACTORS,
+            model="gpt-4",
+            content="New risk factors aggregate",
+            created_at=base_time
+        )
+
+        # DESCRIPTION aggregate - only one
+        description = Aggregate(
+            company_id=company_id,
+            document_type=DocumentType.DESCRIPTION,
+            model="gpt-4",
+            content="Business description aggregate",
+            created_at=base_time - timedelta(days=2)
+        )
+
+        # Add all aggregates
+        db_session.add_all([mda_old, mda_new, risk_old, risk_new, description])
+        db_session.commit()
+
+        # Get recent aggregates
+        recent_aggregates = get_recent_aggregates_by_company(company_id)
+
+        # Should return exactly 3 aggregates (one for each document type)
+        assert len(recent_aggregates) == 3
+
+        # Create a map for easier verification
+        aggregates_by_type = {agg.document_type: agg for agg in recent_aggregates}
+
+        # Verify we got the most recent for each type
+        assert DocumentType.MDA in aggregates_by_type
+        assert aggregates_by_type[DocumentType.MDA].content == "New MDA aggregate"
+        assert aggregates_by_type[DocumentType.MDA].id == mda_new.id
+
+        assert DocumentType.RISK_FACTORS in aggregates_by_type
+        assert aggregates_by_type[DocumentType.RISK_FACTORS].content == "New risk factors aggregate"
+        assert aggregates_by_type[DocumentType.RISK_FACTORS].id == risk_new.id
+
+        assert DocumentType.DESCRIPTION in aggregates_by_type
+        assert aggregates_by_type[DocumentType.DESCRIPTION].content == "Business description aggregate"
+        assert aggregates_by_type[DocumentType.DESCRIPTION].id == description.id
+
+        # Verify old aggregates are not included
+        returned_ids = [agg.id for agg in recent_aggregates]
+        assert mda_old.id not in returned_ids
+        assert risk_old.id not in returned_ids
+
+    finally:
+        # Restore the original function
+        aggregates_module.get_db_session = original_get_db_session
+
+
+def test_get_recent_aggregates_by_company_no_aggregates(db_session, create_test_company):
+    """Test getting recent aggregates for a company with no aggregates."""
+    # Mock the db_session global
+    import src.database.aggregates as aggregates_module
+    from src.database.aggregates import get_recent_aggregates_by_company
+    original_get_db_session = aggregates_module.get_db_session
+    aggregates_module.get_db_session = lambda: db_session
+
+    try:
+        # Get aggregates for company with no aggregates
+        recent_aggregates = get_recent_aggregates_by_company(create_test_company.id)
+
+        # Should return empty list
+        assert len(recent_aggregates) == 0
+
+    finally:
+        # Restore the original function
+        aggregates_module.get_db_session = original_get_db_session
+
+
+def test_get_recent_aggregates_by_company_with_null_document_type(db_session, create_test_company):
+    """Test that aggregates with null document_type are excluded."""
+    from datetime import datetime
+
+    # Mock the db_session global
+    import src.database.aggregates as aggregates_module
+    from src.database.aggregates import get_recent_aggregates_by_company
+    from src.database.documents import DocumentType
+    original_get_db_session = aggregates_module.get_db_session
+    aggregates_module.get_db_session = lambda: db_session
+
+    try:
+        company_id = create_test_company.id
+
+        # Create aggregates with and without document_type
+        valid_aggregate = Aggregate(
+            company_id=company_id,
+            document_type=DocumentType.MDA,
+            model="gpt-4",
+            content="Valid MDA aggregate",
+            created_at=datetime.now()
+        )
+
+        null_type_aggregate = Aggregate(
+            company_id=company_id,
+            document_type=None,  # This should be excluded
+            model="gpt-4",
+            content="Aggregate without document type",
+            created_at=datetime.now()
+        )
+
+        db_session.add_all([valid_aggregate, null_type_aggregate])
+        db_session.commit()
+
+        # Get recent aggregates
+        recent_aggregates = get_recent_aggregates_by_company(company_id)
+
+        # Should only return the aggregate with a valid document_type
+        assert len(recent_aggregates) == 1
+        assert recent_aggregates[0].id == valid_aggregate.id
+        assert recent_aggregates[0].document_type == DocumentType.MDA
+
+        # Verify null type aggregate is not included
+        returned_ids = [agg.id for agg in recent_aggregates]
+        assert null_type_aggregate.id not in returned_ids
+
+    finally:
+        # Restore the original function
+        aggregates_module.get_db_session = original_get_db_session
+
+
+def test_get_recent_aggregates_by_ticker(db_session, create_test_company):
+    """Test getting recent aggregates by company ticker."""
+    from datetime import datetime
+
+    # Mock the db_session global in both modules
+    import src.database.aggregates as aggregates_module
+    from src.database.aggregates import get_recent_aggregates_by_ticker
+    import src.database.companies as companies_module
+    from src.database.documents import DocumentType
+    original_get_db_session_agg = aggregates_module.get_db_session
+    original_get_db_session_comp = companies_module.get_db_session
+    aggregates_module.get_db_session = lambda: db_session
+    companies_module.get_db_session = lambda: db_session
+
+    try:
+        company_id = create_test_company.id
+
+        # Create an aggregate for the test company
+        aggregate = Aggregate(
+            company_id=company_id,
+            document_type=DocumentType.MDA,
+            model="gpt-4",
+            content="MDA aggregate for ticker test",
+            created_at=datetime.now()
+        )
+        db_session.add(aggregate)
+        db_session.commit()
+
+        # Use the test company's ticker from the fixture
+        ticker = "TEST"  # This matches our fixture's ticker
+
+        # Get aggregates by ticker
+        recent_aggregates = get_recent_aggregates_by_ticker(ticker)
+
+        # Should return the aggregate we created
+        assert len(recent_aggregates) == 1
+        assert recent_aggregates[0].id == aggregate.id
+        assert recent_aggregates[0].content == "MDA aggregate for ticker test"
+
+    finally:
+        # Restore the original functions
+        aggregates_module.get_db_session = original_get_db_session_agg
+        companies_module.get_db_session = original_get_db_session_comp
+
+
+def test_get_recent_aggregates_by_ticker_company_not_found(db_session):
+    """Test getting recent aggregates by ticker when company doesn't exist."""
+    # Mock the db_session global in both modules
+    import src.database.aggregates as aggregates_module
+    from src.database.aggregates import get_recent_aggregates_by_ticker
+    import src.database.companies as companies_module
+    original_get_db_session_agg = aggregates_module.get_db_session
+    original_get_db_session_comp = companies_module.get_db_session
+    aggregates_module.get_db_session = lambda: db_session
+    companies_module.get_db_session = lambda: db_session
+
+    try:
+        # Try to get aggregates for non-existent ticker
+        recent_aggregates = get_recent_aggregates_by_ticker("NONEXISTENT")
+
+        # Should return empty list
+        assert len(recent_aggregates) == 0
+
+    finally:
+        # Restore the original functions
+        aggregates_module.get_db_session = original_get_db_session_agg
+        companies_module.get_db_session = original_get_db_session_comp
+
+
+def test_get_recent_aggregates_by_company_multiple_companies(db_session, create_test_company):
+    """Test that aggregates from other companies are not included."""
+    from datetime import datetime
+
+    # Mock the db_session global
+    import src.database.aggregates as aggregates_module
+    from src.database.aggregates import get_recent_aggregates_by_company
+    from src.database.companies import Company
+    from src.database.documents import DocumentType
+    original_get_db_session = aggregates_module.get_db_session
+    aggregates_module.get_db_session = lambda: db_session
+
+    try:
+        company1_id = create_test_company.id
+
+        # Create a second company
+        company2 = Company(
+            name="Test Company 2",
+            display_name="TESTCO2",
+            is_company=True,
+            tickers=["TEST2"]
+        )
+        db_session.add(company2)
+        db_session.commit()
+        company2_id = company2.id
+
+        # Create aggregates for both companies
+        company1_aggregate = Aggregate(
+            company_id=company1_id,
+            document_type=DocumentType.MDA,
+            model="gpt-4",
+            content="Company 1 MDA",
+            created_at=datetime.now()
+        )
+
+        company2_aggregate = Aggregate(
+            company_id=company2_id,
+            document_type=DocumentType.MDA,
+            model="gpt-4",
+            content="Company 2 MDA",
+            created_at=datetime.now()
+        )
+
+        db_session.add_all([company1_aggregate, company2_aggregate])
+        db_session.commit()
+
+        # Get aggregates for company 1
+        company1_aggregates = get_recent_aggregates_by_company(company1_id)
+
+        # Should only return company 1's aggregate
+        assert len(company1_aggregates) == 1
+        assert company1_aggregates[0].id == company1_aggregate.id
+        assert company1_aggregates[0].content == "Company 1 MDA"
+
+        # Verify company 2's aggregate is not included
+        returned_ids = [agg.id for agg in company1_aggregates]
+        assert company2_aggregate.id not in returned_ids
+
+        # Get aggregates for company 2
+        company2_aggregates = get_recent_aggregates_by_company(company2_id)
+
+        # Should only return company 2's aggregate
+        assert len(company2_aggregates) == 1
+        assert company2_aggregates[0].id == company2_aggregate.id
+        assert company2_aggregates[0].content == "Company 2 MDA"
+
     finally:
         # Restore the original function
         aggregates_module.get_db_session = original_get_db_session

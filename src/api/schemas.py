@@ -225,3 +225,35 @@ class CompletionResponse(BaseModel):
                 "total_duration": 2.5
             }
         }
+
+
+class AggregateResponse(BaseModel):
+    """Response schema for an aggregate."""
+    id: UUID = Field(..., description="Unique identifier for the aggregate")
+    company_id: Optional[UUID] = Field(None, description="ID of the company this aggregate belongs to")
+    document_type: Optional[str] = Field(None, description="Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION)")
+    created_at: datetime = Field(..., description="Timestamp when the aggregate was created")
+    total_duration: Optional[float] = Field(None, description="Total duration of the aggregate generation in seconds")
+    content: Optional[str] = Field(None, description="Content of the aggregate")
+    model: str = Field(..., description="LLM model identifier used for the aggregate")
+    temperature: Optional[float] = Field(None, description="Temperature parameter for the LLM")
+    top_p: Optional[float] = Field(None, description="Top-p parameter for the LLM")
+    num_ctx: Optional[int] = Field(None, description="Context window size for the LLM")
+    system_prompt_id: Optional[UUID] = Field(None, description="ID of the system prompt used")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174005",
+                "company_id": "123e4567-e89b-12d3-a456-426614174000",
+                "document_type": "MDA",
+                "created_at": "2023-12-25T12:30:45.123456",
+                "total_duration": 5.2,
+                "content": "This company has shown strong financial performance...",
+                "model": "gpt-4",
+                "temperature": 0.7,
+                "top_p": 1.0,
+                "num_ctx": 4096,
+                "system_prompt_id": "123e4567-e89b-12d3-a456-426614174003"
+            }
+        }

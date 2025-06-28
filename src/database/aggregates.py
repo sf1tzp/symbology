@@ -2,10 +2,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, func, Integer, String, Table, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
 from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
@@ -248,4 +247,87 @@ def delete_aggregate(aggregate_id: Union[UUID, str]) -> bool:
     except Exception as e:
         session.rollback()
         logger.error("delete_aggregate_failed", aggregate_id=str(aggregate_id), error=str(e), exc_info=True)
+        raise
+
+
+def get_recent_aggregates_by_company(company_id: Union[UUID, str]) -> List[Aggregate]:
+    """Get the most recent aggregates for each document type associated with a company.
+
+    Args:
+        company_id: UUID of the company to filter aggregates by
+
+    Returns:
+        List of Aggregate objects - the most recent aggregate for each document type
+    """
+    try:
+        session = get_db_session()
+
+        # Subquery to get the max created_at for each document_type for this company
+        max_dates_subquery = (
+            session.query(
+                Aggregate.document_type,
+                func.max(Aggregate.created_at).label('max_created_at')
+            )
+            .filter(Aggregate.company_id == company_id)
+            .filter(Aggregate.document_type.isnot(None))
+            .group_by(Aggregate.document_type)
+            .subquery()
+        )
+
+        # Main query to get the actual aggregates
+        aggregates = (
+            session.query(Aggregate)
+            .join(
+                max_dates_subquery,
+                (Aggregate.document_type == max_dates_subquery.c.document_type) &
+                (Aggregate.created_at == max_dates_subquery.c.max_created_at)
+            )
+            .filter(Aggregate.company_id == company_id)
+            .order_by(Aggregate.document_type)
+            .all()
+        )
+
+        logger.info(
+            "retrieved_recent_aggregates_by_company",
+            company_id=str(company_id),
+            count=len(aggregates),
+            document_types=[agg.document_type.value if agg.document_type else None for agg in aggregates]
+        )
+        return aggregates
+    except Exception as e:
+        logger.error(
+            "get_recent_aggregates_by_company_failed",
+            company_id=str(company_id),
+            error=str(e),
+            exc_info=True
+        )
+        raise
+
+
+def get_recent_aggregates_by_ticker(ticker: str) -> List[Aggregate]:
+    """Get the most recent aggregates for each document type associated with a company by ticker.
+
+    Args:
+        ticker: Ticker symbol of the company
+
+    Returns:
+        List of Aggregate objects - the most recent aggregate for each document type
+    """
+    try:
+        # First get the company by ticker
+        from src.database.companies import get_company_by_ticker
+        company = get_company_by_ticker(ticker)
+
+        if not company:
+            logger.warning("get_recent_aggregates_by_ticker_company_not_found", ticker=ticker)
+            return []
+
+        return get_recent_aggregates_by_company(company.id)
+    except Exception as e:
+        logger.error(
+            "get_recent_aggregates_by_ticker_failed",
+            ticker=ticker,
+            error=str(e),
+            exc_info=True
+        )
         raise

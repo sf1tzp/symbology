@@ -55,14 +55,19 @@ class EdgarApiSettings(BaseSettings):
 class OpenAISettings(BaseSettings):
     """OpenAI API settings."""
 
-    open_ai_host: str = Field(default="localhost")
-    open_ai_port: str = Field(default="11434")
+    host: str = Field(default="localhost")
+    port: str = Field(default="11434")
     default_model: str = Field(default="hf.co/lmstudio-community/gemma-3-12b-it-GGUF:Q6_K")
 
     model_config = SettingsConfigDict(
-        env_prefix="OPENAI_",
+        env_prefix="OPENAI_API_",
         extra="ignore",
     )
+
+    @property
+    def url(self) -> str:
+        """Construct open ai api URL."""
+        return f"http://{self.host}:{self.port}"
 
 
 class LoggingSettings(BaseSettings):

@@ -3,47 +3,56 @@
     {
       "type": "text",
       "id": "d88206440a07d318",
-      "x": -180,
-      "y": -20,
-      "width": 250,
-      "height": 280,
-      "text": "# Filing Documents\n\nScrollable list of documents associated with a filing"
+      "x": 300,
+      "y": -100,
+      "width": 300,
+      "height": 540,
+      "text": "# Aggregate Overview\n\n## Summary\n### Model Config\n### Response warnings?\n\n## Content\n\n## Links to Source Completions\n\n## Ratings"
     },
     {
       "type": "text",
       "id": "f7678cd3750bc5f5",
-      "x": -500,
-      "y": -20,
-      "width": 260,
-      "height": 280,
-      "text": "# Filings\n\nScrollable list of filing names\n"
+      "x": -380,
+      "y": -80,
+      "width": 380,
+      "height": 480,
+      "text": "# Company Detail\n\n## Summary Section\n\n## Aggregates Section:\n- MDA button\n- Descrption Button\n- Risk Factors Button\n\n## Financials Section\n### (Unimplemented)"
     },
     {
       "type": "text",
       "id": "f616a3103b21f736",
-      "x": 140,
-      "y": -20,
-      "width": 240,
-      "height": 280,
-      "text": "# View Document\n\nDocument Content"
+      "x": 960,
+      "y": -80,
+      "width": 440,
+      "height": 520,
+      "text": "# Completion Overview\n\n## Summary\n### MODEL CONFIG\n### Response warnings?\n## Content\n## Sources\n\nLink source document text\n\nLink to SEC filing\n\n## Ratings"
     },
     {
       "type": "text",
       "id": "e7bde8791ae7f942",
-      "x": -780,
-      "y": -25,
-      "width": 220,
-      "height": 290,
-      "text": "# Select Company\n\n- Text input 'Ticker' search\n- Autopopulating list of company names & ticker\n"
+      "x": -920,
+      "y": 20,
+      "width": 260,
+      "height": 300,
+      "text": "# Company List\n\nScrollable list of:\n- Name & Symbol\n\nSearch Bar on Top"
     },
     {
       "type": "text",
       "id": "03063cc4c378110e",
-      "x": -380,
-      "y": 720,
+      "x": 40,
+      "y": 1020,
       "width": 238,
       "height": 67,
       "text": "## Database"
+    },
+    {
+      "type": "text",
+      "id": "981f0e9b-4df1-4221-a5d8-28970e326eb5",
+      "x": 1700,
+      "y": -40,
+      "width": 620,
+      "height": 420,
+      "text": "# Document Overview\n\n## Title\n\n## Link to SEC Filing Online (document.filing.url)\n\n## Content"
     }
   ],
   "edges": [
@@ -53,7 +62,8 @@
       "fromSide": "right",
       "toNode": "f7678cd3750bc5f5",
       "toSide": "left",
-      "toEnd": "arrow"
+      "toEnd": "arrow",
+      "label": "When Company Selected"
     },
     {
       "id": "d646e0e60dd58307",
@@ -61,7 +71,8 @@
       "fromSide": "right",
       "toNode": "d88206440a07d318",
       "toSide": "left",
-      "toEnd": "arrow"
+      "toEnd": "arrow",
+      "label": "When Aggregate Selected"
     },
     {
       "id": "2090e1e3ddb03a3d",
@@ -69,43 +80,17 @@
       "fromSide": "right",
       "toNode": "f616a3103b21f736",
       "toSide": "left",
-      "toEnd": "arrow"
+      "toEnd": "arrow",
+      "label": "When Completion Selected"
     },
     {
-      "id": "e9ee540930704cd8",
-      "fromNode": "e7bde8791ae7f942",
-      "fromSide": "bottom",
-      "toNode": "03063cc4c378110e",
+      "id": "317cb1e3-4070-4d6b-a6df-6c9f130e318e",
+      "fromNode": "f616a3103b21f736",
+      "fromSide": "right",
+      "toNode": "981f0e9b-4df1-4221-a5d8-28970e326eb5",
       "toSide": "left",
       "toEnd": "arrow",
-      "label": "get_company(ticker)"
-    },
-    {
-      "id": "5aa63b3c589cb293",
-      "fromNode": "f7678cd3750bc5f5",
-      "fromSide": "bottom",
-      "toNode": "03063cc4c378110e",
-      "toSide": "top",
-      "toEnd": "arrow",
-      "label": "get_filings(company_id)"
-    },
-    {
-      "id": "cb42d40ed27788a5",
-      "fromNode": "d88206440a07d318",
-      "fromSide": "bottom",
-      "toNode": "03063cc4c378110e",
-      "toSide": "top",
-      "toEnd": "arrow",
-      "label": "get_documents(filing_id)"
-    },
-    {
-      "id": "c0a7836a-c851-4f10-84d0-414e4a4eb59e",
-      "fromNode": "f616a3103b21f736",
-      "fromSide": "bottom",
-      "toNode": "03063cc4c378110e",
-      "toSide": "top",
-      "toEnd": "arrow",
-      "label": "get_document(document_id)",
+      "label": "document selected",
       "style": "solid",
       "shape": "curved"
     }

@@ -28,15 +28,15 @@ app = FastAPI(
     openapi_tags=[
         {
             "name": "companies",
-            "description": "Operations related to company information",
-        },
-        {
-            "name": "filings",
-            "description": "Operations related to SEC filings",
+            "description": "Operations related to company information and search",
         },
         {
             "name": "documents",
-            "description": "Operations related to filing documents",
+            "description": "Operations related to filing documents and content",
+        },
+        {
+            "name": "completions",
+            "description": "Operations related to AI-generated completions",
         },
         {
             "name": "aggregates",

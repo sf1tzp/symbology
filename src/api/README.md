@@ -17,17 +17,36 @@ This API is built using [FastAPI](https://fastapi.tiangolo.com/), a modern Pytho
 - `GET /`: Check if API is online
 
 ### Companies
-- `GET /api/companies/{company_id}`: Get a company by its UUID
+- `GET /api/companies/search`: Search for companies by partial name or ticker (autocomplete)
+- `GET /api/companies/id/{company_id}`: Get a company by its UUID
 - `GET /api/companies/?ticker={ticker}`: Get a company by ticker symbol
 - `GET /api/companies/?cik={cik}`: Get a company by CIK
 
-### Filings
-- `GET /api/filings/{filing_id}`: Get a filing by its UUID
-- `GET /api/filings/by-company/{company_id}`: Get all filings for a specific company
-- `GET /api/filings/{filing_id}/documents`: Get all documents associated with a filing
+### Aggregates
+- `GET /api/aggregates/by-ticker/{ticker}`: Get the most recent aggregates for each document type by company ticker
+- `GET /api/aggregates/{aggregate_id}/completions`: Get all completions that were used as sources to create an aggregate
+
+### Completions
+- `GET /api/completions/{completion_id}`: Get a completion by its UUID
 
 ### Documents
 - `GET /api/documents/{document_id}`: Get a document by its UUID
+- `GET /api/documents/{document_id}/content`: Get a document's content by its UUID
+
+## Simplified UI Flow
+
+The API has been streamlined to support a simplified user interface flow:
+
+1. **Company List** → Search companies (`/api/companies/search`)
+2. **Company Detail** → Get company info (`/api/companies/id/{id}`) and aggregates (`/api/aggregates/by-ticker/{ticker}`)
+3. **Aggregate Overview** → View aggregate data and get source completions (`/api/aggregates/{id}/completions`)
+4. **Completion Overview** → Get completion details (`/api/completions/{id}`)
+5. **Document Overview** → Get document info (`/api/documents/{id}`) and content (`/api/documents/{id}/content`)
+
+The following endpoints have been removed as they are not part of the core user experience:
+- Filing endpoints (users navigate through aggregates/completions instead)
+- Prompt management endpoints (admin functionality)
+- Most completion CRUD operations (users only view, not create/update/delete)
 
 ## Request and Response Schemas
 The API uses Pydantic models for request validation:

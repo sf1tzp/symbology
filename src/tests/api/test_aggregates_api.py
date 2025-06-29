@@ -1,13 +1,14 @@
 """Tests for the aggregates API endpoints."""
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
 from src.api.main import app
 from src.database.aggregates import Aggregate
-from src.database.documents import DocumentType
+from src.database.completions import Completion
+from src.database.documents import Document, DocumentType
 
 client = TestClient(app)
 
@@ -237,82 +238,137 @@ class TestAggregatesApi:
         # Verify the mock was called with the correct arguments
         mock_get_aggregates.assert_called_once_with("ERROR")
 
-    def test_get_company_aggregates_ticker_with_special_characters(self):
-        """Test retrieving aggregates with ticker containing special characters."""
-        with patch("src.api.routes.aggregates.get_recent_aggregates_by_ticker") as mock_get_aggregates:
-            # Setup the mock to return empty list
-            mock_get_aggregates.return_value = []
+    @patch("src.api.routes.aggregates.get_aggregate")
+    def test_get_aggregate_source_completions_found(self, mock_get_aggregate):
+        """Test retrieving source completions for an aggregate when they exist."""
+        test_aggregate_id = uuid4()
+        test_completion_id_1 = uuid4()
+        test_completion_id_2 = uuid4()
+        test_doc_id_1 = uuid4()
+        test_doc_id_2 = uuid4()
+        test_prompt_id = uuid4()
 
-            # Make the API call with special characters in ticker
-            response = client.get("/api/aggregates/by-ticker/BRK.A")
+        # Create mock completions with source documents
+        mock_completion_1 = Completion(
+            id=test_completion_id_1,
+            system_prompt_id=test_prompt_id,
+            model="gpt-4",
+            temperature=0.7,
+            top_p=1.0,
+            num_ctx=4096,
+            created_at=datetime(2023, 12, 25, 12, 30, 45),
+            total_duration=2.5,
+            source_documents=[Document(id=test_doc_id_1)]
+        )
+        
+        mock_completion_2 = Completion(
+            id=test_completion_id_2,
+            model="gpt-3.5-turbo",
+            temperature=0.5,
+            created_at=datetime(2023, 12, 25, 12, 35, 15),
+            total_duration=1.8,
+            source_documents=[Document(id=test_doc_id_2)]
+        )
 
-            # Assertions
-            assert response.status_code == 404
-            assert "No aggregates found for company with ticker BRK.A" in response.json()["detail"]
+        # Create mock aggregate with source completions
+        mock_aggregate = MagicMock()
+        mock_aggregate.id = test_aggregate_id
+        mock_aggregate.source_completions = [mock_completion_1, mock_completion_2]
 
-            # Verify the mock was called with the ticker including special characters
-            mock_get_aggregates.assert_called_once_with("BRK.A")
-
-    def test_get_company_aggregates_case_sensitive_ticker(self):
-        """Test that ticker matching is case sensitive."""
-        with patch("src.api.routes.aggregates.get_recent_aggregates_by_ticker") as mock_get_aggregates:
-            # Setup the mock to return empty list
-            mock_get_aggregates.return_value = []
-
-            # Make the API call with lowercase ticker
-            response = client.get("/api/aggregates/by-ticker/aapl")
-
-            # Assertions
-            assert response.status_code == 404
-
-            # Verify the mock was called with the exact case provided
-            mock_get_aggregates.assert_called_once_with("aapl")
-
-    @patch("src.api.routes.aggregates.get_recent_aggregates_by_ticker")
-    def test_get_company_aggregates_unicode_ticker(self, mock_get_aggregates):
-        """Test retrieving aggregates with unicode characters in ticker."""
-        # Setup the mock to return empty list
-        mock_get_aggregates.return_value = []
-
-        # Make the API call with unicode characters
-        response = client.get("/api/aggregates/by-ticker/TEST™")
-
-        # Assertions
-        assert response.status_code == 404
-        assert "No aggregates found for company with ticker TEST™" in response.json()["detail"]
-
-        # Verify the mock was called with the unicode ticker
-        mock_get_aggregates.assert_called_once_with("TEST™")
-
-    @patch("src.api.routes.aggregates.get_recent_aggregates_by_ticker")
-    def test_get_company_aggregates_preserves_order(self, mock_get_aggregates):
-        """Test that the API preserves the order returned by the database function."""
-        # Create mock aggregates in specific order
-        mock_aggregates = []
-        for i, doc_type in enumerate([DocumentType.DESCRIPTION, DocumentType.MDA, DocumentType.RISK_FACTORS]):
-            mock_aggregate = Aggregate()
-            mock_aggregate.id = uuid4()
-            mock_aggregate.company_id = SAMPLE_COMPANY_ID
-            mock_aggregate.document_type = doc_type
-            mock_aggregate.created_at = datetime(2023, 12, 25, 12, 30 + i, 45)
-            mock_aggregate.content = f"Content for {doc_type.value}"
-            mock_aggregate.model = "gpt-4"
-            mock_aggregates.append(mock_aggregate)
-
-        mock_get_aggregates.return_value = mock_aggregates
+        mock_get_aggregate.return_value = mock_aggregate
 
         # Make the API call
-        response = client.get("/api/aggregates/by-ticker/ORDER")
+        response = client.get(f"/api/aggregates/{test_aggregate_id}/completions")
 
         # Assertions
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 3
+        assert len(data) == 2
 
-        # Verify order is preserved - using actual enum values
-        assert data[0]["document_type"] == "business_description"  # DocumentType.DESCRIPTION.value
-        assert data[1]["document_type"] == "management_discussion"  # DocumentType.MDA.value
-        assert data[2]["document_type"] == "risk_factors"  # DocumentType.RISK_FACTORS.value
+        # Check first completion
+        completion_1_data = next(item for item in data if item["id"] == str(test_completion_id_1))
+        assert completion_1_data["model"] == "gpt-4"
+        assert completion_1_data["temperature"] == 0.7
+        assert completion_1_data["system_prompt_id"] == str(test_prompt_id)
+        assert len(completion_1_data["source_documents"]) == 1
+        assert completion_1_data["source_documents"][0] == str(test_doc_id_1)
+
+        # Check second completion
+        completion_2_data = next(item for item in data if item["id"] == str(test_completion_id_2))
+        assert completion_2_data["model"] == "gpt-3.5-turbo"
+        assert completion_2_data["temperature"] == 0.5
+        assert completion_2_data["system_prompt_id"] is None
+        assert len(completion_2_data["source_documents"]) == 1
+        assert completion_2_data["source_documents"][0] == str(test_doc_id_2)
 
         # Verify the mock was called with the correct arguments
-        mock_get_aggregates.assert_called_once_with("ORDER")
+        mock_get_aggregate.assert_called_once_with(test_aggregate_id)
+
+    @patch("src.api.routes.aggregates.get_aggregate")
+    def test_get_aggregate_source_completions_aggregate_not_found(self, mock_get_aggregate):
+        """Test retrieving source completions when aggregate doesn't exist."""
+        test_aggregate_id = uuid4()
+        
+        # Setup the mock to return None (aggregate not found)
+        mock_get_aggregate.return_value = None
+
+        # Make the API call
+        response = client.get(f"/api/aggregates/{test_aggregate_id}/completions")
+
+        # Assertions
+        assert response.status_code == 404
+        assert f"Aggregate with ID {test_aggregate_id} not found" in response.json()["detail"]
+
+        # Verify the mock was called with the correct arguments
+        mock_get_aggregate.assert_called_once_with(test_aggregate_id)
+
+    @patch("src.api.routes.aggregates.get_aggregate")
+    def test_get_aggregate_source_completions_no_completions(self, mock_get_aggregate):
+        """Test retrieving source completions when aggregate has no source completions."""
+        test_aggregate_id = uuid4()
+
+        # Create mock aggregate with no source completions
+        mock_aggregate = MagicMock()
+        mock_aggregate.id = test_aggregate_id
+        mock_aggregate.source_completions = []
+
+        mock_get_aggregate.return_value = mock_aggregate
+
+        # Make the API call
+        response = client.get(f"/api/aggregates/{test_aggregate_id}/completions")
+
+        # Assertions
+        assert response.status_code == 404
+        assert f"No source completions found for aggregate {test_aggregate_id}" in response.json()["detail"]
+
+        # Verify the mock was called with the correct arguments
+        mock_get_aggregate.assert_called_once_with(test_aggregate_id)
+
+    def test_get_aggregate_source_completions_invalid_uuid(self):
+        """Test retrieving source completions with invalid UUID format."""
+        invalid_uuid = "not-a-valid-uuid"
+        
+        # Make the API call
+        response = client.get(f"/api/aggregates/{invalid_uuid}/completions")
+
+        # Assertions
+        assert response.status_code == 422
+        assert "uuid_parsing" in str(response.json())
+
+    @patch("src.api.routes.aggregates.get_aggregate")
+    def test_get_aggregate_source_completions_database_error(self, mock_get_aggregate):
+        """Test error handling when database query fails."""
+        test_aggregate_id = uuid4()
+        
+        # Setup the mock to raise a database exception
+        mock_get_aggregate.side_effect = Exception("Database connection error")
+
+        # Make the API call
+        response = client.get(f"/api/aggregates/{test_aggregate_id}/completions")
+
+        # Assertions
+        assert response.status_code == 500
+        assert f"Internal server error while retrieving source completions for aggregate {test_aggregate_id}" in response.json()["detail"]
+
+        # Verify the mock was called with the correct arguments
+        mock_get_aggregate.assert_called_once_with(test_aggregate_id)

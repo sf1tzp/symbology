@@ -260,7 +260,7 @@ class TestAggregatesApi:
             total_duration=2.5,
             source_documents=[Document(id=test_doc_id_1)]
         )
-        
+
         mock_completion_2 = Completion(
             id=test_completion_id_2,
             model="gpt-3.5-turbo",
@@ -308,7 +308,7 @@ class TestAggregatesApi:
     def test_get_aggregate_source_completions_aggregate_not_found(self, mock_get_aggregate):
         """Test retrieving source completions when aggregate doesn't exist."""
         test_aggregate_id = uuid4()
-        
+
         # Setup the mock to return None (aggregate not found)
         mock_get_aggregate.return_value = None
 
@@ -347,7 +347,7 @@ class TestAggregatesApi:
     def test_get_aggregate_source_completions_invalid_uuid(self):
         """Test retrieving source completions with invalid UUID format."""
         invalid_uuid = "not-a-valid-uuid"
-        
+
         # Make the API call
         response = client.get(f"/api/aggregates/{invalid_uuid}/completions")
 
@@ -359,7 +359,7 @@ class TestAggregatesApi:
     def test_get_aggregate_source_completions_database_error(self, mock_get_aggregate):
         """Test error handling when database query fails."""
         test_aggregate_id = uuid4()
-        
+
         # Setup the mock to raise a database exception
         mock_get_aggregate.side_effect = Exception("Database connection error")
 

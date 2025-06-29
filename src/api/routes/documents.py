@@ -62,13 +62,13 @@ async def get_document_content(document_id: UUID):
         document = get_document(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
-        
+
         # Handle both dictionary and object responses from database
         content = document.get("content") if isinstance(document, dict) else getattr(document, "content", None)
-        
+
         if content is None:
             raise HTTPException(status_code=404, detail="Document content not available")
-        
+
         # Return plain text response with proper content-type
         return PlainTextResponse(content=content, media_type="text/plain; charset=utf-8")
     except ValueError as e:

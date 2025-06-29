@@ -60,7 +60,7 @@ class TestCompletionsApi:
     def test_get_completion_by_id_not_found(self, mock_get_completion):
         """Test getting a completion by ID when it doesn't exist."""
         test_completion_id = uuid.UUID('123e4567-e89b-12d3-a456-426614174999')
-        
+
         # Setup the mock to return None (completion not found)
         mock_get_completion.return_value = None
 
@@ -78,7 +78,7 @@ class TestCompletionsApi:
     def test_get_completion_by_id_no_source_documents(self, mock_get_completion):
         """Test getting a completion that has no source documents."""
         test_completion_id = uuid.UUID('123e4567-e89b-12d3-a456-426614174001')
-        
+
         # Mock the completion with no source documents
         mock_completion = Completion(
             id=test_completion_id,
@@ -106,7 +106,7 @@ class TestCompletionsApi:
     def test_get_completion_invalid_uuid_format(self):
         """Test getting a completion with an invalid UUID format."""
         invalid_uuid = "not-a-valid-uuid"
-        
+
         # Make the API call
         response = client.get(f"/api/completions/{invalid_uuid}")
 
@@ -118,7 +118,7 @@ class TestCompletionsApi:
     def test_get_completion_internal_error(self, mock_get_completion):
         """Test handling of internal server errors."""
         test_completion_id = uuid.UUID('123e4567-e89b-12d3-a456-426614174000')
-        
+
         # Setup the mock to raise an exception
         mock_get_completion.side_effect = Exception("Database connection error")
 

@@ -45,10 +45,31 @@ The v0.1.0 release includes:
 
 - [x] Database IDs should use uuid v7
 
-## Next (v0.1.1)
+## Next (v0.2.0)
 
-### Enhance API Functionality
-- [x] Automatically ingest company if not found (get past 5 10-Ks)
+✅ **Complete:**
+- SEC EDGAR document ingestion pipeline
+- LLM processing for document analysis
+- Aggregation system for multi-document insights
+- Streamlined research UI (Company → Aggregate → Completion → Document)
+- Comprehensive API with test coverage
+- Database optimized for AI workflows
+
+🚧 **In Progress:**
+- Enhanced UI components for financial data visualization
+- Advanced rating and quality assessment system
+- Expanded LLM model support
+
+** Bug Fixes:**
+- Some companies have an EIN of all 000000000's
+  - We can't injest them because EIN was assumed unique
+
+
+## Future Enhancements (v0.2.0)
+
+### Quarterly Filings
+- Currently we review 10Ks since 2020.
+- It would be cool to see faster-moving data with a rolling ~6 quarter window
 
 ### UI Tweaks
 - [x] Search Bar Enhancements
@@ -60,8 +81,6 @@ The v0.1.0 release includes:
 ### Prompt Engineering / Inference Workflow
 - [ ] Add components for Prompt Engineering UI [canvas](ui/llm-layouts.canvas)
 - [ ] Add routes to support Prompt Engineering UI
-
-## Future Enhancements (v0.2.0)
 
 ### WebSocket Integration
 - [ ] Implement real-time ingestion updates with WebSockets

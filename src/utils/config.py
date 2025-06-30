@@ -56,7 +56,7 @@ class OpenAISettings(BaseSettings):
     """OpenAI API settings."""
 
     host: str = Field(default="localhost")
-    port: str = Field(default="11434")
+    port: str = Field(default="8000")
     default_model: str = Field(default="hf.co/lmstudio-community/gemma-3-12b-it-GGUF:Q6_K")
 
     model_config = SettingsConfigDict(

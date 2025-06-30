@@ -331,3 +331,24 @@ def search_companies_by_query(query: str, limit: int = 10) -> List[Company]:
             logger.error("search_companies_by_query_all_attempts_failed", query=query, error=str(inner_e), exc_info=True)
             new_session.rollback()
             return []
+
+
+def list_all_companies(offset: int = 0, limit: int = 50) -> List[Company]:
+    """Get a paginated list of all companies.
+
+    Args:
+        offset: Number of companies to skip
+        limit: Maximum number of companies to return
+
+    Returns:
+        List of Company objects
+    """
+    try:
+        session = get_db_session()
+        companies = session.query(Company).order_by(Company.name).offset(offset).limit(limit).all()
+
+        logger.info("list_all_companies", offset=offset, limit=limit, result_count=len(companies))
+        return companies
+    except Exception as e:
+        logger.error("list_all_companies_failed", offset=offset, limit=limit, error=str(e), exc_info=True)
+        raise

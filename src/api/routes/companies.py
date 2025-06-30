@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 
 from src.api.schemas import CompanyResponse
-from src.database.companies import get_company, get_company_by_cik, get_company_by_ticker, search_companies_by_query
+from src.database.companies import get_company, get_company_by_cik, get_company_by_ticker, list_all_companies, search_companies_by_query
 from src.utils.logging import get_logger
 
 # Create logger for this module
@@ -87,3 +87,25 @@ async def search_companies(
         return company
     else:
         raise HTTPException(status_code=400, detail="Either ticker or CIK parameter is required")
+
+@router.get(
+    "/list",
+    response_model=List[CompanyResponse],
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {"description": "Bad request - invalid parameters"},
+        500: {"description": "Internal server error"}
+    }
+)
+async def list_companies(
+    offset: int = Query(0, description="Number of companies to skip", ge=0),
+    limit: int = Query(50, description="Maximum number of companies to return", ge=1, le=100)
+):
+    """List all companies with pagination.
+
+    Returns a paginated list of all companies in the database.
+    This is primarily used for browsing all available companies.
+    """
+    logger.info("api_list_companies", offset=offset, limit=limit)
+    companies = list_all_companies(offset=offset, limit=limit)
+    return companies

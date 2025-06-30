@@ -70,7 +70,16 @@
       "y": -660,
       "width": 280,
       "height": 560,
-      "text": "# Completion\n```\nid: UUID\n\nsystem_prompt_id: UUID (optional)\nuser_prompt_id: UUID (optional)\n\ncontext_text: JSON\n\nmodel: String\ntemperature: Float (optional)\ntop_p: Float (optional)\n```"
+      "text": "# Completion\n```\nid: UUID\n\nsystem_prompt_id: UUID (optional)\n\n\n\nmodel: String\ntemperature: Float (optional)\ntop_p: Float (optional)\n```"
+    },
+    {
+      "type": "text",
+      "id": "ad9d918d-924e-4323-b698-4ee8176f9693",
+      "x": -166.01668030977916,
+      "y": -980.1476258638621,
+      "width": 260,
+      "height": 80,
+      "text": "### Aggregate\n\n```\nid\n```"
     }
   ],
   "edges": [

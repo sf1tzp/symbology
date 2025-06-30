@@ -169,80 +169,6 @@ body {
   gap: var(--space-lg);
 }
 
-/* NEW UTILITY CLASSES FOR REFACTORING */
-
-/* Collapsible component utilities */
-.collapsible-component {
-  position: relative;
-  transition: all var(--transition-speed) var(--transition-function);
-  min-height: 150px;
-  margin-bottom: var(--space-md);
-}
-
-.collapsible-component.is-collapsed {
-  min-height: 50px;
-  margin-bottom: var(--space-sm);
-}
-
-.collapsible-component.is-collapsed:hover {
-  border-color: var(--color-primary);
-  border-width: 2px;
-  border-style: solid;
-  border-radius: var(--border-radius);
-}
-
-/* Collapsible content utilities */
-.collapsible-content {
-  transition: all var(--transition-speed) var(--transition-function);
-  max-height: 300px;
-  opacity: 1;
-  overflow-y: auto;
-}
-
-.collapsible-content.is-collapsed {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  margin: 0;
-  pointer-events: none;
-}
-
-/* Collapsible heading utilities */
-.collapsible-heading {
-  transition: all var(--transition-speed) var(--transition-function);
-  max-height: 50px;
-  opacity: 1;
-  margin-bottom: var(--space-md);
-}
-
-.collapsible-heading.is-collapsed {
-  max-height: 0;
-  opacity: 0;
-  margin: 0;
-  overflow: hidden;
-}
-
-/* Selected item utilities */
-.selected-item {
-  background-color: var(--color-surface);
-  border-color: var(--color-primary) !important;
-  border-width: 2px !important;
-  border-style: solid !important;
-  border-radius: var(--border-radius);
-}
-
-/* Hover effect utilities */
-.hover-lift {
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.hover-lift:hover {
-  transform: translateY(var(--hover-translate-y));
-  box-shadow: var(--hover-shadow);
-}
-
 /* Error message utility */
 .error-message {
   color: var(--color-error);
@@ -273,29 +199,6 @@ body {
   flex-direction: column;
   align-items: center;
   margin: var(--space-md) 0;
-}
-
-/* Side by side layout utilities */
-.side-by-side-container {
-  display: flex;
-  flex-direction: row;
-  gap: var(--space-md);
-  width: 100%;
-}
-
-.panel {
-  flex: 1;
-  min-width: 0;
-  /* Prevents flex items from overflowing */
-  display: flex;
-  flex-direction: column;
-}
-
-/* Responsive layout utilities */
-@media (max-width: 1024px) {
-  .side-by-side-container {
-    flex-direction: column;
-  }
 }
 
 /* Compact selector utilities for horizontal layout */

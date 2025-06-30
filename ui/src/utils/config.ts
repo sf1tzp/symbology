@@ -1,14 +1,11 @@
 // UI Configuration Module
-import { getLogger } from './logger';
 
-const logger = getLogger('config');
-
-// Environment type
 const ENV = import.meta.env.ENV || 'development';
 
 /*
-/**
- * API settings interface
+ /!**
+  * API settings interface
+  *!/
  */
 interface ApiSettings {
   host: string;

@@ -4,6 +4,33 @@
  * Run generate-api-types.js to regenerate.
  */
 
+export interface AggregateResponse {
+  /** Unique identifier for the aggregate */
+  id: string;
+  /** ID of the company this aggregate belongs to */
+  company_id?: any;
+  /** Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION) */
+  document_type?: any;
+  /** Timestamp when the aggregate was created */
+  created_at: string;
+  /** Total duration of the aggregate generation in seconds */
+  total_duration?: any;
+  /** Content of the aggregate */
+  content?: any;
+  /** Generated summary of the aggregate content */
+  summary?: any;
+  /** LLM model identifier used for the aggregate */
+  model: string;
+  /** Temperature parameter for the LLM */
+  temperature?: any;
+  /** Top-p parameter for the LLM */
+  top_p?: any;
+  /** Context window size for the LLM */
+  num_ctx?: any;
+  /** ID of the system prompt used */
+  system_prompt_id?: any;
+}
+
 export interface CompanyResponse {
   /** Unique identifier for the company */
   id: string;
@@ -31,13 +58,31 @@ export interface CompanyResponse {
   ein?: any;
   /** List of former company names */
   former_names?: object[];
+  /** Generated company summary based on aggregated analysis */
+  summary?: any;
 }
 
-export interface DocumentContentResponse {
-  /** Unique identifier for the document */
+export interface CompletionResponse {
+  /** Unique identifier for the completion */
   id: string;
-  /** Document content (HTML) */
-  content: string;
+  /** ID of the system prompt */
+  system_prompt_id?: any;
+  /** LLM model identifier used for completion */
+  model: string;
+  /** Temperature parameter for the LLM */
+  temperature?: any;
+  /** Top-p parameter for the LLM */
+  top_p?: any;
+  /** Context window size for the LLM */
+  num_ctx?: any;
+  /** List of document IDs used as sources */
+  source_documents?: string[];
+  /** Timestamp when the completion was created */
+  created_at: string;
+  /** Total duration of the completion in seconds */
+  total_duration?: any;
+  /** The actual AI-generated content of the completion */
+  content?: any;
 }
 
 export interface DocumentResponse {
@@ -51,6 +96,8 @@ export interface DocumentResponse {
   document_name: string;
   /** Text content of the document */
   content?: any;
+  /** Filing information including SEC URL */
+  filing?: any;
 }
 
 export interface FilingResponse {
@@ -97,37 +144,16 @@ export function isApiError(obj: any): obj is ApiError {
 /**
  * Helper to fetch data from the API with proper error handling
  */
-export async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
-  try {
-    const response = await fetch(url, options);
+export async function fetchApi<T>(
+  url: string,
+  options?: RequestInit
+): Promise<T> {
+  const response = await fetch(url, options);
 
-    if (!response.ok) {
-      // Try to parse error response as JSON
-      let errorDetail: string;
-      try {
-        const errorData = await response.json();
-        errorDetail = errorData.detail || `HTTP error ${response.status}`;
-      } catch (e) {
-        // If parsing fails, use status text
-        errorDetail = `${response.status} ${response.statusText}`;
-      }
-
-      throw new Error(`Load failed: ${errorDetail}`);
-    }
-
-    return response.json() as Promise<T>;
-  } catch (error) {
-    // Add network error handling
-    if (error instanceof Error) {
-      if (
-        error.message.includes('Failed to fetch') ||
-        error.message.includes('Network request failed')
-      ) {
-        throw new Error(
-          `Network error: Cannot connect to API at ${url}. Make sure the API server is running and accessible on your network.`
-        );
-      }
-    }
-    throw error;
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'An error occurred');
   }
+
+  return response.json() as Promise<T>;
 }

@@ -15,7 +15,7 @@ format-ui:
     npm run format
 
 check-ui:
-    npm run check
+    npm run check | tee npm-check.log
 
 deps-ui:
     rm -rf node_modules

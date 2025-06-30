@@ -10,7 +10,6 @@
   let ticker = $state('');
   let selectedCompany = $state<CompanyResponse | null>(null);
   let loading = $state(false);
-  let ingesting = $state(false);
   let error = $state<string | null>(null);
   let fetchStartTime = $state<number | null>(null);
   let loadingMessage = $state<string>('Searching...');
@@ -34,6 +33,15 @@
   let currentFocusIndex = $state(-1);
   // For tracking the loading message update interval
   let loadingMessageInterval = $state<ReturnType<typeof setInterval> | null>(null);
+
+  // New states for company list browsing
+  let allCompanies = $state<CompanyResponse[]>([]);
+  let showCompanyList = $state(true);
+  let listLoading = $state(false);
+  let listError = $state<string | null>(null);
+  let currentOffset = $state(0);
+  let hasMoreCompanies = $state(true);
+  const COMPANIES_PER_PAGE = 50;
 
   onDestroy(() => {
     // Clear all timeouts and intervals
@@ -114,7 +122,6 @@
 
     if (elapsedSeconds > 2) {
       loadingMessage = `Ingesting company data from EDGAR. This may take a minute... (${elapsedSeconds}s)`;
-      ingesting = true;
     } else {
       loadingMessage = `Searching...`;
     }
@@ -169,7 +176,6 @@
       }
     } else {
       // For exact search: prepare for potentially long operation
-      ingesting = false;
       fetchStartTime = Date.now();
       loadingMessage = 'Searching...';
       selectedCompany = null;
@@ -197,7 +203,6 @@
 
         // Different API endpoints based on search type
         let apiUrl: string;
-        let logContext: Record<string, any> = { ticker };
 
         if (isExactSearch) {
           apiUrl = `${config.api.baseUrl}/companies/?ticker=${ticker.toUpperCase()}&auto_ingest=true`;
@@ -237,7 +242,6 @@
         loading = false;
 
         if (isExactSearch) {
-          ingesting = false;
           fetchStartTime = null;
           stopLoadingMessageUpdates();
         }
@@ -348,6 +352,49 @@
       searchCompany();
     }
   }
+
+  // Function to fetch the company list for browsing
+  async function fetchCompanyList() {
+    if (listLoading || !hasMoreCompanies) return;
+
+    listLoading = true;
+    listError = null;
+
+    try {
+      const apiUrl = `${config.api.baseUrl}/companies/list?offset=${currentOffset}&limit=${COMPANIES_PER_PAGE}`;
+      logger.info(`Fetching company list: ${apiUrl}`);
+
+      const companies = await fetchApi<CompanyResponse[]>(apiUrl);
+
+      // Append new companies to the existing list for pagination
+      if (currentOffset === 0) {
+        allCompanies = companies;
+      } else {
+        allCompanies = [...allCompanies, ...companies];
+      }
+
+      // Check if we received less than the expected number of companies
+      hasMoreCompanies = companies.length === COMPANIES_PER_PAGE;
+      logger.info(`Fetched ${companies.length} companies`, { companies });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('Error fetching company list:', { error: errorMessage });
+      listError = errorMessage;
+    } finally {
+      listLoading = false;
+    }
+  }
+
+  // Function to load more companies when scrolling to the bottom
+  function handleLoadMore() {
+    if (listLoading || !hasMoreCompanies) return;
+
+    currentOffset += COMPANIES_PER_PAGE;
+    fetchCompanyList();
+  }
+
+  // Initial fetch of the company list
+  fetchCompanyList();
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -388,7 +435,7 @@
       aria-label="Company search results"
       tabindex="0"
     >
-      {#each searchResults as company, index}
+      {#each searchResults as company, index (company.id)}
         <!-- Using button instead of div for better accessibility -->
         <button
           type="button"
@@ -420,6 +467,51 @@
     <div class="company-details selected-item">
       <h3>{selectedCompany.name} ({selectedCompany.tickers?.join(', ') || ''})</h3>
       <p class="meta">cik: {selectedCompany.cik}</p>
+    </div>
+  {/if}
+
+  <!-- Company list section -->
+  {#if showCompanyList}
+    <div class="company-list-container">
+      <h3 class="company-list-header">Browse All Companies</h3>
+
+      {#if listLoading && allCompanies.length === 0}
+        <div class="loading-container">
+          <div class="loading-spinner"></div>
+          <p>Loading companies...</p>
+        </div>
+      {:else if listError}
+        <p class="error-message">Error loading companies: {listError}</p>
+      {:else if allCompanies.length === 0}
+        <p>No companies found.</p>
+      {:else}
+        <div class="company-list-scrollable">
+          <ul class="company-list">
+            {#each allCompanies as company (company.id)}
+              <li class="company-list-item">
+                <div class="company-info">
+                  <div class="company-name">{company.name}</div>
+                  <div class="company-ticker">{company.tickers?.join(', ') || ''}</div>
+                </div>
+                <button
+                  class="select-company-button"
+                  onclick={() => selectCompanyFromDropdown(company)}
+                >
+                  Select
+                </button>
+              </li>
+            {/each}
+          </ul>
+
+          {#if hasMoreCompanies}
+            <div class="load-more-container">
+              <button class="load-more-button" onclick={handleLoadMore} disabled={listLoading}>
+                {listLoading ? 'Loading...' : 'Load more companies'}
+              </button>
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -566,5 +658,75 @@
   /* Add visual indicator for collapsed state */
   .company-selector.has-selected:after {
     opacity: 1;
+  }
+
+  /* Company list styles */
+  .company-list-container {
+    margin-top: var(--space-md);
+    padding: var(--space-md);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .company-list-header {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin: 0 0 var(--space-sm) 0;
+    color: var(--color-text);
+  }
+
+  .company-list-scrollable {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: calc(var(--space-md) + 1rem); /* Add padding for scrollbar */
+  }
+
+  .company-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .company-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border-light, #eee);
+  }
+
+  .company-info {
+    flex: 1;
+  }
+
+  .select-company-button {
+    padding: var(--space-sm) var(--space-md);
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .select-company-button:hover {
+    background-color: var(--color-primary-hover);
+  }
+
+  .load-more-button {
+    display: block;
+    width: 100%;
+    padding: var(--space-sm);
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.2s ease;
+    margin-top: var(--space-md);
+  }
+
+  .load-more-button:hover {
+    background-color: var(--color-primary-hover);
   }
 </style>

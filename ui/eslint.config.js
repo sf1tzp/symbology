@@ -44,7 +44,13 @@ export default tseslint.config(
                 fetch: 'readonly',
                 console: 'readonly',
                 CustomEvent: 'readonly',
-                document: 'readonly'
+                document: 'readonly',
+                localStorage: 'readonly',
+                setTimeout: 'readonly',
+                clearTimeout: 'readonly',
+                setInterval: 'readonly',
+                clearInterval: 'readonly',
+                KeyboardEvent: 'readonly'
             }
         },
         plugins: {

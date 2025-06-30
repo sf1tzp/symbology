@@ -1,35 +1,24 @@
 <script lang="ts">
   import { getLogger } from '$utils/logger';
   import CompanySelector from '$components/company/CompanySelector.svelte';
-  import FilingsSelector from '$components/filings/FilingsSelector.svelte';
-  import DocumentSelector from '$components/documents/DocumentSelector.svelte';
+  import AggregateSelector from '$components/aggregates/AggregateSelector.svelte';
+  import CompletionSelector from '$components/completions/CompletionSelector.svelte';
   import DocumentViewer from '$components/documents/DocumentViewer.svelte';
   import PlaceholderCard from '$components/ui/PlaceholderCard.svelte';
+  import CompanyDetail from '$components/company/CompanyDetail.svelte';
+  import AggregateDetail from '$components/aggregates/AggregateDetail.svelte';
+  import CompletionDetail from '$components/completions/CompletionDetail.svelte';
   import type {
     CompanyResponse,
-    FilingResponse,
-    DocumentResponse,
+    AggregateResponse,
+    CompletionResponse,
   } from '$utils/generated-api-types';
-  const logger = getLogger('CompanySelector');
+  const logger = getLogger('App');
 
-  let selectedCompany = $state<CompanyResponse | null>(null);
-  let selectedFiling = $state<FilingResponse | null>(null);
-  let selectedDocument = $state<DocumentResponse | null>(null);
-
-  // Track if horizontal layout has ever been activated
-  let hasActivatedHorizontalLayout = $state(false);
-
-  // Derived state to check if all selections are made
-  let allSelectionsReady = $derived(
-    selectedCompany !== null && selectedFiling !== null && selectedDocument !== null
-  );
-
-  // Effect to "latch" the horizontal layout once all selections have been made
-  $effect(() => {
-    if (allSelectionsReady) {
-      hasActivatedHorizontalLayout = true;
-    }
-  });
+  let selectedCompany = $state<CompanyResponse | undefined>(undefined);
+  let selectedAggregate = $state<AggregateResponse | undefined>(undefined);
+  let selectedCompletion = $state<CompletionResponse | undefined>(undefined);
+  let selectedDocumentId = $state<string | undefined>(undefined);
 
   // Theme state
   let isDarkMode = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -47,16 +36,39 @@
     }
   });
 
-  // Effect to reset filing and document when company becomes unset
+  // Effect to reset downstream selections when company changes
   $effect(() => {
     logger.debug('[App] Effect watching selectedCompany triggered', { selectedCompany });
-    if (selectedCompany === null) {
+    if (selectedCompany === undefined) {
       logger.debug(
-        '[App] Clearing selectedFiling and selectedDocument because selectedCompany is null'
+        '[App] Clearing selectedAggregate, selectedCompletion, and selectedDocumentId because selectedCompany is undefined'
       );
-      selectedFiling = null;
-      selectedDocument = null;
+      selectedAggregate = undefined;
+      selectedCompletion = undefined;
+      selectedDocumentId = undefined;
     }
+  });
+
+  // Effect to reset downstream selections when aggregate changes
+  $effect(() => {
+    logger.debug('[App] Effect watching selectedAggregate triggered', { selectedAggregate });
+    if (selectedAggregate === undefined) {
+      logger.debug(
+        '[App] Clearing selectedCompletion and selectedDocumentId because selectedAggregate is undefined'
+      );
+      selectedCompletion = undefined;
+      selectedDocumentId = undefined;
+    }
+  });
+
+  // Effect to reset document selection when completion changes
+  $effect(() => {
+    logger.debug('[App] Effect watching selectedCompletion triggered', { selectedCompletion });
+    if (selectedCompletion === undefined) {
+      logger.debug('[App] Clearing selectedDocumentId because selectedCompletion is undefined');
+      selectedDocumentId = undefined;
+    }
+    // Removed auto-selection of first document - let user choose from CompletionDetail
   });
 
   // Apply theme changes
@@ -70,27 +82,41 @@
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }
 
-  // FIXME: If a company / filing / document are selected, we should stay there if the page refreshes
+  // Event handlers
   function handleCompanySelected(event: CustomEvent<CompanyResponse>) {
     selectedCompany = event.detail;
-    selectedFiling = null;
-    selectedDocument = null;
+    selectedAggregate = undefined;
+    selectedCompletion = undefined;
+    selectedDocumentId = undefined;
   }
 
   function handleCompanyCleared() {
     logger.debug('[App] Company cleared event received, clearing all selections');
-    selectedCompany = null;
-    selectedFiling = null;
-    selectedDocument = null;
+    selectedCompany = undefined;
+    selectedAggregate = undefined;
+    selectedCompletion = undefined;
+    selectedDocumentId = undefined;
   }
 
-  function handleFilingSelected(event: CustomEvent<FilingResponse>) {
-    selectedFiling = event.detail;
-    selectedDocument = null;
+  function handleAggregateSelected(event: CustomEvent<AggregateResponse>) {
+    selectedAggregate = event.detail;
+    selectedCompletion = undefined;
+    selectedDocumentId = undefined;
   }
 
-  function handleDocumentSelected(event: CustomEvent<DocumentResponse>) {
-    selectedDocument = event.detail;
+  function handleCompletionSelected(event: CustomEvent<CompletionResponse>) {
+    selectedCompletion = event.detail;
+    // selectedDocumentId will be set when user selects a document from CompletionDetail
+  }
+
+  function handleAggregateSelectedFromCompanyDetail(event: CustomEvent<AggregateResponse>) {
+    selectedAggregate = event.detail;
+    selectedCompletion = undefined;
+    selectedDocumentId = undefined;
+  }
+
+  function handleDocumentSelected(event: CustomEvent<string>) {
+    selectedDocumentId = event.detail;
   }
 </script>
 
@@ -108,35 +134,48 @@
     </button>
   </header>
 
-  <div class="dashboard" class:side-by-side-layout={hasActivatedHorizontalLayout}>
-    <!-- Selectors row - always visible but changes layout based on selections -->
-    <div class="selectors" class:selectors-horizontal={hasActivatedHorizontalLayout}>
+  <div class="dashboard">
+    <!-- Selectors row - now uses the streamlined flow -->
+    <div class="selectors">
       <CompanySelector
         on:companySelected={handleCompanySelected}
         on:companyCleared={handleCompanyCleared}
       />
-      <FilingsSelector companyId={selectedCompany?.id} on:filingSelected={handleFilingSelected} />
-      <DocumentSelector
-        filingId={selectedFiling?.id}
-        on:documentSelected={handleDocumentSelected}
-      />
+      <!-- <AggregateSelector company={selectedCompany} on:aggregateSelected={handleAggregateSelected} /> -->
+      <!-- <CompletionSelector -->
+      <!--   aggregate={selectedAggregate} -->
+      <!--   on:completionSelected={handleCompletionSelected} -->
+      <!-- /> -->
     </div>
 
     <!-- Content area with conditional layout -->
-    {#if hasActivatedHorizontalLayout}
-      <div class="content-area-split">
-        <div class="content-panel">
-          <DocumentViewer document={selectedDocument} />
-        </div>
-        <div class="content-panel">
-          <PlaceholderCard />
-        </div>
-      </div>
-    {:else}
-      <div class="content-area">
-        <DocumentViewer document={selectedDocument} />
-      </div>
-    {/if}
+    <div class="content-area">
+      {#if selectedCompany && !selectedAggregate}
+        <!-- Show company detail when company selected but no aggregate -->
+        <CompanyDetail
+          company={selectedCompany}
+          on:aggregateSelected={handleAggregateSelectedFromCompanyDetail}
+        />
+      {:else if selectedAggregate && !selectedCompletion}
+        <!-- Show aggregate detail when aggregate selected but no completion -->
+        <AggregateDetail
+          aggregate={selectedAggregate}
+          on:completionSelected={handleCompletionSelected}
+        />
+      {:else if selectedCompletion && !selectedDocumentId}
+        <!-- Show completion detail when completion selected but no document -->
+        <CompletionDetail
+          completion={selectedCompletion}
+          on:documentSelected={handleDocumentSelected}
+        />
+      {:else if selectedDocumentId}
+        <!-- Show document viewer when we have a document -->
+        <DocumentViewer documentId={selectedDocumentId} completion={selectedCompletion} />
+      {:else}
+        <!-- Show analysis panel as placeholder -->
+        <PlaceholderCard completion={selectedCompletion} />
+      {/if}
+    </div>
   </div>
 </main>
 
@@ -193,11 +232,6 @@
     gap: var(--space-md);
   }
 
-  /* Side-by-side layout specific styles */
-  .side-by-side-layout {
-    flex-direction: column;
-  }
-
   .selectors {
     display: flex;
     flex-direction: column;
@@ -205,67 +239,23 @@
     z-index: 100;
   }
 
-  /* Horizontal selectors when all selections are made */
-  .selectors-horizontal {
-    flex-direction: row;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    z-index: 1000;
-  }
-
-  .selectors-horizontal :global(.card) {
-    flex: 1;
-    min-width: 250px;
-    margin-right: var(--space-sm);
-  }
-
-  .selectors-horizontal :global(.card:last-child) {
-    margin-right: 0;
-  }
-
   .content-area {
     height: calc(100vh - 150px);
   }
 
-  /* Split content area for side-by-side layout */
-  .content-area-split {
-    display: flex;
-    flex-direction: row;
-    gap: var(--space-md);
-    height: calc(100vh - 350px);
-  }
-
-  .content-panel {
-    flex: 1;
-    min-width: 0; /* Allows proper flexbox shrinking */
-    max-height: 100%;
-  }
-
   @media (min-width: 768px) {
-    .dashboard:not(.side-by-side-layout) {
+    .dashboard {
       flex-direction: row;
     }
 
-    .dashboard:not(.side-by-side-layout) .selectors {
+    .dashboard .selectors {
       width: 30%;
       max-width: 350px;
     }
 
-    .dashboard:not(.side-by-side-layout) .content-area {
+    .dashboard .content-area {
       width: 70%;
       flex-grow: 1;
-    }
-
-    /* For small screens, revert to vertical layout even when all selections are made */
-    @media (max-width: 1024px) {
-      .side-by-side-layout .content-area-split {
-        flex-direction: column;
-        height: auto;
-      }
-
-      .side-by-side-layout .content-panel {
-        height: calc(50vh - 150px);
-      }
     }
   }
 </style>

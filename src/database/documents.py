@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
 from uuid_extensions import uuid7
 
 from src.database.base import Base, get_db_session
@@ -74,7 +74,8 @@ def get_document(document_id: Union[UUID, str]) -> Optional[Document]:
     """
     try:
         session = get_db_session()
-        document = session.query(Document).filter(Document.id == document_id).first()
+        # Use joinedload to eagerly fetch the filing relationship
+        document = session.query(Document).options(joinedload(Document.filing)).filter(Document.id == document_id).first()
         if document:
             logger.info("retrieved_document", document_id=str(document_id))
         else:

@@ -46,6 +46,7 @@ class CompanyResponse(BaseModel):
     entity_type: Optional[str] = Field(None, description="Type of entity")
     ein: Optional[str] = Field(None, description="Employer Identification Number")
     former_names: List[Dict[str, Any]] = Field(default_factory=list, description="List of former company names")
+    summary: Optional[str] = Field(None, description="Generated company summary based on aggregated analysis")
 
     class Config:
         json_schema_extra = {
@@ -67,7 +68,8 @@ class CompanyResponse(BaseModel):
                         "name": "Apple Computer, Inc.",
                         "date_changed": "2007-01-09"
                     }
-                ]
+                ],
+                "summary": "Apple Inc. is a leading technology company that designs, develops and sells consumer electronics, computer software and online services..."
             }
         }
 
@@ -103,6 +105,8 @@ class DocumentResponse(BaseModel):
     company_id: UUID = Field(..., description="ID of the company this document belongs to")
     document_name: str = Field(..., description="Name of the document")
     content: Optional[str] = Field(None, description="Text content of the document")
+    # Filing information (when available)
+    filing: Optional[FilingResponse] = Field(None, description="Filing information including SEC URL")
 
     class Config:
         json_schema_extra = {
@@ -111,7 +115,16 @@ class DocumentResponse(BaseModel):
                 "filing_id": "123e4567-e89b-12d3-a456-426614174001",
                 "company_id": "123e4567-e89b-12d3-a456-426614174000",
                 "document_name": "10-K Annual Report",
-                "content": "<p>This is a sample document content...</p>"
+                "content": "<p>This is a sample document content...</p>",
+                "filing": {
+                    "id": "123e4567-e89b-12d3-a456-426614174001",
+                    "company_id": "123e4567-e89b-12d3-a456-426614174000",
+                    "accession_number": "0000320193-23-000077",
+                    "filing_type": "10-K",
+                    "filing_date": "2023-11-03",
+                    "filing_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019323000077/aapl-20230930.htm",
+                    "period_of_report": "2023-09-30"
+                }
             }
         }
 
@@ -210,6 +223,7 @@ class CompletionResponse(BaseModel):
     source_documents: List[UUID] = Field(default_factory=list, description="List of document IDs used as sources")
     created_at: datetime = Field(..., description="Timestamp when the completion was created")
     total_duration: Optional[float] = Field(None, description="Total duration of the completion in seconds")
+    content: Optional[str] = Field(None, description="The actual AI-generated content of the completion")
 
     class Config:
         json_schema_extra = {
@@ -222,7 +236,8 @@ class CompletionResponse(BaseModel):
                 "num_ctx": 4096,
                 "source_documents": ["123e4567-e89b-12d3-a456-426614174002"],
                 "created_at": "2023-12-25T12:30:45.123456",
-                "total_duration": 2.5
+                "total_duration": 2.5,
+                "content": "This is the AI-generated completion content..."
             }
         }
 
@@ -235,6 +250,7 @@ class AggregateResponse(BaseModel):
     created_at: datetime = Field(..., description="Timestamp when the aggregate was created")
     total_duration: Optional[float] = Field(None, description="Total duration of the aggregate generation in seconds")
     content: Optional[str] = Field(None, description="Content of the aggregate")
+    summary: Optional[str] = Field(None, description="Generated summary of the aggregate content")
     model: str = Field(..., description="LLM model identifier used for the aggregate")
     temperature: Optional[float] = Field(None, description="Temperature parameter for the LLM")
     top_p: Optional[float] = Field(None, description="Top-p parameter for the LLM")
@@ -250,6 +266,7 @@ class AggregateResponse(BaseModel):
                 "created_at": "2023-12-25T12:30:45.123456",
                 "total_duration": 5.2,
                 "content": "This company has shown strong financial performance...",
+                "summary": "Key financial highlights and strategic outlook for the company...",
                 "model": "gpt-4",
                 "temperature": 0.7,
                 "top_p": 1.0,

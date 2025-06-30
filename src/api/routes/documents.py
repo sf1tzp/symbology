@@ -30,7 +30,31 @@ async def get_document_by_id(document_id: UUID):
         document = get_document(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
-        return document
+
+        # Convert document to response format
+        response_data = {
+            "id": document.id,
+            "filing_id": document.filing_id,
+            "company_id": document.company_id,
+            "document_name": document.document_name,
+            "content": document.content,
+            "filing": None
+        }
+
+        # Include filing information if available
+        if document.filing_id and hasattr(document, 'filing') and document.filing:
+            filing = document.filing
+            response_data["filing"] = {
+                "id": filing.id,
+                "company_id": filing.company_id,
+                "accession_number": filing.accession_number,
+                "filing_type": filing.filing_type,
+                "filing_date": filing.filing_date,
+                "filing_url": filing.filing_url,
+                "period_of_report": filing.period_of_report
+            }
+
+        return response_data
     except ValueError as e:
         logger.error("invalid_uuid_format", document_id=str(document_id), error=str(e))
         raise HTTPException(

@@ -54,6 +54,7 @@ async def get_company_aggregates_by_ticker(ticker: str):
                 created_at=aggregate.created_at,
                 total_duration=aggregate.total_duration,
                 content=aggregate.content,
+                summary=aggregate.summary,
                 model=aggregate.model,
                 temperature=aggregate.temperature,
                 top_p=aggregate.top_p,
@@ -141,7 +142,8 @@ async def get_aggregate_source_completions(aggregate_id: UUID):
                 num_ctx=completion.num_ctx,
                 source_documents=source_document_ids,
                 created_at=completion.created_at,
-                total_duration=completion.total_duration
+                total_duration=completion.total_duration,
+                content=completion.content
             ))
 
         logger.info(

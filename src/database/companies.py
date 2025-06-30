@@ -69,6 +69,32 @@ def get_company_ids() -> List[UUID]:
         raise
 
 
+def get_all_company_tickers() -> List[str]:
+    """Get a list of all unique ticker symbols from companies in the database.
+
+    Returns:
+        List of unique ticker symbols
+    """
+    try:
+        session = get_db_session()
+        companies = session.query(Company).all()
+
+        # Extract all tickers from all companies and flatten the list
+        all_tickers = []
+        for company in companies:
+            if company.tickers:
+                all_tickers.extend(company.tickers)
+
+        # Remove duplicates and sort
+        unique_tickers = sorted(list(set(all_tickers)))
+
+        logger.info("retrieved_all_company_tickers", count=len(unique_tickers))
+        return unique_tickers
+    except Exception as e:
+        logger.error("get_all_company_tickers_failed", error=str(e), exc_info=True)
+        raise
+
+
 def get_company(company_id: Union[UUID, str]) -> Optional[Company]:
     """Get a company by its ID.
 

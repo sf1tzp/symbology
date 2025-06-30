@@ -35,7 +35,8 @@ async def get_completion_by_id(completion_id: UUID):
             "num_ctx": completion.num_ctx,
             "source_documents": source_document_ids,
             "created_at": completion.created_at,
-            "total_duration": completion.total_duration
+            "total_duration": completion.total_duration,
+            "content": completion.content
         }
 
         return response

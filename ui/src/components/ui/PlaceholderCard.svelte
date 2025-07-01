@@ -1,11 +1,36 @@
 <!-- AnalysisPanel.svelte -->
 <script lang="ts">
   import type { CompletionResponse } from '$utils/generated-api-types';
+  import { formatModelName, formatDate } from '$utils/formatters';
+  import MetaItems from '$components/ui/MetaItems.svelte';
 
   // Props to show relevant analysis based on current selection
   const { completion } = $props<{
     completion: CompletionResponse | undefined;
   }>();
+
+  // Prepare meta items for display
+  const metaItems = $derived(
+    completion
+      ? [
+          { label: 'Model', value: formatModelName(completion.model) },
+          ...(completion.temperature
+            ? [{ label: 'Temperature', value: completion.temperature }]
+            : []),
+          { label: 'Created', value: formatDate(completion.created_at) },
+          ...(completion.source_documents?.length
+            ? [
+                {
+                  label: 'Source Documents',
+                  value: `${completion.source_documents.length} document${
+                    completion.source_documents.length === 1 ? '' : 's'
+                  }`,
+                },
+              ]
+            : []),
+        ]
+      : []
+  );
 </script>
 
 <div class="analysis-panel card">
@@ -14,31 +39,7 @@
     {#if completion}
       <div class="completion-analysis">
         <h3>Current Completion</h3>
-        <div class="analysis-item">
-          <label>Model:</label>
-          <span>{completion.model.replace('_', ' ').toUpperCase()}</span>
-        </div>
-        {#if completion.temperature}
-          <div class="analysis-item">
-            <label>Temperature:</label>
-            <span>{completion.temperature}</span>
-          </div>
-        {/if}
-        <div class="analysis-item">
-          <label>Created:</label>
-          <span>{new Date(completion.created_at).toLocaleDateString()}</span>
-        </div>
-        {#if completion.source_documents?.length}
-          <div class="analysis-item">
-            <label>Source Documents:</label>
-            <span
-              >{completion.source_documents.length} document{completion.source_documents.length ===
-              1
-                ? ''
-                : 's'}</span
-            >
-          </div>
-        {/if}
+        <MetaItems items={metaItems} />
 
         <div class="content-preview">
           <h4>Response Preview</h4>
@@ -98,27 +99,6 @@
     font-size: 1.1rem;
   }
 
-  .analysis-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-sm);
-    background-color: var(--color-background);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--color-border);
-  }
-
-  .analysis-item label {
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text);
-  }
-
-  .analysis-item span {
-    color: var(--color-text-light);
-    font-family: monospace;
-    font-size: 0.9rem;
-  }
-
   .content-preview {
     margin-top: var(--space-md);
   }
@@ -134,32 +114,24 @@
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
     padding: var(--space-md);
-    font-size: 0.9rem;
-    line-height: 1.5;
-    color: var(--color-text);
     margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
+    line-height: 1.6;
+    color: var(--color-text);
   }
 
   .placeholder-content {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
     text-align: center;
-    gap: var(--space-lg);
+    color: var(--color-text-light);
   }
 
-  .placeholder-content > p {
-    font-style: italic;
-    color: var(--color-text-light);
-    margin: 0;
+  .placeholder-content p {
+    font-size: 1.1rem;
+    margin-bottom: var(--space-lg);
   }
 
   .features-list {
     text-align: left;
+    display: inline-block;
   }
 
   .features-list h4 {
@@ -168,12 +140,12 @@
   }
 
   .features-list ul {
-    padding-left: var(--space-lg);
     margin: 0;
+    padding-left: var(--space-lg);
   }
 
   .features-list li {
-    margin-bottom: var(--space-sm);
+    margin-bottom: var(--space-xs);
     color: var(--color-text-light);
   }
 </style>

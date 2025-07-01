@@ -1,8 +1,6 @@
 <script lang="ts">
   import { getLogger } from '$utils/logger';
   import CompanySelector from '$components/company/CompanySelector.svelte';
-  import AggregateSelector from '$components/aggregates/AggregateSelector.svelte';
-  import CompletionSelector from '$components/completions/CompletionSelector.svelte';
   import DocumentViewer from '$components/documents/DocumentViewer.svelte';
   import PlaceholderCard from '$components/ui/PlaceholderCard.svelte';
   import CompanyDetail from '$components/company/CompanyDetail.svelte';
@@ -12,119 +10,51 @@
     CompanyResponse,
     AggregateResponse,
     CompletionResponse,
+    DocumentResponse,
   } from '$utils/generated-api-types';
+  import appState, { actions } from '$utils/state-manager.svelte';
+
   const logger = getLogger('App');
 
-  let selectedCompany = $state<CompanyResponse | undefined>(undefined);
-  let selectedAggregate = $state<AggregateResponse | undefined>(undefined);
-  let selectedCompletion = $state<CompletionResponse | undefined>(undefined);
-  let selectedDocumentId = $state<string | undefined>(undefined);
-
-  // Theme state
-  let isDarkMode = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
+  // Theme state is now managed in the state manager
   let themeInitialized = $state(false);
 
-  // Initialize theme from localStorage or system preference
+  // Initialize theme from state manager
   $effect(() => {
     if (!themeInitialized) {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) {
-        isDarkMode = savedTheme === 'dark';
-      }
-      applyTheme();
+      actions.initializeTheme();
       themeInitialized = true;
     }
   });
 
-  // Effect to reset downstream selections when company changes
-  $effect(() => {
-    logger.debug('[App] Effect watching selectedCompany triggered', { selectedCompany });
-    if (selectedCompany === undefined) {
-      logger.debug(
-        '[App] Clearing selectedAggregate, selectedCompletion, and selectedDocumentId because selectedCompany is undefined'
-      );
-      selectedAggregate = undefined;
-      selectedCompletion = undefined;
-      selectedDocumentId = undefined;
-    }
-  });
-
-  // Effect to reset downstream selections when aggregate changes
-  $effect(() => {
-    logger.debug('[App] Effect watching selectedAggregate triggered', { selectedAggregate });
-    if (selectedAggregate === undefined) {
-      logger.debug(
-        '[App] Clearing selectedCompletion and selectedDocumentId because selectedAggregate is undefined'
-      );
-      selectedCompletion = undefined;
-      selectedDocumentId = undefined;
-    }
-  });
-
-  // Effect to reset document selection when completion changes
-  $effect(() => {
-    logger.debug('[App] Effect watching selectedCompletion triggered', { selectedCompletion });
-    if (selectedCompletion === undefined) {
-      logger.debug('[App] Clearing selectedDocumentId because selectedCompletion is undefined');
-      selectedDocumentId = undefined;
-    }
-    // Removed auto-selection of first document - let user choose from CompletionDetail
-  });
-
-  // Apply theme changes
-  function toggleTheme() {
-    isDarkMode = !isDarkMode;
-    applyTheme();
-  }
-
-  function applyTheme() {
-    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-  }
-
-  // Event handlers
+  // Event handlers - now much simpler since state is managed centrally
   function handleCompanySelected(event: CustomEvent<CompanyResponse>) {
-    selectedCompany = event.detail;
-    selectedAggregate = undefined;
-    selectedCompletion = undefined;
-    selectedDocumentId = undefined;
+    actions.selectCompany(event.detail);
   }
 
   function handleCompanyCleared() {
     logger.debug('[App] Company cleared event received, clearing all selections');
-    selectedCompany = undefined;
-    selectedAggregate = undefined;
-    selectedCompletion = undefined;
-    selectedDocumentId = undefined;
-  }
-
-  function handleAggregateSelected(event: CustomEvent<AggregateResponse>) {
-    selectedAggregate = event.detail;
-    selectedCompletion = undefined;
-    selectedDocumentId = undefined;
+    actions.clearAll();
   }
 
   function handleCompletionSelected(event: CustomEvent<CompletionResponse>) {
-    selectedCompletion = event.detail;
-    // selectedDocumentId will be set when user selects a document from CompletionDetail
+    actions.selectCompletion(event.detail);
   }
 
   function handleAggregateSelectedFromCompanyDetail(event: CustomEvent<AggregateResponse>) {
-    selectedAggregate = event.detail;
-    selectedCompletion = undefined;
-    selectedDocumentId = undefined;
+    actions.selectAggregate(event.detail);
   }
 
-  function handleDocumentSelected(event: CustomEvent<string>) {
-    selectedDocumentId = event.detail;
+  function handleDocumentSelected(event: CustomEvent<DocumentResponse>) {
+    actions.selectDocument(event.detail);
   }
 </script>
 
 <main>
   <header class="header">
     <h1>Symbology</h1>
-    <button class="theme-toggle" onclick={toggleTheme} aria-label="Toggle theme">
-      {#if isDarkMode}
+    <button class="theme-toggle" onclick={actions.toggleTheme} aria-label="Toggle theme">
+      {#if appState.isDarkMode}
         <span class="theme-icon">☀️</span>
         <span class="theme-label">Light Mode</span>
       {:else}
@@ -141,39 +71,37 @@
         on:companySelected={handleCompanySelected}
         on:companyCleared={handleCompanyCleared}
       />
-      <!-- <AggregateSelector company={selectedCompany} on:aggregateSelected={handleAggregateSelected} /> -->
+      <!-- <AggregateSelector company={appState.selectedCompany} on:aggregateSelected={handleAggregateSelected} /> -->
       <!-- <CompletionSelector -->
-      <!--   aggregate={selectedAggregate} -->
+      <!--   aggregate={appState.selectedAggregate} -->
       <!--   on:completionSelected={handleCompletionSelected} -->
       <!-- /> -->
     </div>
 
-    <!-- Content area with conditional layout -->
+    <!-- Content area with conditional layout based on currentView derived state -->
     <div class="content-area">
-      {#if selectedCompany && !selectedAggregate}
-        <!-- Show company detail when company selected but no aggregate -->
+      {#if appState.currentView() === 'company' && appState.selectedCompany}
         <CompanyDetail
-          company={selectedCompany}
+          company={appState.selectedCompany}
           on:aggregateSelected={handleAggregateSelectedFromCompanyDetail}
         />
-      {:else if selectedAggregate && !selectedCompletion}
-        <!-- Show aggregate detail when aggregate selected but no completion -->
+      {:else if appState.currentView() === 'aggregate' && appState.selectedAggregate}
         <AggregateDetail
-          aggregate={selectedAggregate}
+          aggregate={appState.selectedAggregate}
           on:completionSelected={handleCompletionSelected}
         />
-      {:else if selectedCompletion && !selectedDocumentId}
-        <!-- Show completion detail when completion selected but no document -->
+      {:else if appState.currentView() === 'completion' && appState.selectedCompletion}
         <CompletionDetail
-          completion={selectedCompletion}
+          completion={appState.selectedCompletion}
           on:documentSelected={handleDocumentSelected}
         />
-      {:else if selectedDocumentId}
-        <!-- Show document viewer when we have a document -->
-        <DocumentViewer documentId={selectedDocumentId} completion={selectedCompletion} />
+      {:else if appState.currentView() === 'document' && appState.selectedDocument}
+        <DocumentViewer
+          document={appState.selectedDocument}
+          completion={appState.selectedCompletion ?? undefined}
+        />
       {:else}
-        <!-- Show analysis panel as placeholder -->
-        <PlaceholderCard completion={selectedCompletion} />
+        <PlaceholderCard completion={undefined} />
       {/if}
     </div>
   </div>

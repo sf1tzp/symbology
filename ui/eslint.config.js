@@ -18,7 +18,7 @@ export default tseslint.config(
         }
     },
     {
-        files: ['**/*.svelte', '**/*.svelte.js'],
+        files: ['**/*.svelte', '**/*.svelte.js', '**/*.svelte.ts'],
         languageOptions: {
             parserOptions: {
                 // We recommend importing and specifying svelte.config.js.
@@ -30,7 +30,7 @@ export default tseslint.config(
         }
     },
     {
-        files: ['**/*.svelte'],
+        files: ['**/*.svelte', '**/*.svelte.ts'],
         languageOptions: {
             parser: svelteParser,
             parserOptions: {

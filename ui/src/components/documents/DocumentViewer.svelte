@@ -2,73 +2,66 @@
   import type { DocumentResponse, CompletionResponse } from '$utils/generated-api-types';
   import { getLogger } from '$utils/logger';
   import config from '$utils/config';
-  import { marked } from 'marked';
+  import { formatDate, formatModelName } from '$utils/formatters';
+  import LoadingState from '$components/ui/LoadingState.svelte';
+  import ErrorState from '$components/ui/ErrorState.svelte';
+  import MarkdownContent from '$components/ui/MarkdownContent.svelte';
+  import MetaItems from '$components/ui/MetaItems.svelte';
 
   const logger = getLogger('DocumentViewer');
 
-  // Props - now accepts both document ID and completion for enhanced context
-  const { documentId, completion } = $props<{
-    documentId: string | undefined;
+  // Props - now accepts document object and completion for enhanced context
+  const { document, completion } = $props<{
+    document: DocumentResponse | undefined;
     completion: CompletionResponse | undefined;
   }>();
 
   // Using Svelte 5 runes
   let loading = $state(false);
   let error = $state<string | null>(null);
-  let document = $state<DocumentResponse | null>(null);
   let documentContent = $state<string | null>(null);
 
-  // Watch for changes in documentId and fetch document
+  // Watch for changes in document and fetch content
   $effect(() => {
-    logger.debug('[DocumentViewer] Effect watching documentId triggered', { documentId });
-    if (documentId) {
-      fetchDocument();
+    logger.debug('[DocumentViewer] Effect watching document triggered', {
+      documentId: document?.id,
+      documentName: document?.document_name,
+    });
+    if (document?.id) {
+      fetchDocumentContent();
     } else {
-      logger.debug('[DocumentViewer] Clearing document because documentId is undefined');
+      logger.debug('[DocumentViewer] Clearing document content because document is undefined');
       error = null;
-      document = null;
       documentContent = null;
     }
   });
 
-  async function fetchDocument() {
-    if (!documentId) return;
+  async function fetchDocumentContent() {
+    if (!document?.id) return;
 
     try {
       loading = true;
       error = null;
 
-      // Fetch document metadata (now includes filing information)
-      const docResponse = await fetch(`${config.api.baseUrl}/documents/${documentId}`);
-      if (!docResponse.ok) {
-        throw new Error(`Failed to fetch document: ${docResponse.statusText}`);
-      }
-      document = await docResponse.json();
-
       // Fetch document content
-      const contentResponse = await fetch(`${config.api.baseUrl}/documents/${documentId}/content`);
+      const contentResponse = await fetch(`${config.api.baseUrl}/documents/${document.id}/content`);
       if (!contentResponse.ok) {
         throw new Error(`Failed to fetch document content: ${contentResponse.statusText}`);
       }
       documentContent = await contentResponse.text();
 
-      logger.debug('[DocumentViewer] Document loaded', {
-        documentId,
-        documentName: document?.document_name,
+      logger.debug('[DocumentViewer] Document content loaded', {
+        documentId: document.id,
+        documentName: document.document_name,
         contentLength: documentContent?.length,
-        hasFilingUrl: !!document?.filing?.filing_url,
+        hasFilingUrl: !!document.filing?.filing_url,
       });
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      logger.error('Error fetching document:', err);
+      logger.error('Error fetching document content:', err);
     } finally {
       loading = false;
     }
-  }
-
-  // Helper function to format model name for display
-  function formatModelName(model: string): string {
-    return model.replace('_', ' ').toUpperCase();
   }
 
   // Helper function to format document ID for display
@@ -76,39 +69,52 @@
     return id.substring(0, 8) + '...';
   }
 
-  function renderMarkdown(text: string): string {
-    const result = marked.parse(text, {
-      breaks: true,
-      gfm: true,
-      async: false,
-    });
-    return typeof result === 'string' ? result : '';
-  }
+  // Prepare document meta items
+  const documentMetaItems = $derived(
+    document
+      ? [
+          { label: 'Document ID', value: formatDocumentId(document.id), mono: true },
+          ...(document.filing_id
+            ? [{ label: 'Filing ID', value: document.filing_id, mono: true }]
+            : []),
+          ...(document.filing?.filing_type
+            ? [{ label: 'Filing Type', value: document.filing.filing_type }]
+            : []),
+          ...(document.filing?.filing_date
+            ? [{ label: 'Filed', value: formatDate(document.filing.filing_date) }]
+            : []),
+        ]
+      : []
+  );
 </script>
 
-<div class="document-viewer card">
-  {#if loading}
-    <div class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>Loading document...</p>
-    </div>
-  {:else if error}
-    <div class="error-container">
-      <p class="error-message">Error: {error}</p>
-    </div>
-  {:else if !documentId}
+{#if !document}
+  <div class="document-viewer card">
     <div class="placeholder-container">
       <div class="placeholder-content">
         <h3>Document Viewer</h3>
         <p class="placeholder">Select a document to view its content</p>
       </div>
     </div>
-  {:else if document}
-    <div class="document-header">
-      <div class="title-section">
-        <h2>{document.document_name || 'Unnamed Document'}</h2>
-        <p class="document-id">ID: {formatDocumentId(document.id)}</p>
+  </div>
+{:else}
+  <div class="document-viewer card">
+    <header class="document-header">
+      <h1>{document.document_name || 'Unnamed Document'}</h1>
+      <div class="document-meta">
+        {#if document.filing?.filing_type}
+          <span class="filing-type-badge">{document.filing.filing_type}</span>
+        {/if}
+        {#if document.filing?.filing_date}
+          <span class="filing-date">{formatDate(document.filing.filing_date)}</span>
+        {/if}
       </div>
+    </header>
+
+    <section class="document-summary">
+      <h2>Document Information</h2>
+
+      <MetaItems items={documentMetaItems} />
 
       {#if document.filing?.filing_url}
         <div class="source-links">
@@ -120,51 +126,59 @@
           >
             📄 View Original SEC Filing
           </a>
-          {#if document.filing.filing_type}
-            <span class="filing-info">
-              {document.filing.filing_type} • {new Date(
-                document.filing.filing_date
-              ).toLocaleDateString()}
-            </span>
-          {/if}
         </div>
       {/if}
+    </section>
 
-      {#if completion}
-        <div class="context-section">
-          <h4>Used in Completion</h4>
-          <p class="completion-info">
-            Model: <strong>{formatModelName(completion.model)}</strong>
-          </p>
-          {#if completion.temperature}
-            <p class="config-detail">Temperature: {completion.temperature}</p>
-          {/if}
-          <p class="timestamp">
-            Created: {new Date(completion.created_at).toLocaleDateString()}
-          </p>
-        </div>
-      {/if}
-    </div>
-
-    <div class="document-content scrollable">
-      {#if documentContent}
-        <div class="content-wrapper">
-          <div class="document-markdown">
-            {@html renderMarkdown(documentContent)}
+    {#if completion}
+      <section class="context-section">
+        <h2>Used in Completion</h2>
+        <div class="completion-info">
+          <div class="completion-meta">
+            <span class="model-badge">{formatModelName(completion.model)}</span>
+            <span class="created-date">{formatDate(completion.created_at)}</span>
           </div>
+
+          <MetaItems
+            items={[
+              ...(completion.temperature
+                ? [{ label: 'Temperature', value: completion.temperature }]
+                : []),
+              ...(completion.top_p ? [{ label: 'Top-p', value: completion.top_p }] : []),
+              ...(completion.num_ctx ? [{ label: 'Context', value: completion.num_ctx }] : []),
+            ]}
+            variant="surface"
+          />
+        </div>
+      </section>
+    {/if}
+
+    <section class="content-section">
+      <h2>Content</h2>
+      {#if loading}
+        <LoadingState message="Loading document content..." />
+      {:else if error}
+        <ErrorState message="Error: {error}" onRetry={fetchDocumentContent} />
+      {:else if documentContent}
+        <div class="content-display">
+          <MarkdownContent content={documentContent} />
         </div>
       {:else}
-        <p class="no-content">No content available for this document</p>
+        <div class="no-content">
+          <p>No content available for this document</p>
+        </div>
       {/if}
-    </div>
-  {/if}
-</div>
+    </section>
+  </div>
+{/if}
 
 <style>
   .document-viewer {
     height: 100%;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
+    gap: var(--space-lg);
   }
 
   .placeholder-container {
@@ -190,77 +204,42 @@
     margin: 0;
   }
 
-  .loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    gap: var(--space-md);
-  }
-
-  .error-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: var(--space-lg);
-  }
-
-  .document-header {
-    padding: var(--space-lg);
-    border-bottom: 1px solid var(--color-border);
-    background-color: var(--color-surface);
-  }
-
-  .title-section {
-    margin-bottom: var(--space-md);
-  }
-
-  .title-section h2 {
-    margin: 0 0 var(--space-xs) 0;
-    color: var(--color-text);
-    font-size: 1.3rem;
-  }
-
-  .document-id {
+  .document-header h1 {
     margin: 0;
-    font-family: monospace;
-    font-size: 0.9rem;
-    color: var(--color-text-light);
-  }
-
-  .context-section {
-    margin-bottom: var(--space-md);
-    padding: var(--space-md);
-    background-color: var(--color-background);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--color-border);
-  }
-
-  .context-section h4 {
-    margin: 0 0 var(--space-sm) 0;
     color: var(--color-primary);
-    font-size: 0.95rem;
+    font-size: 1.5rem;
+    font-weight: var(--font-weight-bold);
   }
 
-  .completion-info {
-    margin: 0 0 var(--space-xs) 0;
+  .document-meta {
+    display: flex;
+    gap: var(--space-md);
+    align-items: center;
+    margin-top: var(--space-sm);
+  }
+
+  .filing-type-badge {
+    background-color: var(--color-primary);
+    color: var(--color-surface);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--border-radius);
+    font-weight: var(--font-weight-bold);
     font-size: 0.9rem;
+  }
+
+  .filing-date {
+    color: var(--color-text-light);
+    font-size: 0.9rem;
+  }
+
+  .document-summary h2,
+  .context-section h2,
+  .content-section h2 {
+    margin: 0 0 var(--space-md) 0;
     color: var(--color-text);
-  }
-
-  .config-detail {
-    margin: 0 0 var(--space-xs) 0;
-    font-size: 0.8rem;
-    color: var(--color-text-light);
-    font-family: monospace;
-  }
-
-  .timestamp {
-    margin: 0;
-    font-size: 0.8rem;
-    color: var(--color-text-light);
+    font-size: 1.2rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-sm);
   }
 
   .source-links {
@@ -285,206 +264,60 @@
     background-color: var(--color-primary-hover);
   }
 
-  .filing-info {
-    display: inline-block;
-    margin-left: var(--space-md);
-    font-size: 0.8rem;
-    color: var(--color-text-light);
-    font-style: italic;
+  .completion-info {
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: var(--space-md);
   }
 
-  .document-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0;
+  .completion-meta {
+    display: flex;
+    gap: var(--space-md);
+    align-items: center;
+    margin-bottom: var(--space-md);
   }
 
-  .content-wrapper {
-    padding: var(--space-lg);
-  }
-
-  .document-markdown {
-    white-space: pre-wrap;
-    word-break: break-word;
-    margin: 0;
-    font-family: var(--font-family-body);
-    font-size: 0.9rem;
-    line-height: 1.6;
-    color: var(--color-text);
-    background-color: transparent;
-  }
-
-  .document-markdown :global(p) {
-    margin: 0 0 var(--space-sm) 0;
-    line-height: 1.6;
-    color: var(--color-text);
-  }
-
-  .document-markdown :global(p:last-child) {
-    margin-bottom: 0;
-  }
-
-  .document-markdown :global(h1),
-  .document-markdown :global(h2),
-  .document-markdown :global(h3),
-  .document-markdown :global(h4),
-  .document-markdown :global(h5),
-  .document-markdown :global(h6) {
-    margin: var(--space-lg) 0 var(--space-sm) 0;
-    color: var(--color-primary);
+  .model-badge {
+    background-color: var(--color-primary);
+    color: var(--color-surface);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--border-radius);
     font-weight: var(--font-weight-bold);
-  }
-
-  .document-markdown :global(h1:first-child),
-  .document-markdown :global(h2:first-child),
-  .document-markdown :global(h3:first-child),
-  .document-markdown :global(h4:first-child),
-  .document-markdown :global(h5:first-child),
-  .document-markdown :global(h6:first-child) {
-    margin-top: 0;
-  }
-
-  .document-markdown :global(h1) {
-    font-size: 1.8rem;
-    border-bottom: 2px solid var(--color-border);
-    padding-bottom: var(--space-sm);
-  }
-
-  .document-markdown :global(h2) {
-    font-size: 1.5rem;
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-xs);
-  }
-
-  .document-markdown :global(h3) {
-    font-size: 1.3rem;
-  }
-
-  .document-markdown :global(h4) {
-    font-size: 1.1rem;
-  }
-
-  .document-markdown :global(h5) {
-    font-size: 1rem;
-  }
-
-  .document-markdown :global(h6) {
     font-size: 0.9rem;
   }
 
-  .document-markdown :global(ul),
-  .document-markdown :global(ol) {
-    margin: var(--space-sm) 0;
-    padding-left: var(--space-lg);
-  }
-
-  .document-markdown :global(li) {
-    margin: var(--space-xs) 0;
-    line-height: 1.5;
-  }
-
-  .document-markdown :global(strong) {
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text);
-  }
-
-  .document-markdown :global(em) {
-    font-style: italic;
-  }
-
-  .document-markdown :global(code) {
-    background-color: var(--color-surface);
-    padding: var(--space-xs);
-    border-radius: var(--border-radius);
-    font-family: monospace;
-    font-size: 0.85em;
-    border: 1px solid var(--color-border);
-  }
-
-  .document-markdown :global(pre) {
-    background-color: var(--color-surface);
-    padding: var(--space-md);
-    border-radius: var(--border-radius);
-    overflow-x: auto;
-    margin: var(--space-md) 0;
-    border: 1px solid var(--color-border);
-  }
-
-  .document-markdown :global(pre code) {
-    background: none;
-    padding: 0;
-    border: none;
-  }
-
-  .document-markdown :global(blockquote) {
-    border-left: 4px solid var(--color-primary);
-    padding-left: var(--space-md);
-    margin: var(--space-md) 0;
-    font-style: italic;
+  .created-date {
     color: var(--color-text-light);
-    background-color: var(--color-surface);
-    padding: var(--space-md);
+    font-size: 0.9rem;
+  }
+
+  .content-display {
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
-  }
-
-  .document-markdown :global(table) {
-    border-collapse: collapse;
-    width: 100%;
-    margin: var(--space-md) 0;
-    border: 1px solid var(--color-border);
-  }
-
-  .document-markdown :global(th),
-  .document-markdown :global(td) {
-    border: 1px solid var(--color-border);
-    padding: var(--space-sm);
-    text-align: left;
-  }
-
-  .document-markdown :global(th) {
-    background-color: var(--color-surface);
-    font-weight: var(--font-weight-bold);
-  }
-
-  .document-markdown :global(hr) {
-    border: none;
-    border-top: 2px solid var(--color-border);
-    margin: var(--space-lg) 0;
-  }
-
-  .document-markdown :global(a) {
-    color: var(--color-primary);
-    text-decoration: underline;
-  }
-
-  .document-markdown :global(a:hover) {
-    color: var(--color-primary-hover);
+    padding: var(--space-md);
   }
 
   .no-content {
-    padding: var(--space-lg);
-    text-align: center;
-    font-style: italic;
     color: var(--color-text-light);
+    font-style: italic;
+    text-align: center;
+    padding: var(--space-lg);
     margin: 0;
   }
 
-  /* Loading spinner styles */
-  .loading-spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid var(--color-border);
-    border-top: 3px solid var(--color-primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
+  @media (max-width: 768px) {
+    .document-meta {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-sm);
     }
-    100% {
-      transform: rotate(360deg);
+
+    .completion-meta {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-sm);
     }
   }
 </style>

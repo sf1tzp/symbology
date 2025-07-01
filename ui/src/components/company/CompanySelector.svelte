@@ -3,80 +3,107 @@
   import { fetchApi } from '$utils/generated-api-types';
   import type { CompanyResponse } from '$utils/generated-api-types';
   import config from '$utils/config';
-  import { createEventDispatcher } from 'svelte';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, createEventDispatcher } from 'svelte';
+  import appState, { actions } from '$utils/state-manager.svelte';
 
-  // Using Svelte 5 runes
-  let ticker = $state('');
-  let selectedCompany = $state<CompanyResponse | null>(null);
-  let loading = $state(false);
-  let error = $state<string | null>(null);
-  let fetchStartTime = $state<number | null>(null);
-  let loadingMessage = $state<string>('Searching...');
-  // Flag to control when to show the loading spinner to avoid layout jumps
-  let showLoadingSpinner = $state(false);
-  // Flag to control when to update the button text
-  let showLoadingText = $state(false);
-
-  // New state for controlling search UI visibility
-  let isSearchCollapsed = $state(false);
-  let hoverTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
-
-  // New states for search results and dropdown
-  let searchResults = $state<CompanyResponse[]>([]);
-  let showDropdown = $state(false);
-  let searchTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
-  let blurTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
-  // Timeout for showing the spinner
-  let spinnerTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
-  // For keyboard navigation
-  let currentFocusIndex = $state(-1);
-  // For tracking the loading message update interval
-  let loadingMessageInterval = $state<ReturnType<typeof setInterval> | null>(null);
-
-  // New states for company list browsing
-  let allCompanies = $state<CompanyResponse[]>([]);
-  let showCompanyList = $state(true);
-  let listLoading = $state(false);
-  let listError = $state<string | null>(null);
-  let currentOffset = $state(0);
-  let hasMoreCompanies = $state(true);
-  const COMPANIES_PER_PAGE = 50;
-
-  onDestroy(() => {
-    // Clear all timeouts and intervals
-    if (searchTimeout) clearTimeout(searchTimeout);
-    if (blurTimeout) clearTimeout(blurTimeout);
-    if (spinnerTimeout) clearTimeout(spinnerTimeout);
-    if (hoverTimeout) clearTimeout(hoverTimeout);
-    if (loadingMessageInterval) clearInterval(loadingMessageInterval);
-  });
-
+  const logger = getLogger('CompanySelector');
   const dispatch = createEventDispatcher<{
     companySelected: CompanyResponse;
     companyCleared: void;
   }>();
-  const logger = getLogger('CompanySelector');
 
-  // Function to handle when a company is selected
-  function handleCompanySelected(company: CompanyResponse) {
-    // Collapse the search UI when a company is selected
-    if (company) {
+  // Local component state - much simplified
+  let ticker = $state('');
+  let searchResults = $state<CompanyResponse[]>([]);
+  let showDropdown = $state(false);
+  let allCompanies = $state<CompanyResponse[]>([]);
+  let showCompanyList = $state(true);
+  let isSearchCollapsed = $state(false);
+  let currentFocusIndex = $state(-1);
+  let listLoading = $state(false);
+  let listError = $state<string | null>(null);
+  let currentOffset = $state(0);
+  let hasMoreCompanies = $state(true);
+
+  // Constants
+  const COMPANIES_PER_PAGE = 50;
+
+  // Timeouts and intervals
+  let searchTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+  let blurTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+  let hoverTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+
+  // Derived reactive state from the state manager (using $derived instead of $:)
+  const loading = $derived(appState.loading.company);
+  const error = $derived(appState.errors.company);
+
+  // Auto-collapse when company is selected (using $effect instead of $:)
+  $effect(() => {
+    if (appState.selectedCompany) {
       isSearchCollapsed = true;
+    }
+  });
+
+  onDestroy(() => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    if (blurTimeout) clearTimeout(blurTimeout);
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+  });
+
+  // Simplified search function using state manager actions
+  async function searchCompany() {
+    if (!ticker.trim()) {
+      actions.setError('company', 'Please enter a ticker symbol');
+      return;
+    }
+
+    actions.setLoading('company', true);
+    actions.setError('company', null);
+
+    try {
+      const apiUrl = `${config.api.baseUrl}/companies/?ticker=${ticker.toUpperCase()}&auto_ingest=true`;
+      const company = await fetchApi<CompanyResponse>(apiUrl);
+
+      // Use state manager action for selection - handles all cascading automatically
+      actions.selectCompany(company);
+      dispatch('companySelected', company);
+
+      logger.info(`Company found: ${company.name}`, { company });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      actions.setError('company', errorMessage);
+      logger.error('Error searching company:', { error: errorMessage });
+    } finally {
+      actions.setLoading('company', false);
     }
   }
 
-  // Functions to handle mouse events for expanding the search UI
+  function selectCompanyFromDropdown(company: CompanyResponse) {
+    actions.selectCompany(company);
+    dispatch('companySelected', company);
+    ticker = company.tickers?.[0] || '';
+    showDropdown = false;
+  }
+
+  function handleCompanyCleared() {
+    actions.clearAll();
+    dispatch('companyCleared');
+    ticker = '';
+    searchResults = [];
+    showDropdown = false;
+  }
+
+  // Functions to handle mouse events for expanding/collapsing the search UI
   function handleMouseEnter() {
     if (hoverTimeout) clearTimeout(hoverTimeout);
-    if (isSearchCollapsed && selectedCompany) {
+    if (isSearchCollapsed && appState.selectedCompany) {
       isSearchCollapsed = false;
     }
   }
 
   function handleMouseLeave() {
     if (hoverTimeout) clearTimeout(hoverTimeout);
-    if (selectedCompany && !loading) {
+    if (appState.selectedCompany && !loading) {
       // Add a small delay before collapsing to prevent jumpy UI
       hoverTimeout = setTimeout(() => {
         isSearchCollapsed = true;
@@ -86,180 +113,8 @@
 
   // Function to handle focus events for accessibility
   function handleFocus() {
-    if (isSearchCollapsed && selectedCompany) {
+    if (isSearchCollapsed && appState.selectedCompany) {
       isSearchCollapsed = false;
-    }
-  }
-
-  // Function to start updating loading message during long operations
-  function startLoadingMessageUpdates() {
-    // Clear any existing interval first
-    stopLoadingMessageUpdates();
-
-    // Update once immediately
-    updateLoadingMessage();
-
-    // Then set up interval for subsequent updates
-    loadingMessageInterval = setInterval(updateLoadingMessage, 1000);
-  }
-
-  // Function to stop the loading message updates
-  function stopLoadingMessageUpdates() {
-    if (loadingMessageInterval) {
-      clearInterval(loadingMessageInterval);
-      loadingMessageInterval = null;
-    }
-  }
-
-  // Function to update loading message
-  function updateLoadingMessage() {
-    if (!loading || !fetchStartTime) {
-      stopLoadingMessageUpdates();
-      return;
-    }
-
-    const elapsedSeconds = Math.floor((Date.now() - fetchStartTime) / 1000);
-
-    if (elapsedSeconds > 2) {
-      loadingMessage = `Ingesting company data from EDGAR. This may take a minute... (${elapsedSeconds}s)`;
-    } else {
-      loadingMessage = `Searching...`;
-    }
-  }
-
-  /**
-   * Unified search function that handles both real-time search and exact search
-   * @param options Configuration options for the search
-   */
-  async function performSearch(options: {
-    isExactSearch: boolean;
-    debounceMs?: number;
-    showSpinner?: boolean;
-  }) {
-    const { isExactSearch, debounceMs = 0, showSpinner = false } = options;
-
-    // Clear previous timeouts
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
-
-    if (spinnerTimeout) {
-      clearTimeout(spinnerTimeout);
-    }
-
-    // Validate input for exact search
-    if (isExactSearch && !ticker) {
-      error = 'Please enter a ticker symbol';
-      return;
-    }
-
-    // Common reset logic for both modes
-    if (!isExactSearch) {
-      // For fuzzy search: reset spinner states immediately
-      showLoadingSpinner = false;
-      showLoadingText = false;
-
-      // Clear selected company when typing for fuzzy search
-      if (selectedCompany !== null) {
-        logger.debug('[CompanySelector] Clearing selectedCompany due to typing', {
-          previousCompany: selectedCompany,
-        });
-        selectedCompany = null;
-        dispatch('companyCleared');
-      }
-
-      // If the input is empty or too short for fuzzy search, clear results
-      if (!ticker || ticker.length < 2) {
-        searchResults = [];
-        showDropdown = false;
-        return;
-      }
-    } else {
-      // For exact search: prepare for potentially long operation
-      fetchStartTime = Date.now();
-      loadingMessage = 'Searching...';
-      selectedCompany = null;
-      showDropdown = false;
-
-      // Show spinner immediately for button clicks
-      if (showSpinner) {
-        showLoadingSpinner = true;
-        showLoadingText = true;
-      }
-    }
-
-    // Common reset logic
-    error = null;
-
-    // Define the search execution function
-    const executeSearch = async () => {
-      try {
-        loading = true;
-
-        // Start updating loading message for exact searches
-        if (isExactSearch) {
-          startLoadingMessageUpdates();
-        }
-
-        // Different API endpoints based on search type
-        let apiUrl: string;
-
-        if (isExactSearch) {
-          apiUrl = `${config.api.baseUrl}/companies/?ticker=${ticker.toUpperCase()}&auto_ingest=true`;
-          logger.info(`Searching for company with ticker: ${ticker.toUpperCase()}`, { apiUrl });
-        } else {
-          apiUrl = `${config.api.baseUrl}/companies/search?query=${encodeURIComponent(ticker)}`;
-          logger.info(`Searching for companies matching: ${ticker}`, { apiUrl });
-        }
-
-        // Execute the API call
-        if (isExactSearch) {
-          const company = await fetchApi<CompanyResponse>(apiUrl);
-          selectedCompany = company;
-          logger.info(`Company found: ${company.name}`, { company });
-          dispatch('companySelected', company);
-        } else {
-          const results = await fetchApi<CompanyResponse[]>(apiUrl);
-          searchResults = results;
-          showDropdown = results.length > 0;
-          logger.info(`Found ${results.length} matching companies`, { results });
-        }
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        logger.error(
-          `Error ${isExactSearch ? 'searching company by ticker' : 'searching companies'}:`,
-          {
-            query: ticker,
-            error: errorMessage,
-          }
-        );
-
-        error = errorMessage;
-        if (isExactSearch) {
-          selectedCompany = null;
-        }
-      } finally {
-        loading = false;
-
-        if (isExactSearch) {
-          fetchStartTime = null;
-          stopLoadingMessageUpdates();
-        }
-
-        // Clear spinner states
-        if (spinnerTimeout) {
-          clearTimeout(spinnerTimeout);
-        }
-        showLoadingSpinner = isExactSearch && showSpinner;
-        showLoadingText = isExactSearch && showSpinner;
-      }
-    };
-
-    // Either execute immediately or with debounce
-    if (debounceMs > 0) {
-      searchTimeout = setTimeout(executeSearch, debounceMs);
-    } else {
-      await executeSearch();
     }
   }
 
@@ -272,32 +127,6 @@
     });
   }
 
-  // Function to select a company from the dropdown
-  function selectCompanyFromDropdown(company: CompanyResponse) {
-    selectedCompany = company;
-    ticker = company.tickers && company.tickers.length > 0 ? company.tickers[0] : ''; // Safely access tickers
-    showDropdown = false; // Hide the dropdown
-    dispatch('companySelected', company);
-    handleCompanySelected(company); // Call our new function to collapse UI
-  }
-
-  // Handle keyboard navigation in dropdown
-  function handleKeydown(event: KeyboardEvent, company: CompanyResponse) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      selectCompanyFromDropdown(company);
-    }
-  }
-
-  // Handle input blur - hide dropdown with a small delay
-  function handleBlur() {
-    // Use a small timeout to allow for clicks on dropdown items
-    // before hiding the dropdown
-    blurTimeout = setTimeout(() => {
-      showDropdown = false;
-    }, 200);
-  }
-
   // Function to cancel blur when interacting with dropdown
   function cancelBlur() {
     if (blurTimeout) {
@@ -305,13 +134,72 @@
     }
   }
 
-  // Original function to search for a specific company by ticker (for exact match)
-  function searchCompany() {
-    performSearch({
-      isExactSearch: true,
-      debounceMs: 0, // No debounce for explicit search
-      showSpinner: true,
-    });
+  // Unified search function
+  async function performSearch(options: {
+    isExactSearch: boolean;
+    debounceMs: number;
+    showSpinner: boolean;
+  }) {
+    if (!ticker.trim()) {
+      searchResults = [];
+      showDropdown = false;
+      return;
+    }
+
+    // Clear existing timeout
+    if (searchTimeout) clearTimeout(searchTimeout);
+
+    // Set up new search with debounce
+    searchTimeout = setTimeout(async () => {
+      if (options.showSpinner) {
+        actions.setLoading('company', true);
+      }
+
+      try {
+        const apiUrl = `${config.api.baseUrl}/companies/search?q=${encodeURIComponent(ticker)}`;
+        const results = await fetchApi<CompanyResponse[]>(apiUrl);
+
+        if (options.isExactSearch && results.length === 1) {
+          // For exact search, select the company directly
+          actions.selectCompany(results[0]);
+          dispatch('companySelected', results[0]);
+          showDropdown = false;
+        } else {
+          // For autocomplete, show dropdown
+          searchResults = results;
+          showDropdown = results.length > 0;
+          currentFocusIndex = -1;
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (options.isExactSearch) {
+          actions.setError('company', errorMessage);
+        }
+        logger.error('Error searching companies:', { error: errorMessage });
+        searchResults = [];
+        showDropdown = false;
+      } finally {
+        if (options.showSpinner) {
+          actions.setLoading('company', false);
+        }
+      }
+    }, options.debounceMs);
+  }
+
+  // Function to handle keyboard events in dropdown items
+  function handleKeydown(event: KeyboardEvent, company: CompanyResponse) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectCompanyFromDropdown(company);
+    }
+  }
+
+  // Function to handle input blur with delay for dropdown interaction
+  function handleInputBlur() {
+    blurTimeout = setTimeout(() => {
+      showDropdown = false;
+      currentFocusIndex = -1;
+    }, 150);
   }
 
   // Function to handle keyboard navigation in dropdown from the input field
@@ -400,30 +288,48 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="company-selector card collapsible-component"
-  class:has-selected={selectedCompany !== null}
+  class:has-selected={appState.selectedCompany !== null}
   class:is-collapsed={isSearchCollapsed}
   onmouseenter={handleMouseEnter}
   onmouseleave={handleMouseLeave}
   onfocusin={handleFocus}
 >
-  <h2 class="collapsible-heading" class:is-collapsed={isSearchCollapsed}>Company Selector</h2>
+  <h2 class="collapsible-heading">Company Selector</h2>
 
-  <div class="search-container collapsible-content" class:is-collapsed={isSearchCollapsed}>
-    <div class="search-input-wrapper">
-      <input
-        type="text"
-        bind:value={ticker}
-        placeholder="Enter a ticker symbol"
-        oninput={handleInput}
-        onblur={handleBlur}
-        onkeydown={handleInputKeydown}
-        onfocus={handleFocus}
-      />
-    </div>
+  <div class="search-container">
+    <input
+      type="text"
+      bind:value={ticker}
+      placeholder="Enter a ticker symbol"
+      oninput={handleInput}
+      onblur={handleInputBlur}
+      onkeydown={handleInputKeydown}
+    />
     <button onclick={searchCompany} disabled={loading}>
-      {loading && showLoadingText ? 'Searching' : 'Search'}
+      {loading ? 'Searching' : 'Search'}
     </button>
   </div>
+
+  {#if loading}
+    <div class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>Loading...</p>
+    </div>
+  {/if}
+
+  {#if error}
+    <p class="error-message">Error: {error}</p>
+  {/if}
+
+  {#if appState.selectedCompany}
+    <div class="company-details selected-item">
+      <h3>
+        {appState.selectedCompany.name} ({appState.selectedCompany.tickers?.join(', ') || ''})
+      </h3>
+      <p>CIK: {appState.selectedCompany.cik}</p>
+      <button onclick={handleCompanyCleared}>Clear Selection</button>
+    </div>
+  {/if}
 
   <!-- Move dropdown outside of collapsible container -->
   {#if showDropdown && searchResults.length > 0}
@@ -443,30 +349,12 @@
           onclick={() => selectCompanyFromDropdown(company)}
           onkeydown={(e) => handleKeydown(e, company)}
           role="option"
-          aria-selected={selectedCompany === company || currentFocusIndex === index}
+          aria-selected={appState.selectedCompany === company || currentFocusIndex === index}
         >
           <div class="company-name">{company.name}</div>
           <div class="company-ticker">{company.tickers?.join(', ') || ''}</div>
         </button>
       {/each}
-    </div>
-  {/if}
-
-  {#if loading && !showDropdown && showLoadingSpinner}
-    <div class="loading-container">
-      <div class="loading-spinner"></div>
-      <p class="loading-text">{loadingMessage}</p>
-    </div>
-  {/if}
-
-  {#if error}
-    <p class="error-message">Error: {error}</p>
-  {/if}
-
-  {#if selectedCompany}
-    <div class="company-details selected-item">
-      <h3>{selectedCompany.name} ({selectedCompany.tickers?.join(', ') || ''})</h3>
-      <p class="meta">cik: {selectedCompany.cik}</p>
     </div>
   {/if}
 
@@ -520,12 +408,6 @@
   .company-selector {
     /* Position is needed for dropdown, min-height handled by utility class */
     position: relative;
-  }
-
-  .search-input-wrapper {
-    position: relative;
-    flex: 1;
-    z-index: 100; /* Increase z-index to ensure dropdown appears above everything */
   }
 
   .search-container {
@@ -590,12 +472,6 @@
   /* Add margin for the button */
   .company-details.selected-item p {
     margin-bottom: 0;
-  }
-
-  .loading-text {
-    font-weight: 500;
-    color: var(--color-text);
-    margin-bottom: var (--space-sm);
   }
 
   /* Search results dropdown */

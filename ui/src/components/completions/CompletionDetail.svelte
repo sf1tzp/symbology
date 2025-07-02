@@ -1,32 +1,42 @@
 <script lang="ts">
   import { getLogger } from '$utils/logger';
   import { fetchApi } from '$utils/generated-api-types';
-  import type { CompletionResponse, DocumentResponse } from '$utils/generated-api-types';
+  import type {
+    CompletionResponse,
+    DocumentResponse,
+    CompanyResponse,
+    FilingResponse,
+  } from '$utils/generated-api-types';
   import { createEventDispatcher } from 'svelte';
   import {
     formatDate,
-    formatModelName,
     cleanContent,
     getDocumentTypeName,
+    formatYear,
+    formatTitleCase,
   } from '$utils/formatters';
   import LoadingState from '$components/ui/LoadingState.svelte';
   import ErrorState from '$components/ui/ErrorState.svelte';
   import ModelConfig from '$components/ui/ModelConfig.svelte';
   import MarkdownContent from '$components/ui/MarkdownContent.svelte';
-  import MetaItems from '$components/ui/MetaItems.svelte';
+  import BackButton from '$components/ui/BackButton.svelte';
+  import appState, { actions } from '$utils/state-manager.svelte';
 
   const logger = getLogger('CompletionDetail');
   const dispatch = createEventDispatcher<{
     documentSelected: DocumentResponse;
   }>();
 
-  const { completion } = $props<{
+  const { completion, company, filing } = $props<{
     completion: CompletionResponse;
+    company?: CompanyResponse;
+    filing?: FilingResponse;
   }>();
 
   let sourceDocuments = $state<DocumentResponse[]>([]);
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let showDetails = $state(false);
 
   // Fetch source documents when completion changes
   $effect(() => {
@@ -71,33 +81,125 @@
     dispatch('documentSelected', document);
   }
 
-  // Prepare document meta items for each source document
-  function getDocumentMetaItems(document: DocumentResponse) {
-    return [
-      { label: 'Document Name', value: document.document_name },
-      ...(document.filing_id
-        ? [{ label: 'Filing ID', value: document.filing_id, mono: true }]
-        : []),
-    ];
-  }
+  // Create dynamic header title based on available context
+  const headerTitle = $derived(() => {
+    // Use props first, then fall back to app state
+    const companyName =
+      company?.display_name ||
+      company?.name ||
+      appState.selectedCompany?.display_name ||
+      appState.selectedCompany?.name;
+    let filingInfo = filing || appState.selectedFiling;
+
+    // If no filing available but we have source documents, try to get filing from first document
+    if (!filingInfo && sourceDocuments.length > 0) {
+      const firstDocWithFiling = sourceDocuments.find((doc) => doc.filing);
+      if (firstDocWithFiling?.filing) {
+        filingInfo = firstDocWithFiling.filing;
+      }
+    }
+
+    // Try to extract document type from source documents
+    const documentTypes = sourceDocuments
+      .map((doc) => getDocumentTypeName(doc.document_name))
+      .filter((type, index, array) => array.indexOf(type) === index) // Remove duplicates
+      .slice(0, 2); // Limit to first 2 types
+
+    // Build title components
+    const titleParts = [];
+
+    if (companyName) {
+      titleParts.push(`${formatTitleCase(companyName)}'s`);
+    }
+
+    if (filingInfo) {
+      const fiscalYear = filingInfo.period_of_report
+        ? formatYear(filingInfo.period_of_report)
+        : null;
+      if (fiscalYear) {
+        titleParts.push(`${fiscalYear} ${filingInfo.filing_type}`);
+      } else {
+        titleParts.push(filingInfo.filing_type);
+      }
+    }
+
+    if (documentTypes.length > 0) {
+      titleParts.push(documentTypes.join(' & '));
+    }
+
+    // Default fallback
+    if (titleParts.length === 0) {
+      return 'Completion Analysis';
+    }
+
+    return `Analysis of ${titleParts.join(' ')} section`;
+  });
 </script>
 
 <div class="completion-detail card">
   <header class="completion-header">
-    <h1>Completion Overview</h1>
-    <div class="completion-meta">
-      <span class="model-badge">{formatModelName(completion.model)}</span>
-      <span class="created-date">{formatDate(completion.created_at)}</span>
+    <div class="header-top">
+      <BackButton on:back={actions.navigateBack} />
+      <h1>{headerTitle()}</h1>
     </div>
   </header>
 
   <section class="summary-section">
-    <h2>Summary</h2>
-    <ModelConfig item={completion} showSystemPrompt={true} />
+    <div
+      class="section-header"
+      role="button"
+      tabindex="0"
+      onclick={() => (showDetails = !showDetails)}
+      onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (showDetails = !showDetails)}
+      aria-label={showDetails ? 'Hide details' : 'Show details'}
+    >
+      <h2>This summary was automatically generated. Click for details...</h2>
+      <span class="toggle-icon" class:collapsed={!showDetails}>▼</span>
+    </div>
+
+    {#if showDetails}
+      <div class="details-content">
+        <span class="created-date">Generated on {formatDate(completion.created_at)}</span>
+        <ModelConfig item={completion} showSystemPrompt={true} />
+
+        <section class="sources-section">
+          <h3>Included Context:</h3>
+
+          {#if loading}
+            <LoadingState message="Loading source documents..." />
+          {:else if error}
+            <ErrorState
+              message="Error loading source documents: {error}"
+              onRetry={fetchSourceDocuments}
+            />
+          {:else if sourceDocuments.length > 0}
+            <div class="sources-list">
+              {#each sourceDocuments as document (document.id)}
+                <div
+                  class="source-item"
+                  role="button"
+                  tabindex="0"
+                  onclick={() => handleDocumentClick(document)}
+                  onkeydown={(e) => e.key === 'Enter' && handleDocumentClick(document)}
+                >
+                  <div class="source-header">
+                    <h3>{document.document_name}</h3>
+                    <span class="source-type">Document</span>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div class="no-sources">
+              <p>No source documents found for this completion.</p>
+            </div>
+          {/if}
+        </section>
+      </div>
+    {/if}
   </section>
 
   <section class="content-section">
-    <h2>Content</h2>
     {#if cleanContent(completion.content)}
       <div class="content-display">
         <MarkdownContent content={cleanContent(completion.content) || ''} />
@@ -109,52 +211,12 @@
     {/if}
   </section>
 
-  <section class="sources-section">
-    <h2>Sources</h2>
-
-    {#if loading}
-      <LoadingState message="Loading source documents..." />
-    {:else if error}
-      <ErrorState
-        message="Error loading source documents: {error}"
-        onRetry={fetchSourceDocuments}
-      />
-    {:else if sourceDocuments.length > 0}
-      <div class="sources-list">
-        {#each sourceDocuments as document (document.id)}
-          <div
-            class="source-item"
-            role="button"
-            tabindex="0"
-            onclick={() => handleDocumentClick(document)}
-            onkeydown={(e) => e.key === 'Enter' && handleDocumentClick(document)}
-          >
-            <div class="source-header">
-              <h3>{getDocumentTypeName(document.document_name)}</h3>
-              <span class="source-type">Document</span>
-            </div>
-
-            <MetaItems items={getDocumentMetaItems(document)} variant="surface" />
-
-            <div class="source-preview">
-              <p>Click to view raw source material from SEC filing</p>
-            </div>
-          </div>
-        {/each}
-      </div>
-    {:else}
-      <div class="no-sources">
-        <p>No source documents found for this completion.</p>
-      </div>
-    {/if}
-  </section>
-
-  <section class="ratings-section">
+  <!-- <section class="ratings-section">
     <h2>Ratings</h2>
     <div class="unimplemented">
       <p>Rating system is not yet implemented</p>
     </div>
-  </section>
+  </section> -->
 </div>
 
 <style>
@@ -166,44 +228,97 @@
     gap: var(--space-lg);
   }
 
+  .header-top {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+
   .completion-header h1 {
     margin: 0;
     color: var(--color-primary);
     font-size: 1.5rem;
     font-weight: var(--font-weight-bold);
+    flex: 1;
   }
 
-  .completion-meta {
-    display: flex;
-    gap: var(--space-md);
-    align-items: center;
-    margin-top: var(--space-sm);
-  }
-
-  .model-badge {
-    background-color: var(--color-primary);
-    color: var(--color-surface);
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--border-radius);
-    font-weight: var(--font-weight-bold);
-    font-size: 0.9rem;
-  }
+  /* Removed unused .completion-meta and .model-badge selectors */
 
   .created-date {
     color: var(--color-text-light);
     font-size: 0.9rem;
   }
 
-  .summary-section h2,
-  .content-section h2,
-  .sources-section h2,
-  .ratings-section h2 {
-    margin: 0 0 var(--space-md) 0;
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+    cursor: pointer;
+    padding: var(--space-xs);
+    border-radius: var(--border-radius);
+    transition: background-color 0.2s ease;
+  }
+
+  .section-header:hover {
+    background-color: var(--color-background);
+  }
+
+  .section-header:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .section-header h2 {
+    margin: 0;
     color: var(--color-text);
     font-size: 1.2rem;
     border-bottom: 1px solid var(--color-border);
     padding-bottom: var(--space-sm);
+    flex: 1;
   }
+
+  .toggle-icon {
+    display: inline-block;
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+    transition: transform 0.2s ease;
+  }
+
+  .summary-section {
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border);
+  }
+
+  .toggle-icon.collapsed {
+    transform: rotate(-90deg);
+  }
+
+  .details-content {
+    animation: slideDown 0.3s ease-out;
+    overflow: hidden;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      max-height: 0;
+    }
+    to {
+      opacity: 1;
+      max-height: 1000px;
+    }
+  }
+
+  .content-display {
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: var(--space-md);
+  }
+
+  /* Removed unused h2 selectors */
 
   .no-content,
   .no-sources {
@@ -258,35 +373,7 @@
     font-size: 0.8rem;
   }
 
-  .source-preview {
-    color: var(--color-text-light);
-    font-style: italic;
-    text-align: center;
-    padding: var(--space-sm);
-    background-color: var(--color-surface);
-    border-radius: var(--border-radius);
-    border: 1px dashed var(--color-border);
-    margin-top: var(--space-sm);
-  }
+  /* Removed unused .unimplemented selector */
 
-  .source-preview p {
-    margin: 0;
-    font-size: 0.9rem;
-  }
-
-  .unimplemented {
-    color: var(--color-text-light);
-    font-style: italic;
-    text-align: center;
-    padding: var(--space-lg);
-    margin: 0;
-  }
-
-  @media (max-width: 768px) {
-    .completion-meta {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-sm);
-    }
-  }
+  /* Removed unused .completion-meta media query */
 </style>

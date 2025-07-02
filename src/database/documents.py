@@ -260,3 +260,34 @@ def get_documents_by_filing(filing_id: UUID) -> List[Document]:
                     error=str(e),
                     exc_info=True)
         raise
+
+
+def get_documents_by_ids(document_ids: List[UUID]) -> List[Document]:
+    """Get documents by their IDs.
+
+    Args:
+        document_ids: List of document UUIDs
+
+    Returns:
+        List of Document objects (only basic info, not content)
+    """
+    try:
+        if not document_ids:
+            return []
+
+        session = get_db_session()
+        # Only select the fields we need, excluding content for performance
+        documents = session.query(Document).filter(Document.id.in_(document_ids)).options(
+            joinedload(Document.filing)
+        ).all()
+
+        logger.info("retrieved_documents_by_ids",
+                   document_count=len(documents),
+                   requested_count=len(document_ids))
+        return documents
+    except Exception as e:
+        logger.error("get_documents_by_ids_failed",
+                    document_ids=[str(doc_id) for doc_id in document_ids],
+                    error=str(e),
+                    exc_info=True)
+        raise

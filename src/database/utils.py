@@ -217,7 +217,7 @@ def get_data_quality_summary() -> pd.DataFrame:
                 'column_count': len(schema_info),
                 'nullable_columns': len(schema_info[schema_info['is_nullable'] == 'YES'])
             }
-        except:
+        except Exception:
             continue
 
     return pd.DataFrame(summary).T

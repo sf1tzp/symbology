@@ -27,6 +27,28 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+def _is_numeric_value(value_str: str) -> bool:
+    """Check if a string value can be converted to a numeric Decimal.
+
+    Args:
+        value_str: String value to check
+
+    Returns:
+        True if the value can be converted to Decimal, False otherwise
+    """
+    if not value_str or pd.isna(value_str):
+        return False
+
+    # Remove common formatting characters
+    cleaned = str(value_str).strip().replace(',', '').replace('$', '').replace('(', '-').replace(')', '')
+
+    # Check if it's a number (including negative numbers, decimals, scientific notation)
+    try:
+        Decimal(cleaned)
+        return True
+    except (ValueError, TypeError, InvalidOperation):
+        return False
+
 def ingest_company(ticker: str) -> Tuple[EntityData, UUID]:
     """Fetch company data from EDGAR and store in database.
 
@@ -236,17 +258,25 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                 continue
 
             if pd.notna(value_str) and value_str != '':
-                try:
-                    value = Decimal(str(value_str))
-                    upsert_financial_value(
-                        company_id=company_id,
-                        concept_id=concept.id,
-                        value_date=report_date,
-                        value=value,
-                        filing_id=filing_id
-                    )
-                    counts['balance_sheet'] += 1
-                except (ValueError, TypeError):
+                if _is_numeric_value(value_str):
+                    try:
+                        # Clean and convert the value
+                        cleaned_value = str(value_str).strip().replace(',', '').replace('$', '').replace('(', '-').replace(')', '')
+                        value = Decimal(cleaned_value)
+                        upsert_financial_value(
+                            company_id=company_id,
+                            concept_id=concept.id,
+                            value_date=report_date,
+                            value=value,
+                            filing_id=filing_id
+                        )
+                        counts['balance_sheet'] += 1
+                    except (ValueError, TypeError, InvalidOperation):
+                        logger.warning("invalid_balance_sheet_value",
+                                      concept=concept_name,
+                                      value=str(value_str))
+                else:
+                    # Log warning for non-numeric values
                     logger.warning("invalid_balance_sheet_value",
                                   concept=concept_name,
                                   value=str(value_str))
@@ -275,17 +305,25 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                 continue
 
             if pd.notna(value_str) and value_str != '':
-                try:
-                    value = Decimal(str(value_str))
-                    upsert_financial_value(
-                        company_id=company_id,
-                        concept_id=concept.id,
-                        value_date=report_date,
-                        value=value,
-                        filing_id=filing_id
-                    )
-                    counts['income_statement'] += 1
-                except (ValueError, TypeError, InvalidOperation):
+                if _is_numeric_value(value_str):
+                    try:
+                        # Clean and convert the value
+                        cleaned_value = str(value_str).strip().replace(',', '').replace('$', '').replace('(', '-').replace(')', '')
+                        value = Decimal(cleaned_value)
+                        upsert_financial_value(
+                            company_id=company_id,
+                            concept_id=concept.id,
+                            value_date=report_date,
+                            value=value,
+                            filing_id=filing_id
+                        )
+                        counts['income_statement'] += 1
+                    except (ValueError, TypeError, InvalidOperation):
+                        logger.warning("invalid_income_statement_value",
+                                      concept=concept_name,
+                                      value=str(value_str))
+                else:
+                    # Log warning for non-numeric values
                     logger.warning("invalid_income_statement_value",
                                   concept=concept_name,
                                   value=str(value_str))
@@ -314,22 +352,30 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                 continue
 
             if pd.notna(value_str) and value_str != '':
-                try:
-                    value = Decimal(str(value_str))
-                    upsert_financial_value(
-                        company_id=company_id,
-                        concept_id=concept.id,
-                        value_date=report_date,
-                        value=value,
-                        filing_id=filing_id
-                    )
-                    counts['cash_flow'] += 1
-                except (ValueError, TypeError):
+                if _is_numeric_value(value_str):
+                    try:
+                        # Clean and convert the value
+                        cleaned_value = str(value_str).strip().replace(',', '').replace('$', '').replace('(', '-').replace(')', '')
+                        value = Decimal(cleaned_value)
+                        upsert_financial_value(
+                            company_id=company_id,
+                            concept_id=concept.id,
+                            value_date=report_date,
+                            value=value,
+                            filing_id=filing_id
+                        )
+                        counts['cash_flow'] += 1
+                    except (ValueError, TypeError, InvalidOperation):
+                        logger.warning("invalid_cash_flow_value",
+                                      concept=concept_name,
+                                      value=str(value_str))
+                else:
+                    # Log warning for non-numeric values
                     logger.warning("invalid_cash_flow_value",
                                   concept=concept_name,
                                   value=str(value_str))
 
-        # Cover page data
+        # Cover page data - only process numeric values
         cover_df = get_cover_page_values(filing)
         for _index, row in cover_df.iterrows():
             concept_name = row['concept']
@@ -352,21 +398,31 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                 # Skip if there's no value for this period
                 continue
 
+            # Only process numeric values for cover page data
             if pd.notna(value_str) and value_str != '':
-                try:
-                    value = Decimal(str(value_str))
-                    upsert_financial_value(
-                        company_id=company_id,
-                        concept_id=concept.id,
-                        value_date=report_date,
-                        value=value,
-                        filing_id=filing_id
-                    )
-                    counts['cover_page'] += 1
-                except (ValueError, TypeError, InvalidOperation):
-                    logger.warning("invalid_cover_page_value",
-                                  concept=concept_name,
-                                  value=str(value_str))
+                if _is_numeric_value(value_str):
+                    try:
+                        # Clean and convert the value
+                        cleaned_value = str(value_str).strip().replace(',', '').replace('$', '').replace('(', '-').replace(')', '')
+                        value = Decimal(cleaned_value)
+                        upsert_financial_value(
+                            company_id=company_id,
+                            concept_id=concept.id,
+                            value_date=report_date,
+                            value=value,
+                            filing_id=filing_id
+                        )
+                        counts['cover_page'] += 1
+                    except (ValueError, TypeError, InvalidOperation):
+                        logger.warning("invalid_cover_page_value",
+                                      concept=concept_name,
+                                      value=str(value_str))
+                else:
+                    # Log non-numeric values for debugging but don't try to store them
+                    logger.debug("skipping_non_numeric_cover_page_value",
+                               concept=concept_name,
+                               value=str(value_str),
+                               value_type=type(value_str).__name__)
 
         return counts
     except Exception as e:

@@ -11,6 +11,8 @@
   import LoadingState from '$components/ui/LoadingState.svelte';
   import ErrorState from '$components/ui/ErrorState.svelte';
   import MetaItems from '$components/ui/MetaItems.svelte';
+  import BackButton from '$components/ui/BackButton.svelte';
+  import { actions } from '$utils/state-manager.svelte';
 
   const logger = getLogger('FilingDetail');
   const dispatch = createEventDispatcher<{
@@ -101,7 +103,10 @@
 
 <div class="filing-detail card">
   <header class="filing-header">
-    <h1>{headerTitle()}</h1>
+    <div class="header-top">
+      <BackButton on:back={actions.navigateBack} />
+      <h1>{headerTitle()}</h1>
+    </div>
     <div class="filing-meta">
       <span class="filing-type-badge">{getFilingTypeLabel(filing.filing_type)}</span>
       <span class="filing-date">{formatDate(filing.filing_date)}</span>
@@ -176,11 +181,19 @@
     gap: var(--space-lg);
   }
 
+  .header-top {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+
   .filing-header h1 {
     margin: 0;
     color: var(--color-primary);
     font-size: 1.5rem;
     font-weight: var(--font-weight-bold);
+    flex: 1;
   }
 
   .filing-meta {

@@ -1,5 +1,5 @@
 """Tests for the document API endpoints."""
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -13,14 +13,17 @@ SAMPLE_COMPANY_ID = uuid4()
 SAMPLE_FILING_ID = uuid4()
 SAMPLE_DOCUMENT_ID = uuid4()
 
-# Sample document data
-SAMPLE_DOCUMENT_DATA = {
-    "id": SAMPLE_DOCUMENT_ID,
-    "filing_id": SAMPLE_FILING_ID,
-    "company_id": SAMPLE_COMPANY_ID,
-    "document_name": "test_10k.htm",
-    "content": "This is a sample 10-K document content"
-}
+
+def create_mock_document():
+    """Create a mock document object for testing."""
+    mock_document = MagicMock()
+    mock_document.id = SAMPLE_DOCUMENT_ID
+    mock_document.filing_id = SAMPLE_FILING_ID
+    mock_document.company_id = SAMPLE_COMPANY_ID
+    mock_document.document_name = "test_10k.htm"
+    mock_document.content = "This is a sample 10-K document content"
+    mock_document.filing = None  # No filing relationship for basic test
+    return mock_document
 
 
 class TestDocumentApi:
@@ -30,7 +33,7 @@ class TestDocumentApi:
     def test_get_document_by_id_found(self, mock_get_document):
         """Test retrieving a document by ID when it exists."""
         # Setup the mock to return our sample document
-        mock_get_document.return_value = SAMPLE_DOCUMENT_DATA
+        mock_get_document.return_value = create_mock_document()
 
         # Make the API call
         response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}")
@@ -75,7 +78,7 @@ class TestDocumentApi:
     def test_get_document_content_found(self, mock_get_document):
         """Test retrieving document content when document exists."""
         # Setup the mock to return our sample document
-        mock_get_document.return_value = SAMPLE_DOCUMENT_DATA
+        mock_get_document.return_value = create_mock_document()
 
         # Make the API call
         response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}/content")
@@ -107,10 +110,10 @@ class TestDocumentApi:
     @patch("src.api.routes.documents.get_document")
     def test_get_document_content_no_content(self, mock_get_document):
         """Test retrieving document content when document has no content."""
-        # Setup document data without content
-        document_without_content = SAMPLE_DOCUMENT_DATA.copy()
-        document_without_content["content"] = None
-        mock_get_document.return_value = document_without_content
+        # Setup document mock without content
+        mock_document = create_mock_document()
+        mock_document.content = None
+        mock_get_document.return_value = mock_document
 
         # Make the API call
         response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}/content")
@@ -125,10 +128,10 @@ class TestDocumentApi:
     @patch("src.api.routes.documents.get_document")
     def test_get_document_content_empty_string(self, mock_get_document):
         """Test retrieving document content when content is empty string."""
-        # Setup document data with empty content
-        document_with_empty_content = SAMPLE_DOCUMENT_DATA.copy()
-        document_with_empty_content["content"] = ""
-        mock_get_document.return_value = document_with_empty_content
+        # Setup document mock with empty content
+        mock_document = create_mock_document()
+        mock_document.content = ""
+        mock_get_document.return_value = mock_document
 
         # Make the API call
         response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}/content")

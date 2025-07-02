@@ -334,18 +334,18 @@ def search_companies_by_query(query: str, limit: int = 10) -> List[Company]:
 
 
 def list_all_companies(offset: int = 0, limit: int = 50) -> List[Company]:
-    """Get a paginated list of all companies.
+    """Get a paginated list of all companies that have summaries.
 
     Args:
         offset: Number of companies to skip
         limit: Maximum number of companies to return
 
     Returns:
-        List of Company objects
+        List of Company objects that have summaries
     """
     try:
         session = get_db_session()
-        companies = session.query(Company).order_by(Company.name).offset(offset).limit(limit).all()
+        companies = session.query(Company).filter(Company.summary.isnot(None)).order_by(Company.name).offset(offset).limit(limit).all()
 
         logger.info("list_all_companies", offset=offset, limit=limit, result_count=len(companies))
         return companies

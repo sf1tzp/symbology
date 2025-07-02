@@ -121,6 +121,19 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export interface PromptResponse {
+  /** Unique identifier for the prompt */
+  id: string;
+  /** Name of the prompt */
+  name: string;
+  /** Description of the prompt */
+  description?: any;
+  /** Role of the prompt (system, assistant, user) */
+  role: string;
+  /** Prompt content text */
+  content: string;
+}
+
 export interface ValidationError {
   loc: any[];
   msg: string;

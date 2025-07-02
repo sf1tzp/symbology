@@ -8,15 +8,17 @@
   } from '$utils/generated-api-types';
   import { createEventDispatcher } from 'svelte';
   import {
-    formatDate,
+    formatYear,
     cleanContent,
     getFilingTypeLabel,
     formatDocumentType,
+    formatTitleCase,
   } from '$utils/formatters';
   import LoadingState from '$components/ui/LoadingState.svelte';
   import ErrorState from '$components/ui/ErrorState.svelte';
   import MarkdownContent from '$components/ui/MarkdownContent.svelte';
-  import MetaItems from '$components/ui/MetaItems.svelte';
+  import BackButton from '$components/ui/BackButton.svelte';
+  import { actions } from '$utils/state-manager.svelte';
 
   const logger = getLogger('CompanyDetail');
   const dispatch = createEventDispatcher<{
@@ -34,6 +36,7 @@
   let filingsLoading = $state(false);
   let error = $state<string | null>(null);
   let filingsError = $state<string | null>(null);
+  let filingsCollapsed = $state(true);
 
   // Fetch aggregates when company changes
   $effect(() => {
@@ -107,62 +110,43 @@
     dispatch('filingSelected', filing);
   }
 
-  // Prepare company summary meta items
-  const summaryItems = $derived([
-    ...(company.sic_description ? [{ label: 'Industry', value: company.sic_description }] : []),
-    ...(company.entity_type ? [{ label: 'Entity Type', value: company.entity_type }] : []),
-    ...(company.fiscal_year_end
-      ? [{ label: 'Fiscal Year End', value: formatDate(company.fiscal_year_end) }]
-      : []),
-    ...(company.cik ? [{ label: 'CIK', value: company.cik, mono: true }] : []),
-  ]);
-
-  // Prepare filing meta items for each filing
-  function getFilingMetaItems(filing: FilingResponse) {
-    return [
-      { label: 'Filed', value: formatDate(filing.filing_date) },
-      ...(filing.period_of_report
-        ? [{ label: 'Period', value: formatDate(filing.period_of_report) }]
-        : []),
-      { label: 'Accession', value: filing.accession_number, mono: true },
-    ];
+  function toggleFilingsCollapsed() {
+    filingsCollapsed = !filingsCollapsed;
   }
 </script>
 
 <div class="company-detail card">
   <header class="company-header">
-    <h1>{company.display_name || company.name}</h1>
-    <div class="company-meta">
-      {#if company.tickers?.length}
-        <div class="tickers">
-          {#each company.tickers as ticker (ticker)}
-            <span class="ticker">{ticker}</span>
-          {/each}
-        </div>
-      {/if}
-      {#if company.exchanges?.length}
-        <div class="exchanges">
-          {company.exchanges.join(', ')}
-        </div>
-      {/if}
+    <div class="header-top">
+      <BackButton label="Back" on:back={actions.navigateBackFromCompany} />
+      <h1>{formatTitleCase(company.display_name || company.name)}</h1>
+      <div class="company-meta">
+        {#if company.tickers?.length}
+          <div class="tickers">
+            <span class="ticker">{company.tickers[0]}</span>
+          </div>
+        {/if}
+        {#if company.exchanges?.length}
+          <div class="exchanges">
+            {company.exchanges[0]}
+          </div>
+        {/if}
+      </div>
     </div>
   </header>
 
   <section class="company-summary">
-    <h2>Company Summary</h2>
-
     {#if cleanContent(company.summary)}
       <div class="summary-text">
         <MarkdownContent content={cleanContent(company.summary) || ''} />
       </div>
     {/if}
 
-    <MetaItems items={summaryItems} />
+    <!-- <MetaItems items={summaryItems} /> -->
   </section>
 
   <section class="aggregates-section">
-    <h2>Available Analysis</h2>
-
+    <h2>This summary was generated from the following reports:</h2>
     {#if loading}
       <LoadingState message="Loading analysis..." />
     {:else if error}
@@ -170,17 +154,13 @@
     {:else if availableAggregates.length > 0}
       <div class="aggregates-list">
         {#each availableAggregates as aggregate (aggregate.id)}
-          <div
-            class="aggregate-item"
-            role="button"
-            tabindex="0"
+          <button
+            class="aggregate-link"
             onclick={() => handleAggregateClick(aggregate)}
             onkeydown={(e) => e.key === 'Enter' && handleAggregateClick(aggregate)}
           >
-            <div class="aggregate-header">
-              <h3 class="aggregate-title">{formatDocumentType(aggregate.document_type)}</h3>
-            </div>
-          </div>
+            {formatDocumentType(aggregate.document_type)}
+          </button>
         {/each}
       </div>
     {:else}
@@ -191,58 +171,56 @@
   </section>
 
   <section class="filings-section">
-    <h2>SEC Filings</h2>
+    <div class="section-header">
+      <h2>SEC Filings</h2>
+      <button
+        class="toggle-button"
+        onclick={toggleFilingsCollapsed}
+        aria-label={filingsCollapsed ? 'Show filings' : 'Hide filings'}
+      >
+        <span class="toggle-icon" class:collapsed={filingsCollapsed}>▼</span>
+      </button>
+    </div>
 
-    {#if filingsLoading}
-      <LoadingState message="Loading filings..." />
-    {:else if filingsError}
-      <ErrorState message="Error loading filings: {filingsError}" onRetry={fetchFilings} />
-    {:else if availableFilings.length > 0}
-      <div class="filings-container">
-        <div class="filings-list">
-          {#each availableFilings as filing (filing.id)}
-            <button
-              class="filing-item"
-              onclick={() => handleFilingClick(filing)}
-              onkeydown={(e) => e.key === 'Enter' && handleFilingClick(filing)}
-            >
-              <div class="filing-header">
-                <div class="filing-type-info">
-                  <h3 class="filing-type">{filing.filing_type}</h3>
-                  <span class="filing-description">{getFilingTypeLabel(filing.filing_type)}</span>
+    {#if !filingsCollapsed}
+      {#if filingsLoading}
+        <LoadingState message="Loading filings..." />
+      {:else if filingsError}
+        <ErrorState message="Error loading filings: {filingsError}" onRetry={fetchFilings} />
+      {:else if availableFilings.length > 0}
+        <p>We have processed information from these filings:</p>
+        <div class="filings-container">
+          <div class="filings-list">
+            {#each availableFilings as filing (filing.id)}
+              <button
+                class="filing-item"
+                onclick={() => handleFilingClick(filing)}
+                onkeydown={(e) => e.key === 'Enter' && handleFilingClick(filing)}
+              >
+                <div class="filing-header">
+                  <div class="filing-type-info">
+                    <h3 class="filing-type">
+                      {formatYear(filing.period_of_report)}
+                      {filing.filing_type}
+                    </h3>
+                    <span class="filing-description">{getFilingTypeLabel(filing.filing_type)}</span>
+                  </div>
                 </div>
-              </div>
-
-              <MetaItems items={getFilingMetaItems(filing)} columns={3} variant="surface" />
-
-              <div class="filing-link">
-                <span class="link-indicator">Click to view filing details</span>
-                {#if filing.filing_url}
-                  <a
-                    href={filing.filing_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="sec-link"
-                    onclick={(e) => e.stopPropagation()}
-                  >
-                    📄 SEC Website
-                  </a>
-                {/if}
-              </div>
-            </button>
-          {/each}
+              </button>
+            {/each}
+          </div>
         </div>
-      </div>
-    {:else}
-      <div class="no-filings">
-        <p>No SEC filings available for this company.</p>
-      </div>
+      {:else}
+        <div class="no-filings">
+          <p>No SEC filings available for this company.</p>
+        </div>
+      {/if}
     {/if}
   </section>
 
   <section class="financials-section">
     <h2>Financials</h2>
-    <p class="unimplemented">Financial data display is not yet implemented</p>
+    <p class="unimplemented">Quantitative analyis coming soon</p>
   </section>
 </div>
 
@@ -255,11 +233,19 @@
     gap: var(--space-lg);
   }
 
+  .header-top {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+
   .company-header h1 {
     margin: 0;
     color: var(--color-primary);
     font-size: 1.5rem;
     font-weight: var(--font-weight-bold);
+    flex: 1;
   }
 
   .company-meta {
@@ -288,7 +274,6 @@
     font-size: 0.9rem;
   }
 
-  .company-summary h2,
   .aggregates-section h2,
   .filings-section h2,
   .financials-section h2 {
@@ -297,6 +282,50 @@
     font-size: 1.2rem;
     border-bottom: 1px solid var(--color-border);
     padding-bottom: var(--space-sm);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+  }
+
+  .section-header h2 {
+    margin: 0;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-sm);
+    flex: 1;
+  }
+
+  .toggle-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-xs);
+    border-radius: var(--border-radius);
+    transition: background-color 0.2s ease;
+    margin-left: var(--space-sm);
+  }
+
+  .toggle-button:hover {
+    background-color: var(--color-background);
+  }
+
+  .toggle-button:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .toggle-icon {
+    display: inline-block;
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+    transition: transform 0.2s ease;
+  }
+
+  .toggle-icon.collapsed {
+    transform: rotate(-90deg);
   }
 
   .summary-text {
@@ -308,43 +337,33 @@
   }
 
   .aggregates-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: var(--space-md);
-  }
-
-  @media (max-width: 768px) {
-    .aggregates-list {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .aggregate-item {
-    background-color: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-    transition: transform 0.2s ease;
-    cursor: pointer;
-  }
-
-  .aggregate-item:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--hover-shadow);
-  }
-
-  .aggregate-header {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-md);
     align-items: center;
-    margin-bottom: var(--space-sm);
   }
 
-  .aggregate-title {
-    margin: 0;
+  .aggregate-link {
+    background: none;
+    border: none;
     color: var(--color-primary);
-    font-size: 1.1rem;
-    font-weight: var(--font-weight-bold);
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: inherit;
+    padding: var(--space-xs);
+    border-radius: var(--border-radius);
+    transition: background-color 0.2s ease;
+  }
+
+  .aggregate-link:hover {
+    background-color: var(--color-background);
+    text-decoration: none;
+  }
+
+  .aggregate-link:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 
   .no-aggregates,
@@ -412,38 +431,6 @@
     margin: 0;
     color: var(--color-text-light);
     font-size: 0.9rem;
-  }
-
-  .filing-link {
-    margin-top: var(--space-sm);
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-  }
-
-  .link-indicator {
-    font-size: 0.8rem;
-    color: var(--color-text-light);
-    font-style: italic;
-  }
-
-  .sec-link {
-    display: inline-block;
-    background-color: var(--color-primary);
-    color: var(--color-surface);
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--border-radius);
-    text-decoration: none;
-    font-weight: var(--font-weight-bold);
-    font-size: 0.8rem;
-    transition: background-color 0.2s ease;
-    margin: 0 auto;
-    width: fit-content;
-  }
-
-  .sec-link:hover {
-    background-color: var(--color-primary-dark, var(--color-primary));
   }
 
   .unimplemented {

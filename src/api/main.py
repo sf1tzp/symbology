@@ -42,6 +42,10 @@ app = FastAPI(
             "name": "aggregates",
             "description": "Operations related to AI-generated aggregates",
         },
+        {
+            "name": "prompts",
+            "description": "Operations related to prompt templates and management",
+        },
     ],
     contact={
         "name": "Symbology Team",

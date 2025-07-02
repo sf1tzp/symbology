@@ -54,7 +54,7 @@ async def get_company_filings(company_id: UUID) -> List[FilingResponse]:
                     company_id=str(company_id),
                     error=str(e),
                     exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve filings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve filings: {str(e)}") from e
 
 
 @router.get("/by-ticker/{ticker}", response_model=List[FilingResponse])
@@ -106,4 +106,4 @@ async def get_filings_by_ticker(ticker: str) -> List[FilingResponse]:
                     ticker=ticker,
                     error=str(e),
                     exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve filings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve filings: {str(e)}") from e

@@ -101,10 +101,10 @@ async def list_companies(
     offset: int = Query(0, description="Number of companies to skip", ge=0),
     limit: int = Query(50, description="Maximum number of companies to return", ge=1, le=100)
 ):
-    """List all companies with pagination.
+    """List all companies with summaries and pagination.
 
-    Returns a paginated list of all companies in the database.
-    This is primarily used for browsing all available companies.
+    Returns a paginated list of companies that have summaries in the database.
+    This is primarily used for browsing companies with available summaries.
     """
     logger.info("api_list_companies", offset=offset, limit=limit)
     companies = list_all_companies(offset=offset, limit=limit)

@@ -20,6 +20,7 @@ export const appState = $state({
 
     // UI state
     isDarkMode: false,
+    disclaimerAccepted: false,
 
     // Loading states
     loading: {
@@ -69,8 +70,10 @@ export const actions = {
     selectFiling: (filing: FilingResponse) => {
         logger.debug('[StateManager] Selecting filing', { filing });
         appState.selectedFiling = filing;
-        // Clear downstream selections
+        // Clear downstream selections and conflicting selections
         appState.selectedDocument = null;
+        appState.selectedCompletion = null;
+        appState.selectedAggregate = null;
         // Clear errors
         appState.errors.filing = null;
     },
@@ -142,6 +145,69 @@ export const actions = {
         appState.isDarkMode = savedTheme === 'dark';
         updateThemeClass();
     },
+
+    // Disclaimer actions
+    acceptDisclaimer: () => {
+        logger.debug('[StateManager] Disclaimer accepted');
+        appState.disclaimerAccepted = true;
+        saveDisclaimerAcceptance();
+    },
+
+    initializeDisclaimer: () => {
+        const disclaimerAccepted = localStorage.getItem('disclaimerAccepted');
+        appState.disclaimerAccepted = disclaimerAccepted === 'true';
+    },
+
+    // Navigation actions
+    navigateBack: () => {
+        logger.debug('[StateManager] Navigating back from current view', {
+            currentView: appState.currentView()
+        });
+
+        // Navigate back based on current hierarchy
+        if (appState.selectedDocument) {
+            // From Document → go back to the parent (Completion, Filing, or Aggregate)
+            appState.selectedDocument = null;
+            appState.errors.document = null;
+        } else if (appState.selectedCompletion) {
+            // From Completion → go back to Aggregate
+            appState.selectedCompletion = null;
+            appState.errors.completion = null;
+        } else if (appState.selectedAggregate) {
+            // From Aggregate → go back to Company
+            appState.selectedAggregate = null;
+            appState.errors.aggregate = null;
+        } else if (appState.selectedFiling) {
+            // From Filing → go back to Company
+            appState.selectedFiling = null;
+            appState.errors.filing = null;
+        }
+        // Note: We don't clear selectedCompany as that's handled by the CompanySelector's "Clear" button
+    },
+
+    // Navigate back from company level (clears company selection)
+    navigateBackFromCompany: () => {
+        logger.debug('[StateManager] Navigating back from company view - clearing all selections');
+        // This is equivalent to clearAll, but more semantic for navigation
+        actions.clearAll();
+    },
+
+    // Helper to check if back navigation is available
+    canNavigateBack: () => {
+        return appState.selectedDocument ||
+            appState.selectedCompletion ||
+            appState.selectedAggregate ||
+            appState.selectedFiling;
+    },
+
+    // Helper to check if we can navigate back from company level
+    canNavigateBackFromCompany: () => {
+        return appState.selectedCompany !== null &&
+            !appState.selectedDocument &&
+            !appState.selectedCompletion &&
+            !appState.selectedAggregate &&
+            !appState.selectedFiling;
+    },
 };
 
 // Helper functions
@@ -154,6 +220,12 @@ function updateThemeClass() {
 function saveThemePreference() {
     if (typeof localStorage !== 'undefined') {
         localStorage.setItem('theme', appState.isDarkMode ? 'dark' : 'light');
+    }
+}
+
+function saveDisclaimerAcceptance() {
+    if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('disclaimerAccepted', 'true');
     }
 }
 

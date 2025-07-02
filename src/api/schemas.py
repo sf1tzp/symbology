@@ -69,7 +69,9 @@ class CompanyResponse(BaseModel):
                         "date_changed": "2007-01-09"
                     }
                 ],
-                "summary": "Apple Inc. is a leading technology company that designs, develops and sells consumer electronics, computer software and online services..."
+                "summary": ("Apple Inc. is a leading technology company that designs, "
+                          "develops and sells consumer electronics, computer software "
+                          "and online services...")
             }
         }
 

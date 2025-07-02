@@ -5,6 +5,7 @@
   import config from '$utils/config';
   import { onDestroy, createEventDispatcher } from 'svelte';
   import appState, { actions } from '$utils/state-manager.svelte';
+  import { formatTitleCase } from '$src/utils/formatters';
 
   const logger = getLogger('CompanySelector');
   const dispatch = createEventDispatcher<{
@@ -36,6 +37,7 @@
   // Derived reactive state from the state manager (using $derived instead of $:)
   const loading = $derived(appState.loading.company);
   const error = $derived(appState.errors.company);
+  const disclaimerAccepted = $derived(appState.disclaimerAccepted);
 
   // Auto-collapse when company is selected (using $effect instead of $:)
   $effect(() => {
@@ -82,14 +84,6 @@
     actions.selectCompany(company);
     dispatch('companySelected', company);
     ticker = company.tickers?.[0] || '';
-    showDropdown = false;
-  }
-
-  function handleCompanyCleared() {
-    actions.clearAll();
-    dispatch('companyCleared');
-    ticker = '';
-    searchResults = [];
     showDropdown = false;
   }
 
@@ -287,25 +281,28 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="company-selector card collapsible-component"
+  class="company-selector card collapsible-component full-vertical"
   class:has-selected={appState.selectedCompany !== null}
   class:is-collapsed={isSearchCollapsed}
   onmouseenter={handleMouseEnter}
   onmouseleave={handleMouseLeave}
   onfocusin={handleFocus}
 >
-  <h2 class="collapsible-heading">Company Selector</h2>
+  {#if !disclaimerAccepted}
+    <div class="disclaimer-notice">Please accept the disclaimer to search for companies.</div>
+  {/if}
 
   <div class="search-container">
     <input
       type="text"
       bind:value={ticker}
-      placeholder="Enter a ticker symbol"
+      placeholder={disclaimerAccepted ? 'Enter a ticker symbol' : 'Please accept disclaimer first'}
       oninput={handleInput}
       onblur={handleInputBlur}
       onkeydown={handleInputKeydown}
+      disabled={!disclaimerAccepted}
     />
-    <button onclick={searchCompany} disabled={loading}>
+    <button onclick={searchCompany} disabled={loading || !disclaimerAccepted}>
       {loading ? 'Searching' : 'Search'}
     </button>
   </div>
@@ -320,16 +317,15 @@
   {#if error}
     <p class="error-message">Error: {error}</p>
   {/if}
-
-  {#if appState.selectedCompany}
-    <div class="company-details selected-item">
-      <h3>
-        {appState.selectedCompany.name} ({appState.selectedCompany.tickers?.join(', ') || ''})
-      </h3>
-      <p>CIK: {appState.selectedCompany.cik}</p>
-      <button onclick={handleCompanyCleared}>Clear Selection</button>
-    </div>
-  {/if}
+  <!---->
+  <!-- {#if appState.selectedCompany} -->
+  <!--   <div class="company-details selected-item"> -->
+  <!--     <h3> -->
+  <!--       {appState.selectedCompany.name} ({appState.selectedCompany.tickers?.join(', ') || ''}) -->
+  <!--     </h3> -->
+  <!--     <button onclick={handleCompanyCleared}>Clear Selection</button> -->
+  <!--   </div> -->
+  <!-- {/if} -->
 
   <!-- Move dropdown outside of collapsible container -->
   {#if showDropdown && searchResults.length > 0}
@@ -350,6 +346,7 @@
           onkeydown={(e) => handleKeydown(e, company)}
           role="option"
           aria-selected={appState.selectedCompany === company || currentFocusIndex === index}
+          disabled={!disclaimerAccepted}
         >
           <div class="company-name">{company.name}</div>
           <div class="company-ticker">{company.tickers?.join(', ') || ''}</div>
@@ -361,7 +358,7 @@
   <!-- Company list section -->
   {#if showCompanyList}
     <div class="company-list-container">
-      <h3 class="company-list-header">Browse All Companies</h3>
+      <h3 class="company-list-header">Select a Company</h3>
 
       {#if listLoading && allCompanies.length === 0}
         <div class="loading-container">
@@ -378,12 +375,13 @@
             {#each allCompanies as company (company.id)}
               <li class="company-list-item">
                 <div class="company-info">
-                  <div class="company-name">{company.name}</div>
-                  <div class="company-ticker">{company.tickers?.join(', ') || ''}</div>
+                  <div class="company-name">{formatTitleCase(company.name)}</div>
+                  <div class="company-ticker">{company.tickers?.[0] || ''}</div>
                 </div>
                 <button
                   class="select-company-button"
                   onclick={() => selectCompanyFromDropdown(company)}
+                  disabled={!disclaimerAccepted}
                 >
                   Select
                 </button>
@@ -393,7 +391,11 @@
 
           {#if hasMoreCompanies}
             <div class="load-more-container">
-              <button class="load-more-button" onclick={handleLoadMore} disabled={listLoading}>
+              <button
+                class="load-more-button"
+                onclick={handleLoadMore}
+                disabled={listLoading || !disclaimerAccepted}
+              >
                 {listLoading ? 'Loading...' : 'Load more companies'}
               </button>
             </div>
@@ -406,8 +408,22 @@
 
 <style>
   .company-selector {
-    /* Position is needed for dropdown, min-height handled by utility class */
     position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0;
+    box-sizing: border-box;
+  }
+
+  .full-vertical {
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
   }
 
   .search-container {
@@ -430,7 +446,6 @@
   button {
     padding: var(--space-sm) var(--space-md);
     background-color: var(--color-primary);
-    color: white;
     border: none;
     border-radius: var(--border-radius);
     cursor: pointer;
@@ -444,34 +459,6 @@
   button:disabled {
     background-color: var(--color-text-light);
     cursor: not-allowed;
-  }
-
-  .company-details {
-    /* margin-top: var(--space-sm); */
-    padding: var(--space-md); /* Consistent padding with other selectors */
-  }
-
-  .company-details.selected-item {
-    cursor: default;
-    margin-bottom: var(--space-sm);
-    padding: var(--space-md); /* Ensure consistent padding */
-  }
-
-  .company-details h3 {
-    margin: 0 0 var(--space-xs) 0;
-    color: var(--color-text);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .company-details p {
-    margin: var(--space-xs) 0 0 0;
-    font-size: 0.9rem;
-  }
-
-  /* Add margin for the button */
-  .company-details.selected-item p {
-    margin-bottom: 0;
   }
 
   /* Search results dropdown */
@@ -541,6 +528,11 @@
     margin-top: var(--space-md);
     padding: var(--space-md);
     border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+    box-sizing: border-box;
   }
 
   .company-list-header {
@@ -551,9 +543,14 @@
   }
 
   .company-list-scrollable {
-    max-height: 400px;
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: 100%;
     overflow-y: auto;
     padding-right: calc(var(--space-md) + 1rem); /* Add padding for scrollbar */
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
   }
 
   .company-list {
@@ -577,7 +574,6 @@
   .select-company-button {
     padding: var(--space-sm) var(--space-md);
     background-color: var(--color-primary);
-    color: white;
     border: none;
     border-radius: var(--border-radius);
     cursor: pointer;
@@ -593,7 +589,6 @@
     width: 100%;
     padding: var(--space-sm);
     background-color: var(--color-primary);
-    color: white;
     border: none;
     border-radius: var(--border-radius);
     cursor: pointer;
@@ -604,5 +599,41 @@
 
   .load-more-button:hover {
     background-color: var(--color-primary-hover);
+  }
+
+  /* Disabled states */
+  input:disabled {
+    background-color: var(--color-background-disabled, #f5f5f5);
+    color: var(--color-text-disabled, #999);
+    cursor: not-allowed;
+  }
+
+  button:disabled {
+    background-color: var(--color-background-disabled, #f5f5f5);
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  button:disabled:hover {
+    background-color: var(--color-background-disabled, #f5f5f5);
+  }
+
+  .search-result-item:disabled {
+    background-color: var(--color-background-disabled, #f5f5f5);
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .search-result-item:disabled:hover {
+    background-color: var(--color-background-disabled, #f5f5f5);
+  }
+
+  .disclaimer-notice {
+    border: 1px solid var(--color-warning-border, #d17c36);
+    border-radius: var(--border-radius);
+    padding: var(--space-sm);
+    margin-bottom: var(--space-md);
+    font-size: 0.9rem;
+    text-align: center;
   }
 </style>

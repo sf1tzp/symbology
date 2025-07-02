@@ -7,6 +7,19 @@ export function formatDate(dateString: string | undefined): string {
 }
 
 /**
+ * Extract year from a date string with type safety
+ */
+export function formatYear(dateString: string | undefined): string {
+    if (!dateString) return '';
+    try {
+        const year = new Date(dateString).getFullYear();
+        return isNaN(year) ? '' : year.toString();
+    } catch {
+        return '';
+    }
+}
+
+/**
  * Format model name for display (replace underscores, uppercase)
  */
 export function formatModelName(model: string): string {
@@ -83,4 +96,14 @@ export function getDocumentTypeName(docName: string): string {
     if (docName.toLowerCase().includes('description') || docName.toLowerCase().includes('business'))
         return 'Business Description';
     return docName;
+}
+
+export function formatTitleCase(name: string): string {
+    if (!name) return '';
+
+    return name
+        .toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 }

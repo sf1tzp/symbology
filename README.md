@@ -1,6 +1,6 @@
 # Symbology
 
-![Symbology Logo](https://i.imgur.com/SHcZkb2.png)
+![Symbology Logo](https://i.imgur.com/v0cp4d1.png)
 
 A financial intelligence platform that transforms SEC EDGAR filings into AI-powered insights through automated document processing and analysis.
 

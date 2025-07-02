@@ -9,7 +9,6 @@
   import { createEventDispatcher } from 'svelte';
   import {
     formatDate,
-    formatModelName,
     cleanContent,
     getFilingTypeLabel,
     formatDocumentType,
@@ -22,6 +21,7 @@
   const logger = getLogger('CompanyDetail');
   const dispatch = createEventDispatcher<{
     aggregateSelected: AggregateResponse;
+    filingSelected: FilingResponse;
   }>();
 
   const { company } = $props<{
@@ -100,13 +100,11 @@
   }
 
   function handleFilingClick(filing: FilingResponse) {
-    logger.debug('[CompanyDetail] Filing clicked', {
+    logger.debug('[CompanyDetail] Filing selected', {
       filingId: filing.id,
       accessionNumber: filing.accession_number,
     });
-    if (filing.filing_url) {
-      window.open(filing.filing_url, '_blank');
-    }
+    dispatch('filingSelected', filing);
   }
 
   // Prepare company summary meta items
@@ -118,17 +116,6 @@
       : []),
     ...(company.cik ? [{ label: 'CIK', value: company.cik, mono: true }] : []),
   ]);
-
-  // Prepare aggregate meta items for each aggregate
-  function getAggregateMetaItems(aggregate: AggregateResponse) {
-    return [
-      { label: 'Created', value: formatDate(aggregate.created_at) },
-      ...(aggregate.temperature ? [{ label: 'Temperature', value: aggregate.temperature }] : []),
-      ...(aggregate.total_duration
-        ? [{ label: 'Duration', value: `${aggregate.total_duration.toFixed(1)}s` }]
-        : []),
-    ];
-  }
 
   // Prepare filing meta items for each filing
   function getFilingMetaItems(filing: FilingResponse) {
@@ -192,21 +179,7 @@
           >
             <div class="aggregate-header">
               <h3 class="aggregate-title">{formatDocumentType(aggregate.document_type)}</h3>
-              <span class="aggregate-model">{formatModelName(aggregate.model)}</span>
             </div>
-
-            <MetaItems items={getAggregateMetaItems(aggregate)} columns={3} variant="surface" />
-
-            {#if cleanContent(aggregate.summary)}
-              <div class="aggregate-preview">
-                <MarkdownContent
-                  content={(() => {
-                    const cleaned = cleanContent(aggregate.summary) || '';
-                    return cleaned.length > 150 ? cleaned.substring(0, 150) + '...' : cleaned;
-                  })()}
-                />
-              </div>
-            {/if}
           </div>
         {/each}
       </div>
@@ -230,8 +203,6 @@
           {#each availableFilings as filing (filing.id)}
             <button
               class="filing-item"
-              class:clickable={filing.filing_url}
-              disabled={!filing.filing_url}
               onclick={() => handleFilingClick(filing)}
               onkeydown={(e) => e.key === 'Enter' && handleFilingClick(filing)}
             >
@@ -244,11 +215,20 @@
 
               <MetaItems items={getFilingMetaItems(filing)} columns={3} variant="surface" />
 
-              {#if filing.filing_url}
-                <div class="filing-link">
-                  <span class="link-indicator">Click to view on SEC website</span>
-                </div>
-              {/if}
+              <div class="filing-link">
+                <span class="link-indicator">Click to view filing details</span>
+                {#if filing.filing_url}
+                  <a
+                    href={filing.filing_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="sec-link"
+                    onclick={(e) => e.stopPropagation()}
+                  >
+                    📄 SEC Website
+                  </a>
+                {/if}
+              </div>
             </button>
           {/each}
         </div>
@@ -328,9 +308,15 @@
   }
 
   .aggregates-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: var(--space-md);
+  }
+
+  @media (max-width: 768px) {
+    .aggregates-list {
+      grid-template-columns: 1fr;
+    }
   }
 
   .aggregate-item {
@@ -359,25 +345,6 @@
     color: var(--color-primary);
     font-size: 1.1rem;
     font-weight: var(--font-weight-bold);
-  }
-
-  .aggregate-model {
-    background-color: var(--color-primary);
-    color: var(--color-surface);
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--border-radius);
-    font-weight: var(--font-weight-bold);
-    font-size: 0.8rem;
-  }
-
-  .aggregate-preview {
-    margin-top: var(--space-md);
-    padding: var(--space-sm);
-    background-color: var(--color-surface);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--color-border);
-    color: var(--color-text);
-    line-height: 1.5;
   }
 
   .no-aggregates,
@@ -420,12 +387,7 @@
     color: inherit;
   }
 
-  .filing-item:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-
-  .filing-item:not(:disabled):hover {
+  .filing-item:hover {
     transform: translateY(-2px);
     box-shadow: var(--hover-shadow);
   }
@@ -455,12 +417,33 @@
   .filing-link {
     margin-top: var(--space-sm);
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
   }
 
   .link-indicator {
     font-size: 0.8rem;
     color: var(--color-text-light);
     font-style: italic;
+  }
+
+  .sec-link {
+    display: inline-block;
+    background-color: var(--color-primary);
+    color: var(--color-surface);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--border-radius);
+    text-decoration: none;
+    font-weight: var(--font-weight-bold);
+    font-size: 0.8rem;
+    transition: background-color 0.2s ease;
+    margin: 0 auto;
+    width: fit-content;
+  }
+
+  .sec-link:hover {
+    background-color: var(--color-primary-dark, var(--color-primary));
   }
 
   .unimplemented {

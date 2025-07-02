@@ -4,6 +4,7 @@
   import DocumentViewer from '$components/documents/DocumentViewer.svelte';
   import PlaceholderCard from '$components/ui/PlaceholderCard.svelte';
   import CompanyDetail from '$components/company/CompanyDetail.svelte';
+  import FilingDetail from '$components/filings/FilingDetail.svelte';
   import AggregateDetail from '$components/aggregates/AggregateDetail.svelte';
   import CompletionDetail from '$components/completions/CompletionDetail.svelte';
   import type {
@@ -11,6 +12,7 @@
     AggregateResponse,
     CompletionResponse,
     DocumentResponse,
+    FilingResponse,
   } from '$utils/generated-api-types';
   import appState, { actions } from '$utils/state-manager.svelte';
 
@@ -43,6 +45,10 @@
 
   function handleAggregateSelectedFromCompanyDetail(event: CustomEvent<AggregateResponse>) {
     actions.selectAggregate(event.detail);
+  }
+
+  function handleFilingSelected(event: CustomEvent<FilingResponse>) {
+    actions.selectFiling(event.detail);
   }
 
   function handleDocumentSelected(event: CustomEvent<DocumentResponse>) {
@@ -84,6 +90,13 @@
         <CompanyDetail
           company={appState.selectedCompany}
           on:aggregateSelected={handleAggregateSelectedFromCompanyDetail}
+          on:filingSelected={handleFilingSelected}
+        />
+      {:else if appState.currentView() === 'filing' && appState.selectedFiling}
+        <FilingDetail
+          filing={appState.selectedFiling}
+          company={appState.selectedCompany ?? undefined}
+          on:documentSelected={handleDocumentSelected}
         />
       {:else if appState.currentView() === 'aggregate' && appState.selectedAggregate}
         <AggregateDetail

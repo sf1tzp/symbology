@@ -3,6 +3,7 @@ import type {
     AggregateResponse,
     CompletionResponse,
     DocumentResponse,
+    FilingResponse,
 } from './generated-api-types';
 import { getLogger } from './logger';
 
@@ -15,6 +16,7 @@ export const appState = $state({
     selectedAggregate: null as AggregateResponse | null,
     selectedCompletion: null as CompletionResponse | null,
     selectedDocument: null as DocumentResponse | null,
+    selectedFiling: null as FilingResponse | null,
 
     // UI state
     isDarkMode: false,
@@ -25,6 +27,7 @@ export const appState = $state({
         aggregate: false,
         completion: false,
         document: false,
+        filing: false,
     },
 
     // Error states
@@ -33,6 +36,7 @@ export const appState = $state({
         aggregate: null as string | null,
         completion: null as string | null,
         document: null as string | null,
+        filing: null as string | null,
     },
 
     // Derived state
@@ -40,6 +44,7 @@ export const appState = $state({
         if (appState.selectedDocument) return 'document';
         if (appState.selectedCompletion) return 'completion';
         if (appState.selectedAggregate) return 'aggregate';
+        if (appState.selectedFiling) return 'filing';
         if (appState.selectedCompany) return 'company';
         return 'empty';
     },
@@ -55,8 +60,19 @@ export const actions = {
         appState.selectedAggregate = null;
         appState.selectedCompletion = null;
         appState.selectedDocument = null;
+        appState.selectedFiling = null;
         // Clear errors
         appState.errors.company = null;
+    },
+
+    // Filing actions
+    selectFiling: (filing: FilingResponse) => {
+        logger.debug('[StateManager] Selecting filing', { filing });
+        appState.selectedFiling = filing;
+        // Clear downstream selections
+        appState.selectedDocument = null;
+        // Clear errors
+        appState.errors.filing = null;
     },
 
     // Aggregate actions
@@ -66,6 +82,7 @@ export const actions = {
         // Clear downstream selections
         appState.selectedCompletion = null;
         appState.selectedDocument = null;
+        appState.selectedFiling = null;
         // Clear errors
         appState.errors.aggregate = null;
     },
@@ -76,6 +93,7 @@ export const actions = {
         appState.selectedCompletion = completion;
         // Clear downstream selections
         appState.selectedDocument = null;
+        appState.selectedFiling = null;
         // Clear errors
         appState.errors.completion = null;
     },
@@ -105,6 +123,7 @@ export const actions = {
         appState.selectedAggregate = null;
         appState.selectedCompletion = null;
         appState.selectedDocument = null;
+        appState.selectedFiling = null;
         // Clear all errors
         Object.keys(appState.errors).forEach(key => {
             appState.errors[key as keyof typeof appState.errors] = null;

@@ -15,47 +15,37 @@
   }
 </script>
 
-<button type="button" class="back-button {variant}" onclick={handleClick} aria-label={label}>
+<button
+  type="button"
+  class="btn btn-link {variant === 'minimal' ? 'minimal-back' : 'default-back'}"
+  onclick={handleClick}
+  aria-label={label}
+>
   <span class="back-icon">←</span>
   <span class="back-label">{label}</span>
 </button>
 
 <style>
-  .back-button {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
+  .default-back {
     background-color: var(--color-surface);
-    color: var(--color-text);
     border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
     padding: var(--space-sm) var(--space-md);
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-family: inherit;
-    transition: all 0.2s ease;
-    text-decoration: none;
   }
 
-  .back-button:hover {
+  .default-back:hover {
     border-color: var(--color-primary);
     background-color: var(--color-background);
     transform: translateX(-2px);
   }
 
-  .back-button:focus {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
-
-  .back-button.minimal {
+  .minimal-back {
     background: none;
     border: none;
     padding: var(--space-xs) var(--space-sm);
     color: var(--color-primary);
   }
 
-  .back-button.minimal:hover {
+  .minimal-back:hover {
     background-color: var(--color-surface);
     transform: translateX(-2px);
   }
@@ -71,7 +61,7 @@
 
   /* Responsive adjustments */
   @media (max-width: 600px) {
-    .back-button {
+    .btn {
       padding: var(--space-xs) var(--space-sm);
       font-size: 0.85rem;
     }

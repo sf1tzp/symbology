@@ -136,7 +136,7 @@
   });
 </script>
 
-<div class="completion-detail card">
+<div class="card content-container">
   <header class="completion-header">
     <div class="header-top">
       <BackButton on:back={actions.navigateBack} />
@@ -144,7 +144,7 @@
     </div>
   </header>
 
-  <section class="summary-section">
+  <section class="section-container">
     <div
       class="section-header"
       role="button"
@@ -153,17 +153,17 @@
       onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (showDetails = !showDetails)}
       aria-label={showDetails ? 'Hide details' : 'Show details'}
     >
-      <h2>This summary was automatically generated. Click for details...</h2>
-      <span class="toggle-icon" class:collapsed={!showDetails}>▼</span>
+      <h2 class="section-title">This summary was automatically generated. Click for details...</h2>
+      <span class="icon" class:icon-collapsed={!showDetails}>▼</span>
     </div>
 
-    {#if showDetails}
+    <div class:collapsed={!showDetails}>
       <div class="details-content">
-        <span class="created-date">Generated on {formatDate(completion.created_at)}</span>
+        <span class="meta-item">Generated on {formatDate(completion.created_at)}</span>
         <ModelConfig item={completion} showSystemPrompt={true} />
 
-        <section class="sources-section">
-          <h3>Included Context:</h3>
+        <section class="section-container">
+          <h3 class="section-title-small">Included Context:</h3>
 
           {#if loading}
             <LoadingState message="Loading source documents..." />
@@ -173,10 +173,10 @@
               onRetry={fetchSourceDocuments}
             />
           {:else if sourceDocuments.length > 0}
-            <div class="sources-list">
+            <div class="list-container">
               {#each sourceDocuments as document (document.id)}
                 <div
-                  class="source-item"
+                  class="btn btn-item"
                   role="button"
                   tabindex="0"
                   onclick={() => handleDocumentClick(document)}
@@ -184,24 +184,24 @@
                 >
                   <div class="source-header">
                     <h3>{document.document_name}</h3>
-                    <span class="source-type">Document</span>
+                    <span class="meta-item">Document</span>
                   </div>
                 </div>
               {/each}
             </div>
           {:else}
-            <div class="no-sources">
+            <div class="no-content">
               <p>No source documents found for this completion.</p>
             </div>
           {/if}
         </section>
       </div>
-    {/if}
+    </div>
   </section>
 
-  <section class="content-section">
+  <section class="section-container">
     {#if cleanContent(completion.content)}
-      <div class="content-display">
+      <div class="content-box">
         <MarkdownContent content={cleanContent(completion.content) || ''} />
       </div>
     {:else}
@@ -210,24 +210,9 @@
       </div>
     {/if}
   </section>
-
-  <!-- <section class="ratings-section">
-    <h2>Ratings</h2>
-    <div class="unimplemented">
-      <p>Rating system is not yet implemented</p>
-    </div>
-  </section> -->
 </div>
 
 <style>
-  .completion-detail {
-    height: 100%;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
   .header-top {
     display: flex;
     align-items: flex-start;
@@ -241,13 +226,6 @@
     font-size: 1.5rem;
     font-weight: var(--font-weight-bold);
     flex: 1;
-  }
-
-  /* Removed unused .completion-meta and .model-badge selectors */
-
-  .created-date {
-    color: var(--color-text-light);
-    font-size: 0.9rem;
   }
 
   .section-header {
@@ -279,22 +257,6 @@
     flex: 1;
   }
 
-  .toggle-icon {
-    display: inline-block;
-    font-size: 0.8rem;
-    color: var(--color-text-light);
-    transition: transform 0.2s ease;
-  }
-
-  .summary-section {
-    border-radius: var(--border-radius);
-    border: 1px solid var(--color-border);
-  }
-
-  .toggle-icon.collapsed {
-    transform: rotate(-90deg);
-  }
-
   .details-content {
     animation: slideDown 0.3s ease-out;
     overflow: hidden;
@@ -311,43 +273,14 @@
     }
   }
 
-  .content-display {
-    background-color: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-  }
-
   /* Removed unused h2 selectors */
 
-  .no-content,
-  .no-sources {
+  .no-content {
     color: var(--color-text-light);
     font-style: italic;
     text-align: center;
     padding: var(--space-lg);
     margin: 0;
-  }
-
-  .sources-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-  }
-
-  .source-item {
-    background-color: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-    transition: transform 0.2s ease;
-    cursor: pointer;
-  }
-
-  .source-item:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--hover-shadow);
-    border-color: var(--color-primary);
   }
 
   .source-header {
@@ -362,15 +295,6 @@
     color: var(--color-primary);
     font-size: 1rem;
     font-weight: var(--font-weight-bold);
-  }
-
-  .source-type {
-    background-color: var(--color-secondary);
-    color: var(--color-surface);
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--border-radius);
-    font-weight: var(--font-weight-bold);
-    font-size: 0.8rem;
   }
 
   /* Removed unused .unimplemented selector */

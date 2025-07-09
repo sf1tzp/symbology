@@ -99,16 +99,16 @@
 </script>
 
 {#if !document}
-  <div class="document-viewer card">
+  <div class="card content-container">
     <div class="placeholder-container">
       <div class="placeholder-content">
         <h3>Document Viewer</h3>
-        <p class="placeholder">Select a document to view its content</p>
+        <p class="meta-item">Select a document to view its content</p>
       </div>
     </div>
   </div>
 {:else}
-  <div class="document-viewer card">
+  <div class="card content-container">
     <header class="document-header">
       <div class="header-top">
         <BackButton on:back={actions.navigateBack} />
@@ -116,7 +116,7 @@
       </div>
     </header>
 
-    <section class="document-summary">
+    <section class="section-container">
       <div
         class="section-header"
         role="button"
@@ -125,16 +125,16 @@
         onkeydown={(e) => e.key === 'Enter' && (showDocumentInfo = !showDocumentInfo)}
         aria-label={showDocumentInfo ? 'Hide document info' : 'Show document info'}
       >
-        <h2>Document Information</h2>
-        <span class="toggle-icon" class:collapsed={!showDocumentInfo}>▼</span>
+        <h2 class="section-title">Document Information</h2>
+        <span class="icon" class:icon-collapsed={!showDocumentInfo}>▼</span>
       </div>
 
-      {#if showDocumentInfo}
+      <div class:collapsed={!showDocumentInfo}>
         <MetaItems items={documentMetaItems} />
 
         {#if document.filing}
           <div class="filing-actions">
-            <button type="button" class="filing-link-btn" onclick={viewFilingDetail}>
+            <button type="button" class="btn btn-action" onclick={viewFilingDetail}>
               📋 View Filing Details
             </button>
           </div>
@@ -146,23 +146,23 @@
               href={document.filing.filing_url}
               target="_blank"
               rel="noopener noreferrer"
-              class="sec-link"
+              class="btn btn-action"
             >
               📄 View Original SEC Filing
             </a>
           </div>
         {/if}
-      {/if}
+      </div>
     </section>
 
-    <section class="content-section">
-      <h2>Content</h2>
+    <section class="section-container">
+      <h2 class="section-title">Content</h2>
       {#if loading}
         <LoadingState message="Loading document content..." />
       {:else if error}
         <ErrorState message="Error: {error}" onRetry={fetchDocumentContent} />
       {:else if documentContent}
-        <div class="content-display">
+        <div class="content-box">
           <MarkdownContent content={documentContent} />
         </div>
       {:else}
@@ -175,14 +175,6 @@
 {/if}
 
 <style>
-  .document-viewer {
-    height: 100%;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
   .placeholder-container {
     display: flex;
     align-items: center;
@@ -200,12 +192,6 @@
     color: var(--color-text);
   }
 
-  .placeholder {
-    font-style: italic;
-    color: var(--color-text-light);
-    margin: 0;
-  }
-
   .header-top {
     display: flex;
     align-items: flex-start;
@@ -221,109 +207,8 @@
     flex: 1;
   }
 
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-md);
-    cursor: pointer;
-    padding: var(--space-xs);
-    border-radius: var(--border-radius);
-    transition: background-color 0.2s ease;
-  }
-
-  .section-header:hover {
-    background-color: var(--color-background);
-  }
-
-  .section-header:focus {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
-
-  .section-header h2 {
-    margin: 0;
-    color: var(--color-text);
-    font-size: 1.2rem;
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-sm);
-    flex: 1;
-    pointer-events: none;
-  }
-
-  .toggle-icon {
-    display: inline-block;
-    font-size: 0.8rem;
-    color: var(--color-text-light);
-    transition: transform 0.2s ease;
-    pointer-events: none;
-  }
-
-  .toggle-icon.collapsed {
-    transform: rotate(-90deg);
-  }
-
-  /* Removed unused h2 selectors */
-
+  .filing-actions,
   .source-links {
     margin-top: var(--space-md);
-  }
-
-  .filing-actions {
-    margin-top: var(--space-md);
-  }
-
-  .filing-link-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    background-color: var(--color-secondary, #6366f1);
-    color: white;
-    border: none;
-    border-radius: var(--border-radius);
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-
-  .filing-link-btn:hover {
-    background-color: var(--color-secondary-hover, #4f46e5);
-  }
-
-  .sec-link {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    background-color: var(--color-primary);
-    color: white;
-    text-decoration: none;
-    border-radius: var(--border-radius);
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: background-color 0.2s ease;
-  }
-
-  .sec-link:hover {
-    background-color: var(--color-primary-hover);
-  }
-
-  /* Removed unused .completion-info selector */
-
-  .content-display {
-    background-color: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-  }
-
-  .no-content {
-    color: var(--color-text-light);
-    font-style: italic;
-    text-align: center;
-    padding: var(--space-lg);
-    margin: 0;
   }
 </style>

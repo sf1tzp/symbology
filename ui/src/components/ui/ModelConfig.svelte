@@ -56,11 +56,11 @@
     onkeydown={(e) => e.key === 'Enter' && (showModelConfig = !showModelConfig)}
     aria-label={showModelConfig ? 'Hide model config' : 'Show model config'}
   >
-    <h3>Model Configuration</h3>
-    <span class="toggle-icon" class:collapsed={!showModelConfig}>▼</span>
+    <h3 class="section-title-small">Model Configuration</h3>
+    <span class="icon" class:icon-collapsed={!showModelConfig}>▼</span>
   </div>
 
-  {#if showModelConfig}
+  <div class:collapsed={!showModelConfig}>
     <div class="config-grid">
       <div class="config-item">
         <span class="label">Model:</span>
@@ -91,7 +91,7 @@
         </div>
       {/if}
     </div>
-  {/if}
+  </div>
 
   {#if showSystemPrompt && item.system_prompt_id}
     <div class="response-warnings">
@@ -103,11 +103,11 @@
         onkeydown={(e) => e.key === 'Enter' && (showPromptInfo = !showPromptInfo)}
         aria-label={showPromptInfo ? 'Hide prompt info' : 'Show prompt info'}
       >
-        <h3>System Prompt Information</h3>
-        <span class="toggle-icon" class:collapsed={!showPromptInfo}>▼</span>
+        <h3 class="section-title-small">System Prompt Information</h3>
+        <span class="icon" class:icon-collapsed={!showPromptInfo}>▼</span>
       </div>
 
-      {#if showPromptInfo}
+      <div class:collapsed={!showPromptInfo}>
         {#if promptLoading}
           <div class="warning-item">
             <span class="label">Loading prompt...</span>
@@ -124,7 +124,7 @@
             <MarkdownContent content={promptData.content} class="prompt-markdown" />
           </div>
         {/if}
-      {/if}
+      </div>
     </div>
   {/if}
 </div>
@@ -148,35 +148,6 @@
   .section-header:focus {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
-  }
-
-  .section-header h3 {
-    margin: 0;
-    color: var(--color-primary);
-    font-size: 1rem;
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-sm);
-    flex: 1;
-    pointer-events: none;
-  }
-
-  .toggle-icon {
-    display: inline-block;
-    font-size: 0.8rem;
-    color: var(--color-text-light);
-    transition: transform 0.2s ease;
-    pointer-events: none;
-  }
-
-  .toggle-icon.collapsed {
-    transform: rotate(-90deg);
-  }
-
-  .model-config h3,
-  .response-warnings h3 {
-    margin: 0 0 var(--space-sm) 0;
-    color: var(--color-primary);
-    font-size: 1rem;
   }
 
   .config-grid {
@@ -206,8 +177,6 @@
   .warning-item span:not(.label) {
     color: var(--color-text-light);
   }
-
-  /* Removed unused .mono selector */
 
   .response-warnings {
     margin-top: var(--space-md);
@@ -250,7 +219,6 @@
 
   .prompt-content :global(.prompt-markdown) {
     padding: var(--space-sm);
-    /* background-color: var(--color-background-alt, #f8fafc); */
     border: 1px solid var(--color-border-light, #e2e8f0);
     border-radius: var(--border-radius);
     max-height: 300px;

@@ -122,195 +122,150 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="completions-selector card collapsible-component"
+  class="card section-container"
   class:has-selected={selectedCompletion !== null}
   class:is-collapsed={isListCollapsed}
   onmouseenter={handleMouseEnter}
   onmouseleave={handleMouseLeave}
   onfocusin={handleFocus}
 >
-  <h2 class="collapsible-heading" class:is-collapsed={isListCollapsed}>Completions</h2>
+  <h2 class="section-title-small" class:is-collapsed={isListCollapsed}>Completions</h2>
 
   {#if !aggregate}
-    <p class="placeholder">Please select an aggregate to view its completions</p>
+    <p class="no-content">Please select an aggregate to view its completions</p>
   {:else if loading}
-    <p>Loading completions...</p>
+    <div class="loading-container">
+      <div class="loading-spinner normal"></div>
+      <p class="loading-message">Loading completions...</p>
+    </div>
   {:else if error}
     <p class="error-message">Error: {error}</p>
   {:else if completions.length === 0}
-    <p>No completions found for this aggregate</p>
+    <p class="no-content">No completions found for this aggregate</p>
   {:else}
     <!-- Show completions list -->
-    <div class="completions-container">
+    <div class="list-container">
       <!-- Selected completion is always visible -->
       {#if selectedCompletion}
-        <div class="completion-item selected-item" tabindex="0" role="option" aria-selected={true}>
-          <h3>Completion {formatCompletionId(selectedCompletion.id)}</h3>
-          <div class="completion-meta">
-            <p class="model-info">
+        <div class="completion-item selected" tabindex="0" role="option" aria-selected={true}>
+          <h3 class="completion-title">Completion {formatCompletionId(selectedCompletion.id)}</h3>
+          <div class="meta-container">
+            <div class="meta-item">
               Model: <strong>{formatModelName(selectedCompletion.model)}</strong>
-            </p>
+            </div>
             {#if selectedCompletion.temperature}
-              <p class="config-detail">Temperature: {selectedCompletion.temperature}</p>
+              <div class="meta-item">Temperature: {selectedCompletion.temperature}</div>
             {/if}
             {#if selectedCompletion.top_p}
-              <p class="config-detail">Top-p: {selectedCompletion.top_p}</p>
+              <div class="meta-item">Top-p: {selectedCompletion.top_p}</div>
             {/if}
             {#if selectedCompletion.num_ctx}
-              <p class="config-detail">Context: {selectedCompletion.num_ctx}</p>
+              <div class="meta-item">Context: {selectedCompletion.num_ctx}</div>
             {/if}
             {#if selectedCompletion.total_duration}
-              <p class="config-detail">
+              <div class="meta-item">
                 Duration: {Math.round(selectedCompletion.total_duration)}s
-              </p>
+              </div>
             {/if}
             {#if selectedCompletion.source_documents?.length}
-              <p class="source-count">
+              <div class="meta-item">
                 Sources: {selectedCompletion.source_documents.length} documents
-              </p>
+              </div>
             {/if}
-            <p class="timestamp">
+            <div class="meta-item">
               Created: {new Date(selectedCompletion.created_at).toLocaleDateString()}
-            </p>
+            </div>
           </div>
         </div>
       {/if}
 
       <!-- Other completions (collapsible) -->
       <div
-        class="completions-list scrollable collapsible-content"
-        class:is-collapsed={isListCollapsed}
+        class="scrollable"
+        class:collapsed={isListCollapsed}
         role="listbox"
         aria-label="Completions list"
       >
-        {#each completions as completion (completion.id)}
-          <!-- Skip selected completion since it's already shown above -->
-          {#if completion.id !== selectedCompletion?.id}
-            <div
-              class="completion-item"
-              onclick={() => selectCompletion(completion)}
-              onkeydown={(e) => handleKeyDown(e, completion)}
-              tabindex="0"
-              role="option"
-              aria-selected={false}
-            >
-              <h3>Completion {formatCompletionId(completion.id)}</h3>
-              <div class="completion-meta">
-                <p class="model-info">
-                  Model: <strong>{formatModelName(completion.model)}</strong>
-                </p>
-                {#if completion.temperature}
-                  <p class="config-detail">Temperature: {completion.temperature}</p>
-                {/if}
-                {#if completion.top_p}
-                  <p class="config-detail">Top-p: {completion.top_p}</p>
-                {/if}
-                {#if completion.num_ctx}
-                  <p class="config-detail">Context: {completion.num_ctx}</p>
-                {/if}
-                {#if completion.total_duration}
-                  <p class="config-detail">Duration: {Math.round(completion.total_duration)}s</p>
-                {/if}
-                {#if completion.source_documents?.length}
-                  <p class="source-count">
-                    Sources: {completion.source_documents.length} documents
-                  </p>
-                {/if}
-                <p class="timestamp">
-                  Created: {new Date(completion.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          {/if}
-        {/each}
+        <div class="list-container">
+          {#each completions as completion (completion.id)}
+            <!-- Skip selected completion since it's already shown above -->
+            {#if completion.id !== selectedCompletion?.id}
+              <button
+                class="btn-item"
+                onclick={() => selectCompletion(completion)}
+                onkeydown={(e) => handleKeyDown(e, completion)}
+                role="option"
+                aria-selected={false}
+              >
+                <div>
+                  <h3 class="completion-title">Completion {formatCompletionId(completion.id)}</h3>
+                  <div class="completion-meta-container">
+                    <div class="meta-item">
+                      Model: <strong>{formatModelName(completion.model)}</strong>
+                    </div>
+                    {#if completion.temperature}
+                      <div class="meta-item">Temperature: {completion.temperature}</div>
+                    {/if}
+                    {#if completion.top_p}
+                      <div class="meta-item">Top-p: {completion.top_p}</div>
+                    {/if}
+                    {#if completion.num_ctx}
+                      <div class="meta-item">Context: {completion.num_ctx}</div>
+                    {/if}
+                    {#if completion.total_duration}
+                      <div class="meta-item">
+                        Duration: {Math.round(completion.total_duration)}s
+                      </div>
+                    {/if}
+                    {#if completion.source_documents?.length}
+                      <div class="meta-item">
+                        Sources: {completion.source_documents.length} documents
+                      </div>
+                    {/if}
+                    <div class="meta-item">
+                      Created: {new Date(completion.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            {/if}
+          {/each}
+        </div>
       </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .completions-selector {
-    position: relative;
-    min-height: 50px;
-  }
-
-  .placeholder {
-    color: var(--color-text-light);
-    font-style: italic;
-  }
-
-  .completions-container {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .completions-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-    margin-top: var(--space-md);
-  }
-
-  .completions-list.is-collapsed {
-    margin-top: 0;
-  }
-
+  /* Custom styles for completion-specific elements */
   .completion-item {
     background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
     padding: var(--space-md);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid var(--color-border);
-  }
-
-  .completion-item:hover {
-    border-color: var(--color-primary);
-  }
-
-  .completion-item.selected-item {
-    cursor: default;
     margin-bottom: var(--space-sm);
-    padding: var(--space-md);
   }
 
-  .completion-item h3 {
+  .completion-title {
     margin: 0 0 var(--space-sm) 0;
     color: var(--color-text);
-    font-size: 1.1rem;
+    font-size: 1rem;
+    font-weight: var(--font-weight-medium);
     font-family: monospace;
   }
 
-  .completion-meta {
+  .completion-meta-container {
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
   }
 
-  .completion-meta p {
-    margin: 0;
-    font-size: 0.9rem;
+  /* Visual state indicators for component */
+  .has-selected {
+    border-color: var(--color-primary);
   }
 
-  .model-info {
-    color: var(--color-primary);
-    font-weight: 500;
-  }
-
-  .config-detail {
-    color: var(--color-text-light);
-    font-family: monospace;
-    font-size: 0.8rem;
-  }
-
-  .source-count {
-    color: var(--color-text);
-    font-weight: 500;
-    font-size: 0.85rem;
-  }
-
-  .timestamp {
-    color: var(--color-text-light);
-    font-size: 0.8rem;
+  .is-collapsed {
+    opacity: 0.8;
   }
 </style>

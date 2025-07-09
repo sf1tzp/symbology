@@ -132,166 +132,125 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="aggregates-selector card collapsible-component"
+  class="card section-container"
   class:has-selected={selectedAggregate !== null}
   class:is-collapsed={isListCollapsed}
   onmouseenter={handleMouseEnter}
   onmouseleave={handleMouseLeave}
   onfocusin={handleFocus}
 >
-  <h2 class="collapsible-heading" class:is-collapsed={isListCollapsed}>Aggregates</h2>
+  <h2 class="section-title-small" class:is-collapsed={isListCollapsed}>Aggregates</h2>
 
   {#if !company}
-    <p class="placeholder">Please select a company to view its aggregates</p>
+    <p class="no-content">Please select a company to view its aggregates</p>
   {:else if loading}
-    <p>Loading aggregates...</p>
+    <div class="loading-container">
+      <div class="loading-spinner normal"></div>
+      <p class="loading-message">Loading aggregates...</p>
+    </div>
   {:else if error}
     <p class="error-message">Error: {error}</p>
   {:else if aggregates.length === 0}
-    <p>No aggregates found for this company</p>
+    <p class="no-content">No aggregates found for this company</p>
   {:else}
     <!-- Show aggregates list -->
-    <div class="aggregates-container">
+    <div class="list-container">
       <!-- Selected aggregate is always visible -->
       {#if selectedAggregate}
-        <div class="aggregate-item selected-item" tabindex="0" role="option" aria-selected={true}>
-          <h3>{formatDocumentType(selectedAggregate.document_type)}</h3>
-          <div class="aggregate-meta">
-            <p class="model-info">
+        <div class="aggregate-item selected" tabindex="0" role="option" aria-selected={true}>
+          <h3 class="section-title-small">{formatDocumentType(selectedAggregate.document_type)}</h3>
+          <div class="meta-container">
+            <div class="meta-item">
               Model: <strong>{formatModelName(selectedAggregate.model)}</strong>
-            </p>
+            </div>
             {#if selectedAggregate.temperature}
-              <p class="config-detail">Temperature: {selectedAggregate.temperature}</p>
+              <div class="meta-item">Temperature: {selectedAggregate.temperature}</div>
             {/if}
             {#if selectedAggregate.total_duration}
-              <p class="config-detail">
+              <div class="meta-item">
                 Duration: {Math.round(selectedAggregate.total_duration)}s
-              </p>
+              </div>
             {/if}
-            <p class="timestamp">
+            <div class="meta-item">
               Created: {new Date(selectedAggregate.created_at).toLocaleDateString()}
-            </p>
+            </div>
           </div>
         </div>
       {/if}
 
       <!-- Other aggregates (collapsible) -->
       <div
-        class="aggregates-list scrollable collapsible-content"
-        class:is-collapsed={isListCollapsed}
+        class="scrollable"
+        class:collapsed={isListCollapsed}
         role="listbox"
         aria-label="Aggregates list"
       >
-        {#each aggregates as aggregate (aggregate.id)}
-          <!-- Skip selected aggregate since it's already shown above -->
-          {#if aggregate.id !== selectedAggregate?.id}
-            <div
-              class="aggregate-item"
-              onclick={() => selectAggregate(aggregate)}
-              onkeydown={(e) => handleKeyDown(e, aggregate)}
-              tabindex="0"
-              role="option"
-              aria-selected={false}
-            >
-              <h3>{formatDocumentType(aggregate.document_type)}</h3>
-              <div class="aggregate-meta">
-                <p class="model-info">
-                  Model: <strong>{formatModelName(aggregate.model)}</strong>
-                </p>
-                {#if aggregate.temperature}
-                  <p class="config-detail">Temperature: {aggregate.temperature}</p>
-                {/if}
-                {#if aggregate.total_duration}
-                  <p class="config-detail">Duration: {Math.round(aggregate.total_duration)}s</p>
-                {/if}
-                <p class="timestamp">
-                  Created: {new Date(aggregate.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          {/if}
-        {/each}
+        <div class="list-container">
+          {#each aggregates as aggregate (aggregate.id)}
+            <!-- Skip selected aggregate since it's already shown above -->
+            {#if aggregate.id !== selectedAggregate?.id}
+              <button
+                class="btn-item"
+                onclick={() => selectAggregate(aggregate)}
+                onkeydown={(e) => handleKeyDown(e, aggregate)}
+                role="option"
+                aria-selected={false}
+              >
+                <div>
+                  <h3 class="aggregate-title">{formatDocumentType(aggregate.document_type)}</h3>
+                  <div class="aggregate-meta-container">
+                    <div class="meta-item">
+                      Model: <strong>{formatModelName(aggregate.model)}</strong>
+                    </div>
+                    {#if aggregate.temperature}
+                      <div class="meta-item">Temperature: {aggregate.temperature}</div>
+                    {/if}
+                    {#if aggregate.total_duration}
+                      <div class="meta-item">Duration: {Math.round(aggregate.total_duration)}s</div>
+                    {/if}
+                    <div class="meta-item">
+                      Created: {new Date(aggregate.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            {/if}
+          {/each}
+        </div>
       </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .aggregates-selector {
-    position: relative;
-    min-height: 50px;
-  }
-
-  .placeholder {
-    color: var(--color-text-light);
-    font-style: italic;
-  }
-
-  .aggregates-container {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .aggregates-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-    margin-top: var(--space-md);
-  }
-
-  .aggregates-list.is-collapsed {
-    margin-top: 0;
-  }
-
+  /* Custom styles for aggregate-specific elements */
   .aggregate-item {
     background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
     padding: var(--space-md);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid var(--color-border);
-  }
-
-  .aggregate-item:hover {
-    border-color: var(--color-primary);
-  }
-
-  .aggregate-item.selected-item {
-    cursor: default;
     margin-bottom: var(--space-sm);
-    padding: var(--space-md);
   }
 
-  .aggregate-item h3 {
+  .aggregate-title {
     margin: 0 0 var(--space-sm) 0;
     color: var(--color-text);
-    font-size: 1.1rem;
+    font-size: 1rem;
+    font-weight: var(--font-weight-medium);
   }
 
-  .aggregate-meta {
+  .aggregate-meta-container {
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
   }
 
-  .aggregate-meta p {
-    margin: 0;
-    font-size: 0.9rem;
+  /* Visual state indicators for component */
+  .has-selected {
+    border-color: var(--color-primary);
   }
 
-  .model-info {
-    color: var(--color-primary);
-    font-weight: 500;
-  }
-
-  .config-detail {
-    color: var(--color-text-light);
-    font-family: monospace;
-    font-size: 0.8rem;
-  }
-
-  .timestamp {
-    color: var(--color-text-light);
-    font-size: 0.8rem;
+  .is-collapsed {
+    opacity: 0.8;
   }
 </style>

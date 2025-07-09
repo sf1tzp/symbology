@@ -115,47 +115,41 @@
   }
 </script>
 
-<div class="company-detail card">
+<div class="card content-container">
   <header class="company-header">
     <div class="header-top">
       <BackButton label="Back" on:back={actions.navigateBackFromCompany} />
       <h1>{formatTitleCase(company.display_name || company.name)}</h1>
-      <div class="company-meta">
+      <div class="meta-container">
         {#if company.tickers?.length}
-          <div class="tickers">
-            <span class="ticker">{company.tickers[0]}</span>
-          </div>
+          <span class="badge">{company.tickers[0]}</span>
         {/if}
         {#if company.exchanges?.length}
-          <div class="exchanges">
-            {company.exchanges[0]}
-          </div>
+          <span class="meta-item">{company.exchanges[0]}</span>
         {/if}
       </div>
     </div>
   </header>
 
-  <section class="company-summary">
+  <section class="section-container">
     {#if cleanContent(company.summary)}
-      <div class="summary-text">
+      <div class="content-box">
         <MarkdownContent content={cleanContent(company.summary) || ''} />
       </div>
     {/if}
-
-    <!-- <MetaItems items={summaryItems} /> -->
   </section>
 
-  <section class="aggregates-section">
-    <h2>This summary was generated from the following reports:</h2>
+  <section class="section-container">
+    <h2 class="section-title-small">This summary was generated from the following reports:</h2>
     {#if loading}
       <LoadingState message="Loading analysis..." />
     {:else if error}
       <ErrorState message="Error loading analysis: {error}" onRetry={fetchAggregates} />
     {:else if availableAggregates.length > 0}
-      <div class="aggregates-list">
+      <div class="flex gap-md">
         {#each availableAggregates as aggregate (aggregate.id)}
           <button
-            class="aggregate-link"
+            class="btn btn-link"
             onclick={() => handleAggregateClick(aggregate)}
             onkeydown={(e) => e.key === 'Enter' && handleAggregateClick(aggregate)}
           >
@@ -164,75 +158,66 @@
         {/each}
       </div>
     {:else}
-      <div class="no-aggregates">
+      <div class="no-content">
         <p>No analysis available for this company yet.</p>
       </div>
     {/if}
   </section>
 
-  <section class="filings-section">
-    <div class="section-header">
-      <h2>SEC Filings</h2>
-      <button
-        class="toggle-button"
-        onclick={toggleFilingsCollapsed}
-        aria-label={filingsCollapsed ? 'Show filings' : 'Hide filings'}
-      >
-        <span class="toggle-icon" class:collapsed={filingsCollapsed}>▼</span>
-      </button>
+  <section class="section-container">
+    <div
+      class="section-header"
+      role="button"
+      tabindex="0"
+      onclick={toggleFilingsCollapsed}
+      onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleFilingsCollapsed()}
+      aria-label={filingsCollapsed ? 'Show filings' : 'Hide filings'}
+    >
+      <h2 class="section-title">SEC Filings. Click for details...</h2>
+      <span class="icon" class:icon-collapsed={filingsCollapsed}>▼</span>
     </div>
 
-    {#if !filingsCollapsed}
+    <div class:collapsed={filingsCollapsed}>
       {#if filingsLoading}
         <LoadingState message="Loading filings..." />
       {:else if filingsError}
         <ErrorState message="Error loading filings: {filingsError}" onRetry={fetchFilings} />
       {:else if availableFilings.length > 0}
         <p>We have processed information from these filings:</p>
-        <div class="filings-container">
-          <div class="filings-list">
-            {#each availableFilings as filing (filing.id)}
-              <button
-                class="filing-item"
-                onclick={() => handleFilingClick(filing)}
-                onkeydown={(e) => e.key === 'Enter' && handleFilingClick(filing)}
-              >
-                <div class="filing-header">
-                  <div class="filing-type-info">
-                    <h3 class="filing-type">
-                      {formatYear(filing.period_of_report)}
-                      {filing.filing_type}
-                    </h3>
-                    <span class="filing-description">{getFilingTypeLabel(filing.filing_type)}</span>
-                  </div>
+        <div class="list-container">
+          {#each availableFilings as filing (filing.id)}
+            <button
+              class="btn btn-item"
+              onclick={() => handleFilingClick(filing)}
+              onkeydown={(e) => e.key === 'Enter' && handleFilingClick(filing)}
+            >
+              <div class="filing-header">
+                <div class="filing-type-info">
+                  <h3 class="filing-type">
+                    {formatYear(filing.period_of_report)}
+                    {filing.filing_type}
+                  </h3>
+                  <span class="meta-item">{getFilingTypeLabel(filing.filing_type)}</span>
                 </div>
-              </button>
-            {/each}
-          </div>
+              </div>
+            </button>
+          {/each}
         </div>
       {:else}
-        <div class="no-filings">
+        <div class="no-content">
           <p>No SEC filings available for this company.</p>
         </div>
       {/if}
-    {/if}
+    </div>
   </section>
 
-  <section class="financials-section">
-    <h2>Financials</h2>
-    <p class="unimplemented">Quantitative analyis coming soon</p>
+  <section class="section-container">
+    <h2 class="section-title">Financials</h2>
+    <p class="meta-item">Quantitative analysis coming soon</p>
   </section>
 </div>
 
 <style>
-  .company-detail {
-    height: 100%;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
   .header-top {
     display: flex;
     align-items: flex-start;
@@ -248,204 +233,24 @@
     flex: 1;
   }
 
-  .company-meta {
-    display: flex;
-    gap: var(--space-md);
-    align-items: center;
-    margin-top: var(--space-sm);
-  }
-
-  .tickers {
-    display: flex;
-    gap: var(--space-xs);
-  }
-
-  .ticker {
-    background-color: var(--color-primary);
-    color: var(--color-surface);
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--border-radius);
-    font-weight: var(--font-weight-bold);
-    font-size: 0.9rem;
-  }
-
-  .exchanges {
-    color: var(--color-text-light);
-    font-size: 0.9rem;
-  }
-
-  .aggregates-section h2,
-  .filings-section h2,
-  .financials-section h2 {
-    margin: 0 0 var(--space-md) 0;
-    color: var(--color-text);
-    font-size: 1.2rem;
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-sm);
-  }
-
-  .section-header {
+  .filing-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: var(--space-md);
-  }
-
-  .section-header h2 {
-    margin: 0;
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-sm);
-    flex: 1;
-  }
-
-  .toggle-button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: var(--space-xs);
-    border-radius: var(--border-radius);
-    transition: background-color 0.2s ease;
-    margin-left: var(--space-sm);
-  }
-
-  .toggle-button:hover {
-    background-color: var(--color-background);
-  }
-
-  .toggle-button:focus {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
-
-  .toggle-icon {
-    display: inline-block;
-    font-size: 0.8rem;
-    color: var(--color-text-light);
-    transition: transform 0.2s ease;
-  }
-
-  .toggle-icon.collapsed {
-    transform: rotate(-90deg);
-  }
-
-  .summary-text {
-    background-color: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-    margin-bottom: var(--space-md);
-  }
-
-  .aggregates-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-md);
-    align-items: center;
-  }
-
-  .aggregate-link {
-    background: none;
-    border: none;
-    color: var(--color-primary);
-    text-decoration: underline;
-    cursor: pointer;
-    font-size: 1rem;
-    font-family: inherit;
-    padding: var(--space-xs);
-    border-radius: var(--border-radius);
-    transition: background-color 0.2s ease;
-  }
-
-  .aggregate-link:hover {
-    background-color: var(--color-background);
-    text-decoration: none;
-  }
-
-  .aggregate-link:focus {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
-
-  .no-aggregates,
-  .no-filings {
-    color: var(--color-text-light);
-    font-style: italic;
-    margin: 0;
-    padding: var(--space-md);
-    text-align: center;
-  }
-
-  .filings-container {
-    background-color: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-    margin-bottom: var(--space-md);
-  }
-
-  .filings-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-    max-height: 400px;
-    overflow-y: auto;
-  }
-
-  .filing-item {
-    display: block;
     width: 100%;
-    background-color: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-    transition: transform 0.2s ease;
-    cursor: pointer;
-    text-align: left;
-    font-family: inherit;
-    font-size: inherit;
-    color: inherit;
-  }
-
-  .filing-item:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--hover-shadow);
-  }
-
-  .filing-header {
-    margin-bottom: var(--space-sm);
   }
 
   .filing-type-info {
     display: flex;
     flex-direction: column;
+    gap: var(--space-xs);
+    text-align: left;
   }
 
   .filing-type {
     margin: 0;
-    color: var(--color-primary);
     font-size: 1rem;
-    font-weight: var(--font-weight-bold);
-  }
-
-  .filing-description {
-    margin: 0;
-    color: var(--color-text-light);
-    font-size: 0.9rem;
-  }
-
-  .unimplemented {
-    color: var(--color-text-light);
-    font-style: italic;
-    text-align: center;
-    padding: var(--space-lg);
-    margin: 0;
-  }
-
-  @media (max-width: 768px) {
-    .company-meta {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-sm);
-    }
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text);
   }
 </style>

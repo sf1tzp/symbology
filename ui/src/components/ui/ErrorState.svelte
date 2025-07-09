@@ -13,7 +13,7 @@
 <div class="error-message">
   <p>{message}</p>
   {#if showRetry && onRetry}
-    <button onclick={onRetry} class="retry-button">Retry</button>
+    <button onclick={onRetry} class="btn btn-action">Retry</button>
   {/if}
 </div>
 
@@ -28,18 +28,7 @@
     margin: 0 0 var(--space-sm) 0;
   }
 
-  .retry-button {
-    background-color: var(--color-primary);
-    color: var(--color-surface);
-    border: none;
-    padding: var(--space-sm) var(--space-md);
-    border-radius: var(--border-radius);
-    cursor: pointer;
+  .error-message .btn {
     margin-top: var(--space-sm);
-    transition: background-color 0.2s ease;
-  }
-
-  .retry-button:hover {
-    background-color: var(--color-primary-hover);
   }
 </style>

@@ -281,7 +281,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="company-selector card collapsible-component full-vertical"
+  class="card content-container"
   class:has-selected={appState.selectedCompany !== null}
   class:is-collapsed={isSearchCollapsed}
   onmouseenter={handleMouseEnter}
@@ -289,7 +289,9 @@
   onfocusin={handleFocus}
 >
   {#if !disclaimerAccepted}
-    <div class="disclaimer-notice">Please accept the disclaimer to search for companies.</div>
+    <div class="content-box">
+      <p class="meta">Please accept the disclaimer to search for companies.</p>
+    </div>
   {/if}
 
   <div class="search-container">
@@ -301,36 +303,32 @@
       onblur={handleInputBlur}
       onkeydown={handleInputKeydown}
       disabled={!disclaimerAccepted}
+      class="search-input"
     />
-    <button onclick={searchCompany} disabled={loading || !disclaimerAccepted}>
+    <button
+      onclick={searchCompany}
+      disabled={loading || !disclaimerAccepted}
+      class="btn btn-action"
+    >
       {loading ? 'Searching' : 'Search'}
     </button>
   </div>
 
   {#if loading}
     <div class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>Loading...</p>
+      <div class="loading-spinner normal"></div>
+      <p class="loading-message">Loading...</p>
     </div>
   {/if}
 
   {#if error}
     <p class="error-message">Error: {error}</p>
   {/if}
-  <!---->
-  <!-- {#if appState.selectedCompany} -->
-  <!--   <div class="company-details selected-item"> -->
-  <!--     <h3> -->
-  <!--       {appState.selectedCompany.name} ({appState.selectedCompany.tickers?.join(', ') || ''}) -->
-  <!--     </h3> -->
-  <!--     <button onclick={handleCompanyCleared}>Clear Selection</button> -->
-  <!--   </div> -->
-  <!-- {/if} -->
 
-  <!-- Move dropdown outside of collapsible container -->
+  <!-- Dropdown for search results -->
   {#if showDropdown && searchResults.length > 0}
     <div
-      class="search-results-dropdown"
+      class="search-dropdown"
       onmousedown={cancelBlur}
       ontouchstart={cancelBlur}
       role="listbox"
@@ -338,63 +336,78 @@
       tabindex="0"
     >
       {#each searchResults as company, index (company.id)}
-        <!-- Using button instead of div for better accessibility -->
-        <button
-          type="button"
-          class="search-result-item {currentFocusIndex === index ? 'search-result-focused' : ''}"
-          onclick={() => selectCompanyFromDropdown(company)}
-          onkeydown={(e) => handleKeydown(e, company)}
-          role="option"
-          aria-selected={appState.selectedCompany === company || currentFocusIndex === index}
-          disabled={!disclaimerAccepted}
-        >
-          <div class="company-name">{company.name}</div>
-          <div class="company-ticker">{company.tickers?.join(', ') || ''}</div>
-        </button>
+        {#if currentFocusIndex === index}
+          <button
+            type="button"
+            class="btn-item highlighted"
+            onclick={() => selectCompanyFromDropdown(company)}
+            onkeydown={(e) => handleKeydown(e, company)}
+            role="option"
+            aria-selected="true"
+            disabled={!disclaimerAccepted}
+          >
+            <div class="company-name">{company.name}</div>
+            <div class="meta">{company.tickers?.join(', ') || ''}</div>
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="btn-item"
+            onclick={() => selectCompanyFromDropdown(company)}
+            onkeydown={(e) => handleKeydown(e, company)}
+            role="option"
+            aria-selected="false"
+            disabled={!disclaimerAccepted}
+          >
+            <div class="company-name">{company.name}</div>
+            <div class="meta">{company.tickers?.join(', ') || ''}</div>
+          </button>
+        {/if}
       {/each}
     </div>
   {/if}
 
   <!-- Company list section -->
   {#if showCompanyList}
-    <div class="company-list-container">
-      <h3 class="company-list-header">Select a Company</h3>
+    <div class="section-container">
+      <h3 class="section-title-small">Select a Company</h3>
 
       {#if listLoading && allCompanies.length === 0}
         <div class="loading-container">
-          <div class="loading-spinner"></div>
-          <p>Loading companies...</p>
+          <div class="loading-spinner normal"></div>
+          <p class="loading-message">Loading companies...</p>
         </div>
       {:else if listError}
         <p class="error-message">Error loading companies: {listError}</p>
       {:else if allCompanies.length === 0}
-        <p>No companies found.</p>
+        <p class="no-content">No companies found.</p>
       {:else}
         <div class="company-list-scrollable">
-          <ul class="company-list">
+          <div class="list-container">
             {#each allCompanies as company (company.id)}
-              <li class="company-list-item">
+              <div class="company-list-item">
                 <div class="company-info">
                   <div class="company-name">{formatTitleCase(company.name)}</div>
-                  <div class="company-ticker">{company.tickers?.[0] || ''}</div>
+                  <div class="meta">{company.tickers?.[0] || ''}</div>
                 </div>
                 <button
-                  class="select-company-button"
+                  class="btn btn-action"
                   onclick={() => selectCompanyFromDropdown(company)}
                   disabled={!disclaimerAccepted}
                 >
                   Select
                 </button>
-              </li>
+              </div>
             {/each}
-          </ul>
+          </div>
 
           {#if hasMoreCompanies}
             <div class="load-more-container">
               <button
-                class="load-more-button"
+                class="btn btn-action"
                 onclick={handleLoadMore}
                 disabled={listLoading || !disclaimerAccepted}
+                style="width: 100%"
               >
                 {listLoading ? 'Loading...' : 'Load more companies'}
               </button>
@@ -407,32 +420,8 @@
 </div>
 
 <style>
-  .company-selector {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    flex: 1 1 0;
-    box-sizing: border-box;
-  }
-
-  .full-vertical {
-    height: 100%;
-    min-height: 0;
-    flex: 1 1 0;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-  }
-
-  .search-container {
-    display: flex;
-    gap: var(--space-sm);
-    position: relative; /* Ensure proper positioning context */
-  }
-
-  input {
+  /* Custom input styling not covered by utilities */
+  .search-input {
     width: 100%;
     padding: var(--space-sm);
     border: 1px solid var(--color-border);
@@ -443,120 +432,51 @@
       color 0.2s ease;
   }
 
-  button {
-    padding: var(--space-sm) var(--space-md);
-    background-color: var(--color-primary);
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-
-  button:hover {
-    background-color: var(--color-primary-hover);
-  }
-
-  button:disabled {
-    background-color: var(--color-text-light);
+  .search-input:disabled {
+    background-color: var(--color-background);
+    color: var(--color-text-light);
     cursor: not-allowed;
+    opacity: 0.6;
   }
 
-  /* Search results dropdown */
-  .search-results-dropdown {
+  /* Search dropdown - positioned absolutely over other content */
+  .search-dropdown {
     position: absolute;
     width: 100%;
     max-height: 300px;
     overflow-y: auto;
-    background-color: var(--color-background, white);
+    background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--hover-shadow);
     margin-top: 2px;
-    z-index: 1000; /* Very high z-index */
-    top: 66%;
+    z-index: 1000;
+    top: 100%;
     left: 0;
   }
 
-  /* Ensure dropdown is always interactive regardless of parent state */
-  .search-results-dropdown {
-    pointer-events: auto !important;
+  .search-dropdown .btn-item {
+    border: none;
+    border-bottom: 1px solid var(--color-border);
+    border-radius: 0;
   }
 
-  .search-result-item {
-    display: block;
-    width: 100%;
-    padding: var(--space-sm);
-    cursor: pointer;
-    border-bottom: 1px solid var(--color-border-light, #eee);
-    background: none;
-    border-left: none;
-    border-right: none;
-    border-top: none;
-    text-align: left;
-    font-family: inherit;
+  .search-dropdown .btn-item:last-child {
+    border-bottom: none;
   }
 
-  .search-result-item:hover,
-  .search-result-item:focus {
-    background-color: var(--color-border, --color-primary-hover);
-    outline: none;
-  }
-
-  /* Style for keyboard navigation focused item */
-  .search-result-focused {
-    background-color: var(--color-border, --color-primary-hover) !important;
-    border-left: 3px solid var(--color-primary);
-  }
-
+  /* Company name styling in dropdowns and lists */
   .company-name {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     color: var(--color-primary);
   }
 
-  .company-ticker {
-    font-size: 0.9em;
-    color: var(--color-text-light);
-  }
-
-  /* Add visual indicator for collapsed state */
-  .company-selector.has-selected:after {
-    opacity: 1;
-  }
-
-  /* Company list styles */
-  .company-list-container {
-    margin-top: var(--space-md);
-    padding: var(--space-md);
-    border-top: 1px solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 0;
-    min-height: 0;
-    box-sizing: border-box;
-  }
-
-  .company-list-header {
-    font-size: 1.2rem;
-    font-weight: 500;
-    margin: 0 0 var(--space-sm) 0;
-    color: var(--color-text);
-  }
-
+  /* Company list layout */
   .company-list-scrollable {
-    flex: 1 1 0;
+    flex: 1;
     min-height: 0;
-    max-height: 100%;
     overflow-y: auto;
-    padding-right: calc(var(--space-md) + 1rem); /* Add padding for scrollbar */
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-  }
-
-  .company-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+    padding-right: var(--space-sm);
   }
 
   .company-list-item {
@@ -564,76 +484,23 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--space-sm) 0;
-    border-bottom: 1px solid var(--color-border-light, #eee);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .company-info {
     flex: 1;
   }
 
-  .select-company-button {
-    padding: var(--space-sm) var(--space-md);
-    background-color: var(--color-primary);
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-
-  .select-company-button:hover {
-    background-color: var(--color-primary-hover);
-  }
-
-  .load-more-button {
-    display: block;
-    width: 100%;
-    padding: var(--space-sm);
-    background-color: var(--color-primary);
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    text-align: center;
-    transition: background-color 0.2s ease;
+  .load-more-container {
     margin-top: var(--space-md);
   }
 
-  .load-more-button:hover {
-    background-color: var(--color-primary-hover);
+  /* Visual state indicators */
+  .has-selected {
+    border-color: var(--color-primary);
   }
 
-  /* Disabled states */
-  input:disabled {
-    background-color: var(--color-background-disabled, #f5f5f5);
-    color: var(--color-text-disabled, #999);
-    cursor: not-allowed;
-  }
-
-  button:disabled {
-    background-color: var(--color-background-disabled, #f5f5f5);
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-
-  button:disabled:hover {
-    background-color: var(--color-background-disabled, #f5f5f5);
-  }
-
-  .search-result-item:disabled {
-    background-color: var(--color-background-disabled, #f5f5f5);
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-
-  .search-result-item:disabled:hover {
-    background-color: var(--color-background-disabled, #f5f5f5);
-  }
-
-  .disclaimer-notice {
-    border: 1px solid var(--color-warning-border, #d17c36);
-    border-radius: var(--border-radius);
-    padding: var(--space-sm);
-    margin-bottom: var(--space-md);
-    font-size: 0.9rem;
-    text-align: center;
+  .is-collapsed {
+    opacity: 0.8;
   }
 </style>

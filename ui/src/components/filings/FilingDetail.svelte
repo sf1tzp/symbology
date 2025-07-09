@@ -107,14 +107,14 @@
       <BackButton on:back={actions.navigateBack} />
       <h1>{headerTitle()}</h1>
     </div>
-    <div class="filing-meta">
-      <span class="filing-type-badge">{getFilingTypeLabel(filing.filing_type)}</span>
-      <span class="filing-date">{formatDate(filing.filing_date)}</span>
+    <div class="meta-container">
+      <span class="badge">{getFilingTypeLabel(filing.filing_type)}</span>
+      <span class="meta-item">{formatDate(filing.filing_date)}</span>
     </div>
   </header>
 
-  <section class="filing-summary">
-    <h2>Filing Information</h2>
+  <section class="section-container">
+    <h2 class="section-title-small">Filing Information</h2>
     <MetaItems items={filingMetaItems} />
 
     {#if filing.filing_url}
@@ -126,8 +126,8 @@
     {/if}
   </section>
 
-  <section class="documents-section">
-    <h2>Filing Documents</h2>
+  <section class="section-container">
+    <h2 class="section-title">Filing Documents</h2>
 
     {#if loading}
       <LoadingState message="Loading documents..." />
@@ -194,36 +194,6 @@
     font-size: 1.5rem;
     font-weight: var(--font-weight-bold);
     flex: 1;
-  }
-
-  .filing-meta {
-    display: flex;
-    gap: var(--space-md);
-    align-items: center;
-    margin-top: var(--space-sm);
-  }
-
-  .filing-type-badge {
-    background-color: var(--color-primary);
-    color: var(--color-surface);
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--border-radius);
-    font-weight: var(--font-weight-bold);
-    font-size: 0.9rem;
-  }
-
-  .filing-date {
-    color: var(--color-text-light);
-    font-size: 0.9rem;
-  }
-
-  .filing-summary h2,
-  .documents-section h2 {
-    margin: 0 0 var(--space-md) 0;
-    color: var(--color-text);
-    font-size: 1.2rem;
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-sm);
   }
 
   .sec-link-section {
@@ -321,12 +291,6 @@
   }
 
   @media (max-width: 768px) {
-    .filing-meta {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-sm);
-    }
-
     .documents-list {
       gap: var(--space-sm);
     }

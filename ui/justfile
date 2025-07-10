@@ -20,3 +20,7 @@ check-ui:
 deps-ui:
     rm -rf node_modules
     npm install
+
+# Production build with quality checks
+build-ui:
+    npm run build:prod

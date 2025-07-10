@@ -19,3 +19,4 @@ outputs/
 **/*.egg-info/
 
 ui/node_modules/
+ui/dist

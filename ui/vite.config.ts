@@ -12,6 +12,19 @@ export default defineConfig({
             '$utils': resolve('./src/utils')
         }
     },
+    build: {
+        // Optimize for production
+        minify: 'terser',
+        sourcemap: true,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    vendor: ['svelte'],
+                    utils: ['marked', 'dompurify']
+                }
+            }
+        }
+    },
     server: {
         proxy: {
             // Proxy API requests to backend during development

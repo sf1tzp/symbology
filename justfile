@@ -1,5 +1,6 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2035,SC2050,SC2148
+# set dotenv-load
 
 set dotenv-load
 
@@ -59,3 +60,6 @@ _tag version:
 _untag version:
   git tag -d {{version}}
   git push --delete origin {{version}}
+
+deploy-ui:
+  nerdctl compose -f docker-compose.yaml up

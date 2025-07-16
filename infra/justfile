@@ -1,11 +1,10 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2148,SC2035,SC1083
-# set dotenv-load
 
-start-db: _generate-pgadmin-config
+up: _generate-pgadmin-config
     #!/usr/bin/env bash
     set -euo pipefail
-    nerdctl compose --env-file .env -f infra/database.yaml up --detach
+    nerdctl compose -f database.yaml up --detach
     # Wait for PostgreSQL to be ready
     sleep 2
     # Create the symbology database only if it doesn't exist
@@ -13,17 +12,17 @@ start-db: _generate-pgadmin-config
       -c "SELECT 1 FROM pg_database WHERE datname = '${DATABASE_NAME}'" | grep -q 1 \
       || nerdctl exec postgres psql -U "${DATABASE_USER}" -c "CREATE DATABASE ${DATABASE_NAME};"
 
-stop-db:
-    nerdctl compose -f infra/database.yaml down
+down:
+    nerdctl compose -f database.yaml down
 
-logs-db *FLAGS: # just logs-db -f
-    nerdctl compose -f infra/database.yaml logs {{FLAGS}}
+logs *ARGS: # just logs-db -f
+    nerdctl compose -f database.yaml logs {{ARGS}}
 
 _generate-pgadmin-config:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    mkdir -p infra/pgadmin
+    mkdir -p pgadmin
 
     # Generate pgadmin servers.json
     jq -n \
@@ -46,14 +45,14 @@ _generate-pgadmin-config:
             "Comment": "Symbology application database"
           }
         }
-      }' > infra/pgadmin/servers.json
+      }' > pgadmin/servers.json
 
     # Generate pgpass file from environment variables
     echo \
       "${DATABASE_HOST:-localhost}:${DATABASE_PORT:-5432}:*:${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}" \
-      > infra/pgadmin/pgpass
+      > pgadmin/pgpass
 
     # Set correct permissions for pgpass file
-    chmod 600 infra/pgadmin/pgpass
+    chmod 600 pgadmin/pgpass
 
     echo "PGAdmin configuration files created successfully"

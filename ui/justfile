@@ -4,23 +4,25 @@
 generate-api-types:
     node scripts/generate-api-types.js
 
-run-ui *ARGS:
-    npm run dev -- --host
-
-lint-ui *ARGS:
-    npm run lint {{ARGS}} | tee ui-lint.log
-
-# Add these commands once we set up the npm scripts
-format-ui:
-    npm run format
-
-check-ui:
-    npm run check | tee npm-check.log
-
-deps-ui:
+deps:
     rm -rf node_modules
     npm install
 
+lint *ARGS: format
+        npm run lint {{ARGS}} | tee ui-lint.log
+
+run *ARGS:
+    npm run dev -- --host
+
+# Add these commands once we set up the npm scripts
+format:
+    npm run format
+
+check *ARGS: format
+    npm run check {{ARGS}} | tee npm-check.log
+
 # Production build with quality checks
-build-ui:
+build:
     npm run build:prod
+    nerdctl build . -t symbology-ui:latest
+

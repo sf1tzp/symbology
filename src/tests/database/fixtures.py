@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 # Import the models and settings
 from src.database.base import Base
 from src.utils.logging import configure_logging, get_logger
+
 from utils.config import settings
 
 # Configure logging for tests

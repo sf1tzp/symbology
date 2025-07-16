@@ -3,7 +3,6 @@ from typing import Any, Dict, List
 import uuid
 
 import pytest
-
 from src.database.companies import Company
 
 # Import the Completion model and functions

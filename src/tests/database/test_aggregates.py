@@ -2,7 +2,6 @@ from typing import Any, Dict, List
 import uuid
 
 import pytest
-
 from src.database.aggregates import (
     Aggregate,
     create_aggregate,

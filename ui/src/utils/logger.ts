@@ -15,21 +15,17 @@ if (persistLogs) {
 
     return function (...args) {
       rawMethod(...args);
-      try {
-        const logs = JSON.parse(localStorage.getItem('app_logs') || '[]');
-        logs.push({
-          timestamp: new Date().toISOString(),
-          level: methodName,
-          args: args.map((arg) =>
-            arg instanceof Error ? { name: arg.name, message: arg.message, stack: arg.stack } : arg
-          ),
-        });
-        // Keep only the last 100 logs to avoid localStorage overflow
-        if (logs.length > 100) logs.shift();
-        localStorage.setItem('app_logs', JSON.stringify(logs));
-      } catch (e) {
-        // If localStorage fails, just continue
-      }
+      const logs = JSON.parse(localStorage.getItem('app_logs') || '[]');
+      logs.push({
+        timestamp: new Date().toISOString(),
+        level: methodName,
+        args: args.map((arg) =>
+          arg instanceof Error ? { name: arg.name, message: arg.message, stack: arg.stack } : arg
+        ),
+      });
+      // Keep only the last 100 logs to avoid localStorage overflow
+      if (logs.length > 100) logs.shift();
+      localStorage.setItem('app_logs', JSON.stringify(logs));
     };
   };
 

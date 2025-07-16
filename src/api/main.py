@@ -2,12 +2,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-import uvicorn
-
 from src.api.routes import api_router
 from src.database.base import init_db
 from src.utils.config import settings
 from src.utils.logging import configure_logging, get_logger
+import uvicorn
 
 # Configure structured logging
 configure_logging(log_level="INFO")

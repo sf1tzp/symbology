@@ -3,7 +3,6 @@ from typing import Any, Dict, List
 import uuid
 
 import pytest
-
 from src.database.companies import Company
 from src.database.completions import Completion
 from src.database.documents import Document

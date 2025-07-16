@@ -36,7 +36,7 @@ from src.utils.logging import configure_logging, get_logger
 
 def get_default_tickers() -> List[str]:
     """Get the default list of tickers to process."""
-    return ['PCG', 'RIOT', 'CDE', 'IONQ', 'RKT', 'GME', 'SOFI', 'PR', 'QUBT', 'RKLB', 'MARA', 'TSLA', 'INTC', 'SMCI', 'RXRX', 'S', 'MU', 'HPE', 'HOOD', 'AVGO', 'CLSK', 'AUR', 'APLD', 'KVUE']
+    return ['AGNC']
 
 def process_company(ticker: str, client, doc_model: str, aggregate_model: str, logger) -> Dict[str, Any]:
     """Process a single company through the complete pipeline."""
@@ -94,11 +94,11 @@ def process_company(ticker: str, client, doc_model: str, aggregate_model: str, l
         print(f"✅ Company summary generated ({len(company_summary)} characters)")
         success, preview = verify_company_summary(ticker)
         if success:
-            print(f"✅ Summary verification successful")
+            print("✅ Summary verification successful")
         else:
-            print(f"❌ Summary verification failed")
+            print("❌ Summary verification failed")
     else:
-        print(f"❌ Failed to generate company summary")
+        print("❌ Failed to generate company summary")
 
 
     # Step 5: Generate Summary Report
@@ -116,7 +116,7 @@ def process_company(ticker: str, client, doc_model: str, aggregate_model: str, l
 
 def display_results_summary(results_summary: Dict[str, Dict], failed_tickers: List[str]):
     """Display detailed results summary."""
-    print(f"\n📊 DETAILED RESULTS SUMMARY")
+    print("\n📊 DETAILED RESULTS SUMMARY")
     print(f"{'='*80}")
 
     for ticker, results in results_summary.items():
@@ -220,7 +220,7 @@ def main():
             continue
 
     # Final summary
-    print(f"\n\n🏁 PROCESSING COMPLETE")
+    print("\n\n🏁 PROCESSING COMPLETE")
     print(f"{'='*60}")
     print(f"Successfully processed: {len(results_summary)} companies")
     print(f"Failed: {len(failed_tickers)} companies")

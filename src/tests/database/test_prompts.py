@@ -2,7 +2,6 @@ from typing import Any, Dict, List
 import uuid
 
 import pytest
-
 from src.database.completions import Completion, create_completion
 
 # Import the Prompt model and functions

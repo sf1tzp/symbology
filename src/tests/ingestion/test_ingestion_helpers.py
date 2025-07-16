@@ -3,9 +3,8 @@ from unittest import mock
 
 import pandas as pd
 import pytest
-from uuid_extensions import uuid7
-
 from src.ingestion.ingestion_helpers import ingest_financial_data
+from uuid_extensions import uuid7
 
 
 def test_ingest_financial_data_happy_path():

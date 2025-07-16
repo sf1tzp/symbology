@@ -4,10 +4,9 @@ from uuid import UUID
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from uuid_extensions import uuid7
-
 from src.database.base import Base, get_db_session
 from src.utils.logging import get_logger
+from uuid_extensions import uuid7
 
 if TYPE_CHECKING:
     from src.database.aggregates import Aggregate

@@ -2,7 +2,6 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-
 from src.api.schemas import CompletionResponse
 from src.database.completions import get_completion
 from src.utils.logging import get_logger

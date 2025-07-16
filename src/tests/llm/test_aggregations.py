@@ -4,7 +4,6 @@ from unittest.mock import Mock, mock_open, patch
 from uuid import uuid4
 
 import pytest
-
 from src.database.documents import DocumentType
 from src.llm.aggregations import (
     _generate_single_aggregate_summary,

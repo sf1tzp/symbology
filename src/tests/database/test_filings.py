@@ -4,7 +4,6 @@ import uuid
 
 import pytest
 from sqlalchemy.exc import IntegrityError
-
 from src.database.companies import Company
 
 # Import the Filing model and functions

@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-
 from src.api.main import app
 from src.database.aggregates import Aggregate
 from src.database.completions import Completion

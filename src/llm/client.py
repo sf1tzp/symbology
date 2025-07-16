@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from ollama import Client
 from pydantic import BaseModel, Field
-
 from src.llm.models import MODEL_CONFIG
 from src.utils.config import settings
 from src.utils.logging import get_logger

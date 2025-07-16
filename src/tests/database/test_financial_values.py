@@ -4,7 +4,6 @@ from typing import Any, Dict, List
 import uuid
 
 import pytest
-
 from src.database.companies import Company
 from src.database.filings import Filing
 from src.database.financial_concepts import FinancialConcept

@@ -2,9 +2,8 @@
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from uuid_extensions import uuid7
-
 from src.api.main import app
+from uuid_extensions import uuid7
 
 client = TestClient(app)
 

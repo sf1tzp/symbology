@@ -2,9 +2,8 @@ from datetime import date
 from unittest import mock
 
 import pytest
-from uuid_extensions import uuid7
-
 from src.ingestion.ingestion_helpers import ingest_company
+from uuid_extensions import uuid7
 
 
 def test_ingest_company_happy_path():

@@ -2,10 +2,9 @@ from datetime import date
 from unittest import mock
 
 import pytest
-from uuid_extensions import uuid7
-
 from src.database.documents import DocumentType
 from src.ingestion.ingestion_helpers import ingest_filing_documents
+from uuid_extensions import uuid7
 
 
 def test_ingest_filing_documents_happy_path():

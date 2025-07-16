@@ -1,6 +1,5 @@
 """API route imports and configuration."""
 from fastapi import APIRouter
-
 from src.api.routes.aggregates import router as aggregates_router
 from src.api.routes.companies import router as companies_router
 from src.api.routes.completions import router as completions_router

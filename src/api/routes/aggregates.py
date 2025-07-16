@@ -3,7 +3,6 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-
 from src.api.schemas import AggregateResponse, CompletionResponse
 from src.database.aggregates import get_aggregate, get_recent_aggregates_by_ticker
 from src.utils.logging import get_logger

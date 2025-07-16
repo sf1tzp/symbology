@@ -4,7 +4,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import PlainTextResponse
-
 from src.api.schemas import DocumentResponse
 from src.database.documents import get_document, get_documents_by_filing
 from src.database.documents import get_documents_by_ids as db_get_documents_by_ids

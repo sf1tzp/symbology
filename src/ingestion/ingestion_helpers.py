@@ -5,7 +5,6 @@ from uuid import UUID
 
 from edgar import EntityData, Filing
 import pandas as pd
-
 from src.database.companies import upsert_company_by_cik
 from src.database.documents import DocumentType, find_or_create_document
 from src.database.filings import upsert_filing_by_accession_number

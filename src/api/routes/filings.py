@@ -3,7 +3,6 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-
 from src.api.schemas import FilingResponse
 from src.database.filings import get_filings_by_company
 from src.utils.logging import get_logger

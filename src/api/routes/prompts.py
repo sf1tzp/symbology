@@ -2,7 +2,6 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-
 from src.api.schemas import PromptResponse
 from src.database.prompts import get_prompt
 from src.utils.logging import get_logger

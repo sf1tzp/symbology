@@ -5,7 +5,6 @@ from unittest.mock import Mock, mock_open, patch
 from uuid import uuid4
 
 import pytest
-
 from src.database.documents import DocumentType
 from src.llm.completions import get_completion_results_by_type, process_company_document_completions, process_document_completion, save_completion_results
 

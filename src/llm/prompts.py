@@ -10,7 +10,6 @@ This module provides:
 from enum import Enum
 
 from pydantic import BaseModel
-
 from src.database.documents import DocumentType
 from src.utils.logging import get_logger
 

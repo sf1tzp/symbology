@@ -3,7 +3,6 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
-
 from src.api.schemas import CompanyResponse
 from src.database.companies import get_company, get_company_by_cik, get_company_by_ticker, list_all_companies, search_companies_by_query
 from src.utils.logging import get_logger

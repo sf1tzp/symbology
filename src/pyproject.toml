@@ -21,6 +21,8 @@ dependencies = [
     "structlog==24.1.0",
     "uuid7==0.1.0",
     "uvicorn==0.34.1",
+    "matplotlib==3.10.3",
+    "seaborn==0.13.2",
 ]
 
 # [tool.uv.workspace]

@@ -1,14 +1,13 @@
 import json
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from src.database.companies import get_company_by_ticker
-from src.database.completions import create_completion
-from src.database.documents import DocumentType, get_documents_by_filing
+from src.database.completions import Completion, create_completion
+from src.database.documents import Document, DocumentType, get_documents_by_filing
 from src.database.filings import get_filings_by_company
-from src.database.prompts import get_prompt_by_name
-from src.llm.client import get_chat_response
-from src.llm.models import MODEL_CONFIG
+from src.database.prompts import Prompt
+from src.llm.client import get_chat_response, ModelConfig
 from src.llm.prompts import format_document_messages
 from src.utils.logging import get_logger
 
@@ -16,14 +15,13 @@ logger = get_logger(name="completions")
 
 
 def process_document_completion(
-    client,
-    document,
-    filing,
-    ticker: str,
-    model: str = "qwen3:4b"
-) -> Tuple[Dict, int]:
+    document: Document,
+    prompt: Prompt,
+    model_config: ModelConfig,
+) -> Completion:
     """
     Process a single document to generate a completion.
+
 
     Args:
         client: The LLM client instance
@@ -35,46 +33,36 @@ def process_document_completion(
     Returns:
         Tuple of (completion_result_dict, completion_id)
     """
-    try:
-        messages = format_document_messages(document)
+    filing = document.filing
+    company = document.company
 
-        logger.info(f"Starting Chat for {ticker} {filing.filing_date} {document.document_type.value}")
-        response = get_chat_response(client, model, messages)
+    try:
+        messages = format_document_messages(prompt, document)
+
+        logger.info("document_completion_start", company=company.ticker, year=filing.fiscal_year, document_type=document.document_type.value)
+        response = get_chat_response(model_config, messages)
 
         # Extract necessary details from the response
         created_at = response.created_at
         total_duration = response.total_duration / 1e9
         content = response.message.content
-        prompt = get_prompt_by_name(document.document_type.value)
 
         completion_data = {
-            'model': model,
+            'model': model_config.name,
+            'num_ctx': model_config.num_ctx,
+            'temperature': model_config.temperature,
+            'top_k': model_config.top_k,
+            'top_p': model_config.top_p,
             'document_ids': [document.id],
             'system_prompt_id': prompt.id,
             'total_duration': total_duration,
             'created_at': created_at,
-            'num_ctx': MODEL_CONFIG[model]["ctx"],
             'content': content,
         }
 
         completion = create_completion(completion_data)
-        logger.info(
-            "created_completion",
-            id=completion.id,
-            document=document.document_name,
-            time=completion.total_duration,
-            length=len(completion.content)
-        )
 
-        result = {
-            "filing_date": str(filing.filing_date),
-            "content": response.message.content,
-            "completion_id": completion.id,
-            "document_type": document.document_type,
-            "total_duration": total_duration
-        }
-
-        return result, completion.id
+        return completion
 
     except Exception as e:
         logger.error("Error processing document completion",

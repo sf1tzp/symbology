@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from src.database.prompts import Prompt
     from src.database.ratings import Rating
 
+
 # Initialize structlog
 logger = get_logger(__name__)
 
@@ -57,6 +58,7 @@ class Completion(Base):
     model: Mapped[str] = mapped_column(String(50))
     temperature: Mapped[Optional[float]] = mapped_column(Float, default=0.7)
     top_p: Mapped[Optional[float]] = mapped_column(Float, default=1.0)
+    top_k: Mapped[Optional[float]] = mapped_column(Float, default=20)
     num_ctx: Mapped[Optional[int]] = mapped_column(Float, default=4096)
 
     ratings: Mapped[Optional[List["Rating"]]] = relationship("Rating", back_populates="completion")
@@ -156,7 +158,7 @@ def create_completion(completion_data: Dict[str, Any]) -> Completion:
             completion.source_documents.extend(documents)
 
         session.commit()
-        logger.info("created_completion", completion_id=str(completion.id), model=completion.model)
+        logger.info("create_completion", completion_id=str(completion.id))
         return completion
     except Exception as e:
         session.rollback()

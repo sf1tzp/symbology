@@ -80,16 +80,7 @@ from src.database.financial_values import (
 )
 
 # Prompts
-from src.database.prompts import (
-    create_prompt,
-    delete_prompt,
-    get_prompt,
-    get_prompt_by_name,
-    get_prompt_ids,
-    Prompt,
-    PromptRole,
-    update_prompt,
-)
+from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole, update_prompt
 
 # Ratings
 from src.database.ratings import (

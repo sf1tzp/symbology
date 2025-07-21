@@ -20,6 +20,8 @@ run component *ARGS:
     just -d . -f src/justfile run
   elif [[ "{{component}}" == "ingest" ]]; then
     just -d . -f src/justfile ingest {{ARGS}}
+  elif [[ "{{component}}" == "generate" ]]; then
+    just -d . -f src/justfile generate {{ARGS}}
   elif [[ "{{component}}" == "ui" ]]; then
     just -d ui -f ui/justfile run {{ARGS}}
   elif [[ "{{component}}" == "db" ]]; then

@@ -38,8 +38,18 @@ class Prompt(Base):
 
 
     def __repr__(self) -> str:
-        return f"<Prompt(id={self.id}, name='{self.name}', role={self.role})>"
+        return f"<Prompt(id={self.id}, desc='{self.description}', role={self.role})>"
 
+    def pretty_print(self) -> None:
+        """Pretty-print the content field of a Prompt.
+
+        Args:
+            prompt: Prompt object whose content will be printed
+        """
+        print(f"{self.role.value} Prompt: {self.name} (Desc: {self.description})")
+        print("-" * 40)
+        print(self.content)
+        print("-" * 40)
 
 def get_prompt_ids() -> List[UUID]:
     """Get a list of all prompt IDs in the database.
@@ -50,7 +60,7 @@ def get_prompt_ids() -> List[UUID]:
     try:
         session = get_db_session()
         prompt_ids = [prompt_id for prompt_id, in session.query(Prompt.id).all()]
-        logger.info("retrieved_prompt_ids", count=len(prompt_ids))
+        logger.debug("retrieved_prompt_ids", count=len(prompt_ids))
         return prompt_ids
     except Exception as e:
         logger.error("get_prompt_ids_failed", error=str(e), exc_info=True)

@@ -191,10 +191,9 @@ def test_create_aggregate_with_completion_ids(db_session, sample_aggregate_data,
     aggregates_module.get_db_session = lambda: db_session
 
     try:
-        # Add completion IDs to the aggregate data
-        completion_ids = [comp.id for comp in create_multiple_completions]
+        # Add completion objects to the aggregate data
         aggregate_data = sample_aggregate_data.copy()
-        aggregate_data['completion_ids'] = completion_ids
+        aggregate_data['completions'] = create_multiple_completions
 
         # Create the aggregate
         aggregate = create_aggregate(aggregate_data)
@@ -206,9 +205,10 @@ def test_create_aggregate_with_completion_ids(db_session, sample_aggregate_data,
         # Verify the completion associations
         assert len(aggregate.source_completions) == 3
 
-        # Check that all completion IDs are associated
+        # Check that all completion objects are associated
         associated_completion_ids = [comp.id for comp in aggregate.source_completions]
-        for completion_id in completion_ids:
+        expected_completion_ids = [comp.id for comp in create_multiple_completions]
+        for completion_id in expected_completion_ids:
             assert completion_id in associated_completion_ids
 
         # Verify from the completion side - each completion should have the aggregate in its aggregates

@@ -74,6 +74,7 @@ class Aggregate(Base):
     model: Mapped[str] = mapped_column(String(50))
     temperature: Mapped[Optional[float]] = mapped_column(Float, default=0.7)
     top_p: Mapped[Optional[float]] = mapped_column(Float, default=1.0)
+    top_k: Mapped[Optional[float]] = mapped_column(Integer, default=20)
     num_ctx: Mapped[Optional[int]] = mapped_column(Integer, default=4096)
 
     ratings: Mapped[Optional[List["Rating"]]] = relationship("Rating", back_populates="aggregate")
@@ -161,15 +162,13 @@ def create_aggregate(aggregate_data: Dict[str, Any]) -> Aggregate:
         session = get_db_session()
 
         # Handle completion associations if provided
-        completion_ids = aggregate_data.pop('completion_ids', None)
+        completions = aggregate_data.pop('completions', None)
 
         aggregate = Aggregate(**aggregate_data)
         session.add(aggregate)
 
         # Add completion associations if provided
-        if completion_ids:
-            from src.database.completions import Completion
-            completions = session.query(Completion).filter(Completion.id.in_(completion_ids)).all()
+        if completions:
             aggregate.source_completions.extend(completions)
 
         session.commit()

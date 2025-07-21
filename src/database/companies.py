@@ -51,6 +51,10 @@ class Company(Base):
     def __repr__(self) -> str:
         return f"<Company(id={self.id}, name='{self.name}', cik='{self.cik}')>"
 
+    @property
+    def ticker(self) -> str:
+        return self.tickers[0] if self.tickers else ""
+
 
 def get_company_ids() -> List[UUID]:
     """Get a list of all company IDs in the database.
@@ -61,7 +65,7 @@ def get_company_ids() -> List[UUID]:
     try:
         session = get_db_session()
         company_ids = [company_id for company_id, in session.query(Company.id).all()]
-        logger.info("retrieved_company_ids", count=len(company_ids))
+        logger.debug("retrieved_company_ids", count=len(company_ids))
         return company_ids
     except Exception as e:
         logger.error("get_company_ids_failed", error=str(e), exc_info=True)
@@ -82,12 +86,12 @@ def get_all_company_tickers() -> List[str]:
         all_tickers = []
         for company in companies:
             if company.tickers:
-                all_tickers.extend(company.tickers)
+                all_tickers.append(company.ticker)
 
         # Remove duplicates and sort
         unique_tickers = sorted(list(set(all_tickers)))
 
-        logger.info("retrieved_all_company_tickers", count=len(unique_tickers))
+        logger.debug("retrieved_all_company_tickers", count=len(unique_tickers))
         return unique_tickers
     except Exception as e:
         logger.error("get_all_company_tickers_failed", error=str(e), exc_info=True)
@@ -107,7 +111,7 @@ def get_company(company_id: Union[UUID, str]) -> Optional[Company]:
         session = get_db_session()
         company = session.query(Company).filter(Company.id == company_id).first()
         if company:
-            logger.info("retrieved_company", company_id=str(company_id))
+            logger.info("retrieved_company", company=company.name, ticker=company.ticker)
         else:
             logger.warning("company_not_found", company_id=str(company_id))
         return company
@@ -278,7 +282,7 @@ def get_company_by_ticker(ticker: str) -> Optional[Company]:
         # Since tickers is an array field, we need to use the 'any' operator
         company = session.query(Company).filter(ticker.upper() == any_(Company.tickers)).first()
         if company:
-            logger.info("retrieved_company_by_ticker", company_id=str(company.id), ticker=ticker)
+            logger.info("retrieved_company_by_ticker", company=company.name, ticker=company.ticker)
         else:
             logger.warning("company_by_ticker_not_found", ticker=ticker)
         return company

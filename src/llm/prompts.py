@@ -8,9 +8,13 @@ This module provides:
 """
 
 from enum import Enum
+from typing import List
 
 from pydantic import BaseModel
-from src.database.documents import DocumentType
+from src.database.completions import Completion
+from src.database.documents import Document, DocumentType
+from src.database.prompts import Prompt
+from src.llm.client import remove_thinking_tags
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -117,32 +121,54 @@ Consider these historical reports. Write 100 words providing an overview of the 
 """
 
 
-def format_document_messages(document):
+def format_document_messages(prompt: Prompt, document: Document):
+
+    filing = document.filing
+    company = document.company
+
+    formatted_contents = f"""
+<document>
+<meta company_name="{company.name}" filing_type="{filing.filing_type} fiscal_year="{filing.fiscal_year} document_type="{document.document_type.value}/>
+<content>
+{remove_thinking_tags(document.content)}
+</content>
+</document>
+"""
+
     messages = [{
         'role': PromptRole.SYSTEM.value,
-        'content': DOCUMENT_PROMPTS[document.document_type]
+        'content': prompt.content
     },
     {
         'role': PromptRole.USER.value,
-        'content': document.content
+        'content': formatted_contents
     }]
     return messages
 
 
 
-def format_aggregate_messages(chat_contents):
-    formatted_contents = list(map(lambda date: f"""
-        ---
+def format_aggregate_messages(prompt: Prompt, completions: List[Completion]):
+    formatted_contents = []
+    for completion in completions:
+        if len(completion.source_documents) > 1:
+            logger.warning("completion_has_many_source_documents", length=len(completion.source_documents), completion_id=completion.id)
 
-        # Filed On: {date}
+        document = completion.source_documents[0]
+        filing = document.filing
+        company = document.company
 
-        {chat_contents[date]}
-
-        """, sorted(chat_contents.keys())))
+        formatted_contents.append(f"""
+<document>
+<meta company_name="{company.name}" filing_type="{filing.filing_type} fiscal_year="{filing.fiscal_year} document_type="{document.document_type.value}/>
+<content>
+{remove_thinking_tags(completion.content)}
+</content>
+</document>
+""")
 
     messages = [{
         'role': PromptRole.SYSTEM.value,
-        'content': "Summarize the historical changes in these documents."
+        'content': prompt.content
     },
     {
         'role': PromptRole.USER.value,

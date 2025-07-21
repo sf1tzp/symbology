@@ -19,15 +19,22 @@ run *ARGS: _create_venv
 ingest *ARGS: # Run with defaults (AAPL, 2022)
     uv run -m src.bin.edgar_ingestion {{ARGS}}
 
+generate *ARGS: # Run with defaults (AAPL, 2022)
+    uv run -m src.bin.llm_generate {{ARGS}}
+
+logging *ARGS: # Run with defaults (AAPL, 2022)
+    uv run -m src.bin.logging {{ARGS}}
 # summarize:
 #     uv run run.py summarize --document-id 3 --template-id 2 --temperature 0.7
 
 # test and lint outputs are logged to make it easy to include as llm context
 test *ARGS: _create_venv
-    uv run -m pytest --cov=src.database --cov=src.ingestion --cov=src.api --cov=src.llm src/tests/ {{ARGS}} | tee test.log
+    # note: we're about to refactor ingestion, so removing it for now' --cov=src.ingestion
+    uv run -m pytest --cov=src.database --cov=src.api --cov=src.llm src/tests/  {{ARGS}} | tee test.log
 
 lint *FLAGS: # lint --fix
     ~/.local/share/nvim/mason/bin/ruff check . {{FLAGS}} | tee lint.log
+
 
 build:
     nerdctl build -t symbology-api:latest .

@@ -93,6 +93,15 @@ class LoggingSettings(BaseSettings):
     )
 
 
+class HuggingFaceApiSettings():
+    token: str = Field(default="")
+
+    model_config = SettingsConfigDict(
+        env_prefix="HF_",
+        extra="ignore",
+    )
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -100,6 +109,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     symbology_api: SymbologyApiSettings = Field(default_factory=SymbologyApiSettings)
     edgar_api: EdgarApiSettings = Field(default_factory=EdgarApiSettings)
+    huggingface_api: HuggingFaceApiSettings = Field(default_factory=HuggingFaceApiSettings)
     openai_api: OpenAISettings = Field(default_factory=OpenAISettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 

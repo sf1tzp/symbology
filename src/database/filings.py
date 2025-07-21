@@ -41,7 +41,11 @@ class Filing(Base):
     period_of_report: Mapped[Optional[date]] = mapped_column(Date, index=True)
 
     def __repr__(self) -> str:
-        return f"<Filing(id={self.id}, company_id={self.company_id}, accession_number='{self.accession_number}')>"
+        return f"{self.company.ticker} {self.period_of_report.year} {self.filing_type}"
+
+    @property
+    def fiscal_year(self) -> str:
+        return self.period_of_report.year
 
 
 def get_filing_ids() -> List[UUID]:
@@ -73,7 +77,7 @@ def get_filing(filing_id: Union[UUID, str]) -> Optional[Filing]:
         session = get_db_session()
         filing = session.query(Filing).filter(Filing.id == filing_id).first()
         if filing:
-            logger.info("retrieved_filing", filing_id=str(filing_id))
+            logger.info("retrieved_filing", filing=filing)
         else:
             logger.warning("filing_not_found", filing_id=str(filing_id))
         return filing
@@ -269,7 +273,6 @@ def get_filings_by_company(company_id: Union[UUID, str]) -> List[Filing]:
         session = get_db_session()
         filings = session.query(Filing).filter(Filing.company_id == company_id).all()
         logger.info("retrieved_filings_by_company",
-                   company_id=str(company_id),
                    count=len(filings))
         return filings
     except Exception as e:

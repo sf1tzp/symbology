@@ -8,8 +8,10 @@ from src.utils.config import settings
 from src.utils.logging import configure_logging, get_logger
 import uvicorn
 
+from pathlib import Path
+
 # Configure structured logging
-configure_logging(log_level="INFO")
+configure_logging(log_level="INFO", log_file=Path('outputs/symbology-api.log'))
 logger = get_logger(__name__)
 
 # Initialize database connection

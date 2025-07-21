@@ -17,6 +17,9 @@ class DocumentType(Enum):
     RISK_FACTORS = "risk_factors"
     DESCRIPTION = "business_description"
 
+    def __repr__(self) -> str:
+        return f"{ self.value }"
+
 
 class Document(Base):
     """Document model representing document information associated with filings."""
@@ -43,7 +46,7 @@ class Document(Base):
     content: Mapped[Optional[str]] = mapped_column(Text)
 
     def __repr__(self) -> str:
-        return f"<Document(id={self.id}, document_name='{self.document_name}')>"
+        return f"{self.company.ticker} {self.filing.period_of_report.year} {self.filing.filing_type} {self.document_type.value}"
 
 
 def get_document_ids() -> List[UUID]:
@@ -76,7 +79,7 @@ def get_document(document_id: Union[UUID, str]) -> Optional[Document]:
         # Use joinedload to eagerly fetch the filing relationship
         document = session.query(Document).options(joinedload(Document.filing)).filter(Document.id == document_id).first()
         if document:
-            logger.info("retrieved_document", document_id=str(document_id))
+            logger.info("retrieved_document", document=document.document_name)
         else:
             logger.warning("document_not_found", document_id=str(document_id))
         return document

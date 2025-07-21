@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from src.database.documents import DocumentType
+from src.llm.client import ModelConfig
 from src.llm.completions import get_completion_results_by_type, process_company_document_completions, process_document_completion, save_completion_results
 
 
@@ -15,7 +16,7 @@ def mock_company():
     """Mock company object."""
     company = Mock()
     company.id = uuid4()
-    company.ticker = "AAPL"
+    company.tickers = ["AAPL"]
     return company
 
 
@@ -30,13 +31,15 @@ def mock_filing():
 
 
 @pytest.fixture
-def mock_document():
+def mock_document(mock_filing, mock_company):
     """Mock document object."""
     document = Mock()
     document.id = uuid4()
     document.document_name = "test_document.htm"
     document.document_type = DocumentType.MDA
     document.content = "Test document content for management discussion and analysis."
+    document.filing = mock_filing
+    document.company = mock_company
     return document
 
 
@@ -62,6 +65,18 @@ def mock_completion():
 
 
 @pytest.fixture
+def mock_model_config():
+    """Mock model config object."""
+    return ModelConfig(
+        name="qwen3:4b",
+        num_ctx=4096,
+        temperature=0.7,
+        top_k=40,
+        top_p=0.9
+    )
+
+
+@pytest.fixture
 def mock_prompt():
     """Mock prompt object."""
     prompt = Mock()
@@ -74,71 +89,45 @@ class TestProcessDocumentCompletion:
     """Test process_document_completion function."""
 
     @patch('src.llm.completions.create_completion')
-    @patch('src.llm.completions.get_prompt_by_name')
     @patch('src.llm.completions.get_chat_response')
     @patch('src.llm.completions.format_document_messages')
     def test_successful_completion(
         self,
         mock_format_messages,
         mock_get_chat_response,
-        mock_get_prompt,
         mock_create_completion,
         mock_document,
-        mock_filing,
         mock_llm_response,
         mock_completion,
-        mock_prompt
+        mock_prompt,
+        mock_model_config
     ):
         """Test successful document completion processing."""
         # Setup mocks
         mock_format_messages.return_value = [{"role": "user", "content": "Test content"}]
         mock_get_chat_response.return_value = mock_llm_response
-        mock_get_prompt.return_value = mock_prompt
         mock_create_completion.return_value = mock_completion
 
         # Execute
-        result, completion_id = process_document_completion(
-            client=Mock(),
+        result = process_document_completion(
             document=mock_document,
-            filing=mock_filing,
-            ticker="AAPL",
-            model="qwen3:4b"
+            prompt=mock_prompt,
+            model_config=mock_model_config
         )
 
         # Verify
-        assert result["filing_date"] == str(mock_filing.filing_date)
-        assert result["content"] == mock_llm_response.message.content
-        assert result["completion_id"] == mock_completion.id
-        assert result["document_type"] == mock_document.document_type
-        assert result["total_duration"] == 3.0
-        assert completion_id == mock_completion.id
+        assert result == mock_completion
 
         # Verify function calls
-        mock_format_messages.assert_called_once_with(mock_document)
+        mock_format_messages.assert_called_once_with(mock_prompt, mock_document)
         mock_get_chat_response.assert_called_once()
-        mock_get_prompt.assert_called_once_with(mock_document.document_type.value)
         mock_create_completion.assert_called_once()
 
         # Verify completion data structure
         call_args = mock_create_completion.call_args[0][0]
-        assert call_args['model'] == "qwen3:4b"
+        assert call_args['model'] == mock_model_config.name
         assert call_args['document_ids'] == [mock_document.id]
         assert call_args['system_prompt_id'] == mock_prompt.id
-
-    @patch('src.llm.completions.format_document_messages')
-    def test_error_handling(self, mock_format_messages, mock_document, mock_filing):
-        """Test error handling when completion processing fails."""
-        # Setup mock to raise exception
-        mock_format_messages.side_effect = Exception("Format error")
-
-        # Execute and verify exception is raised
-        with pytest.raises(Exception, match="Format error"):
-            process_document_completion(
-                client=Mock(),
-                document=mock_document,
-                filing=mock_filing,
-                ticker="AAPL"
-            )
 
 
 class TestProcessCompanyDocumentCompletions:

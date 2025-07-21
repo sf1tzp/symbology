@@ -19,6 +19,7 @@ Usage:
     logger.info("application_started", version="1.0.0")
 """
 import logging
+from pathlib import Path
 import sys
 import traceback
 from typing import List, Optional
@@ -28,8 +29,9 @@ from structlog.types import Processor
 
 
 def configure_logging(log_level: str = "INFO",
-                      json_format: bool = False,
-                      extra_processors: Optional[List[Processor]] = None) -> None:
+                        log_file: Path = 'outputs/symbology.log',
+                        json_format: bool = False,
+                        extra_processors: Optional[List[Processor]] = None) -> None:
     """
     Configure structured logging for the application.
 
@@ -47,9 +49,14 @@ def configure_logging(log_level: str = "INFO",
     """
     # Set the log level for the standard library's logging
     log_level_int = getattr(logging, log_level)
+
     logging.basicConfig(
         format="%(message)s",
         level=log_level_int,
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(log_file, mode="a"),
+        ],
     )
 
     # Define processors for structlog
@@ -58,6 +65,14 @@ def configure_logging(log_level: str = "INFO",
         structlog.processors.TimeStamper(fmt="iso"),
         # Add log level as string
         structlog.processors.add_log_level,
+        # Add callsite parameters.
+        structlog.processors.CallsiteParameterAdder(
+            {
+                structlog.processors.CallsiteParameter.FILENAME,
+                structlog.processors.CallsiteParameter.FUNC_NAME,
+                structlog.processors.CallsiteParameter.LINENO,
+            }
+        ),
         # Add logger name
         structlog.processors.StackInfoRenderer(),
         # Add extra context from the logging call

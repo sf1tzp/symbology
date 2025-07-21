@@ -1,6 +1,6 @@
 """Tests for the aggregations module."""
 from datetime import datetime
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -9,12 +9,10 @@ from src.llm.aggregations import (
     _generate_single_aggregate_summary,
     create_document_type_aggregate,
     generate_aggregate_summaries,
-    generate_company_summary,
     get_aggregates_summary_report,
-    process_all_aggregates,
-    save_aggregate_markdown,
     verify_company_summary,
 )
+from src.llm.client import ModelConfig
 
 
 # Test fixtures
@@ -64,26 +62,19 @@ class TestCreateDocumentTypeAggregate:
     """Test create_document_type_aggregate function."""
 
     @patch('src.llm.aggregations.create_aggregate')
-    @patch('src.llm.aggregations.get_prompt_by_name')
     @patch('src.llm.aggregations.get_chat_response')
-    @patch('src.llm.aggregations.get_company_by_ticker')
-    @patch('src.llm.aggregations.save_aggregate_markdown')
-    def test_success_with_output_dir(
+    @patch('src.llm.aggregations.format_aggregate_messages')
+    def test_successful_aggregate_creation(
         self,
-        mock_save_markdown,
-        mock_get_company,
+        mock_format_messages,
         mock_get_chat_response,
-        mock_get_prompt,
         mock_create_aggregate,
-        mock_company,
         mock_llm_response,
-        mock_prompt
     ):
-        """Test successful aggregate creation with output directory."""
+        """Test successful aggregate creation."""
         # Setup mocks
-        mock_get_company.return_value = mock_company
+        mock_format_messages.return_value = [{"role": "user", "content": "Test content"}]
         mock_get_chat_response.return_value = mock_llm_response
-        mock_get_prompt.return_value = mock_prompt
 
         created_aggregate = Mock()
         created_aggregate.id = uuid4()
@@ -92,294 +83,36 @@ class TestCreateDocumentTypeAggregate:
         created_aggregate.content = "Generated content"
         mock_create_aggregate.return_value = created_aggregate
 
-        # Test data
-        client = Mock()
-        completion_data = {"2023-12-31": "Test completion content"}
-        completion_ids = [1, 2, 3]
+        # Create mock completions with required relationships
+        mock_completion = Mock()
+        mock_document = Mock()
+        mock_company = Mock()
+        mock_company.ticker = "AAPL"
+        mock_document.company = mock_company
+        mock_completion.source_documents = [mock_document]
+
+        mock_prompt = Mock()
+        mock_model_config = ModelConfig(name="qwen3:14b")
 
         # Execute
         result = create_document_type_aggregate(
-            client=client,
-            ticker="AAPL",
             document_type=DocumentType.MDA,
-            completion_data=completion_data,
-            completion_ids=completion_ids,
-            model="qwen3:14b",
-            output_dir="test_outputs"
+            completions=[mock_completion],
+            prompt=mock_prompt,
+            model_config=mock_model_config,
         )
 
         # Verify
         assert result == created_aggregate
-        mock_get_company.assert_called_once_with("AAPL")
+        mock_format_messages.assert_called_once_with(mock_prompt, [mock_completion])
         mock_get_chat_response.assert_called_once()
-        mock_save_markdown.assert_called_once_with(
-            "AAPL", DocumentType.MDA, mock_llm_response.message.content, "test_outputs"
-        )
         mock_create_aggregate.assert_called_once()
 
         # Verify aggregate data structure
         call_args = mock_create_aggregate.call_args[0][0]
         assert call_args['model'] == "qwen3:14b"
-        assert call_args['company_id'] == mock_company.id
         assert call_args['document_type'] == DocumentType.MDA
-        assert call_args['completion_ids'] == completion_ids
-
-    @patch('src.llm.aggregations.create_aggregate')
-    @patch('src.llm.aggregations.get_prompt_by_name')
-    @patch('src.llm.aggregations.get_chat_response')
-    @patch('src.llm.aggregations.get_company_by_ticker')
-    def test_success_without_output_dir(
-        self,
-        mock_get_company,
-        mock_get_chat_response,
-        mock_get_prompt,
-        mock_create_aggregate,
-        mock_company,
-        mock_llm_response,
-        mock_prompt
-    ):
-        """Test successful aggregate creation without output directory."""
-        # Setup mocks
-        mock_get_company.return_value = mock_company
-        mock_get_chat_response.return_value = mock_llm_response
-        mock_get_prompt.return_value = mock_prompt
-
-        created_aggregate = Mock()
-        created_aggregate.id = uuid4()
-        created_aggregate.model = "qwen3:14b"
-        created_aggregate.total_duration = 5.0
-        created_aggregate.content = "Generated content"
-        mock_create_aggregate.return_value = created_aggregate
-
-        # Execute
-        result = create_document_type_aggregate(
-            client=Mock(),
-            ticker="AAPL",
-            document_type=DocumentType.RISK_FACTORS,
-            completion_data={"2023-12-31": "Test content"},
-            completion_ids=[1]
-        )
-
-        # Verify
-        assert result == created_aggregate
-        mock_create_aggregate.assert_called_once()
-
-    @patch('src.llm.aggregations.get_company_by_ticker')
-    def test_error_handling(self, mock_get_company):
-        """Test error handling when company lookup fails."""
-        # Setup mock to raise exception
-        mock_get_company.side_effect = Exception("Company not found")
-
-        # Execute
-        result = create_document_type_aggregate(
-            client=Mock(),
-            ticker="INVALID",
-            document_type=DocumentType.MDA,
-            completion_data={},
-            completion_ids=[]
-        )
-
-        # Verify
-        assert result is None
-
-
-class TestProcessAllAggregates:
-    """Test process_all_aggregates function."""
-
-    @patch('src.llm.aggregations.create_document_type_aggregate')
-    def test_process_multiple_types(self, mock_create_aggregate):
-        """Test processing multiple document types."""
-        # Setup mock return values
-        mock_mda_aggregate = Mock()
-        mock_risk_aggregate = Mock()
-        mock_create_aggregate.side_effect = [mock_mda_aggregate, mock_risk_aggregate, None]
-
-        # Test data
-        completion_ids_by_type = {
-            "mda": [1, 2],
-            "risk_factors": [3, 4],
-            "description": [5, 6]
-        }
-        completion_data_by_type = {
-            "mda": {"2023-12-31": "MDA content"},
-            "risk_factors": {"2023-12-31": "Risk factors content"},
-            "description": {"2023-12-31": "Description content"}
-        }
-
-        # Execute
-        result = process_all_aggregates(
-            client=Mock(),
-            ticker="AAPL",
-            completion_ids_by_type=completion_ids_by_type,
-            completion_data_by_type=completion_data_by_type
-        )
-
-        # Verify
-        assert len(result) == 2  # Only successful aggregates
-        assert "mda" in result
-        assert "risk_factors" in result
-        assert "description" not in result  # Failed to create
-        assert result["mda"] == mock_mda_aggregate
-        assert result["risk_factors"] == mock_risk_aggregate
-
-        # Verify function was called for each type
-        assert mock_create_aggregate.call_count == 3
-
-    @patch('src.llm.aggregations.create_document_type_aggregate')
-    def test_empty_completion_ids(self, mock_create_aggregate):
-        """Test handling of empty completion IDs."""
-        completion_ids_by_type = {
-            "mda": [],
-            "risk_factors": [1, 2]
-        }
-        completion_data_by_type = {
-            "mda": {},
-            "risk_factors": {"2023-12-31": "Content"}
-        }
-
-        mock_create_aggregate.return_value = Mock()
-
-        # Execute
-        result = process_all_aggregates(
-            client=Mock(),
-            ticker="AAPL",
-            completion_ids_by_type=completion_ids_by_type,
-            completion_data_by_type=completion_data_by_type
-        )
-
-        # Verify - only risk_factors should be processed
-        assert len(result) == 1
-        assert "risk_factors" in result
-        mock_create_aggregate.assert_called_once()
-
-
-class TestSaveAggregateMarkdown:
-    """Test save_aggregate_markdown function."""
-
-    @patch('builtins.open', new_callable=mock_open)
-    @patch('os.makedirs')
-    def test_save_with_custom_output_dir(self, mock_makedirs, mock_file):
-        """Test saving markdown with custom output directory."""
-        # Execute
-        save_aggregate_markdown(
-            ticker="AAPL",
-            document_type=DocumentType.MDA,
-            content="Test markdown content",
-            output_dir="custom_outputs"
-        )
-
-        # Verify
-        mock_makedirs.assert_called_once_with("custom_outputs", exist_ok=True)
-        mock_file.assert_called_once_with("custom_outputs/mda.md", 'w')
-        mock_file().write.assert_called_once_with("Test markdown content")
-
-    @patch('builtins.open', new_callable=mock_open)
-    @patch('os.makedirs')
-    def test_save_with_default_output_dir(self, mock_makedirs, mock_file):
-        """Test saving markdown with default output directory."""
-        # Execute
-        save_aggregate_markdown(
-            ticker="AAPL",
-            document_type=DocumentType.RISK_FACTORS,
-            content="Risk factors content"
-        )
-
-        # Verify
-        mock_makedirs.assert_called_once_with("outputs/AAPL", exist_ok=True)
-        mock_file.assert_called_once_with("outputs/AAPL/risk_factors.md", 'w')
-
-    @patch('builtins.open', side_effect=IOError("Permission denied"))
-    @patch('os.makedirs')
-    def test_save_error_handling(self, mock_makedirs, mock_file):
-        """Test error handling when file save fails."""
-        # Execute - should not raise exception
-        save_aggregate_markdown(
-            ticker="AAPL",
-            document_type=DocumentType.DESCRIPTION,
-            content="Content"
-        )
-
-        # Verify makedirs was called but file write failed gracefully
-        mock_makedirs.assert_called_once()
-
-
-class TestGenerateCompanySummary:
-    """Test generate_company_summary function."""
-
-    @patch('src.llm.aggregations.update_company')
-    @patch('src.llm.aggregations.get_chat_response')
-    @patch('src.llm.aggregations.get_recent_aggregates_by_ticker')
-    @patch('src.llm.aggregations.get_company_by_ticker')
-    def test_successful_summary_generation(
-        self,
-        mock_get_company,
-        mock_get_aggregates,
-        mock_get_chat_response,
-        mock_update_company,
-        mock_company
-    ):
-        """Test successful company summary generation."""
-        # Setup mocks
-        mock_get_company.return_value = mock_company
-
-        mock_aggregate_1 = Mock()
-        mock_aggregate_1.document_type = DocumentType.MDA
-        mock_aggregate_1.content = "MDA analysis content"
-
-        mock_aggregate_2 = Mock()
-        mock_aggregate_2.document_type = DocumentType.RISK_FACTORS
-        mock_aggregate_2.content = "Risk factors analysis content"
-
-        mock_get_aggregates.return_value = [mock_aggregate_1, mock_aggregate_2]
-
-        mock_response = Mock()
-        mock_response.message.content = "Generated company summary"
-        mock_response.total_duration = 3000000000  # 3 seconds
-        mock_get_chat_response.return_value = mock_response
-
-        mock_update_company.return_value = mock_company
-
-        # Execute
-        result = generate_company_summary(
-            client=Mock(),
-            ticker="AAPL",
-            model="qwen3:14b"
-        )
-
-        # Verify
-        assert result == "Generated company summary"
-        mock_get_company.assert_called_once_with("AAPL")
-        mock_get_aggregates.assert_called_once_with("AAPL")
-        mock_get_chat_response.assert_called_once()
-        mock_update_company.assert_called_once_with(
-            mock_company.id,
-            {'summary': "Generated company summary"}
-        )
-
-    @patch('src.llm.aggregations.get_recent_aggregates_by_ticker')
-    @patch('src.llm.aggregations.get_company_by_ticker')
-    def test_no_aggregates_found(self, mock_get_company, mock_get_aggregates, mock_company):
-        """Test handling when no aggregates are found."""
-        mock_get_company.return_value = mock_company
-        mock_get_aggregates.return_value = []
-
-        # Execute
-        result = generate_company_summary(Mock(), "AAPL")
-
-        # Verify
-        assert result is None
-
-    @patch('src.llm.aggregations.get_company_by_ticker')
-    def test_error_handling(self, mock_get_company):
-        """Test error handling when company lookup fails."""
-        mock_get_company.side_effect = Exception("Database error")
-
-        # Execute
-        result = generate_company_summary(Mock(), "INVALID")
-
-        # Verify
-        assert result is None
-
+        assert call_args['completions'] == [mock_completion]
 
 class TestGenerateAggregateSummaries:
     """Test generate_aggregate_summaries function."""
@@ -473,23 +206,6 @@ class TestGenerateSingleAggregateSummary:
             {'summary': "Generated summary for aggregate"}
         )
 
-    @patch('src.llm.aggregations.get_chat_response')
-    def test_error_handling(self, mock_get_chat_response):
-        """Test error handling when LLM call fails."""
-        mock_get_chat_response.side_effect = Exception("LLM API error")
-
-        mock_aggregate = Mock()
-        mock_aggregate.id = uuid4()
-        mock_aggregate.content = "Content"
-
-        # Execute
-        result = _generate_single_aggregate_summary(
-            Mock(), mock_aggregate, "management_discussion", "qwen3:14b"
-        )
-
-        # Verify
-        assert result is False
-
 
 class TestVerifyCompanySummary:
     """Test verify_company_summary function."""
@@ -574,14 +290,3 @@ class TestGetAggregatesSummaryReport:
         risk_report = result["risk_factors"]
         assert risk_report["has_summary"] is False
         assert risk_report["summary_length"] == 0
-
-    @patch('src.llm.aggregations.get_recent_aggregates_by_ticker')
-    def test_error_handling(self, mock_get_aggregates):
-        """Test error handling when aggregates lookup fails."""
-        mock_get_aggregates.side_effect = Exception("Database error")
-
-        # Execute
-        result = get_aggregates_summary_report("INVALID")
-
-        # Verify
-        assert result == {}

@@ -1,93 +1,77 @@
-import os
 from typing import Dict, List, Optional, Tuple
 
 from src.database.aggregates import create_aggregate, get_recent_aggregates_by_ticker, update_aggregate
-from src.database.companies import get_company, get_company_by_ticker, update_company
+from src.database.companies import Company, get_company, get_company_by_ticker, update_company
+from src.database.completions import Completion
 from src.database.documents import DocumentType
-from src.database.prompts import get_prompt_by_name
-from src.llm.client import get_chat_response
-from src.llm.models import MODEL_CONFIG
+from src.database.prompts import Prompt
+from src.llm.client import get_chat_response, init_client
+from src.llm.completions import ModelConfig
 from src.llm.prompts import AGGREGATE_SUMMARY_PROMPT, format_aggregate_messages, PromptRole
+from src.utils.config import settings
 from src.utils.logging import get_logger
 
 logger = get_logger(name="aggregations")
 
 
 def create_document_type_aggregate(
-    client,
-    ticker: str,
     document_type: DocumentType,
-    completion_data: Dict[str, str],
-    completion_ids: List[int],
-    model: str = "qwen3:14b",
-    output_dir: Optional[str] = None
+    completions: List[Completion],
+    prompt: Prompt,
+    model_config: ModelConfig,
 ) -> Optional[object]:
     """
     Create an aggregate for a specific document type.
 
     Args:
-        client: The LLM client instance
-        ticker: Company ticker symbol
         document_type: Type of documents to aggregate
-        completion_data: Dictionary mapping filing dates to completion content
-        completion_ids: List of completion IDs to associate with aggregate
-        model: Model to use for aggregation
-        output_dir: Optional directory to save markdown output
+        completions: List of completion objects to aggregate
+        prompt: Prompt to use for aggregation
+        model_config: Model configuration for aggregation
 
     Returns:
         Created aggregate object or None if failed
     """
+    if len(completions) < 1:
+        return None
+
+    document = completions[0].source_documents[0]
+    company = document.company
+
     try:
-        company = get_company_by_ticker(ticker)
 
-        # Generate aggregate using LLM
-        messages = format_aggregate_messages(completion_data)
-        response = get_chat_response(client, model, messages)
-
-        logger.info(
-            f"{document_type.value} Aggregate Done",
-            time=f"{response.total_duration / 1e9}s"
-        )
-
-        # Save markdown output if directory specified
-        if output_dir:
-            save_aggregate_markdown(ticker, document_type, response.message.content, output_dir)
+        logger.info("document_aggregate", company=company.ticker, document_type=document.document_type)
+        messages = format_aggregate_messages(prompt, completions)
+        response = get_chat_response(model_config, messages)
 
         # Create aggregate record in database
         created_at = response.created_at
         total_duration = response.total_duration / 1e9
         content = response.message.content
-        prompt = get_prompt_by_name("aggregate_prompt")
 
         aggregate_data = {
-            'model': model,
+            'model': model_config.name,
             'company_id': company.id,
             'document_type': document_type,
             'system_prompt_id': prompt.id,
             'total_duration': total_duration,
             'created_at': created_at,
-            'num_ctx': MODEL_CONFIG[model]["ctx"],
+            'num_ctx': model_config.num_ctx,
+            'temperature': model_config.temperature,
+            'top_k': model_config.top_k,
+            'top_p': model_config.top_p,
             'content': content,
-            'completion_ids': completion_ids
+            'completions': completions
         }
 
         aggregate = create_aggregate(aggregate_data)
-
-        logger.info(
-            f"Created {document_type.value} aggregate",
-            aggregate_id=aggregate.id,
-            completion_count=len(completion_ids),
-            model=aggregate.model,
-            duration=f"{aggregate.total_duration:.2f}s",
-            content_length=len(aggregate.content)
-        )
 
         return aggregate
 
     except Exception as e:
         logger.error(
             f"Error creating {document_type.value} aggregate",
-            ticker=ticker,
+            ticker=company.ticker,
             error=str(e)
         )
         return None
@@ -99,7 +83,6 @@ def process_all_aggregates(
     completion_ids_by_type: Dict[str, List[int]],
     completion_data_by_type: Dict[str, Dict[str, str]],
     model: str = "qwen3:14b",
-    output_dir: Optional[str] = None
 ) -> Dict[str, object]:
     """
     Process aggregates for all document types.
@@ -110,7 +93,6 @@ def process_all_aggregates(
         completion_ids_by_type: Dictionary mapping document types to completion ID lists
         completion_data_by_type: Dictionary mapping document types to completion content
         model: Model to use for aggregation
-        output_dir: Optional directory to save markdown outputs
 
     Returns:
         Dictionary mapping document types to created aggregate objects
@@ -137,8 +119,7 @@ def process_all_aggregates(
                 document_type=document_type,
                 completion_data=completion_data,
                 completion_ids=completion_ids,
-                model=model,
-                output_dir=output_dir
+                model_config=model,
             )
 
             if aggregate:
@@ -154,61 +135,15 @@ def process_all_aggregates(
     return aggregates
 
 
-def save_aggregate_markdown(
-    ticker: str,
-    document_type: DocumentType,
-    content: str,
-    output_dir: Optional[str] = None
-) -> None:
-    """
-    Save aggregate content to a markdown file.
-
-    Args:
-        ticker: Company ticker symbol
-        document_type: Type of document
-        content: Aggregate content to save
-        output_dir: Directory to save file (defaults to outputs/{ticker})
-    """
-    if output_dir is None:
-        output_dir = f'outputs/{ticker}'
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Map document types to filenames
-    filename_mapping = {
-        DocumentType.MDA: 'mda.md',
-        DocumentType.RISK_FACTORS: 'risk_factors.md',
-        DocumentType.DESCRIPTION: 'descriptions.md'
-    }
-
-    filename = filename_mapping.get(document_type, f'{document_type.value}.md')
-    filepath = f'{output_dir}/{filename}'
-
-    try:
-        with open(filepath, 'w') as file:
-            file.write(content)
-        logger.info(f"Saved {document_type.value} aggregate to {filepath}")
-    except Exception as e:
-        logger.error(f"Error saving aggregate to {filepath}: {str(e)}")
-
-
 def generate_company_summary(
-    client,
     ticker: str,
-    model: str = "qwen3:14b"
+    company: Company,
+    model: ModelConfig,
+    prompt: Prompt
 ) -> Optional[str]:
-    """
-    Generate a comprehensive company summary from recent aggregates.
-
-    Args:
-        client: The LLM client instance
-        ticker: Company ticker symbol
-        model: Model to use for summary generation
-
-    Returns:
-        Generated summary content or None if failed
-    """
     try:
+        client = init_client(settings.openai_api.url)
+
         company = get_company_by_ticker(ticker)
 
         # Get the most recent aggregates for the ticker
@@ -244,7 +179,7 @@ def generate_company_summary(
         logger.info(f"Generating summary for {ticker} using {len(aggregate_contents)} aggregate reports")
 
         # Generate the summary using the aggregates
-        summary_response = get_chat_response(client, model, summary_messages)
+        summary_response = get_chat_response(client, model, {}, summary_messages)
         logger.info(f"Summary generation completed in {summary_response.total_duration / 1e9:.2f} seconds")
 
         # Extract the summary content

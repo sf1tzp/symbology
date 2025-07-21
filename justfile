@@ -44,8 +44,7 @@ test component *ARGS:
 lint component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
-    just -d . -f src/justfile lint {{ARGS}}
-    popd
+    just -d src -f src/justfile lint {{ARGS}}
   elif [[ "{{component}}" == "ui" ]]; then
     pushd ui
     just lint {{ARGS}}

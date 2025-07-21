@@ -14,7 +14,9 @@ uv.lock
 infra/database-data/
 infra/pgadmin/
 
+notebooks/
 outputs/
+docs/
 
 **/*.egg-info/
 

@@ -38,6 +38,10 @@ filterwarnings = [
   "ignore::DeprecationWarning:pydantic.*:",
   "ignore::UserWarning:pydantic.*:",
 ]
+testpaths = ["src/tests"]
+norecursedirs = [
+  "src/tests/ingestion",
+] # FIXME: Uncomment after ingestion is updated
 
 [tool.ruff]
 # Enable flake8-bugbear (`B`) rules, and isort (`I`) for import sorting
@@ -45,7 +49,16 @@ lint.select = ["E", "F", "B", "I"]
 # Allow unused variables when underscore-prefixed
 lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Exclude a variety of commonly ignored directories
-exclude = [".git", ".eggs", "__pycache__", "build", "dist", "*.ipynb"]
+exclude = [
+  ".git",
+  ".eggs",
+  "__pycache__",
+  "build",
+  "dist",
+  "*.ipynb",
+  "tests/ingestion", # FIXME: Uncomment after ingestion is updated
+  "bin/",
+]
 # Same as Black
 line-length = 160
 # Target Python 3.13

@@ -22,7 +22,7 @@ session = get_db_session()
 
 client = init_client(settings.openai_api.url)
 
-TICKERS = ['HOOD', 'INTC', 'IONQ', 'IPG', 'JOBY', 'KGC', 'KVUE', 'LCID', 'MARA', 'MP', 'MSFT', 'MU', 'NFLX', 'NU', 'NVDA', 'ORCL', 'PCG', 'PFE', 'PLTR', 'PR', 'QUBT', 'RIG', 'RIOT', 'RKLB', 'RKT', 'RXRX', 'S', 'SMCI', 'SMR', 'SNAP', 'SOFI', 'TSLA', 'UBER', 'UNH', 'VZ', 'WBD', 'WFC', 'WMT', 'XOM']
+TICKERS = ['NFLX', 'NU', 'NVDA', 'ORCL', 'PCG', 'PFE', 'PLTR', 'PR', 'QUBT', 'RIG', 'RIOT', 'RKLB', 'RKT', 'RXRX', 'S', 'SMCI', 'SMR', 'SNAP', 'SOFI', 'TSLA', 'UBER', 'UNH', 'VZ', 'WBD', 'WFC', 'WMT', 'XOM']
 # prompts and model config
 document_prompt = get_prompt('06878708-7a86-76e0-8000-8b1f4e2ed08c')
 document_model_config = ModelConfig(
@@ -98,6 +98,10 @@ for (i, ticker) in enumerate(TICKERS):
             logger.info("document_loop", document=document, index=f"{k}/{len(documents) - 1}")
             result = process_document_completion(document, document_prompt, document_model_config)
             completions_by_type[document.document_type].append(result)
+
+    if len(completions_by_type) == 0:
+        logger.warning("no_documents_to_agggregate_by")
+        continue
 
     logger.info("get_aggregations_for_document_types")
     logger.debug("aggregate_prompt", content=f"'{aggregate_prompt.content.strip()[:90]}...'")

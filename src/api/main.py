@@ -1,4 +1,6 @@
 """FastAPI application for Symbology API."""
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
@@ -7,8 +9,6 @@ from src.database.base import init_db
 from src.utils.config import settings
 from src.utils.logging import configure_logging, get_logger
 import uvicorn
-
-from pathlib import Path
 
 # Configure structured logging
 configure_logging(log_level="INFO", log_file=Path('outputs/symbology-api.log'))

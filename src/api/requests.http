@@ -6,6 +6,7 @@
 @company_id = 370782e3-5dc1-47c2-99d6-4675080d1589
 @filing_id = 3c1bcf22-1cc8-444f-8398-0dfcc101cb11
 @document_id = c031add2-d0a9-4595-a53b-99a821f1d6a5
+@prompt_id = 123e4567-e89b-12d3-a456-426614174000
 
 # API Health Endpoint
 GET http://{{hostname}}:{{port}}/
@@ -67,6 +68,13 @@ Accept: application/json
 # 7. Get a specific document by ID
 # Replace {document_id} with a document UUID from step 6
 GET http://{{hostname}}:{{port}}/api/documents/{{document_id}}
+Accept: application/json
+
+###
+
+# 8. Get a specific prompt by ID
+# Replace {prompt_id} with a valid prompt UUID
+GET http://{{hostname}}:{{port}}/api/prompts/{{prompt_id}}
 Accept: application/json
 
 ###

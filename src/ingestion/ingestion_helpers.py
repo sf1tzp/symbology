@@ -167,12 +167,12 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
         Dictionary mapping document names to their UUIDs in database
     """
     try:
+        company = get_company(company_id)
+
+        formatted_base_name = f"{company.name} {filing.period_of_report.year} {filing.form}"
+
+        logger.info("ingest_business_description")
         document_uuids = {}
-
-        # Format a base document name with company name, filing type, and date
-        # Use provided company_name or default to "Company"
-        formatted_base_name = f"{company_name or 'Company'} {filing.form} {filing.filing_date}"
-
         # Business description
         business_description = get_business_description(filing)
         if business_description:

@@ -19,6 +19,7 @@ Usage:
     logger.info("application_started", version="1.0.0")
 """
 import logging
+import os
 from pathlib import Path
 import sys
 import traceback
@@ -28,6 +29,69 @@ import structlog
 from structlog.types import Processor
 
 
+def format_clickable_callsite(logger, method_name, event_dict):
+    """
+    Format callsite information into clickable file paths.
+
+    Gets the full file path from stack inspection and formats it as
+    "src/path/to/file.py:line_number" for terminal clickability.
+    """
+    import inspect
+
+    # Get the repo root
+    repo_root = Path(__file__).parent.parent.parent
+
+    try:
+        # Find the calling frame (skip structlog internal frames)
+        frame = inspect.currentframe()
+        while frame:
+            frame_filename = frame.f_code.co_filename
+            frame_path = Path(frame_filename)
+
+            # Skip frames that are in structlog or our logging module
+            if ('structlog' not in str(frame_path) and
+                'logging.py' not in frame_path.name and
+                '__pycache__' not in str(frame_path)):
+
+                # This should be the actual calling code
+                try:
+                    relative_path = frame_path.relative_to(repo_root)
+                    lineno = frame.f_lineno
+                    clickable_location = f'"{relative_path}:{lineno}"'
+                    event_dict["caller"] = clickable_location
+
+                    # Remove any existing filename/lineno that might have been added by CallsiteParameterAdder
+                    event_dict.pop("filename", None)
+                    event_dict.pop("lineno", None)
+                    break
+                except ValueError:
+                    # If the file is not under repo_root, use absolute path
+                    event_dict["caller"] = f'"{frame_path}:{frame.f_lineno}"'
+                    event_dict.pop("filename", None)
+                    event_dict.pop("lineno", None)
+                    break
+
+            frame = frame.f_back
+    except Exception:
+        # Fallback: use existing filename/lineno if available
+        filename = event_dict.get("filename")
+        lineno = event_dict.get("lineno")
+        if filename and lineno:
+            # Add ./ prefix if it's not already an absolute path
+            if not filename.startswith('/'):
+                event_dict["caller"] = f'"{filename}:{lineno}"'
+            else:
+                event_dict["caller"] = f'"{filename}:{lineno}"'
+            event_dict.pop("filename", None)
+            event_dict.pop("lineno", None)
+    finally:
+        del frame
+
+    # Also rename func_name to function
+    if "func_name" in event_dict:
+        event_dict["function"] = event_dict.pop("func_name")
+
+    return event_dict
 def configure_logging(log_level: str = "INFO",
                         log_file: Path = 'outputs/symbology.log',
                         json_format: bool = False,
@@ -73,6 +137,8 @@ def configure_logging(log_level: str = "INFO",
                 structlog.processors.CallsiteParameter.LINENO,
             }
         ),
+        # Format callsite into clickable location
+        format_clickable_callsite,
         # Add logger name
         structlog.processors.StackInfoRenderer(),
         # Add extra context from the logging call

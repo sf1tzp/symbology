@@ -11,7 +11,7 @@ from src.llm.prompts import AGGREGATE_SUMMARY_PROMPT, format_aggregate_messages,
 from src.utils.config import settings
 from src.utils.logging import get_logger
 
-logger = get_logger(name="aggregations")
+logger = get_logger(name="aggregates")
 
 
 def create_document_type_aggregate(

@@ -1,11 +1,11 @@
-"""Tests for the aggregations module."""
+"""Tests for the aggregates module."""
 from datetime import datetime
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
 import pytest
 from src.database.documents import DocumentType
-from src.llm.aggregations import (
+from src.llm.aggregates import (
     _generate_single_aggregate_summary,
     create_document_type_aggregate,
     generate_aggregate_summaries,
@@ -61,9 +61,9 @@ def mock_prompt():
 class TestCreateDocumentTypeAggregate:
     """Test create_document_type_aggregate function."""
 
-    @patch('src.llm.aggregations.create_aggregate')
-    @patch('src.llm.aggregations.get_chat_response')
-    @patch('src.llm.aggregations.format_aggregate_messages')
+    @patch('src.llm.aggregates.create_aggregate')
+    @patch('src.llm.aggregates.get_chat_response')
+    @patch('src.llm.aggregates.format_aggregate_messages')
     def test_successful_aggregate_creation(
         self,
         mock_format_messages,
@@ -117,8 +117,8 @@ class TestCreateDocumentTypeAggregate:
 class TestGenerateAggregateSummaries:
     """Test generate_aggregate_summaries function."""
 
-    @patch('src.llm.aggregations._generate_single_aggregate_summary')
-    @patch('src.llm.aggregations.get_recent_aggregates_by_ticker')
+    @patch('src.llm.aggregates._generate_single_aggregate_summary')
+    @patch('src.llm.aggregates.get_recent_aggregates_by_ticker')
     def test_process_multiple_aggregates(self, mock_get_aggregates, mock_generate_single):
         """Test processing multiple aggregates."""
         # Setup mocks
@@ -154,7 +154,7 @@ class TestGenerateAggregateSummaries:
         assert call_args[2] == "management_discussion"  # Third argument should be doc type
         assert call_args[3] == "qwen3:14b"  # Fourth argument should be model
 
-    @patch('src.llm.aggregations.get_recent_aggregates_by_ticker')
+    @patch('src.llm.aggregates.get_recent_aggregates_by_ticker')
     def test_insufficient_content(self, mock_get_aggregates):
         """Test handling of aggregates with insufficient content."""
         mock_agg = Mock()
@@ -175,8 +175,8 @@ class TestGenerateAggregateSummaries:
 class TestGenerateSingleAggregateSummary:
     """Test _generate_single_aggregate_summary function."""
 
-    @patch('src.llm.aggregations.update_aggregate')
-    @patch('src.llm.aggregations.get_chat_response')
+    @patch('src.llm.aggregates.update_aggregate')
+    @patch('src.llm.aggregates.get_chat_response')
     def test_successful_summary_generation(self, mock_get_chat_response, mock_update_aggregate):
         """Test successful single aggregate summary generation."""
         # Setup mocks
@@ -210,8 +210,8 @@ class TestGenerateSingleAggregateSummary:
 class TestVerifyCompanySummary:
     """Test verify_company_summary function."""
 
-    @patch('src.llm.aggregations.get_company')
-    @patch('src.llm.aggregations.get_company_by_ticker')
+    @patch('src.llm.aggregates.get_company')
+    @patch('src.llm.aggregates.get_company_by_ticker')
     def test_successful_verification(self, mock_get_by_ticker, mock_get_company, mock_company):
         """Test successful company summary verification."""
         mock_get_by_ticker.return_value = mock_company
@@ -229,8 +229,8 @@ class TestVerifyCompanySummary:
         assert len(preview) <= 203  # 200 chars + "..."
         assert preview.endswith("...")
 
-    @patch('src.llm.aggregations.get_company')
-    @patch('src.llm.aggregations.get_company_by_ticker')
+    @patch('src.llm.aggregates.get_company')
+    @patch('src.llm.aggregates.get_company_by_ticker')
     def test_successful_verification_short_summary(self, mock_get_by_ticker, mock_get_company, mock_company):
         """Test successful verification with short summary that doesn't need truncation."""
         mock_get_by_ticker.return_value = mock_company
@@ -251,7 +251,7 @@ class TestVerifyCompanySummary:
 class TestGetAggregatesSummaryReport:
     """Test get_aggregates_summary_report function."""
 
-    @patch('src.llm.aggregations.get_recent_aggregates_by_ticker')
+    @patch('src.llm.aggregates.get_recent_aggregates_by_ticker')
     def test_generate_report(self, mock_get_aggregates):
         """Test generating aggregates summary report."""
         # Setup mock aggregates

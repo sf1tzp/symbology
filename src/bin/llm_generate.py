@@ -8,7 +8,7 @@ from src.database.completions import Completion
 from src.database.documents import DocumentType, get_documents_by_filing
 from src.database.filings import get_filings_by_company
 from src.database.prompts import *
-from src.llm.aggregations import create_document_type_aggregate
+from src.llm.aggregates import create_document_type_aggregate
 from src.llm.client import get_generate_response, init_client, ModelConfig, remove_thinking_tags
 from src.llm.completions import process_document_completion
 from src.utils.config import settings
@@ -103,7 +103,7 @@ for (i, ticker) in enumerate(TICKERS):
         logger.warning("no_documents_to_agggregate_by")
         continue
 
-    logger.info("get_aggregations_for_document_types")
+    logger.info("get_aggregates_for_document_types")
     logger.debug("aggregate_prompt", content=f"'{aggregate_prompt.content.strip()[:90]}...'")
 
     logger.info("get_mda_aggregate")

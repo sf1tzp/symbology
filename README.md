@@ -148,7 +148,7 @@ just run 10k --tickers AAPL MSFT GOOGL --years 2022 2023
 python -m src.llm.completions --ticker AAPL --model gpt-4
 
 # Create aggregated insights
-python -m src.llm.aggregations --ticker AAPL --model gpt-4
+python -m src.llm.aggregates --ticker AAPL --model gpt-4
 ```
 
 ### Research Workflow

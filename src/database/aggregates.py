@@ -29,7 +29,7 @@ aggregate_completion_association = Table(
 )
 
 class Aggregate(Base):
-    """Aggregate model representing AI aggregations from multiple completions."""
+    """Aggregate model representing AI aggregates from multiple completions."""
 
     __tablename__ = "aggregates"
 

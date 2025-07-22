@@ -19,7 +19,6 @@ Usage:
     logger.info("application_started", version="1.0.0")
 """
 import logging
-import os
 from pathlib import Path
 import sys
 import traceback

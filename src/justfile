@@ -29,8 +29,12 @@ logging *ARGS: # Run with defaults (AAPL, 2022)
 
 # test and lint outputs are logged to make it easy to include as llm context
 test *ARGS: _create_venv
-    # note: we're about to refactor ingestion, so removing it for now' --cov=src.ingestion
-    uv run -m pytest --cov=src.database --cov=src.api --cov=src.llm src/tests/  {{ARGS}} | tee test.log
+    uv run -m pytest \
+      --cov=src.api \
+      --cov=src.database \
+      --cov=src.ingestion \
+      --cov=src.llm \
+      src/tests/ {{ARGS}} | tee test.log
 
 lint *FLAGS: # lint --fix
     ~/.local/share/nvim/mason/bin/ruff check . {{FLAGS}} | tee lint.log

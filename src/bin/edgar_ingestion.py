@@ -238,8 +238,6 @@ def setup_database(db_url: str = None):
     """
     # Use the provided URL or fall back to the one from settings
     db_url = db_url or settings.database.url
-
-    logger.info("Initializing database connection", db_url=db_url.replace(settings.database.password, "****"))
     try:
         engine, session = init_db(db_url)
         logger.info("Database connection successful")

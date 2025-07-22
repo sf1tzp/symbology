@@ -15,9 +15,8 @@ configure_logging(log_level="INFO", log_file=Path('outputs/symbology-api.log'))
 logger = get_logger(__name__)
 
 # Initialize database connection
-database_url = settings.database.url
-init_db(database_url)
-logger.info("database_connection_initialized", database_url=database_url)
+init_db(settings.database.url)
+logger.info("database_connection_initialized", host=settings.database.host, port=settings.database.port)
 
 # Create FastAPI application
 app = FastAPI(

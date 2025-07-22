@@ -2,10 +2,10 @@
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from src.api.main import app
+from src.api.main import create_app
 from uuid_extensions import uuid7
 
-client = TestClient(app)
+client = TestClient(create_app())
 
 # Sample company data for tests
 SAMPLE_COMPANY_ID = uuid7()
@@ -115,8 +115,12 @@ class TestCompanyApi:
         # Assertions
         assert response.status_code == 422
 
-    def test_search_companies_partial_limit_bounds(self):
+    @patch("src.api.routes.companies.search_companies_by_query")
+    def test_search_companies_partial_limit_bounds(self, mock_search_companies):
         """Test search with limit parameter validation."""
+        # Setup the mock to return empty list for valid requests
+        mock_search_companies.return_value = []
+
         # Test with limit too high
         response = client.get("/api/companies/search?query=test&limit=100")
         assert response.status_code == 422
@@ -127,7 +131,10 @@ class TestCompanyApi:
 
         # Test with valid limit
         response = client.get("/api/companies/search?query=test&limit=25")
-        assert response.status_code == 200 or response.status_code == 404  # Depends on mock
+        assert response.status_code == 200
+
+        # Verify the mock was called for the valid request
+        mock_search_companies.assert_called_once_with("test", 25)
 
     @patch("src.api.routes.companies.get_company")
     def test_get_company_by_id_found(self, mock_get_company):

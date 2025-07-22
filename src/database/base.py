@@ -36,7 +36,8 @@ def init_db(database_url: str) -> Tuple[object, object]:
 
         # Create all tables
         Base.metadata.create_all(bind=engine)
-        logger.info("database_initialized", status="success")
+
+        logger.debug("database_initialized")
 
         return engine, db_session
     except Exception as e:

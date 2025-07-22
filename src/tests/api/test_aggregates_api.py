@@ -4,12 +4,12 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from src.api.main import app
+from src.api.main import create_app
 from src.database.aggregates import Aggregate
 from src.database.completions import Completion
 from src.database.documents import Document, DocumentType
 
-client = TestClient(app)
+client = TestClient(create_app())
 
 # Sample data for tests
 SAMPLE_COMPANY_ID = uuid4()

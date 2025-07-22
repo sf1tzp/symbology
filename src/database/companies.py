@@ -319,7 +319,14 @@ def search_companies_by_query(query: str, limit: int = 10) -> List[Company]:
         return companies
     except Exception as e:
         logger.error("search_companies_by_query_failed", query=query, error=str(e), exc_info=True)
-        session.rollback()  # Make sure to rollback the failed transaction
+
+        # Only rollback if we have a session
+        try:
+            session = get_db_session()
+            session.rollback()
+        except Exception:
+            # If we can't get a session, there's nothing to rollback
+            pass
 
         # Fallback to searching just by name if the complex query fails
         try:

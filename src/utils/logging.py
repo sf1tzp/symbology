@@ -22,7 +22,7 @@ import logging
 from pathlib import Path
 import sys
 import traceback
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import structlog
 from structlog.types import Processor
@@ -91,10 +91,11 @@ def format_clickable_callsite(logger, method_name, event_dict):
         event_dict["function"] = event_dict.pop("func_name")
 
     return event_dict
+
 def configure_logging(log_level: str = "INFO",
-                        log_file: Path = 'outputs/symbology.log',
                         json_format: bool = False,
-                        extra_processors: Optional[List[Processor]] = None) -> None:
+                        extra_processors: Optional[List[Processor]] = None,
+                        configure_root_logger: bool = True) -> None:
     """
     Configure structured logging for the application.
 
@@ -102,6 +103,7 @@ def configure_logging(log_level: str = "INFO",
         log_level: The log level to use (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         json_format: Whether to output logs in JSON format (useful for production)
         extra_processors: Additional structlog processors to add to the chain
+        configure_root_logger: Whether to configure the root logger (set False when using custom uvicorn config)
 
     Examples:
         # Configure basic logging
@@ -109,18 +111,34 @@ def configure_logging(log_level: str = "INFO",
 
         # Configure JSON logging for production environments
         configure_logging(log_level="WARNING", json_format=True)
+
+        # Configure without root logger (for uvicorn integration)
+        configure_logging(log_level="INFO", configure_root_logger=False)
     """
     # Set the log level for the standard library's logging
     log_level_int = getattr(logging, log_level)
 
-    logging.basicConfig(
-        format="%(message)s",
-        level=log_level_int,
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler(log_file, mode="a"),
-        ],
-    )
+    if configure_root_logger:
+        logging.basicConfig(
+            format="%(message)s",
+            level=log_level_int,
+            handlers=[
+                logging.StreamHandler(sys.stdout),
+            ],
+        )
+    else:
+        # Configure a minimal setup for structlog without interfering with uvicorn
+        # Create a logger specifically for our application
+        app_logger = logging.getLogger("symbology")
+        app_logger.setLevel(log_level_int)
+
+        # Only add handlers if they don't already exist
+        if not app_logger.handlers:
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setFormatter(logging.Formatter("%(message)s"))
+
+            app_logger.addHandler(console_handler)
+            app_logger.propagate = False  # Don't propagate to root logger
 
     # Define processors for structlog
     processors: List[Processor] = [
@@ -173,6 +191,7 @@ def configure_logging(log_level: str = "INFO",
         cache_logger_on_first_use=True,
     )
 
+
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """
     Get a structured logger with the given name.
@@ -183,7 +202,35 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     Returns:
         A structured logger instance
     """
-    return structlog.get_logger(name)
+    logger = structlog.get_logger(name)
+
+    # If this is an application logger (starts with 'src.'), disable propagation
+    # to prevent double logging when using uvicorn, but ensure it has handlers
+    if name.startswith('src.'):
+        stdlib_logger = logging.getLogger(name)
+        stdlib_logger.propagate = False
+
+        # Ensure it has handlers - either copy from symbology app logger or add directly
+        if not stdlib_logger.handlers:
+            app_logger = logging.getLogger("symbology")
+            if app_logger.handlers:
+                # Copy handlers from the symbology app logger
+                for handler in app_logger.handlers:
+                    stdlib_logger.addHandler(handler)
+            else:
+                # Fallback: add console handler directly
+                console_handler = logging.StreamHandler(sys.stdout)
+                console_handler.setFormatter(logging.Formatter("%(message)s"))
+                stdlib_logger.addHandler(console_handler)
+
+        # Set the log level to match the app logger or a reasonable default
+        app_logger = logging.getLogger("symbology")
+        if app_logger.level != logging.NOTSET:
+            stdlib_logger.setLevel(app_logger.level)
+        else:
+            stdlib_logger.setLevel(logging.INFO)
+
+    return logger
 
 def log_exception(e: Exception, logger: structlog.stdlib.BoundLogger, prefix: str = "") -> str:
     """
@@ -216,3 +263,118 @@ def log_exception(e: Exception, logger: structlog.stdlib.BoundLogger, prefix: st
                  exc_info=True)
 
     return error_msg
+
+
+class StructuredUvicornFormatter(logging.Formatter):
+    """Custom formatter for uvicorn logs to match our structured logging format."""
+
+    def __init__(self, json_format: bool = False, use_colors: bool = False):
+        super().__init__()
+        self.json_format = json_format
+        self.use_colors = use_colors
+
+        # Color codes for console output
+        self.colors = {
+            'debug': '\033[36m',     # cyan
+            'info': '\033[32m',      # green
+            'warning': '\033[33m',   # yellow
+            'error': '\033[31m',     # red
+            'critical': '\033[35m',  # magenta
+            'reset': '\033[0m'       # reset
+        } if use_colors else {}
+
+    def format(self, record):
+        # Convert log level to lowercase
+        level = record.levelname.lower()
+
+        if self.json_format:
+            # JSON format for production
+            import datetime
+            import json
+            dt = datetime.datetime.fromtimestamp(record.created, tz=datetime.timezone.utc)
+            timestamp = dt.isoformat().replace('+00:00', 'Z')
+
+            log_data = {
+                "timestamp": timestamp,
+                "level": level,
+                "logger": record.name,
+                "message": record.getMessage()
+            }
+            return json.dumps(log_data)
+        else:
+            # Console format (matches structlog dev format)
+            import datetime
+            dt = datetime.datetime.fromtimestamp(record.created, tz=datetime.timezone.utc)
+            timestamp = dt.isoformat().replace('+00:00', 'Z')
+
+            # Apply colors if enabled
+            if self.use_colors and level in self.colors:
+                level_colored = f"{self.colors[level]}{level:<9s}{self.colors['reset']}"
+            else:
+                level_colored = f"{level:<9s}"
+
+            formatted = f"{timestamp} [{level_colored}] {record.name}: {record.getMessage()}"
+            return formatted
+
+
+def get_uvicorn_log_config(json_format: bool = False) -> Dict:
+    """
+    Get a log configuration dict for uvicorn that uses our structured logging.
+
+    Args:
+        json_format: Whether to output logs in JSON format (matches main logging config)
+        log_file: Optional log file path for file logging
+
+    Returns:
+        Dict: Log configuration for uvicorn that integrates with our structured logging
+    """
+    import sys
+
+    # Detect if we're in a TTY for color support
+    use_colors = sys.stdout.isatty() and not json_format
+
+    handlers = {
+        "console": {
+            "formatter": "structured",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+        },
+    }
+
+    handler_list = ["console"]
+
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "structured": {
+                "()": StructuredUvicornFormatter,
+                "json_format": json_format,
+                "use_colors": use_colors,
+            },
+        },
+        "handlers": handlers,
+        "root": {
+            "level": "INFO",
+            "handlers": handler_list,
+        },
+        "loggers": {
+            "uvicorn": {
+                "level": "INFO",
+                "handlers": handler_list,
+                "propagate": False,
+            },
+            "uvicorn.error": {
+                "level": "INFO",
+                "handlers": handler_list,
+                "propagate": False,
+            },
+            "uvicorn.access": {
+                "level": "INFO",
+                "handlers": handler_list,
+                "propagate": False,
+            },
+        },
+    }
+
+    return log_config

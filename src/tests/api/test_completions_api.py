@@ -4,11 +4,11 @@ from unittest.mock import patch
 import uuid
 
 from fastapi.testclient import TestClient
-from src.api.main import app
+from src.api.main import create_app
 from src.database.completions import Completion
 from src.database.documents import Document
 
-client = TestClient(app)
+client = TestClient(create_app())
 
 
 class TestCompletionsApi:

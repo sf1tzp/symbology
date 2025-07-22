@@ -1,4 +1,3 @@
-import os
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -6,9 +5,6 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 load_dotenv()
-
-# Define environment type
-ENV = os.environ.get("ENV", "development")
 
 
 class DatabaseSettings(BaseSettings):
@@ -35,10 +31,20 @@ class SymbologyApiSettings(BaseSettings):
     host: str = Field(default="localhost")
     port: int = Field(default=8000)
 
+    allowed_origins_str: str = Field(default="*")
+
     model_config = SettingsConfigDict(
         env_prefix="SYMBOLOGY_API_",
         extra="ignore",
     )
+
+    @property  # use a property to access a structured allowed_origins list
+    def allowed_origins(self) -> list[str]: # noqa: F811
+        """Parse allowed_origins from the raw string value."""
+        if self.allowed_origins_str.strip() == "*":
+            return ["*"]
+        # Split by comma and strip whitespace
+        return [origin.strip() for origin in self.allowed_origins_str.split(",") if origin.strip()]
 
 
 class EdgarApiSettings(BaseSettings):
@@ -86,7 +92,6 @@ class LoggingSettings(BaseSettings):
 
     level: str = Field(default="INFO")
     json_format: bool = Field(default=False)
-
     model_config = SettingsConfigDict(
         env_prefix="LOG_",
         extra="ignore",

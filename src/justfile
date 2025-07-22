@@ -11,7 +11,7 @@ _create_venv:
 
 deps:
     uv pip compile pyproject.toml -o requirements.lock
-    uv pip install -r requirements.lock
+    uv pip install -e .[dev,test]
 
 run *ARGS: _create_venv
     uv run -m src.api.main

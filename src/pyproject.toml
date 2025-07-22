@@ -4,32 +4,41 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
+# Minimal dependencies for production API deployment
 dependencies = [
-  "edgartools==3.15.0",
   "fastapi==0.115.12",
+  "uvicorn==0.34.1",
+  "pydantic==2.11.3",
+  "pydantic-settings==2.9.0",
+  "sqlalchemy==2.0.40",
+  "psycopg2==2.9.10",
+  "structlog==24.1.0",
+  "python-dotenv==1.0.0",
+  "uuid7==0.1.0",
+  "safe-result",
+]
+
+[project.optional-dependencies]
+# Development dependencies for data ingestion, analysis, and LLM features
+dev = [
+  "edgartools==3.15.0",
   "httpx==0.28.1",
   "ollama==0.4.7",
   "tiktoken",
   "transformers",
   "torch",
-  "psycopg2==2.9.10",
-  "pydantic==2.11.3",
-  "pydantic-settings==2.9.0",
-  "pytest>=8.3.5",
-  "pytest-cov>=6.1.1",
-  "pytest-json-report>=1.5.0",
-  "python-dotenv==1.0.0",
   "requests>=2.32.3",
-  "safe-result",
-  "sqlalchemy==2.0.40",
-  "structlog==24.1.0",
-  "uuid7==0.1.0",
-  "uvicorn==0.34.1",
   "matplotlib==3.10.3",
   "seaborn==0.13.2",
   "jupyter",
-  'ipywidgets',
+  "ipywidgets",
 ]
+
+# Testing dependencies
+test = ["pytest>=8.3.5", "pytest-cov>=6.1.1", "pytest-json-report>=1.5.0"]
+
+# All development dependencies (convenience group)
+all = ["symbology[dev,test]"]
 
 # [tool.uv.workspace]
 # members = ["src/python"]

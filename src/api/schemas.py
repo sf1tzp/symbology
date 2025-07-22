@@ -1,10 +1,17 @@
 """API request and response schemas."""
 from datetime import date, datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from src.llm.prompts import PromptRole
+
+
+class PromptRole(str, Enum):
+    """Enumeration of valid prompt roles."""
+    SYSTEM = "system"
+    ASSISTANT = "assistant"
+    USER = "user"
 
 
 # Request Schemas

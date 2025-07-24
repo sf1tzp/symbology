@@ -13,19 +13,27 @@ down:
 logs *ARGS:
   nerdctl compose -f docker-compose.yaml logs {{ARGS}}
 
+deploy environment="staging":
+  ansible-playbook -i infra/inventories/{{environment}} infra/deploy-symbology.yml
+
 # Development resources
 run component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
     just -d . -f src/justfile run
+
   elif [[ "{{component}}" == "ingest" ]]; then
     just -d . -f src/justfile ingest {{ARGS}}
+
   elif [[ "{{component}}" == "generate" ]]; then
     just -d . -f src/justfile generate {{ARGS}}
+
   elif [[ "{{component}}" == "ui" ]]; then
     just -d ui -f ui/justfile run {{ARGS}}
+
   elif [[ "{{component}}" == "db" ]]; then
     just -d infra -f infra/justfile up
+
   else
     echo "Error: Unknown component '{{component}}'" && exit 1
   fi
@@ -34,11 +42,14 @@ test component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
     just -d . -f src/justfile test {{ARGS}}
+
   elif [[ "{{component}}" == "ui" ]]; then
     echo "no testing for ui yet"
     just -d ui -f ui/justfile check {{ARGS}}
+
   else
     echo "Error: Unknown component '{{component}}'" && exit 1
+
   fi
 
 lint component *ARGS:
@@ -60,6 +71,13 @@ build component:
     just -d src -f src/justfile build
   elif [[ "{{component}}" == "ui" ]]; then
     just -d ui -f ui/justfile build
+  elif [[ "{{component}}" == "images" ]]; then
+    just build api
+    just build ui
+    nerdctl pull postgres:17.4
+    nerdctl save symbology-api:latest -o /tmp/symbology-api-latest.tar
+    nerdctl save symbology-ui:latest -o /tmp/symbology-ui-latest.tar
+    nerdctl save postgres:17.4 -o /tmp/postgres-17.4.tar
   else
     echo "Error: Unknown component '{{component}}'"
     exit 1

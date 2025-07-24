@@ -1,0 +1,50 @@
+---
+- name: Copy docker-compose.yaml
+  copy:
+    src: "{{ playbook_dir }}/../docker-compose.yaml"
+    dest: "{{ deployment_path }}/docker-compose.yaml"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0644"
+
+- name: Create .env file for docker-compose
+  template:
+    src: env.j2
+    dest: "{{ deployment_path }}/.env"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0644"
+
+- name: Copy Docker image tarballs to remote server
+  copy:
+    src: "/tmp/{{ item }}"
+    dest: "{{ deployment_path }}/images/{{ item }}"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0644"
+  loop:
+    - symbology-api-latest.tar
+    - symbology-ui-latest.tar
+    - postgres-17.4.tar
+
+- name: Create justfile in home directory
+  copy:
+    src: justfile
+    dest: "/home/{{ deployment_user }}/justfile"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0644"
+
+# TODO: Move to image
+- name: Enable process lingering for deployment user
+  shell: loginctl enable-linger "{{ deployment_user }}"
+  become: true
+
+# TODO: Move to image
+- name: Install psql client
+  shell: sudo apt install postgresql-client -y
+  become: true
+
+- name: Start services using just
+  shell: |
+    ~/.local/bin/just up

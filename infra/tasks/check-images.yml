@@ -1,0 +1,33 @@
+---
+- name: Check if image tarballs exist locally
+  stat:
+    path: "{{ item }}"
+  loop:
+    - "/tmp/symbology-api-latest.tar"
+    - "/tmp/symbology-ui-latest.tar"
+    - "/tmp/postgres-17.4.tar"
+  register: image_files
+  delegate_to: localhost
+  run_once: true
+
+- name: Fail if images not found
+  fail:
+    msg: |
+      Docker image tarballs not found! Please run './build-images.sh' first to build the images locally.
+      Missing files:
+      {% for file in image_files.results %}
+      {% if not file.stat.exists %}
+      - {{ file.item }}
+      {% endif %}
+      {% endfor %}
+  when: image_files.results | selectattr('stat.exists', 'equalto', false) | list | length > 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Display found images
+  debug:
+    msg: |
+      ✅ Found image tarballs:
+      - /tmp/symbology-api-latest.tar
+      - /tmp/symbology-ui-latest.tar
+      - /tmp/postgres-17.4.tar

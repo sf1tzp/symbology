@@ -1,0 +1,32 @@
+# Staging environment variables
+app_name: symbology
+app_version: 0.0.1
+deployment_user: "{{ ansible_user }}"
+deployment_path: /home/{{ deployment_user }}/{{ app_name }}
+
+# Service configuration
+environment_name: staging
+log_level: INFO
+log_json_format: true
+
+api_host: symbology-api # using docker service name for networking
+api_port: 8000
+# allowed origins should be used in prod
+api_allowed_origins: "http://{{ ansible_host }}, https://{{ ansible_host }}"
+
+ui_host: symbology-ui
+ui_port: 5173
+
+# Database configuration
+database_host: "{{ ansible_host }}" # using a static endpoint which works for docker & scripts
+database_port: 5432
+database_user: postgres
+database_password: postgres
+database_name: symbology
+
+# Development database (source for data migration)
+dev_database_host: 10.0.0.3
+dev_database_port: 5432
+dev_database_user: postgres
+dev_database_password: postgres
+dev_database_name: symbology

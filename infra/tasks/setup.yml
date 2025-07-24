@@ -1,0 +1,24 @@
+---
+- name: Create deployment directory
+  file:
+    path: "{{ deployment_path }}"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0755"
+
+- name: Create images directory
+  file:
+    path: "{{ deployment_path }}/images"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0755"
+
+- name: Create database data directory
+  file:
+    path: "{{ deployment_path }}/database-data"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0755"

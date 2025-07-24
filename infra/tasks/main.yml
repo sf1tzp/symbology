@@ -1,0 +1,17 @@
+---
+- name: Pre-deployment setup
+  include_tasks: setup.yml
+
+- name: Check for pre-built Docker images
+  include_tasks: check-images.yml
+
+- name: Deploy application
+  include_tasks: deploy.yml
+
+- name: Upload Database
+  include_tasks: upload-database.yml
+  vars:
+    # Migration temporary directory on staging server
+    migration_temp_dir: /tmp/database_migration
+    # SQL dump file name
+    dump_file: "symbology_dev.sql"

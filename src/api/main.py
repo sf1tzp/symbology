@@ -1,4 +1,6 @@
 """FastAPI application for Symbology API."""
+import os
+import uvicorn
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,7 +9,6 @@ from fastapi.responses import JSONResponse
 from src.database.base import init_db
 from src.utils.config import settings
 from src.utils.logging import configure_logging, get_logger, get_uvicorn_log_config
-import uvicorn
 
 
 def create_app() -> FastAPI:
@@ -134,6 +135,15 @@ def start_api():
                 host=settings.symbology_api.host,
                 port=settings.symbology_api.port
             )
+
+    env_vars = {}
+    for k, v in os.environ.items():
+        if "password" in k.lower():
+            env_vars[k] = "*" * 8
+        else:
+            env_vars[k] = v
+
+    logger.debug("environment_variables", env_vars=env_vars)
 
     uvicorn.run(
         app,

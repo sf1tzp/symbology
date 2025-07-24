@@ -2,9 +2,9 @@ services:
   symbology-ui:
     image: symbology-ui
     container_name: symbology-ui
-    restart: unless-stopped
+    restart: always
     environment:
-      SYMBOLOGY_API_HOST: ${SYMBOLOGY_API_HOST:-10.0.0.3}
+      SYMBOLOGY_API_HOST: symbology-api
       SYMBOLOGY_API_PORT: ${SYMBOLOGY_API_PORT:-8000}
       NGINX_ENVSUBST_TEMPLATE_SUFFIX: ".template"
     ports:
@@ -13,27 +13,32 @@ services:
   symbology-api:
     image: symbology-api
     container_name: symbology-api
-    restart: unless-stopped
+    restart: always
     environment:
       SYMBOLOGY_API_HOST: 0.0.0.0
-      LOG_LEVEL: INFO
-      LOG_JSON_FORMAT: false
+      DATABASE_HOST: symbology-database
     ports:
       - 8000:8000
+    depends_on:
+      symbology-database:
+        condition: service_healthy
 
-  # postgres:
-  #   image: postgres:17.4 # use the latest image.
-  #   container_name: postgres
-  #   restart: unless-stopped
-  #   environment: # set required env variables to access postgres
-  #     POSTGRES_USER: ${DATABASE_USER:-postgres}
-  #     POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
-  #     DATABASE_NAME: ${DATABASE_NAME:-postgres}
-  #     PGDATA: /var/lib/postgresql/data/pgdata
-  #   volumes: # optional to preserve database after container is deleted.
-  #     - ./database-data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-postgres}"]
-  #     interval: 1s
-  #     timeout: 5s
-  #     retries: 5
+  symbology-database:
+    image: postgres:17.4
+    container_name: symbology-database
+    restart: always
+    environment: # set required env variables to access postgres
+      POSTGRES_USER: ${DATABASE_USER:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      DATABASE_NAME: ${DATABASE_NAME:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_DB: symbology
+    volumes: # optional to preserve database after container is deleted.
+      - ./database-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-postgres}"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+    ports:
+      - 5432:5432

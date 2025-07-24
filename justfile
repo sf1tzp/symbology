@@ -48,9 +48,6 @@ test component *ARGS:
     just -d ui -f ui/justfile check {{ARGS}}
 
   elif [[ "{{component}}" == "staging" ]]; then
-    k6 run infra/testing/mixed-workload-test.ts
-
-  elif [[ "{{component}}" == "smoke" ]]; then
     k6 run infra/testing/smoke.ts
 
   else

@@ -1,0 +1,1189 @@
+{
+    "annotations": {
+        "list": [
+            {
+                "builtIn": 1,
+                "datasource": {
+                    "type": "grafana",
+                    "uid": "-- Grafana --"
+                },
+                "enable": true,
+                "hide": true,
+                "iconColor": "rgba(0, 211, 255, 1)",
+                "name": "Annotations & Alerts",
+                "type": "dashboard"
+            }
+        ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 17,
+    "links": [],
+    "panels": [
+        {
+            "collapsed": true,
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "id": 7,
+            "panels": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "fenqsyb8rfke8c"
+                    },
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "thresholds"
+                            },
+                            "custom": {
+                                "axisPlacement": "auto",
+                                "fillOpacity": 78,
+                                "hideFrom": {
+                                    "legend": false,
+                                    "tooltip": false,
+                                    "viz": false
+                                },
+                                "insertNulls": false,
+                                "lineWidth": 0,
+                                "spanNulls": false
+                            },
+                            "mappings": [],
+                            "thresholds": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {
+                                        "color": "green"
+                                    },
+                                    {
+                                        "color": "semi-dark-red",
+                                        "value": 0
+                                    },
+                                    {
+                                        "color": "semi-dark-green",
+                                        "value": 1
+                                    }
+                                ]
+                            }
+                        },
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 5,
+                        "w": 24,
+                        "x": 0,
+                        "y": 1
+                    },
+                    "id": 6,
+                    "options": {
+                        "alignValue": "left",
+                        "legend": {
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": false
+                        },
+                        "mergeValues": true,
+                        "rowHeight": 0.7,
+                        "showValue": "never",
+                        "tooltip": {
+                            "hideZeros": false,
+                            "mode": "single",
+                            "sort": "none"
+                        }
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "editorMode": "code",
+                            "expr": "probe_success{job=\"blackbox_http\", instance=\"$linux_vm\"}",
+                            "legendFormat": "{{instance}}",
+                            "range": true,
+                            "refId": "A"
+                        }
+                    ],
+                    "title": "Uptime",
+                    "type": "state-timeline"
+                },
+                {
+                    "datasource": {
+                        "type": "loki",
+                        "uid": "cenug0ko9f4zkd"
+                    },
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "palette-classic"
+                            },
+                            "custom": {
+                                "axisBorderShow": false,
+                                "axisCenteredZero": false,
+                                "axisColorMode": "text",
+                                "axisLabel": "",
+                                "axisPlacement": "auto",
+                                "barAlignment": 0,
+                                "barWidthFactor": 0.6,
+                                "drawStyle": "line",
+                                "fillOpacity": 0,
+                                "gradientMode": "none",
+                                "hideFrom": {
+                                    "legend": false,
+                                    "tooltip": false,
+                                    "viz": false
+                                },
+                                "insertNulls": false,
+                                "lineInterpolation": "linear",
+                                "lineWidth": 1,
+                                "pointSize": 5,
+                                "scaleDistribution": {
+                                    "type": "linear"
+                                },
+                                "showPoints": "auto",
+                                "spanNulls": false,
+                                "stacking": {
+                                    "group": "A",
+                                    "mode": "none"
+                                },
+                                "thresholdsStyle": {
+                                    "mode": "off"
+                                }
+                            },
+                            "mappings": [],
+                            "thresholds": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {
+                                        "color": "green"
+                                    },
+                                    {
+                                        "color": "red",
+                                        "value": 80
+                                    }
+                                ]
+                            }
+                        },
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 11,
+                        "w": 12,
+                        "x": 0,
+                        "y": 6
+                    },
+                    "id": 11,
+                    "options": {
+                        "legend": {
+                            "calcs": [],
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": true
+                        },
+                        "tooltip": {
+                            "hideZeros": false,
+                            "mode": "single",
+                            "sort": "none"
+                        }
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "sum by (level) (count_over_time({job=\"container\", container_name=\"symbology-api\", host=\"$linux_vm\"} != \"uvicorn\" | json | line_format \"{{ .log }}\" | json | json log | line_format \"{{ .log }}\" | json | line_format \"{{.host}} {{.level}} {{.caller}} {{.function}}\"[$__auto]))",
+                            "legendFormat": "{{host}} symbology-api {{level}}",
+                            "queryType": "range",
+                            "refId": "A"
+                        },
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "sum by (level) (count_over_time({job=\"container\", container_name=\"symbology-api\", host=\"$linux_vm\"} |= \"uvicorn\" | json | line_format \"{{ .log }}\" | json | json log | line_format \"{{ .log }}\" | json | line_format \"{{.host}} {{.level}} {{.caller}} {{.function}}\"[$__auto]))",
+                            "hide": false,
+                            "legendFormat": "{{host}} uvicorn {{level}}",
+                            "queryType": "range",
+                            "refId": "B"
+                        }
+                    ],
+                    "title": "Symbology API Log Volume",
+                    "type": "timeseries"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "fenqsyb8rfke8c"
+                    },
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "palette-classic"
+                            },
+                            "custom": {
+                                "axisBorderShow": false,
+                                "axisCenteredZero": false,
+                                "axisColorMode": "text",
+                                "axisLabel": "",
+                                "axisPlacement": "auto",
+                                "axisSoftMax": 100,
+                                "barAlignment": 0,
+                                "barWidthFactor": 0.6,
+                                "drawStyle": "line",
+                                "fillOpacity": 0,
+                                "gradientMode": "none",
+                                "hideFrom": {
+                                    "legend": false,
+                                    "tooltip": false,
+                                    "viz": false
+                                },
+                                "insertNulls": false,
+                                "lineInterpolation": "smooth",
+                                "lineWidth": 1,
+                                "pointSize": 5,
+                                "scaleDistribution": {
+                                    "type": "linear"
+                                },
+                                "showPoints": "never",
+                                "spanNulls": false,
+                                "stacking": {
+                                    "group": "A",
+                                    "mode": "none"
+                                },
+                                "thresholdsStyle": {
+                                    "mode": "off"
+                                }
+                            },
+                            "mappings": [],
+                            "thresholds": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {
+                                        "color": "green"
+                                    }
+                                ]
+                            },
+                            "unit": "percent"
+                        },
+                        "overrides": [
+                            {
+                                "matcher": {
+                                    "id": "byName",
+                                    "options": "all_cpu"
+                                },
+                                "properties": [
+                                    {
+                                        "id": "custom.lineWidth",
+                                        "value": 5
+                                    },
+                                    {
+                                        "id": "color",
+                                        "value": {
+                                            "fixedColor": "red",
+                                            "mode": "fixed"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "matcher": {
+                                    "id": "byName",
+                                    "options": "moving average"
+                                },
+                                "properties": [
+                                    {
+                                        "id": "custom.lineWidth",
+                                        "value": 0
+                                    },
+                                    {
+                                        "id": "custom.lineStyle",
+                                        "value": {
+                                            "dash": [
+                                                25,
+                                                20
+                                            ],
+                                            "fill": "dash"
+                                        }
+                                    },
+                                    {
+                                        "id": "color",
+                                        "value": {
+                                            "fixedColor": "super-light-orange",
+                                            "mode": "fixed"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "matcher": {
+                                    "id": "byRegexp",
+                                    "options": "/Core \\d+/"
+                                },
+                                "properties": [
+                                    {
+                                        "id": "custom.hideFrom",
+                                        "value": {
+                                            "legend": true,
+                                            "tooltip": false,
+                                            "viz": false
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "gridPos": {
+                        "h": 11,
+                        "w": 6,
+                        "x": 12,
+                        "y": 6
+                    },
+                    "id": 2,
+                    "options": {
+                        "legend": {
+                            "calcs": [],
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": false
+                        },
+                        "tooltip": {
+                            "hideZeros": false,
+                            "mode": "single",
+                            "sort": "none"
+                        }
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "fenqsyb8rfke8c"
+                            },
+                            "editorMode": "code",
+                            "expr": "100 - (avg by (cpu) (irate(node_cpu_seconds_total{mode=\"idle\", instance=\"$linux_vm\"}[$__rate_interval])) * 100)",
+                            "legendFormat": "Core {{cpu}}",
+                            "range": true,
+                            "refId": "A"
+                        },
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "fenqsyb8rfke8c"
+                            },
+                            "editorMode": "code",
+                            "expr": "100 - (avg(irate(node_cpu_seconds_total{mode=\"idle\", instance=\"$linux_vm\"}[$__rate_interval ])) * 100)",
+                            "hide": false,
+                            "instant": false,
+                            "legendFormat": "all_cpu",
+                            "range": true,
+                            "refId": "B"
+                        }
+                    ],
+                    "title": "CPU Usage",
+                    "transformations": [
+                        {
+                            "id": "calculateField",
+                            "options": {
+                                "alias": "moving average",
+                                "mode": "windowFunctions",
+                                "reduce": {
+                                    "reducer": "sum"
+                                },
+                                "replaceFields": false,
+                                "window": {
+                                    "field": "all_cpu",
+                                    "reducer": "mean",
+                                    "windowAlignment": "trailing",
+                                    "windowSize": 0.02,
+                                    "windowSizeMode": "percentage"
+                                }
+                            }
+                        }
+                    ],
+                    "type": "timeseries"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "fenqsyb8rfke8c"
+                    },
+                    "description": "",
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "palette-classic"
+                            },
+                            "custom": {
+                                "axisBorderShow": true,
+                                "axisCenteredZero": false,
+                                "axisColorMode": "text",
+                                "axisLabel": "",
+                                "axisPlacement": "auto",
+                                "barAlignment": 0,
+                                "barWidthFactor": 0.6,
+                                "drawStyle": "line",
+                                "fillOpacity": 0,
+                                "gradientMode": "opacity",
+                                "hideFrom": {
+                                    "legend": false,
+                                    "tooltip": false,
+                                    "viz": false
+                                },
+                                "insertNulls": false,
+                                "lineInterpolation": "smooth",
+                                "lineWidth": 1,
+                                "pointSize": 5,
+                                "scaleDistribution": {
+                                    "type": "linear"
+                                },
+                                "showPoints": "never",
+                                "spanNulls": false,
+                                "stacking": {
+                                    "group": "A",
+                                    "mode": "none"
+                                },
+                                "thresholdsStyle": {
+                                    "mode": "dashed"
+                                }
+                            },
+                            "mappings": [],
+                            "min": 0,
+                            "thresholds": {
+                                "mode": "percentage",
+                                "steps": [
+                                    {
+                                        "color": "green"
+                                    },
+                                    {
+                                        "color": "text",
+                                        "value": 100
+                                    }
+                                ]
+                            },
+                            "unit": "bytes"
+                        },
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 11,
+                        "w": 6,
+                        "x": 18,
+                        "y": 6
+                    },
+                    "id": 3,
+                    "options": {
+                        "legend": {
+                            "calcs": [],
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": false
+                        },
+                        "tooltip": {
+                            "hideZeros": false,
+                            "mode": "multi",
+                            "sort": "none"
+                        }
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "fenqsyb8rfke8c"
+                            },
+                            "editorMode": "code",
+                            "exemplar": false,
+                            "expr": "node_memory_MemTotal_bytes{instance=\"$linux_vm\"} - node_memory_MemFree_bytes - node_memory_Buffers_bytes - node_memory_Cached_bytes",
+                            "format": "time_series",
+                            "hide": false,
+                            "instant": false,
+                            "interval": "",
+                            "intervalFactor": 1,
+                            "legendFormat": "used",
+                            "metric": "",
+                            "range": true,
+                            "refId": "C",
+                            "step": 10
+                        },
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "fenqsyb8rfke8c"
+                            },
+                            "editorMode": "code",
+                            "exemplar": false,
+                            "expr": "node_memory_MemTotal_bytes{instance=\"$linux_vm\"}",
+                            "hide": false,
+                            "instant": true,
+                            "legendFormat": "total",
+                            "range": false,
+                            "refId": "A"
+                        }
+                    ],
+                    "title": "Memory Usage",
+                    "type": "timeseries"
+                },
+                {
+                    "datasource": {
+                        "type": "loki",
+                        "uid": "cenug0ko9f4zkd"
+                    },
+                    "fieldConfig": {
+                        "defaults": {},
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 9,
+                        "w": 12,
+                        "x": 0,
+                        "y": 17
+                    },
+                    "id": 9,
+                    "options": {
+                        "dedupStrategy": "none",
+                        "enableInfiniteScrolling": false,
+                        "enableLogDetails": true,
+                        "prettifyLogMessage": false,
+                        "showCommonLabels": false,
+                        "showLabels": false,
+                        "showTime": true,
+                        "sortOrder": "Descending",
+                        "wrapLogMessage": false
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "{job=\"container\", container_name=\"symbology-api\", host=\"$linux_vm\"} != \"uvicorn\"| json | line_format \"{{ .log }}\" | json | json log | line_format \"{{ .log }}\" | json | line_format \"{{.level}}\\t{{.event}} \\t\\t{{.function}}\\t{{.caller}}\"",
+                            "hide": false,
+                            "legendFormat": "symbology-api",
+                            "queryType": "range",
+                            "refId": "A"
+                        },
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "{job=\"container\", container_name=\"symbology-api\", host=\"$linux_vm\"} | json | line_format \"{{ .log }}\" | json | json log | line_format \"{{ .log }}\" | json | logger=~\"uvicorn.*\" | line_format \"{{.logger}}\\t{{.message}}\"",
+                            "hide": false,
+                            "legendFormat": "uvicorn",
+                            "queryType": "range",
+                            "refId": "B"
+                        }
+                    ],
+                    "title": "Symbology API Logs",
+                    "type": "logs"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "fenqsyb8rfke8c"
+                    },
+                    "description": "",
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "palette-classic"
+                            },
+                            "custom": {
+                                "axisBorderShow": false,
+                                "axisCenteredZero": false,
+                                "axisColorMode": "text",
+                                "axisLabel": "",
+                                "axisPlacement": "auto",
+                                "barAlignment": 0,
+                                "barWidthFactor": 0.9,
+                                "drawStyle": "line",
+                                "fillOpacity": 16,
+                                "gradientMode": "none",
+                                "hideFrom": {
+                                    "legend": false,
+                                    "tooltip": false,
+                                    "viz": false
+                                },
+                                "insertNulls": false,
+                                "lineInterpolation": "smooth",
+                                "lineWidth": 1,
+                                "pointSize": 5,
+                                "scaleDistribution": {
+                                    "type": "linear"
+                                },
+                                "showPoints": "never",
+                                "spanNulls": false,
+                                "stacking": {
+                                    "group": "A",
+                                    "mode": "none"
+                                },
+                                "thresholdsStyle": {
+                                    "mode": "off"
+                                }
+                            },
+                            "links": [],
+                            "mappings": [],
+                            "thresholds": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {
+                                        "color": "green"
+                                    }
+                                ]
+                            },
+                            "unit": "bps"
+                        },
+                        "overrides": [
+                            {
+                                "matcher": {
+                                    "id": "byRegexp",
+                                    "options": "/.*Rx.*/"
+                                },
+                                "properties": [
+                                    {
+                                        "id": "custom.transform",
+                                        "value": "negative-Y"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "gridPos": {
+                        "h": 9,
+                        "w": 6,
+                        "x": 12,
+                        "y": 17
+                    },
+                    "id": 4,
+                    "options": {
+                        "legend": {
+                            "calcs": [],
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": false
+                        },
+                        "tooltip": {
+                            "hideZeros": false,
+                            "mode": "multi",
+                            "sort": "none"
+                        }
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "fenqsyb8rfke8c"
+                            },
+                            "editorMode": "code",
+                            "expr": "rate(node_network_transmit_bytes_total{instance=\"$linux_vm\",device=\"ens3\"}[$__rate_interval]) * 8",
+                            "format": "time_series",
+                            "intervalFactor": 1,
+                            "legendFormat": "Tx",
+                            "range": true,
+                            "refId": "A",
+                            "step": 240
+                        },
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "fenqsyb8rfke8c"
+                            },
+                            "disableTextWrap": false,
+                            "editorMode": "code",
+                            "expr": "rate(node_network_receive_bytes_total{instance=\"$linux_vm\",device=\"ens3\"}[$__rate_interval]) * 8",
+                            "format": "time_series",
+                            "fullMetaSearch": false,
+                            "includeNullMetadata": true,
+                            "intervalFactor": 1,
+                            "legendFormat": "Rx",
+                            "range": true,
+                            "refId": "B",
+                            "step": 240,
+                            "useBackend": false
+                        }
+                    ],
+                    "title": "Network Usage",
+                    "type": "timeseries"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "fenqsyb8rfke8c"
+                    },
+                    "description": "",
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "palette-classic"
+                            },
+                            "custom": {
+                                "axisBorderShow": true,
+                                "axisCenteredZero": false,
+                                "axisColorMode": "text",
+                                "axisLabel": "",
+                                "axisPlacement": "auto",
+                                "barAlignment": 0,
+                                "barWidthFactor": 0.6,
+                                "drawStyle": "line",
+                                "fillOpacity": 0,
+                                "gradientMode": "opacity",
+                                "hideFrom": {
+                                    "legend": false,
+                                    "tooltip": false,
+                                    "viz": false
+                                },
+                                "insertNulls": false,
+                                "lineInterpolation": "smooth",
+                                "lineStyle": {
+                                    "fill": "solid"
+                                },
+                                "lineWidth": 1,
+                                "pointSize": 5,
+                                "scaleDistribution": {
+                                    "type": "linear"
+                                },
+                                "showPoints": "never",
+                                "spanNulls": false,
+                                "stacking": {
+                                    "group": "A",
+                                    "mode": "none"
+                                },
+                                "thresholdsStyle": {
+                                    "mode": "dashed"
+                                }
+                            },
+                            "mappings": [],
+                            "min": 0,
+                            "thresholds": {
+                                "mode": "percentage",
+                                "steps": [
+                                    {
+                                        "color": "green"
+                                    },
+                                    {
+                                        "color": "text",
+                                        "value": 100
+                                    }
+                                ]
+                            },
+                            "unit": "bytes"
+                        },
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 9,
+                        "w": 6,
+                        "x": 18,
+                        "y": 17
+                    },
+                    "id": 5,
+                    "options": {
+                        "legend": {
+                            "calcs": [],
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": false
+                        },
+                        "tooltip": {
+                            "hideZeros": false,
+                            "mode": "multi",
+                            "sort": "none"
+                        }
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "fenqsyb8rfke8c"
+                            },
+                            "editorMode": "code",
+                            "exemplar": false,
+                            "expr": "node_filesystem_size_bytes{instance=\"$linux_vm\",mountpoint=\"/\"} - node_filesystem_free_bytes",
+                            "format": "time_series",
+                            "hide": false,
+                            "instant": false,
+                            "interval": "",
+                            "intervalFactor": 1,
+                            "legendFormat": "used",
+                            "metric": "",
+                            "range": true,
+                            "refId": "C",
+                            "step": 10
+                        },
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "fenqsyb8rfke8c"
+                            },
+                            "editorMode": "code",
+                            "exemplar": false,
+                            "expr": "node_filesystem_size_bytes{instance=\"$linux_vm\",mountpoint=\"/\"}",
+                            "hide": false,
+                            "instant": true,
+                            "legendFormat": "total",
+                            "range": false,
+                            "refId": "A"
+                        }
+                    ],
+                    "title": "Disk Usage",
+                    "type": "timeseries"
+                },
+                {
+                    "datasource": {
+                        "type": "loki",
+                        "uid": "cenug0ko9f4zkd"
+                    },
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "palette-classic"
+                            },
+                            "custom": {
+                                "axisBorderShow": false,
+                                "axisCenteredZero": false,
+                                "axisColorMode": "text",
+                                "axisLabel": "",
+                                "axisPlacement": "auto",
+                                "barAlignment": 0,
+                                "barWidthFactor": 0.6,
+                                "drawStyle": "line",
+                                "fillOpacity": 0,
+                                "gradientMode": "none",
+                                "hideFrom": {
+                                    "legend": false,
+                                    "tooltip": false,
+                                    "viz": false
+                                },
+                                "insertNulls": false,
+                                "lineInterpolation": "linear",
+                                "lineWidth": 1,
+                                "pointSize": 5,
+                                "scaleDistribution": {
+                                    "type": "linear"
+                                },
+                                "showPoints": "auto",
+                                "spanNulls": false,
+                                "stacking": {
+                                    "group": "A",
+                                    "mode": "none"
+                                },
+                                "thresholdsStyle": {
+                                    "mode": "off"
+                                }
+                            },
+                            "mappings": [],
+                            "thresholds": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {
+                                        "color": "green"
+                                    },
+                                    {
+                                        "color": "red",
+                                        "value": 80
+                                    }
+                                ]
+                            }
+                        },
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 11,
+                        "w": 12,
+                        "x": 0,
+                        "y": 26
+                    },
+                    "id": 13,
+                    "options": {
+                        "legend": {
+                            "calcs": [],
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": true
+                        },
+                        "tooltip": {
+                            "hideZeros": false,
+                            "mode": "single",
+                            "sort": "none"
+                        }
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "sum by (detected_level) (count_over_time({job=\"container\", container_name=\"symbology-ui\", host=\"$linux_vm\"} | json | line_format \"{{.log}}\" | json log | line_format \"{{.timestamp}}\\t{{.level}}\\t{{.log}}\"[$__auto]))",
+                            "legendFormat": "{{detected_level}}",
+                            "queryType": "range",
+                            "refId": "A"
+                        }
+                    ],
+                    "title": "Symbology UI Log Volume",
+                    "type": "timeseries"
+                },
+                {
+                    "datasource": {
+                        "type": "loki",
+                        "uid": "cenug0ko9f4zkd"
+                    },
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "palette-classic"
+                            },
+                            "custom": {
+                                "axisBorderShow": false,
+                                "axisCenteredZero": false,
+                                "axisColorMode": "text",
+                                "axisLabel": "",
+                                "axisPlacement": "auto",
+                                "barAlignment": 0,
+                                "barWidthFactor": 0.6,
+                                "drawStyle": "line",
+                                "fillOpacity": 0,
+                                "gradientMode": "none",
+                                "hideFrom": {
+                                    "legend": false,
+                                    "tooltip": false,
+                                    "viz": false
+                                },
+                                "insertNulls": false,
+                                "lineInterpolation": "linear",
+                                "lineWidth": 1,
+                                "pointSize": 5,
+                                "scaleDistribution": {
+                                    "type": "linear"
+                                },
+                                "showPoints": "auto",
+                                "spanNulls": false,
+                                "stacking": {
+                                    "group": "A",
+                                    "mode": "none"
+                                },
+                                "thresholdsStyle": {
+                                    "mode": "off"
+                                }
+                            },
+                            "mappings": [],
+                            "thresholds": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {
+                                        "color": "green"
+                                    },
+                                    {
+                                        "color": "red",
+                                        "value": 80
+                                    }
+                                ]
+                            }
+                        },
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 11,
+                        "w": 12,
+                        "x": 12,
+                        "y": 26
+                    },
+                    "id": 16,
+                    "options": {
+                        "legend": {
+                            "calcs": [],
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": true
+                        },
+                        "tooltip": {
+                            "hideZeros": false,
+                            "mode": "single",
+                            "sort": "none"
+                        }
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "sum by (detected_level) (count_over_time({job=\"container\", service_name=\"symbology-database\", host=\"$linux_vm\"}[$__auto]))",
+                            "legendFormat": "{{detected_level}}",
+                            "queryType": "range",
+                            "refId": "A"
+                        },
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "",
+                            "hide": true,
+                            "legendFormat": "{{host}} uvicorn {{level}}",
+                            "queryType": "range",
+                            "refId": "B"
+                        }
+                    ],
+                    "title": "Symbology Database Log Volume",
+                    "type": "timeseries"
+                },
+                {
+                    "datasource": {
+                        "type": "loki",
+                        "uid": "cenug0ko9f4zkd"
+                    },
+                    "fieldConfig": {
+                        "defaults": {},
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 9,
+                        "w": 12,
+                        "x": 0,
+                        "y": 37
+                    },
+                    "id": 14,
+                    "options": {
+                        "dedupStrategy": "none",
+                        "enableInfiniteScrolling": false,
+                        "enableLogDetails": true,
+                        "prettifyLogMessage": false,
+                        "showCommonLabels": false,
+                        "showLabels": false,
+                        "showTime": false,
+                        "sortOrder": "Descending",
+                        "wrapLogMessage": false
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "{job=\"container\", container_name=\"symbology-ui\", host=\"staging-1g\"} | json | line_format \"{{.log}}\" | json log | line_format \"{{.container_name}}\\t{{.detected_level}}\\t{{.log}}\"",
+                            "hide": false,
+                            "legendFormat": "symbology-api",
+                            "queryType": "range",
+                            "refId": "A"
+                        }
+                    ],
+                    "title": "Symbology UI",
+                    "type": "logs"
+                },
+                {
+                    "datasource": {
+                        "type": "loki",
+                        "uid": "cenug0ko9f4zkd"
+                    },
+                    "fieldConfig": {
+                        "defaults": {},
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 9,
+                        "w": 12,
+                        "x": 12,
+                        "y": 37
+                    },
+                    "id": 15,
+                    "options": {
+                        "dedupStrategy": "none",
+                        "enableInfiniteScrolling": false,
+                        "enableLogDetails": true,
+                        "prettifyLogMessage": false,
+                        "showCommonLabels": false,
+                        "showLabels": false,
+                        "showTime": false,
+                        "sortOrder": "Descending",
+                        "wrapLogMessage": false
+                    },
+                    "pluginVersion": "12.0.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "loki",
+                                "uid": "cenug0ko9f4zkd"
+                            },
+                            "direction": "backward",
+                            "editorMode": "code",
+                            "expr": "{job=\"container\", container_name=\"symbology-database\", host=\"$linux_vm\"} | json | line_format \"{{ .log }}\" | json | json log | line_format \"{{.stream}}\\t{{ .log }}\"",
+                            "hide": false,
+                            "legendFormat": "symbology-api",
+                            "queryType": "range",
+                            "refId": "A"
+                        }
+                    ],
+                    "title": "Symbology Database",
+                    "type": "logs"
+                }
+            ],
+            "repeat": "linux_vm",
+            "title": "$linux_vm",
+            "type": "row"
+        }
+    ],
+    "preload": false,
+    "refresh": "1m",
+    "schemaVersion": 41,
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allowCustomValue": false,
+                "current": {
+                    "text": "All",
+                    "value": "$__all"
+                },
+                "definition": "query_result(up{job=\"linux_vms\", instance=~\"staging.*\"} == 1)",
+                "description": "",
+                "includeAll": true,
+                "name": "linux_vm",
+                "options": [],
+                "query": {
+                    "qryType": 3,
+                    "query": "query_result(up{job=\"linux_vms\", instance=~\"staging.*\"} == 1)",
+                    "refId": "PrometheusVariableQueryEditor-VariableQuery"
+                },
+                "refresh": 1,
+                "regex": "/instance=\"(?<value>[^\"]*)\"/",
+                "type": "query"
+            }
+        ]
+    },
+    "time": {
+        "from": "now-30m",
+        "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Symbology Staging",
+    "uid": "1f10db15-72e0-4fec-912e-d890543ae730",
+    "version": 14
+}

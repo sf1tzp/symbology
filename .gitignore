@@ -18,7 +18,7 @@ notebooks/
 outputs/
 docs/
 
-**/*.egg-info/
-
-ui/node_modules/
 ui/dist
+
+**/*.egg-info/
+**/node_modules/

@@ -47,8 +47,16 @@ test component *ARGS:
     echo "no testing for ui yet"
     just -d ui -f ui/justfile check {{ARGS}}
 
+  elif [[ "{{component}}" == "staging" ]]; then
+    k6 run infra/testing/mixed-workload-test.ts
+
+  elif [[ "{{component}}" == "smoke" ]]; then
+    k6 run infra/testing/smoke.ts
+
   else
     echo "Error: Unknown component '{{component}}'" && exit 1
+
+
 
   fi
 

@@ -1,0 +1,17 @@
+{
+    "name": "symbology-load-tests",
+    "version": "1.0.0",
+    "description": "Load testing for Symbology application",
+    "scripts": {},
+    "devDependencies": {
+        "@types/k6": "^0.48.0",
+        "typescript": "^5.0.0"
+    },
+    "keywords": [
+        "k6",
+        "load-testing",
+        "performance"
+    ],
+    "author": "",
+    "license": "ISC"
+}

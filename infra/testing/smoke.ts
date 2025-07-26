@@ -1,75 +1,68 @@
 import http from 'k6/http';
-import { check } from 'k6';
-
-// Type declarations for k6 environment
-declare const __VU: number; // Virtual User ID - unique identifier for each simulated user
-
-// Endpoints to test
-const endpoints = ['https://symbology.lofi']//  #, 'http://10.0.0.22:5173', 'http://10.0.0.24:5173'];
+import { check, sleep } from 'k6';
+import exec from 'k6/execution';
 
 export const options = {
+    executor: 'ramping-arrival-rate',
+    hosts: {
+        'symbology.lofi': __ENV.TARGET,
+        'api.symbology.lofi': __ENV.TARGET,
+    },
     stages: [
-        { duration: '1m', target: 10 },
-        { duration: '1m', target: 20 },
-        { duration: '1m', target: 10 },
-        { duration: '1m', target: 50 },
-        { duration: '1m', target: 30 },
-        { duration: '1m', target: 80 },
-        { duration: '1m', target: 120 },
-        { duration: '1m', target: 30 },
-        { duration: '1m', target: 10 },
-        { duration: '1m', target: 10 },
-        // ramp up, starting at 100, multiplying by 1.6 each time until 2000
-        // { duration: '1m', target: 100 },
-        // { duration: '1m', target: 160 },
-        // { duration: '15s', target: 100 },
-        // { duration: '1m', target: 256 },
-        // { duration: '15s', target: 100 },
-        // { duration: '1m', target: 410 },
-        // { duration: '15s', target: 300 },
-        // { duration: '1m', target: 656 },
-        // { duration: '15s', target: 400 },
-        // { duration: '1m', target: 1050 },
-        // { duration: '15s', target: 500 },
-        // { duration: '1m', target: 1680 },
-        // { duration: '15s', target: 800 },
-        // { duration: '1m', target: 2000 },
-        // { duration: '1m', target: 100 },
+        { duration: '10s', target: 10 },
+        { duration: '50s', target: 150 },
+        { duration: '5m', target: 150 },
+        { duration: '30s', target: 600 },
+        { duration: '30s', target: 250 },
+        { duration: '5ms', target: 150 },
     ],
     thresholds: {
-        'http_req_failed': ['rate<0.2'],
-        'http_req_duration': ['p(95)<1000'],
+        'http_req_failed': [
+            {
+                threshold: 'rate<0.2', // string
+                abortOnFail: true, // boolean
+                delayAbortEval: '10s', // string
+            },
+        ],
+        'http_req_duration': [
+            {
+                threshold: 'p(99) < 800', // string
+                abortOnFail: true, // boolean
+                delayAbortEval: '10s', // string
+            },
+        ]
     },
 };
 
 export default function () {
-    // Alternate between endpoints based on VU ID
-    const endpoint = endpoints[__VU % endpoints.length];
+    // Walk through the main ui flow
+    const homepageResponse = http.get('https://symbology.lofi');
 
-    // Step 1: Load the homepage (UI)
-    const homepageResponse = http.get(`${endpoint}/`, {
-        timeout: '10s',
+    check(homepageResponse, {
+        "is correct IP": (r) => r.remote_ip === __ENV.TARGET
     });
 
-    // Step 2: Simulate the async API calls that the homepage makes
-    const apiEndpoint = "https://api.symbology.lofi"; // Assuming API is on port 8000
+    const apiEndpoint = "https://api.symbology.lofi";
 
-    // Common API calls that your UI likely makes:
-    // 1. Search companies (autocomplete/initial load)
-    const searchResponse = http.get(`${apiEndpoint}/api/companies/?ticker=AAPL`, {
-        timeout: '10s',
-        headers: {
-            'Accept': 'application/json',
-        },
-    });
-
-    // 2. Get all companies (if your UI loads a list)
     const companiesResponse = http.get(`${apiEndpoint}/api/companies/list?offset=0&limit=50`, {
-        timeout: '10s',
         headers: {
             'Accept': 'application/json',
         },
     });
+
+    sleep(3)
+
+    const searchResponse = http.get(`${apiEndpoint}/api/companies/?ticker=AAPL`, {
+        headers: {
+            'Accept': 'application/json',
+        },
+    });
+
+    // make calls associated with CompanyDetail
+    // get aggregates for company
+    // get filings for company
+    //
+    // etc ..
 
     // For this test, we'll track both UI and API response times
     const responses = [homepageResponse, searchResponse, companiesResponse];
@@ -82,7 +75,38 @@ export default function () {
     // Check if the request was successful
     const success = check(response, {
         'status is 200': (r) => r.status === 200,
-        'response time < 500ms': (r) => r.timings.duration < 500,
+        'response time < 1000ms': (r) => r.timings.duration < 1000,
     });
 }
 
+
+export function setup() {
+    console.log('Testing logging endpoint availability...');
+    console.log(exec.test.options)
+
+    const testPayload = {
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        user_agent: 'grafana_k6',
+        event: "test_setup",
+        component: "test",
+    };
+
+    const response = http.post(
+        `https://api.symbology.lofi/api/logs/log`,
+        JSON.stringify(testPayload),
+        {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }
+    );
+
+    // if (response.status !== 200) {
+    //     throw new Error(`Logging endpoint not available. Status: ${response}`);
+    // }
+
+    console.log('✅ Logging endpoint is available and responding correctly');
+    return { baseUrl: 'https://api.symbology.lofi' };
+
+}

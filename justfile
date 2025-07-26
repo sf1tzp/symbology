@@ -53,11 +53,10 @@ test component *ARGS:
 
 benchmark component TARGET:
   #!/usr/bin/env bash
-  if [[ "{{component}}" == "endpoints" ]]; then
-    k6 run -e API_ENDPOINTS="{{TARGET}}" infra/testing/coverage.ts
+  set -x
+  if [[ "{{component}}" == "smoke" ]]; then
+    k6 run --env TARGET={{TARGET}} infra/testing/smoke.ts
 
-  elif [[ "{{component}}" == "smoke" ]]; then
-    k6 run -e API_ENDPOINTS="{{TARGET}}" infra/testing/smoke.ts
   fi
 
 

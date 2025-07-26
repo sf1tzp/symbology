@@ -40,11 +40,6 @@
   shell: loginctl enable-linger "{{ deployment_user }}"
   become: true
 
-# TODO: Move to image
-- name: Install psql client
-  shell: sudo apt install postgresql-client -y
-  become: true
-
 - name: Start services using just
   shell: |
     ~/.local/bin/just up

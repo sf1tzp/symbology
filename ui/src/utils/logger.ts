@@ -1,40 +1,63 @@
 import log from 'loglevel';
+import { config } from './config';
 
 // Set the default log level based on environment
 // In production, we might want to show fewer logs
 const defaultLevel = import.meta.env.PROD ? log.levels.ERROR : log.levels.DEBUG;
 log.setLevel(defaultLevel);
 
-// Enable log persistence to localStorage if needed
-// This allows us to see logs even after page refresh
-const persistLogs = false;
-if (persistLogs) {
-  const originalFactory = log.methodFactory;
-  log.methodFactory = function (methodName, logLevel, loggerName) {
-    const rawMethod = originalFactory(methodName, logLevel, loggerName);
-
-    return function (...args) {
-      rawMethod(...args);
-      const logs = JSON.parse(localStorage.getItem('app_logs') || '[]');
-      logs.push({
-        timestamp: new Date().toISOString(),
-        level: methodName,
-        args: args.map((arg) =>
-          arg instanceof Error ? { name: arg.name, message: arg.message, stack: arg.stack } : arg
-        ),
-      });
-      // Keep only the last 100 logs to avoid localStorage overflow
-      if (logs.length > 100) logs.shift();
-      localStorage.setItem('app_logs', JSON.stringify(logs));
-    };
-  };
-
-  // Apply the new factory
-  log.setLevel(log.getLevel());
+// Configuration options for logger
+interface LoggerConfig {
+  sendToBackend?: boolean;
+  backendLevels?: string[];
+  extraData?: Record<string, any>;
 }
 
-// Add support for component context
-export function getLogger(context: string) {
+// Function to send logs to backend
+async function sendLogToBackend(logEntry: any) {
+  try {
+    await fetch(`${config.api.baseUrl}/logs/log`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_agent: navigator.userAgent,
+        url: window.location.href,
+        timestamp: logEntry['timestamp'],
+        level: logEntry['level'],
+        component: logEntry['component'],
+        event: logEntry['event'],
+        args: logEntry['args'],
+        // ...logEntry[1],
+      }),
+    });
+  } catch (err) {
+    log.debug('Could not make the request');
+    // Don't log this error to avoid infinite loops
+  }
+}
+
+// Global error handler for unhandled errors
+window.addEventListener('error', (event) => {
+  log.error('Unhandled error:', {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+    error: event.error,
+  });
+});
+
+// Global handler for unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+  log.error('Unhandled promise rejection:', {
+    reason: event.reason,
+    promise: event.promise,
+  });
+});
+
+export function getLogger(context: string, config: LoggerConfig = {}) {
   return {
     trace: (...args: unknown[]) => log.trace(`[${context}]`, ...args),
     debug: (...args: unknown[]) => log.debug(`[${context}]`, ...args),
@@ -42,6 +65,69 @@ export function getLogger(context: string) {
     warn: (...args: unknown[]) => log.warn(`[${context}]`, ...args),
     error: (...args: unknown[]) => log.error(`[${context}]`, ...args),
   };
+}
+
+export function getComponentLogger(component: string) {
+  // Check if we should send logs based on environment
+  const environment = config.env;
+  const isDev = environment === 'development' || environment === 'dev';
+  const isStaging = environment === 'staging';
+
+  const shouldSendLogs = true || isDev || isStaging;
+
+  console.log(`setup_component_logger`, {
+    component,
+    environment,
+    isDev,
+    isStaging,
+    shouldSendLogs,
+  });
+
+  if (shouldSendLogs) {
+    return createBackendLogger(component);
+  } else {
+    return getLogger(component);
+  }
+
+  // Internal function to create loggers with backend integration
+  function createBackendLogger(component: string) {
+    const sendLog = (level: string, ...args: unknown[]) => {
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        component: component,
+        level: level,
+        event: args[0],
+        args: args[1],
+      };
+
+      sendLogToBackend(logEntry).catch(() => {
+        // Silently fail - don't want logging to break the app
+      });
+    };
+
+    return {
+      trace: (...args: unknown[]) => {
+        log.trace(`[${component}]`, ...args);
+        sendLog('trace', ...args);
+      },
+      debug: (...args: unknown[]) => {
+        log.debug(`[${component}]`, ...args);
+        sendLog('debug', ...args);
+      },
+      info: (...args: unknown[]) => {
+        log.info(`[${component}]`, ...args);
+        sendLog('info', ...args);
+      },
+      warn: (...args: unknown[]) => {
+        log.warn(`[${component}]`, ...args);
+        sendLog('warn', ...args);
+      },
+      error: (...args: unknown[]) => {
+        log.error(`[${component}]`, ...args);
+        sendLog('error', ...args);
+      },
+    };
+  }
 }
 
 // Export the raw logger for direct use

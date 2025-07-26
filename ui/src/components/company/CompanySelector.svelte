@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getLogger } from '$utils/logger';
+  import { getComponentLogger } from '$utils/logger';
   import { fetchApi } from '$utils/generated-api-types';
   import type { CompanyResponse } from '$utils/generated-api-types';
   import config from '$utils/config';
@@ -7,7 +7,8 @@
   import appState, { actions } from '$utils/state-manager.svelte';
   import { formatTitleCase } from '$src/utils/formatters';
 
-  const logger = getLogger('CompanySelector');
+  const logger = getComponentLogger('CompanySelector');
+
   const dispatch = createEventDispatcher<{
     companySelected: CompanyResponse;
     companyCleared: void;
@@ -59,6 +60,7 @@
       return;
     }
 
+    logger.info('Starting company search', { ticker: ticker.trim().toUpperCase() });
     actions.setLoading('company', true);
     actions.setError('company', null);
 
@@ -70,11 +72,18 @@
       actions.selectCompany(company);
       dispatch('companySelected', company);
 
-      logger.info(`Company found: ${company.name}`, { company });
+      logger.info('Company search successful', {
+        ticker: ticker.toUpperCase(),
+        companyId: company.id,
+        companyName: company.name,
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       actions.setError('company', errorMessage);
-      logger.error('Error searching company:', { error: errorMessage });
+      logger.error('Company search failed', {
+        ticker: ticker.toUpperCase(),
+        error: errorMessage,
+      });
     } finally {
       actions.setLoading('company', false);
     }
@@ -239,12 +248,17 @@
   async function fetchCompanyList() {
     if (listLoading || !hasMoreCompanies) return;
 
+    logger.info('company_list_load', {
+      offset: currentOffset,
+      limit: COMPANIES_PER_PAGE,
+      hasMore: hasMoreCompanies,
+    });
     listLoading = true;
     listError = null;
 
     try {
       const apiUrl = `${config.api.baseUrl}/companies/list?offset=${currentOffset}&limit=${COMPANIES_PER_PAGE}`;
-      logger.info(`Fetching company list: ${apiUrl}`);
+      logger.debug(`Fetching company list: ${apiUrl}`);
 
       const companies = await fetchApi<CompanyResponse[]>(apiUrl);
 
@@ -257,10 +271,20 @@
 
       // Check if we received less than the expected number of companies
       hasMoreCompanies = companies.length === COMPANIES_PER_PAGE;
-      logger.info(`Fetched ${companies.length} companies`, { companies });
+
+      logger.info('company_list_loaded', {
+        companiesReceived: companies.length,
+        totalCompanies: allCompanies.length,
+        hasMoreCompanies,
+      });
+      logger.debug(`Fetched ${companies.length} companies`, { companies });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error('Error fetching company list:', { error: errorMessage });
+      logger.error('company_list_failed', {
+        error: errorMessage,
+        offset: currentOffset,
+        limit: COMPANIES_PER_PAGE,
+      });
       listError = errorMessage;
     } finally {
       listLoading = false;
@@ -384,7 +408,12 @@
       {:else}
         <div class="company-list-scrollable">
           <div class="list-container">
-            {#each allCompanies as company (company.id)}
+            <!-- sort by ticker -->
+            {#each [...allCompanies].sort((a, b) => {
+              const tickerA = a.tickers?.[0] || '';
+              const tickerB = b.tickers?.[0] || '';
+              return tickerA.localeCompare(tickerB);
+            }) as company (company.id)}
               <div class="company-list-item">
                 <div class="company-info">
                   <div class="company-name">{formatTitleCase(company.name)}</div>

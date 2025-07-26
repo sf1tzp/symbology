@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getLogger } from '$utils/logger';
   import { fetchApi } from '$utils/generated-api-types';
+  import { config } from '$utils/config';
   import type {
     CompanyResponse,
     AggregateResponse,
@@ -62,11 +63,28 @@
       }
 
       const ticker = company.tickers[0];
-      const aggregates = await fetchApi<AggregateResponse[]>(`/api/aggregates/by-ticker/${ticker}`);
+      const apiUrl = `${config.api.baseUrl}/aggregates/by-ticker/${ticker}`;
+      logger.debug('[CompanyDetail] Making API request', {
+        apiUrl,
+        ticker,
+        companyId: company.id,
+        windowLocation: window.location.href,
+      });
+
+      const aggregates = await fetchApi<AggregateResponse[]>(apiUrl);
       availableAggregates = aggregates;
       logger.debug('[CompanyDetail] Fetched aggregates', { count: aggregates.length, ticker });
     } catch (err) {
-      logger.error('[CompanyDetail] Failed to fetch aggregates', { error: err });
+      logger.error('[CompanyDetail] Failed to fetch aggregates', {
+        error: err,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        errorStack: err instanceof Error ? err.stack : undefined,
+        companyId: company.id,
+        ticker: company.tickers?.[0],
+        companyName: company.name,
+        apiUrl: `${config.api.baseUrl}/aggregates/by-ticker/${company.tickers?.[0]}`,
+        windowLocation: window.location.href,
+      });
       error = err instanceof Error ? err.message : 'Failed to load aggregates';
       availableAggregates = [];
     } finally {
@@ -80,13 +98,23 @@
     try {
       logger.debug('[CompanyDetail] Fetching filings for company', { companyId: company.id });
 
-      const filings = await fetchApi<FilingResponse[]>(`/api/filings/by-company/${company.id}`);
+      const filings = await fetchApi<FilingResponse[]>(
+        `${config.api.baseUrl}/filings/by-company/${company.id}`
+      );
       availableFilings = filings.sort(
         (a, b) => new Date(b.filing_date).getTime() - new Date(a.filing_date).getTime()
       );
       logger.debug('[CompanyDetail] Fetched filings', { count: filings.length });
     } catch (err) {
-      logger.error('[CompanyDetail] Failed to fetch filings', { error: err });
+      logger.error('[CompanyDetail] Failed to fetch filings', {
+        error: err,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        errorStack: err instanceof Error ? err.stack : undefined,
+        companyId: company.id,
+        companyName: company.name,
+        apiUrl: `${config.api.baseUrl}/filings/by-company/${company.id}`,
+        windowLocation: window.location.href,
+      });
       filingsError = err instanceof Error ? err.message : 'Failed to load filings';
       availableFilings = [];
     } finally {

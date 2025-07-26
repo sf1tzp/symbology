@@ -8,10 +8,13 @@
 - name: Deploy application
   include_tasks: deploy.yml
 
-- name: Upload Database
-  include_tasks: upload-database.yml
-  vars:
-    # Migration temporary directory on staging server
-    migration_temp_dir: /tmp/database_migration
-    # SQL dump file name
-    dump_file: "symbology_dev.sql"
+- name: Wait for database startup
+  pause:
+    seconds: 6
+    prompt: "Waiting for databases to fully start up..."
+
+- name: Migrate Database
+  shell: python -m src.bin.migrate_database --source dev --target {{ ansible_host }} -y
+  args:
+    chdir: "{{ playbook_dir }}/.."
+  delegate_to: localhost

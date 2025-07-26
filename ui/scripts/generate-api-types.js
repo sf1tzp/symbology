@@ -7,9 +7,16 @@
  * This script fetches the OpenAPI schema from a running API server and generates
  * TypeScript interfaces that match the API models.
  *
+ * The API endpoint configuration is adapted from config.ts to work in Node.js environment.
+ * It respects the same environment variables (SYMBOLOGY_API_HOST, SYMBOLOGY_API_PORT, ENV).
+ *
  * Usage:
  * 1. Make sure your API server is running
  * 2. Run this script with: node ./scripts/generate-api-types.js
+ * 3. Optionally set environment variables:
+ *    - SYMBOLOGY_API_HOST (default: localhost)
+ *    - SYMBOLOGY_API_PORT (default: 8000)
+ *    - ENV (default: development)
  */
 
 
@@ -18,14 +25,45 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
-// Configuration
-const API_URL = 'http://10.0.0.3:8000/openapi.json';
 // Get current file directory in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const OUTPUT_FILE = path.resolve(__dirname, '../src/utils/generated-api-types.ts');
+
+// Configuration - adapted from config.ts for Node.js environment
+const ENV = process.env.ENV || 'development';
+const API_HOST = process.env.SYMBOLOGY_API_HOST || 'localhost';
+const API_PORT = Number(process.env.SYMBOLOGY_API_PORT) || 8000;
+
+// Build API URL - adapted from config.ts logic
+function getApiUrl() {
+    let host = API_HOST;
+
+    // In development mode, try to get the local IP address if using localhost
+    if (ENV === 'development' && host === 'localhost') {
+        // Try to get the local network IP address
+        const networkInterfaces = os.networkInterfaces();
+        for (const interfaceName in networkInterfaces) {
+            const addresses = networkInterfaces[interfaceName];
+            for (const addr of addresses) {
+                // Look for IPv4 address that's not loopback and not internal
+                if (addr.family === 'IPv4' && !addr.internal) {
+                    host = addr.address;
+                    break;
+                }
+            }
+            if (host !== 'localhost') break;
+        }
+    }
+
+    return `http://${host}:${API_PORT}/openapi.json`;
+}
+
+const API_URL = getApiUrl();
+console.log(`Using API URL: ${API_URL}`);
 
 async function fetchOpenApiSpec(url) {
     return new Promise((resolve, reject) => {

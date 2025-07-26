@@ -13,7 +13,7 @@ down:
 logs *ARGS:
   nerdctl compose -f docker-compose.yaml logs {{ARGS}}
 
-deploy environment="staging":
+deploy environment="staging": _generate-api-types
   ansible-playbook -i infra/inventories/{{environment}} infra/deploy-symbology.yml
 
 # Development resources
@@ -46,16 +46,20 @@ test component *ARGS:
   elif [[ "{{component}}" == "ui" ]]; then
     echo "no testing for ui yet"
     just -d ui -f ui/justfile check {{ARGS}}
-
-  elif [[ "{{component}}" == "staging" ]]; then
-    k6 run infra/testing/smoke.ts
-
   else
     echo "Error: Unknown component '{{component}}'" && exit 1
 
-
-
   fi
+
+benchmark component TARGET:
+  #!/usr/bin/env bash
+  if [[ "{{component}}" == "endpoints" ]]; then
+    k6 run -e API_ENDPOINTS="{{TARGET}}" infra/testing/coverage.ts
+
+  elif [[ "{{component}}" == "smoke" ]]; then
+    k6 run -e API_ENDPOINTS="{{TARGET}}" infra/testing/smoke.ts
+  fi
+
 
 lint component *ARGS:
   #!/usr/bin/env bash
@@ -70,7 +74,7 @@ lint component *ARGS:
     exit 1
   fi
 
-build component:
+build component: _generate-api-types
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
     just -d src -f src/justfile build
@@ -107,3 +111,6 @@ _tag version:
 _untag version:
   git tag -d {{version}}
   git push --delete origin {{version}}
+
+_generate-api-types:
+  just -d ui -f ui/justfile generate-api-types

@@ -121,6 +121,14 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export interface LogRequest {
+  timestamp: string;
+  level: string;
+  component: string;
+  event: string;
+  user_agent: string;
+}
+
 export interface PromptResponse {
   /** Unique identifier for the prompt */
   id: string;

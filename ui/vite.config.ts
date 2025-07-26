@@ -26,15 +26,6 @@ export default defineConfig({
         }
     },
     server: {
-        proxy: {
-            // Proxy API requests to backend during development
-            '/api': {
-                target: 'http://10.0.0.3:8000',
-                changeOrigin: true,
-                // Don't rewrite the path - keep the /api prefix
-                // rewrite: (path) => path.replace(/^\/api/, '')
-            }
-        },
         hmr: {
             // Listen on all interfaces, but don't specify client connection address
             host: '0.0.0.0',

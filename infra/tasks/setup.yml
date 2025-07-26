@@ -1,4 +1,14 @@
 ---
+- name: Stop exiting services
+  shell: ~/.local/bin/just down
+  ignore_errors: true
+
+- name: Remove deployment directory
+  file:
+    path: "{{ deployment_path }}"
+    state: absent
+  become: true
+
 - name: Create deployment directory
   file:
     path: "{{ deployment_path }}"

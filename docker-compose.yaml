@@ -4,8 +4,6 @@ services:
     container_name: symbology-ui
     restart: always
     environment:
-      SYMBOLOGY_API_HOST: symbology-api
-      SYMBOLOGY_API_PORT: ${SYMBOLOGY_API_PORT:-8000}
       NGINX_ENVSUBST_TEMPLATE_SUFFIX: ".template"
     ports:
       - 5173:80

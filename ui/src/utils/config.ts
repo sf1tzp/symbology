@@ -1,65 +1,58 @@
 // UI Configuration Module
+// This module provides a synchronous interface to configuration
+// that is loaded asynchronously from the backend API
 
-const ENV = import.meta.env.ENV || 'development';
+import type { AppConfig } from './config-service';
 
-/*
- /!**
-  * API settings interface
-  *!/
- */
-interface ApiSettings {
-  host: string;
-  port: number;
-  baseUrl: string;
-  timeout: number;
-}
-
-/**
- * Logging settings interface
- */
-interface LoggingSettings {
-  level: string;
-  jsonFormat: boolean;
-}
-
-/**
- * Main application settings
- */
-interface AppSettings {
-  env: string;
-  api: ApiSettings;
-  logging: LoggingSettings;
-}
-
-// Create API settings with defaults
-const apiSettings: ApiSettings = {
-  host: import.meta.env.SYMBOLOGY_API_HOST || 'localhost',
-  port: Number(import.meta.env.SYMBOLOGY_API_PORT) || 8000,
-
-  // Build baseUrl dynamically to support cross-device access
-  get baseUrl() {
-    // In development mode, use the current device's hostname or IP
-    if (ENV === 'development') {
-      // Get the current window's hostname
+// Default configuration for immediate use before API config loads
+const defaultConfig = {
+  env: import.meta.env.MODE || 'development',
+  api: {
+    host: import.meta.env.SYMBOLOGY_API_HOST || 'localhost',
+    port: Number(import.meta.env.SYMBOLOGY_API_PORT) || 8000,
+    get baseUrl() {
       const hostname = window.location.hostname;
       return `http://${hostname}:${this.port}/api`;
-    }
-    return `http://${this.host}:${this.port}/api`;
+    },
+    timeout: 30000,
   },
-  timeout: 30000,
+  logging: {
+    level: import.meta.env.LOG_LEVEL || 'info',
+    jsonFormat: import.meta.env.LOG_JSON_FORMAT === 'true' || false,
+  },
 };
 
-// Create logging settings with defaults
-const loggingSettings: LoggingSettings = {
-  level: import.meta.env.LOG_LEVEL || 'info',
-  jsonFormat: import.meta.env.LOG_JSON_FORMAT === 'true' || false,
-};
+// Runtime configuration will be set by the App component after loading from API
+let runtimeConfig: AppConfig | null = null;
 
-// Create and export the settings object
-export const config: AppSettings = {
-  env: ENV,
-  api: apiSettings,
-  logging: loggingSettings,
+/**
+ * Set runtime configuration loaded from the API
+ */
+export function setRuntimeConfig(config: AppConfig): void {
+  runtimeConfig = config;
+}
+
+/**
+ * Get current configuration (runtime if available, otherwise default)
+ */
+export const config = {
+  get env() {
+    return runtimeConfig?.environment || defaultConfig.env;
+  },
+  get api() {
+    if (runtimeConfig) {
+      return {
+        host: new URL(runtimeConfig.api.baseUrl).hostname,
+        port: Number(new URL(runtimeConfig.api.baseUrl).port),
+        baseUrl: runtimeConfig.api.baseUrl,
+        timeout: runtimeConfig.api.timeout,
+      };
+    }
+    return defaultConfig.api;
+  },
+  get logging() {
+    return runtimeConfig?.logging || defaultConfig.logging;
+  },
 };
 
 export default config;

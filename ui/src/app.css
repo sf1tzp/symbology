@@ -271,6 +271,10 @@ body {
   background-color: var(--color-primary-hover);
 }
 
+.btn-action:disabled {
+  background-color: var(--color-background);
+}
+
 .btn-toggle {
   background: none;
   border: none;
@@ -450,6 +454,10 @@ body {
 .disabled {
   opacity: 0.6;
   pointer-events: none;
+}
+
+.pending {
+  background-color: var(--color-error);
 }
 
 .selected {

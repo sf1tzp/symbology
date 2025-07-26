@@ -11,7 +11,7 @@
         "lint": "eslint 'src/**/*.{js,ts,svelte}'",
         "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}'",
         "generate-api-types": "node ./scripts/generate-api-types.js",
-        "build:prod": "npm run check && npm run lint && npm run build",
+        "build:prod": "npm run build",
         "serve": "vite preview --host 0.0.0.0 --port 4173",
         "docker:build": "docker build -t symbology-ui .",
         "docker:run": "docker run -p 8080:80 symbology-ui"

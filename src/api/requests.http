@@ -1,5 +1,5 @@
 # API Host
-@hostname = localhost
+@hostname = 10.0.0.21
 @port = 8000
 
 # Example IDs
@@ -75,6 +75,13 @@ Accept: application/json
 # 8. Get a specific prompt by ID
 # Replace {prompt_id} with a valid prompt UUID
 GET http://{{hostname}}:{{port}}/api/prompts/{{prompt_id}}
+Accept: application/json
+
+###
+
+# 9. Get frontend configuration
+# This endpoint provides environment-specific configuration for the UI
+GET http://{{hostname}}:{{port}}/api/config/config
 Accept: application/json
 
 ###

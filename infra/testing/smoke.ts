@@ -5,7 +5,7 @@ import { check } from 'k6';
 declare const __VU: number; // Virtual User ID - unique identifier for each simulated user
 
 // Endpoints to test
-const endpoints = ['http://10.0.0.21:5173', 'http://10.0.0.22:5173'];
+const endpoints = ['http://10.0.0.21:5173']//  #, 'http://10.0.0.22:5173', 'http://10.0.0.24:5173'];
 
 export const options = {
     stages: [
@@ -19,6 +19,22 @@ export const options = {
         { duration: '1m', target: 30 },
         { duration: '1m', target: 10 },
         { duration: '1m', target: 10 },
+        // ramp up, starting at 100, multiplying by 1.6 each time until 2000
+        // { duration: '1m', target: 100 },
+        // { duration: '1m', target: 160 },
+        // { duration: '15s', target: 100 },
+        // { duration: '1m', target: 256 },
+        // { duration: '15s', target: 100 },
+        // { duration: '1m', target: 410 },
+        // { duration: '15s', target: 300 },
+        // { duration: '1m', target: 656 },
+        // { duration: '15s', target: 400 },
+        // { duration: '1m', target: 1050 },
+        // { duration: '15s', target: 500 },
+        // { duration: '1m', target: 1680 },
+        // { duration: '15s', target: 800 },
+        // { duration: '1m', target: 2000 },
+        // { duration: '1m', target: 100 },
     ],
     thresholds: {
         'http_req_failed': ['rate<0.2'],
@@ -31,7 +47,7 @@ export default function () {
     const endpoint = endpoints[__VU % endpoints.length];
 
     // Step 1: Load the homepage (UI)
-    const homepageResponse = http.get(endpoint, {
+    const homepageResponse = http.get(`${endpoint}/`, {
         timeout: '10s',
     });
 

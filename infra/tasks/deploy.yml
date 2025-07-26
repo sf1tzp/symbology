@@ -15,7 +15,7 @@
     group: "{{ deployment_user }}"
     mode: "0644"
 
-- name: Copy Docker image tarballs to remote server
+- name: Copy Docker image files to remote server
   copy:
     src: "/tmp/{{ item }}"
     dest: "{{ deployment_path }}/images/{{ item }}"
@@ -39,6 +39,15 @@
 - name: Enable process lingering for deployment user
   shell: loginctl enable-linger "{{ deployment_user }}"
   become: true
+
+- name: Copy certificates directory to deployment path
+  copy:
+    src: "{{ playbook_dir }}/../certificates"
+    dest: "{{ deployment_path }}"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0400"
+    directory_mode: "0700"
 
 - name: Start services using just
   shell: |

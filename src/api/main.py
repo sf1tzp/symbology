@@ -55,7 +55,7 @@ def create_app() -> FastAPI:
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.symbology_api.allowed_origins,
+        allow_origins=settings.symbology_api.allowed_origins_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -126,10 +126,10 @@ def start_api():
 
     app = create_app()
 
-    if "*" in settings.symbology_api.allowed_origins:
+    if "*" in settings.symbology_api.allowed_origins_list:
         logger.warn("open_cors_policy")
 
-    logger.info("allowed_origins", allowed_origins=settings.symbology_api.allowed_origins)
+    logger.info("allowed_origins", allowed_origins=settings.symbology_api.allowed_origins_list)
     logger.info("starting_api_server",
                 env=settings.env,
                 host=settings.symbology_api.host,

@@ -12,7 +12,8 @@ const defaultConfig = {
     port: Number(import.meta.env.SYMBOLOGY_API_PORT) || 8000,
     get baseUrl() {
       const hostname = window.location.hostname;
-      return `http://${hostname}:${this.port}/api`;
+      // FIXME: Dynamic configuration needed
+      return `https://api.symbology.lofi/api`;
     },
     timeout: 30000,
   },

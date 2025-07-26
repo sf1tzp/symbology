@@ -5,7 +5,7 @@ import { check } from 'k6';
 declare const __VU: number; // Virtual User ID - unique identifier for each simulated user
 
 // Endpoints to test
-const endpoints = ['http://10.0.0.21:5173']//  #, 'http://10.0.0.22:5173', 'http://10.0.0.24:5173'];
+const endpoints = ['https://symbology.lofi']//  #, 'http://10.0.0.22:5173', 'http://10.0.0.24:5173'];
 
 export const options = {
     stages: [
@@ -52,7 +52,7 @@ export default function () {
     });
 
     // Step 2: Simulate the async API calls that the homepage makes
-    const apiEndpoint = endpoint.replace(':5173', ':8000'); // Assuming API is on port 8000
+    const apiEndpoint = "https://api.symbology.lofi"; // Assuming API is on port 8000
 
     // Common API calls that your UI likely makes:
     // 1. Search companies (autocomplete/initial load)

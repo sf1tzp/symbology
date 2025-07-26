@@ -14,6 +14,7 @@ uv.lock
 infra/database-data/
 infra/pgadmin/
 
+certificates/
 notebooks/
 outputs/
 docs/

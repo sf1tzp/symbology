@@ -1,6 +1,6 @@
 # API Host
-@hostname = 10.0.0.21
-@port = 8000
+@hostname = api.symbology.lofi
+@port = 80
 
 # Example IDs
 @company_id = 370782e3-5dc1-47c2-99d6-4675080d1589

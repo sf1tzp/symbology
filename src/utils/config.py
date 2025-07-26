@@ -31,7 +31,7 @@ class SymbologyApiSettings(BaseSettings):
     host: str = Field(default="localhost")
     port: int = Field(default=8000)
 
-    allowed_origins_str: str = Field(default="*")
+    allowed_origins: str = Field(default="*")
 
     model_config = SettingsConfigDict(
         env_prefix="SYMBOLOGY_API_",
@@ -39,12 +39,12 @@ class SymbologyApiSettings(BaseSettings):
     )
 
     @property  # use a property to access a structured allowed_origins list
-    def allowed_origins(self) -> list[str]: # noqa: F811
+    def allowed_origins_list(self) -> list[str]: # noqa: F811
         """Parse allowed_origins from the raw string value."""
-        if self.allowed_origins_str.strip() == "*":
+        if self.allowed_origins.strip() == "*":
             return ["*"]
         # Split by comma and strip whitespace
-        return [origin.strip() for origin in self.allowed_origins_str.split(",") if origin.strip()]
+        return [origin.strip('"').strip() for origin in self.allowed_origins.split(",") if origin.strip()]
 
 
 class EdgarApiSettings(BaseSettings):

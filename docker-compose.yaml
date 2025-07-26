@@ -5,8 +5,11 @@ services:
     restart: always
     environment:
       NGINX_ENVSUBST_TEMPLATE_SUFFIX: ".template"
+    volumes:
+      - ./certificates:/certificates
     ports:
-      - 5173:80
+      - 80:80
+      - 443:443
 
   symbology-api:
     image: symbology-api
@@ -15,8 +18,6 @@ services:
     environment:
       SYMBOLOGY_API_HOST: 0.0.0.0
       DATABASE_HOST: symbology-database
-    ports:
-      - 8000:8000
     depends_on:
       symbology-database:
         condition: service_healthy
@@ -39,4 +40,5 @@ services:
       timeout: 5s
       retries: 5
     ports:
+      # TODO: Remove and upload data another way
       - 5432:5432

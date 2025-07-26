@@ -11,12 +11,12 @@ log_json_format: true
 
 api_host: symbology-api # using docker service name for networking
 api_port: 8000
-api_public_host: "{{ ansible_host }}" # public IP for frontend to connect to API
+api_public_host: api.symbology.lofi # public IP for frontend to connect to API
 # allowed origins should be used in prod
-api_allowed_origins: "http://{{ ansible_host }}, https://{{ ansible_host }}"
+api_allowed_origins: "http://symbology.lofi,https://symbology.lofi"
 
-ui_host: symbology-ui
-ui_port: 5173
+ui_host: symbology.lofi
+ui_port: 80
 
 # Database configuration
 database_host: "{{ ansible_host }}" # using a static endpoint which works for docker & scripts

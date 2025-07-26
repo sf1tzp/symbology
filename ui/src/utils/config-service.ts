@@ -30,15 +30,12 @@ export async function loadConfig(): Promise<AppConfig> {
   }
 
   try {
-    // Build the config URL based on current location
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    const port = window.location.hostname === 'localhost' ? '8000' : '8000';
-    const configUrl = `${protocol}//${hostname}:${port}/api/config/config`;
+    // FIXME: Dynamic configuration needed
+    const baseUrl = `https://api.symbology.lofi`;
 
-    logger.info('Loading configuration from API', { configUrl });
+    logger.info('Loading configuration from API', { baseUrl });
 
-    const response = await fetch(configUrl, {
+    const response = await fetch(`${baseUrl}/api/config/config`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -62,6 +59,9 @@ export async function loadConfig(): Promise<AppConfig> {
   } catch (error) {
     logger.warn('Failed to load config from API, using fallback', { error });
 
+    // FIXME: Dynamic configuration needed
+    const baseUrl = `https://api.symbology.lofi`;
+
     // Fallback configuration for development or when API is unavailable
     const fallbackConfig: AppConfig = {
       environment: import.meta.env.MODE === 'development' ? 'development' : 'production',
@@ -71,7 +71,7 @@ export async function loadConfig(): Promise<AppConfig> {
         enableBackendLogging: import.meta.env.MODE === 'development',
       },
       api: {
-        baseUrl: `http://${window.location.hostname}:8000/api`,
+        baseUrl: `${baseUrl}/api`,
         timeout: 30000,
       },
       features: {

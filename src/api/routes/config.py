@@ -23,7 +23,7 @@ async def get_frontend_config(request: Request):
     # In staging/production, use the actual server's IP/hostname
     # Check if we have a public host override (for staging environments)
     api_host = os.getenv("SYMBOLOGY_API_PUBLIC_HOST") or request.url.hostname or client_host
-    api_port = settings.symbology_api.port
+    api_port = settings.symbology_api.port #noqa: F841
 
     config = {
         "environment": os.getenv("ENVIRONMENT", "production"),
@@ -33,7 +33,7 @@ async def get_frontend_config(request: Request):
             "enableBackendLogging": os.getenv("ENVIRONMENT", "production") in ["development", "staging"]
         },
         "api": {
-            "baseUrl": f"http://{api_host}:{api_port}/api",
+            "baseUrl": f"https://{api_host}/api",
             "timeout": 30000
         },
         "features": {

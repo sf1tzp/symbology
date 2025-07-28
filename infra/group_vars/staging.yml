@@ -31,3 +31,6 @@ dev_database_port: 5432
 dev_database_user: postgres
 dev_database_password: postgres
 dev_database_name: symbology
+
+# Certificate configuration
+ssl_enabled: false

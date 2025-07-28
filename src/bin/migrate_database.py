@@ -217,6 +217,17 @@ class DatabaseMigrator:
         temp_file.close()
 
         try:
+            # First, check which tables exist in the source database
+            source_engine = create_engine(self.source_url)
+            with source_engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                """))
+                existing_source_tables = {row[0] for row in result.fetchall()}
+                logger.info("existing_source_tables", tables=sorted(existing_source_tables))
+
             # Define tables in dependency order, excluding completions for special handling
             tables_in_order = [
                 'companies',
@@ -228,6 +239,17 @@ class DatabaseMigrator:
                 'completion_document_association',
                 'aggregate_completion_association'
             ]
+
+            # Filter to only tables that exist in the source
+            existing_tables_in_order = [table for table in tables_in_order if table in existing_source_tables]
+            logger.info("tables_to_dump", tables=existing_tables_in_order)
+
+            if not existing_tables_in_order:
+                logger.warning("no_tables_to_dump")
+                # Create an empty dump file
+                with open(dump_file, 'w') as f:
+                    f.write("-- No tables to dump\n")
+                return dump_file
 
             # Build pg_dump command with specific table order, excluding completions
             cmd = [
@@ -242,8 +264,8 @@ class DatabaseMigrator:
                 '--file', dump_file
             ]
 
-            # Add tables in specific order
-            for table in tables_in_order:
+            # Add tables in specific order - only those that exist
+            for table in existing_tables_in_order:
                 cmd.extend(['--table', table])
 
             # Set password via environment variable
@@ -251,7 +273,7 @@ class DatabaseMigrator:
             env['PGPASSWORD'] = self.source_config['password']
 
             logger.info("running_pg_dump_with_table_order",
-                       tables=tables_in_order,
+                       tables=existing_tables_in_order,
                        command=' '.join(cmd[:-2]))  # Don't log file path
 
             result = subprocess.run(
@@ -314,6 +336,18 @@ class DatabaseMigrator:
         try:
             logger.info("clearing_target_database_tables")
 
+            # First, check which tables actually exist in the target database
+            engine = create_engine(self.target_url)
+            with engine.connect() as conn:
+                # Get list of existing tables
+                result = conn.execute(text("""
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                """))
+                existing_tables = {row[0] for row in result.fetchall()}
+                logger.info("existing_target_tables", tables=sorted(existing_tables))
+
             # Order matters! Delete in reverse dependency order to avoid FK violations
             tables_to_clear = [
                 'completion_document_association',  # Association tables first
@@ -327,7 +361,10 @@ class DatabaseMigrator:
                 'prompts',    # Clear prompts too to avoid PK conflicts
             ]
 
-            engine = create_engine(self.target_url)
+            # Filter to only tables that actually exist
+            tables_to_clear = [table for table in tables_to_clear if table in existing_tables]
+            logger.info("tables_to_clear", tables=tables_to_clear)
+
             with engine.connect() as conn:
                 # Start transaction
                 trans = conn.begin()
@@ -336,14 +373,20 @@ class DatabaseMigrator:
                     logger.info("disabling_foreign_key_constraints")
                     conn.execute(text("SET session_replication_role = replica;"))
 
-                    # Clear tables in dependency order
+                    # Clear tables in dependency order - only tables that exist
                     for table in tables_to_clear:
                         try:
                             result = conn.execute(text(f"DELETE FROM {table}"))
                             logger.info("cleared_table", table=table, rows_deleted=result.rowcount)
                         except Exception as e:
-                            # Table might not exist, that's ok
+                            # Even with existence check, handle any errors gracefully
                             logger.warning("could_not_clear_table", table=table, error=str(e))
+                            # Don't let this fail the entire transaction - just continue
+                            trans.rollback()
+                            # Start a new transaction
+                            trans = conn.begin()
+                            # Re-disable constraints for the new transaction
+                            conn.execute(text("SET session_replication_role = replica;"))
 
                     # Re-enable foreign key constraints
                     logger.info("re_enabling_foreign_key_constraints")
@@ -362,6 +405,155 @@ class DatabaseMigrator:
             logger.error("prepare_target_database_exception", error=str(e))
             return False
 
+    def _ensure_target_schema_exists(self) -> bool:
+        """Ensure the target database has the required schema (tables)."""
+        try:
+            # Check if target database has any tables
+            engine = create_engine(self.target_url)
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                """))
+                table_count = result.scalar()
+
+                if table_count > 0:
+                    logger.info("target_database_has_schema", table_count=table_count)
+                    return True
+
+                logger.warning("target_database_missing_schema",
+                             message="Target database has no tables. Creating schema from source.")
+
+                # Create schema dump from source
+                return self._create_and_apply_schema()
+
+        except Exception as e:
+            logger.error("schema_check_failed", error=str(e))
+            return False
+
+    def _create_and_apply_schema(self) -> bool:
+        """Create and apply database schema from source to target."""
+        try:
+            logger.info("creating_schema_dump_from_source")
+
+            # Create temporary file for schema dump
+            temp_file = tempfile.NamedTemporaryFile(
+                mode='w',
+                suffix='_schema.sql',
+                prefix='symbology_schema_',
+                delete=False
+            )
+            schema_file = temp_file.name
+            temp_file.close()
+
+            # Create schema-only dump from source
+            cmd = [
+                'pg_dump',
+                '--host', str(self.source_config['host']),
+                '--port', str(self.source_config['port']),
+                '--username', self.source_config['username'],
+                '--dbname', self.source_config['database'],
+                '--schema-only',  # Only schema, not data
+                '--no-owner',     # Don't include ownership commands
+                '--no-privileges', # Don't include privileges
+                '--file', schema_file
+            ]
+
+            # Set password via environment variable
+            env = os.environ.copy()
+            env['PGPASSWORD'] = self.source_config['password']
+
+            logger.info("running_schema_dump", command=' '.join(cmd[:-2]))
+
+            result = subprocess.run(
+                cmd,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=120  # 2 minute timeout for schema
+            )
+
+            if result.returncode != 0:
+                logger.error("schema_dump_failed",
+                           stderr=result.stderr,
+                           stdout=result.stdout)
+                return False
+
+            logger.info("schema_dump_created", file=schema_file)
+
+            # Apply schema to target database
+            return self._apply_schema_to_target(schema_file)
+
+        except Exception as e:
+            logger.error("schema_creation_failed", error=str(e))
+            return False
+        finally:
+            # Clean up schema file
+            if 'schema_file' in locals() and os.path.exists(schema_file):
+                os.unlink(schema_file)
+                logger.info("schema_file_cleaned_up")
+
+    def _apply_schema_to_target(self, schema_file: str) -> bool:
+        """Apply schema file to target database."""
+        try:
+            logger.info("applying_schema_to_target", file=schema_file)
+
+            # Build psql command to apply schema
+            cmd = [
+                'psql',
+                '--host', str(self.target_config['host']),
+                '--port', str(self.target_config['port']),
+                '--username', self.target_config['username'],
+                '--dbname', self.target_config['database'],
+                '--file', schema_file,
+                '--quiet'
+            ]
+
+            # Set password via environment variable
+            env = os.environ.copy()
+            env['PGPASSWORD'] = self.target_config['password']
+
+            logger.info("running_schema_restore", command=' '.join(cmd))
+
+            result = subprocess.run(
+                cmd,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout
+            )
+
+            if result.returncode != 0:
+                logger.error("schema_restore_failed",
+                           stderr=result.stderr,
+                           stdout=result.stdout)
+                return False
+
+            logger.info("schema_applied_successfully")
+
+            # Verify schema was created
+            engine = create_engine(self.target_url)
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                """))
+                table_count = result.scalar()
+                logger.info("schema_verification", table_count=table_count)
+
+                if table_count == 0:
+                    logger.error("schema_verification_failed",
+                               message="No tables found after schema application")
+                    return False
+
+            return True
+
+        except Exception as e:
+            logger.error("schema_application_failed", error=str(e))
+            return False
+
     def _migrate_completions_data(self) -> bool:
         """Migrate completions data with schema compatibility."""
         if self.dry_run:
@@ -371,9 +563,21 @@ class DatabaseMigrator:
         try:
             logger.info("migrating_completions_data_with_schema_mapping")
 
+            # First check if completions table exists in target
+            target_engine = create_engine(self.target_url)
+            with target_engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'completions'
+                """))
+                if result.scalar() == 0:
+                    logger.warning("completions_table_missing_in_target",
+                                 message="Completions table doesn't exist in target, skipping completions migration")
+                    return True
+
             # Get completions data from source with only compatible columns
             source_engine = create_engine(self.source_url)
-            target_engine = create_engine(self.target_url)
 
             # Query source data with only the columns that exist in target
             query = """
@@ -405,11 +609,12 @@ class DatabaseMigrator:
                         batch_size = 100
                         for i in range(0, len(rows), batch_size):
                             batch = rows[i:i + batch_size]
+                            # Convert rows to dictionaries for SQLAlchemy
                             batch_dicts = [dict(zip(columns, row)) for row in batch]
                             target_conn.execute(text(insert_query), batch_dicts)
                             logger.info("inserted_completions_batch",
-                                       batch_start=i,
-                                       batch_size=len(batch_dicts))
+                                      batch_start=i,
+                                      batch_size=len(batch_dicts))
 
                     # Re-enable constraints
                     target_conn.execute(text("SET session_replication_role = DEFAULT;"))
@@ -431,7 +636,13 @@ class DatabaseMigrator:
         logger.info("restoring_database_dump", file=dump_file)
 
         try:
-            # First, disable foreign key constraints and clear existing data
+            # First, check if target database has any tables (schema)
+            logger.info("checking_target_database_schema")
+            if not self._ensure_target_schema_exists():
+                logger.error("failed_to_ensure_target_schema")
+                return False
+
+            # Then, disable foreign key constraints and clear existing data
             logger.info("preparing_target_database_for_restore")
             if not self._prepare_target_database():
                 return False

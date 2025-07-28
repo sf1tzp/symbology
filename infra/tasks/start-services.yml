@@ -1,0 +1,6 @@
+---
+- name: Start services using just
+  shell: |
+    ~/.local/bin/just up
+  args:
+    chdir: "{{ deployment_path }}"

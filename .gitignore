@@ -14,6 +14,9 @@ uv.lock
 infra/database-data/
 infra/pgadmin/
 
+infra/group_vars/production.yml
+infra/inventories/production
+
 certificates/
 notebooks/
 outputs/

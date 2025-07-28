@@ -39,16 +39,3 @@
 - name: Enable process lingering for deployment user
   shell: loginctl enable-linger "{{ deployment_user }}"
   become: true
-
-- name: Copy certificates directory to deployment path
-  copy:
-    src: "{{ playbook_dir }}/../certificates"
-    dest: "{{ deployment_path }}"
-    owner: "{{ deployment_user }}"
-    group: "{{ deployment_user }}"
-    mode: "0400"
-    directory_mode: "0700"
-
-- name: Start services using just
-  shell: |
-    ~/.local/bin/just up

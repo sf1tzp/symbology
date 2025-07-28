@@ -165,7 +165,10 @@ export function isApiError(obj: any): obj is ApiError {
 /**
  * Helper to fetch data from the API with proper error handling
  */
-export async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
+export async function fetchApi<T>(
+  url: string,
+  options?: RequestInit
+): Promise<T> {
   const response = await fetch(url, options);
 
   if (!response.ok) {

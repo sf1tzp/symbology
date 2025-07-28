@@ -5,8 +5,14 @@
 - name: Check for pre-built Docker images
   include_tasks: check-images.yml
 
-- name: Deploy application
+- name: Deploy application files
   include_tasks: deploy.yml
+
+- name: Handle certificates
+  include_tasks: certificates.yml
+
+- name: Start services
+  include_tasks: start-services.yml
 
 - name: Wait for database startup
   pause:

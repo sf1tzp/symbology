@@ -1,6 +1,6 @@
 ---
 - name: Deploy Symbology
-  hosts: "{{ target_env | default('staging') }}"
+  hosts: "production"
   become: no
   gather_facts: yes
 

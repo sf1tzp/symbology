@@ -31,7 +31,9 @@ export async function loadConfig(): Promise<AppConfig> {
 
   try {
     // FIXME: Dynamic configuration needed
-    const baseUrl = `https://api.symbology.lofi`;
+    const baseUrl = `https://api.symbology.online`;
+    // const baseUrl = `https://api.symbology.lofi`;
+    // const baseUrl = `http://10.0.0.3:8000`;
 
     logger.info('config_load_start', { baseUrl });
 
@@ -59,7 +61,9 @@ export async function loadConfig(): Promise<AppConfig> {
     logger.warn('config_load_failed', { error });
 
     // FIXME: Dynamic configuration needed
-    const baseUrl = `https://api.symbology.lofi`;
+    const baseUrl = `https://api.symbology.online`;
+    // const baseUrl = `https://api.symbology.lofi`;
+    // const baseUrl = `http://10.0.0.3:8000`;
 
     // Fallback configuration for development or when API is unavailable
     const fallbackConfig: AppConfig = {

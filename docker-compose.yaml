@@ -6,7 +6,7 @@ services:
     environment:
       NGINX_ENVSUBST_TEMPLATE_SUFFIX: ".template"
     volumes:
-      - ./certificates:/certificates
+      - ./certificates:/certificates:ro
     ports:
       - 80:80
       - 443:443

@@ -1,4 +1,8 @@
 ---
+- name: Run set-up playbook
+  delegate_to: localhost
+  shell: ansible-playbook ~/.files/homelab/vms/set-up.yaml --inventory infra/inventories/production
+
 - name: Stop exiting services
   shell: ~/.local/bin/just down
   ignore_errors: true

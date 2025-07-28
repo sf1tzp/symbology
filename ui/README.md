@@ -1,46 +1,26 @@
 # Symbology UI
 
-This directory contains the frontend UI code for the Symbology project, built with Svelte 5 and TypeScript.
+Frontend interface for the Symbology financial intelligence platform, built with Svelte 5 and TypeScript.
 
-## Configuration Files
+## Overview
 
-### Package Management
+The UI provides a streamlined research interface for exploring AI-generated insights from SEC filings. The application follows a clear navigation flow: Company List → Company Detail → Aggregate Overview → Completion Overview → Document Overview.
 
-- **package.json**: Defines project metadata, dependencies, and npm scripts.
-  - Contains development dependencies like Svelte, TypeScript, ESLint, and Prettier.
-  - Includes runtime dependencies such as DOMPurify and svelte-routing.
-  - Defines scripts for development, building, previewing, and linting.
+## Architecture
 
-### TypeScript Configuration
+- **Framework**: Svelte 5 with runes mode enabled
+- **Language**: TypeScript with strict type checking
+- **Build Tools**: Vite for development and production builds
+- **Code Quality**: ESLint and Prettier for consistent formatting
+- **Routing**: Client-side routing with svelte-routing
+- **Content Security**: DOMPurify for safe HTML rendering
 
-- **tsconfig.json**: Main TypeScript configuration file.
-  - Extends the Svelte TypeScript configuration.
-  - Configures path aliases for easier imports (`$src`, `$components`, `$utils`).
-  - Sets strict type checking options.
-  - Includes references to the Node.js-specific TypeScript configuration.
+## Key Features
 
-- **tsconfig.node.json**: TypeScript configuration specifically for Node.js environments.
-  - Used by the Vite configuration file.
-  - Contains settings optimized for the build tools.
+- **Company Discovery**: Search and browse companies with SEC filings
+- **Aggregate Insights**: View AI-generated summaries by document type
+- **Source Traceability**: Navigate from aggregates to source completions and original documents
+- **Document Viewer**: Full-text viewing of SEC filing content
+- **Responsive Design**: Optimized for financial research workflows
 
-### Build Tools
-
-- **vite.config.ts**: Configuration for the Vite build tool.
-  - Sets up the Svelte plugin.
-  - Configures path aliases for module resolution.
-  - Defines development server proxy settings to forward API requests to the backend.
-
-### Svelte Configuration
-
-- **svelte.config.js**: Configuration for the Svelte compiler.
-  - Enables Svelte 5 runes mode.
-
-### Code Quality Tools
-
-- **eslint.config.js**: ESLint configuration using the new flat config format.
-  - Configures TypeScript and Svelte linting rules.
-  - Sets up parser options for Svelte files.
-  - Defines global browser variables.
-  - Customizes rules for Svelte components.
-
-- **.prettierrc**: Prettier configuration for code formatting.
+The interface connects to the Symbology API backend for all data access and maintains full traceability from high-level insights back to source documents.

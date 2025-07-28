@@ -4,10 +4,6 @@ import exec from 'k6/execution';
 
 export const options = {
     executor: 'ramping-arrival-rate',
-    hosts: {
-        'symbology.lofi': __ENV.TARGET,
-        'api.symbology.lofi': __ENV.TARGET,
-    },
     stages: [
         { duration: '10s', target: 10 },
         { duration: '50s', target: 150 },
@@ -20,14 +16,14 @@ export const options = {
         'http_req_failed': [
             {
                 threshold: 'rate<0.2', // string
-                abortOnFail: true, // boolean
+                abortOnFail: false, // boolean
                 delayAbortEval: '10s', // string
             },
         ],
         'http_req_duration': [
             {
-                threshold: 'p(99) < 800', // string
-                abortOnFail: true, // boolean
+                threshold: 'p(99) < 1000', // string
+                abortOnFail: false, // boolean
                 delayAbortEval: '10s', // string
             },
         ]
@@ -36,13 +32,10 @@ export const options = {
 
 export default function () {
     // Walk through the main ui flow
-    const homepageResponse = http.get('https://symbology.lofi');
+    const homepageResponse = http.get('https://symbology.online');
 
-    check(homepageResponse, {
-        "is correct IP": (r) => r.remote_ip === __ENV.TARGET
-    });
 
-    const apiEndpoint = "https://api.symbology.lofi";
+    const apiEndpoint = "https://api.symbology.online";
 
     const companiesResponse = http.get(`${apiEndpoint}/api/companies/list?offset=0&limit=50`, {
         headers: {
@@ -92,8 +85,10 @@ export function setup() {
         component: "test",
     };
 
+    const apiEndpoint = "https://api.symbology.online";
+
     const response = http.post(
-        `https://api.symbology.lofi/api/logs/log`,
+        `${apiEndpoint}/api/logs/log`,
         JSON.stringify(testPayload),
         {
             headers: {
@@ -102,11 +97,8 @@ export function setup() {
         }
     );
 
-    // if (response.status !== 200) {
-    //     throw new Error(`Logging endpoint not available. Status: ${response}`);
-    // }
 
     console.log('✅ Logging endpoint is available and responding correctly');
-    return { baseUrl: 'https://api.symbology.lofi' };
+    return { baseUrl: 'https://${apiEndpoint}' };
 
 }

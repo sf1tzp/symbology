@@ -51,13 +51,11 @@ test component *ARGS:
 
   fi
 
-benchmark component TARGET:
+# j benchmark production https://symbology.online
+# j benchmark staging 10.0.0.21 --insecure-skip-tls-verify
+benchmark environment TARGET *ARGS:
   #!/usr/bin/env bash
-  set -x
-  if [[ "{{component}}" == "smoke" ]]; then
-    k6 run --env TARGET={{TARGET}} infra/testing/smoke.ts
-
-  fi
+  k6 run --env TARGET={{TARGET}} {{ARGS}} infra/testing/smoke.{{environment}}.ts
 
 
 lint component *ARGS:

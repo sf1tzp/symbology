@@ -33,7 +33,7 @@ export async function loadConfig(): Promise<AppConfig> {
     // FIXME: Dynamic configuration needed
     const baseUrl = `https://api.symbology.lofi`;
 
-    logger.info('Loading configuration from API', { baseUrl });
+    logger.info('config_load_start', { baseUrl });
 
     const response = await fetch(`${baseUrl}/api/config/config`, {
       method: 'GET',
@@ -50,14 +50,13 @@ export async function loadConfig(): Promise<AppConfig> {
     const config: AppConfig = await response.json();
     configCache = config;
 
-    logger.info('Configuration loaded successfully', {
+    logger.info('config_load_success', {
       environment: config.environment,
-      enableBackendLogging: config.logging.enableBackendLogging,
     });
 
     return config;
   } catch (error) {
-    logger.warn('Failed to load config from API, using fallback', { error });
+    logger.warn('config_load_failed', { error });
 
     // FIXME: Dynamic configuration needed
     const baseUrl = `https://api.symbology.lofi`;

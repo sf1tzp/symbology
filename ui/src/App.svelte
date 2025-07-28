@@ -3,7 +3,7 @@
   import { config, setRuntimeConfig } from '$utils/config';
   import { loadConfig } from '$utils/config-service';
   import CompanySelector from '$components/company/CompanySelector.svelte';
-  import DocumentViewer from '$components/documents/DocumentViewer.svelte';
+  import DocumentDetail from '$components/documents/DocumentDetail.svelte';
   import PlaceholderCard from '$components/ui/PlaceholderCard.svelte';
   import Header from '$components/ui/Header.svelte';
   import CompanyDetail from '$components/company/CompanyDetail.svelte';
@@ -50,7 +50,10 @@
           configLoaded = true;
         })
         .catch((error) => {
-          console.error('Failed to load config:', error);
+          // Create logger with fallback config early for error reporting
+          const fallbackLogger = getComponentLogger('App');
+          fallbackLogger.error('config_load_failed', { error });
+
           initializationError = `Failed to load configuration: ${error.message}`;
 
           // Create logger with fallback config
@@ -178,7 +181,7 @@
             on:documentSelected={handleDocumentSelected}
           />
         {:else if appState.currentView() === 'document' && appState.selectedDocument}
-          <DocumentViewer
+          <DocumentDetail
             document={appState.selectedDocument}
             completion={appState.selectedCompletion ?? undefined}
           />

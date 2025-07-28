@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getLogger } from '$utils/logger';
   import { fetchApi } from '$utils/generated-api-types';
+  import { config } from '$utils/config';
   import type {
     AggregateResponse,
     CompanyResponse,
@@ -42,21 +43,23 @@
     loading = true;
     error = null;
     try {
-      logger.debug('[AggregateDetail] Fetching source completions for aggregate', {
-        aggregateId: aggregate.id,
-      });
+      logger.info('completions_fetch_start', { aggregateId: aggregate.id });
 
       const completions = await fetchApi<CompletionResponse[]>(
-        `/api/aggregates/${aggregate.id}/completions`
+        `${config.api.baseUrl}/aggregates/${aggregate.id}/completions`
       );
       sourceCompletions = completions;
-      logger.debug('[AggregateDetail] Fetched source completions', { count: completions.length });
+      logger.info('completions_fetch_success', { count: completions.length });
 
       // Fetch document names for all source documents
       await fetchDocumentNames(completions);
     } catch (err) {
-      logger.error('[AggregateDetail] Failed to fetch source completions', { error: err });
-      error = err instanceof Error ? err.message : 'Failed to load source completions';
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('completions_fetch_failed', {
+        error: errorMessage,
+        aggregateId: aggregate.id,
+      });
+      error = errorMessage;
       sourceCompletions = [];
     } finally {
       loading = false;
@@ -77,15 +80,13 @@
     if (allDocumentIds.size === 0) return;
 
     try {
-      logger.debug('[AggregateDetail] Fetching document names', {
-        documentCount: allDocumentIds.size,
-      });
+      logger.info('document_names_fetch_start', { documentCount: allDocumentIds.size });
 
       // Convert UUIDs to array for the POST endpoint
       const documentIds = Array.from(allDocumentIds);
 
       const documents = await fetchApi<Array<{ id: string; document_name: string }>>(
-        `/api/documents/by-ids`,
+        `${config.api.baseUrl}/documents/by-ids`,
         {
           method: 'POST',
           headers: {
@@ -100,15 +101,16 @@
         documentNamesCache.set(doc.id, doc.document_name);
       }
 
-      logger.debug('[AggregateDetail] Fetched document names', { count: documents.length });
+      logger.info('document_names_fetch_success', { count: documents.length });
     } catch (err) {
-      logger.error('[AggregateDetail] Failed to fetch document names', { error: err });
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('document_names_fetch_failed', { error: errorMessage });
       // Don't throw here - we can still show IDs as fallback
     }
   }
 
   function handleCompletionClick(completion: CompletionResponse) {
-    logger.debug('[AggregateDetail] Completion selected', { completionId: completion.id });
+    logger.info('completion_selected', { completionId: completion.id });
     dispatch('completionSelected', completion);
   }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getLogger } from '$utils/logger';
   import { fetchApi } from '$utils/generated-api-types';
+  import { config } from '$utils/config';
   import type {
     CompletionResponse,
     DocumentResponse,
@@ -51,22 +52,26 @@
     loading = true;
     error = null;
     try {
-      logger.debug('[CompletionDetail] Fetching source documents for completion', {
+      logger.info('source_documents_fetch_start', {
         completionId: completion.id,
-        documentIds: completion.source_documents,
+        documentCount: completion.source_documents?.length || 0,
       });
 
       // Fetch each document individually since we don't have a bulk endpoint
       const documentPromises = completion.source_documents!.map((docId: string) =>
-        fetchApi<DocumentResponse>(`/api/documents/${docId}`)
+        fetchApi<DocumentResponse>(`${config.api.baseUrl}/documents/${docId}`)
       );
 
       const documents = await Promise.all(documentPromises);
       sourceDocuments = documents;
-      logger.debug('[CompletionDetail] Fetched source documents', { count: documents.length });
+      logger.info('source_documents_fetch_success', { count: documents.length });
     } catch (err) {
-      logger.error('[CompletionDetail] Failed to fetch source documents', { error: err });
-      error = err instanceof Error ? err.message : 'Failed to load source documents';
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('source_documents_fetch_failed', {
+        error: errorMessage,
+        completionId: completion.id,
+      });
+      error = errorMessage;
       sourceDocuments = [];
     } finally {
       loading = false;
@@ -74,10 +79,7 @@
   }
 
   function handleDocumentClick(document: DocumentResponse) {
-    logger.debug('[CompletionDetail] Document selected', {
-      documentId: document.id,
-      documentName: document.document_name,
-    });
+    logger.info('document_selected', { documentId: document.id });
     dispatch('documentSelected', document);
   }
 

@@ -50,7 +50,8 @@ export default tseslint.config(
                 clearTimeout: 'readonly',
                 setInterval: 'readonly',
                 clearInterval: 'readonly',
-                KeyboardEvent: 'readonly'
+                KeyboardEvent: 'readonly',
+                navigator: 'readonly'
             }
         },
         plugins: {

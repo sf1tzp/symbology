@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { DocumentResponse, CompletionResponse } from '$utils/generated-api-types';
   import { getLogger } from '$utils/logger';
-  import config from '$utils/config';
+  import { config } from '$utils/config';
   import { formatDate } from '$utils/formatters';
   import LoadingState from '$components/ui/LoadingState.svelte';
   import ErrorState from '$components/ui/ErrorState.svelte';
@@ -10,7 +10,7 @@
   import BackButton from '$components/ui/BackButton.svelte';
   import { actions } from '$utils/state-manager.svelte';
 
-  const logger = getLogger('DocumentViewer');
+  const logger = getLogger('DocumentDetail');
 
   // Props - now accepts document object and completion for enhanced context
   const { document } = $props<{
@@ -26,14 +26,10 @@
 
   // Watch for changes in document and fetch content
   $effect(() => {
-    logger.debug('[DocumentViewer] Effect watching document triggered', {
-      documentId: document?.id,
-      documentName: document?.document_name,
-    });
+    logger.info('document_changed', { documentId: document?.id });
     if (document?.id) {
       fetchDocumentContent();
     } else {
-      logger.debug('[DocumentViewer] Clearing document content because document is undefined');
       error = null;
       documentContent = null;
     }
@@ -46,6 +42,8 @@
       loading = true;
       error = null;
 
+      logger.info('document_content_fetch_start', { documentId: document.id });
+
       // Fetch document content
       const contentResponse = await fetch(`${config.api.baseUrl}/documents/${document.id}/content`);
       if (!contentResponse.ok) {
@@ -53,15 +51,17 @@
       }
       documentContent = await contentResponse.text();
 
-      logger.debug('[DocumentViewer] Document content loaded', {
+      logger.info('document_content_fetch_success', {
         documentId: document.id,
-        documentName: document.document_name,
         contentLength: documentContent?.length,
-        hasFilingUrl: !!document.filing?.filing_url,
       });
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-      logger.error('Error fetching document content:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      error = errorMessage;
+      logger.error('document_content_fetch_failed', {
+        error: errorMessage,
+        documentId: document?.id,
+      });
     } finally {
       loading = false;
     }
@@ -102,7 +102,7 @@
   <div class="card content-container">
     <div class="placeholder-container">
       <div class="placeholder-content">
-        <h3>Document Viewer</h3>
+        <h3>Document Detail</h3>
         <p class="meta-item">Select a document to view its content</p>
       </div>
     </div>

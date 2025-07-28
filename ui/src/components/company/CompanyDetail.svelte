@@ -51,41 +51,29 @@
     loading = true;
     error = null;
     try {
-      logger.debug('[CompanyDetail] Fetching aggregates for company', { companyId: company.id });
+      logger.info('aggregates_fetch_start', { companyId: company.id });
 
       // Use the first ticker to fetch aggregates since the API is ticker-based
       if (!company.tickers?.length) {
-        logger.warn('[CompanyDetail] No tickers available for company', {
-          companyId: company.id,
-        });
+        logger.warn('aggregates_fetch_no_tickers', { companyId: company.id });
         availableAggregates = [];
         return;
       }
 
       const ticker = company.tickers[0];
       const apiUrl = `${config.api.baseUrl}/aggregates/by-ticker/${ticker}`;
-      logger.debug('[CompanyDetail] Making API request', {
-        apiUrl,
-        ticker,
-        companyId: company.id,
-        windowLocation: window.location.href,
-      });
 
       const aggregates = await fetchApi<AggregateResponse[]>(apiUrl);
       availableAggregates = aggregates;
-      logger.debug('[CompanyDetail] Fetched aggregates', { count: aggregates.length, ticker });
+      logger.info('aggregates_fetch_success', { count: aggregates.length, ticker });
     } catch (err) {
-      logger.error('[CompanyDetail] Failed to fetch aggregates', {
-        error: err,
-        errorMessage: err instanceof Error ? err.message : String(err),
-        errorStack: err instanceof Error ? err.stack : undefined,
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('aggregates_fetch_failed', {
+        error: errorMessage,
         companyId: company.id,
         ticker: company.tickers?.[0],
-        companyName: company.name,
-        apiUrl: `${config.api.baseUrl}/aggregates/by-ticker/${company.tickers?.[0]}`,
-        windowLocation: window.location.href,
       });
-      error = err instanceof Error ? err.message : 'Failed to load aggregates';
+      error = errorMessage;
       availableAggregates = [];
     } finally {
       loading = false;
@@ -96,7 +84,7 @@
     filingsLoading = true;
     filingsError = null;
     try {
-      logger.debug('[CompanyDetail] Fetching filings for company', { companyId: company.id });
+      logger.info('filings_fetch_start', { companyId: company.id });
 
       const filings = await fetchApi<FilingResponse[]>(
         `${config.api.baseUrl}/filings/by-company/${company.id}`
@@ -104,18 +92,14 @@
       availableFilings = filings.sort(
         (a, b) => new Date(b.filing_date).getTime() - new Date(a.filing_date).getTime()
       );
-      logger.debug('[CompanyDetail] Fetched filings', { count: filings.length });
+      logger.info('filings_fetch_success', { count: filings.length });
     } catch (err) {
-      logger.error('[CompanyDetail] Failed to fetch filings', {
-        error: err,
-        errorMessage: err instanceof Error ? err.message : String(err),
-        errorStack: err instanceof Error ? err.stack : undefined,
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('filings_fetch_failed', {
+        error: errorMessage,
         companyId: company.id,
-        companyName: company.name,
-        apiUrl: `${config.api.baseUrl}/filings/by-company/${company.id}`,
-        windowLocation: window.location.href,
       });
-      filingsError = err instanceof Error ? err.message : 'Failed to load filings';
+      filingsError = errorMessage;
       availableFilings = [];
     } finally {
       filingsLoading = false;
@@ -123,18 +107,12 @@
   }
 
   function handleAggregateClick(aggregate: AggregateResponse) {
-    logger.debug('[CompanyDetail] Aggregate selected', {
-      aggregateId: aggregate.id,
-      documentType: aggregate.document_type,
-    });
+    logger.info('aggregate_selected', { aggregateId: aggregate.id });
     dispatch('aggregateSelected', aggregate);
   }
 
   function handleFilingClick(filing: FilingResponse) {
-    logger.debug('[CompanyDetail] Filing selected', {
-      filingId: filing.id,
-      accessionNumber: filing.accession_number,
-    });
+    logger.info('filing_selected', { filingId: filing.id });
     dispatch('filingSelected', filing);
   }
 

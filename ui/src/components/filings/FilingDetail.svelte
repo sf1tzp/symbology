@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getLogger } from '$utils/logger';
   import { fetchApi } from '$utils/generated-api-types';
+  import { config } from '$utils/config';
   import type {
     FilingResponse,
     DocumentResponse,
@@ -39,19 +40,20 @@
     loading = true;
     error = null;
     try {
-      logger.debug('[FilingDetail] Fetching documents for filing', {
-        filingId: filing.id,
-        accessionNumber: filing.accession_number,
-      });
+      logger.info('documents_fetch_start', { filingId: filing.id });
 
       const filingDocuments = await fetchApi<DocumentResponse[]>(
-        `/api/documents/by-filing/${filing.id}`
+        `${config.api.baseUrl}/documents/by-filing/${filing.id}`
       );
       documents = filingDocuments;
-      logger.debug('[FilingDetail] Fetched documents', { count: filingDocuments.length });
+      logger.info('documents_fetch_success', { count: filingDocuments.length });
     } catch (err) {
-      logger.error('[FilingDetail] Failed to fetch documents', { error: err });
-      error = err instanceof Error ? err.message : 'Failed to load documents';
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('documents_fetch_failed', {
+        error: errorMessage,
+        filingId: filing.id,
+      });
+      error = errorMessage;
       documents = [];
     } finally {
       loading = false;
@@ -59,10 +61,7 @@
   }
 
   function handleDocumentClick(document: DocumentResponse) {
-    logger.debug('[FilingDetail] Document selected', {
-      documentId: document.id,
-      documentName: document.document_name,
-    });
+    logger.info('document_selected', { documentId: document.id });
     dispatch('documentSelected', document);
   }
 

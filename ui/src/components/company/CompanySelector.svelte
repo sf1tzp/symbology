@@ -60,7 +60,7 @@
       return;
     }
 
-    logger.info('Starting company search', { ticker: ticker.trim().toUpperCase() });
+    logger.info('company_search_start', { ticker: ticker.trim().toUpperCase() });
     actions.setLoading('company', true);
     actions.setError('company', null);
 
@@ -72,15 +72,14 @@
       actions.selectCompany(company);
       dispatch('companySelected', company);
 
-      logger.info('Company search successful', {
+      logger.info('company_search_success', {
         ticker: ticker.toUpperCase(),
         companyId: company.id,
-        companyName: company.name,
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       actions.setError('company', errorMessage);
-      logger.error('Company search failed', {
+      logger.error('company_search_failed', {
         ticker: ticker.toUpperCase(),
         error: errorMessage,
       });
@@ -178,7 +177,7 @@
         if (options.isExactSearch) {
           actions.setError('company', errorMessage);
         }
-        logger.error('Error searching companies:', { error: errorMessage });
+        logger.error('company_autocomplete_failed', { error: errorMessage });
         searchResults = [];
         showDropdown = false;
       } finally {
@@ -248,17 +247,15 @@
   async function fetchCompanyList() {
     if (listLoading || !hasMoreCompanies) return;
 
-    logger.info('company_list_load', {
+    logger.info('company_list_start', {
       offset: currentOffset,
       limit: COMPANIES_PER_PAGE,
-      hasMore: hasMoreCompanies,
     });
     listLoading = true;
     listError = null;
 
     try {
       const apiUrl = `${config.api.baseUrl}/companies/list?offset=${currentOffset}&limit=${COMPANIES_PER_PAGE}`;
-      logger.debug(`Fetching company list: ${apiUrl}`);
 
       const companies = await fetchApi<CompanyResponse[]>(apiUrl);
 
@@ -275,15 +272,12 @@
       logger.info('company_list_loaded', {
         companiesReceived: companies.length,
         totalCompanies: allCompanies.length,
-        hasMoreCompanies,
       });
-      logger.debug(`Fetched ${companies.length} companies`, { companies });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('company_list_failed', {
         error: errorMessage,
         offset: currentOffset,
-        limit: COMPANIES_PER_PAGE,
       });
       listError = errorMessage;
     } finally {

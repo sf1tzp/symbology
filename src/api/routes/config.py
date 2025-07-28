@@ -25,6 +25,10 @@ async def get_frontend_config(request: Request):
     api_host = os.getenv("SYMBOLOGY_API_PUBLIC_HOST") or request.url.hostname or client_host
     api_port = settings.symbology_api.port #noqa: F841
 
+    scheme = 'https' if os.getenv("ENVIRONMENT", "production") != "development" else 'http'
+    port_number = '' if os.getenv("ENVIRONMENT", "production") != "development" else f':{os.getenv("SYMBOLOGY_API_PORT", "8000")}'
+    base_url = f'{scheme}://{api_host}{port_number}/api'
+
     config = {
         "environment": os.getenv("ENVIRONMENT", "production"),
         "logging": {
@@ -33,7 +37,7 @@ async def get_frontend_config(request: Request):
             "enableBackendLogging": os.getenv("ENVIRONMENT", "production") in ["development", "staging"]
         },
         "api": {
-            "baseUrl": f"https://{api_host}/api",
+            "baseUrl": base_url,
             "timeout": 30000
         },
         "features": {

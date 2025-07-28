@@ -55,7 +55,7 @@ export const appState = $state({
 export const actions = {
   // Company actions
   selectCompany: (company: CompanyResponse) => {
-    logger.debug('[StateManager] Selecting company', { company });
+    logger.info('company_selected', { companyId: company.id });
     appState.selectedCompany = company;
     // Clear downstream selections
     appState.selectedAggregate = null;
@@ -68,7 +68,7 @@ export const actions = {
 
   // Filing actions
   selectFiling: (filing: FilingResponse) => {
-    logger.debug('[StateManager] Selecting filing', { filing });
+    logger.info('filing_selected', { filingId: filing.id });
     appState.selectedFiling = filing;
     // Clear downstream selections and conflicting selections
     appState.selectedDocument = null;
@@ -80,7 +80,7 @@ export const actions = {
 
   // Aggregate actions
   selectAggregate: (aggregate: AggregateResponse) => {
-    logger.debug('[StateManager] Selecting aggregate', { aggregate });
+    logger.info('aggregate_selected', { aggregateId: aggregate.id });
     appState.selectedAggregate = aggregate;
     // Clear downstream selections
     appState.selectedCompletion = null;
@@ -92,7 +92,7 @@ export const actions = {
 
   // Completion actions
   selectCompletion: (completion: CompletionResponse) => {
-    logger.debug('[StateManager] Selecting completion', { completion });
+    logger.info('completion_selected', { completionId: completion.id });
     appState.selectedCompletion = completion;
     // Clear downstream selections
     appState.selectedDocument = null;
@@ -103,10 +103,7 @@ export const actions = {
 
   // Document actions
   selectDocument: (document: DocumentResponse) => {
-    logger.debug('[StateManager] Selecting document', {
-      documentId: document.id,
-      documentName: document.document_name,
-    });
+    logger.info('document_selected', { documentId: document.id });
     appState.selectedDocument = document;
     // Clear errors
     appState.errors.document = null;
@@ -124,7 +121,7 @@ export const actions = {
 
   // Clear all selections
   clearAll: () => {
-    logger.debug('[StateManager] Clearing all selections');
+    logger.info('state_cleared');
     appState.selectedCompany = null;
     appState.selectedAggregate = null;
     appState.selectedCompletion = null;
@@ -151,7 +148,7 @@ export const actions = {
 
   // Disclaimer actions
   acceptDisclaimer: () => {
-    logger.debug('[StateManager] Disclaimer accepted');
+    logger.info('disclaimer_accepted');
     appState.disclaimerAccepted = true;
     saveDisclaimerAcceptance();
   },
@@ -163,9 +160,7 @@ export const actions = {
 
   // Navigation actions
   navigateBack: () => {
-    logger.debug('[StateManager] Navigating back from current view', {
-      currentView: appState.currentView(),
-    });
+    logger.info('navigation_back', { currentView: appState.currentView() });
 
     // Navigate back based on current hierarchy
     if (appState.selectedDocument) {
@@ -190,7 +185,7 @@ export const actions = {
 
   // Navigate back from company level (clears company selection)
   navigateBackFromCompany: () => {
-    logger.debug('[StateManager] Navigating back from company view - clearing all selections');
+    logger.info('navigation_back_from_company');
     // This is equivalent to clearAll, but more semantic for navigation
     actions.clearAll();
   },

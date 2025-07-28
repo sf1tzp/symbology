@@ -10,11 +10,11 @@ log.setLevel(defaultLevel);
 interface LoggerConfig {
   sendToBackend?: boolean;
   backendLevels?: string[];
-  extraData?: Record<string, any>;
+  extraData?: Record<string, unknown>;
 }
 
 // Function to send logs to backend
-async function sendLogToBackend(logEntry: any) {
+async function sendLogToBackend(logEntry: Record<string, unknown>) {
   try {
     await fetch(`${config.api.baseUrl}/logs/log`, {
       method: 'POST',
@@ -32,7 +32,7 @@ async function sendLogToBackend(logEntry: any) {
         // ...logEntry[1],
       }),
     });
-  } catch (err) {
+  } catch {
     log.debug('Could not make the request');
     // Don't log this error to avoid infinite loops
   }
@@ -57,7 +57,10 @@ window.addEventListener('unhandledrejection', (event) => {
   });
 });
 
-export function getLogger(context: string, config: LoggerConfig = {}) {
+export function getLogger(context: string, _loggerConfig: LoggerConfig = {}) {
+  // TODO: remove
+  // LoggerConfig parameter is currently unused but reserved for future functionality
+  void _loggerConfig;
   return {
     trace: (...args: unknown[]) => log.trace(`[${context}]`, ...args),
     debug: (...args: unknown[]) => log.debug(`[${context}]`, ...args),
@@ -75,7 +78,8 @@ export function getComponentLogger(component: string) {
 
   const shouldSendLogs = true || isDev || isStaging;
 
-  console.log(`setup_component_logger`, {
+  // Using debug level instead of console.log for consistency
+  log.debug(`setup_component_logger`, {
     component,
     environment,
     isDev,

@@ -186,7 +186,6 @@
                 >
                   <div class="source-header">
                     <h3>{document.document_name}</h3>
-                    <span class="meta-item">Document</span>
                   </div>
                 </div>
               {/each}

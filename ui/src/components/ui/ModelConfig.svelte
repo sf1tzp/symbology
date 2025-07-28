@@ -175,7 +175,7 @@
 
   .config-item span:not(.label),
   .warning-item span:not(.label) {
-    color: var(--color-text-light);
+    color: var(--color-text);
   }
 
   .response-warnings {
@@ -219,7 +219,7 @@
 
   .prompt-content :global(.prompt-markdown) {
     padding: var(--space-sm);
-    border: 1px solid var(--color-border-light, #e2e8f0);
+    border: 1px solid var(--color-border, #e2e8f0);
     border-radius: var(--border-radius);
     max-height: 300px;
     overflow-y: auto;

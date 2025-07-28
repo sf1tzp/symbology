@@ -51,13 +51,14 @@
   }
 
   .meta-item span:not(.label) {
-    color: var(--color-text-light);
+    color: var(--color-text);
     font-size: 0.9rem;
     text-align: right;
     word-break: break-word;
   }
 
   .mono {
+    color: var(--color-text);
     font-family: monospace;
     font-size: 0.8rem;
   }

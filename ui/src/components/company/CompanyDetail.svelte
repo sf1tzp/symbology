@@ -130,9 +130,9 @@
         {#if company.tickers?.length}
           <span class="badge">{company.tickers[0]}</span>
         {/if}
-        {#if company.exchanges?.length}
+        <!-- {#if company.exchanges?.length}
           <span class="meta-item">{company.exchanges[0]}</span>
-        {/if}
+        {/if} -->
       </div>
     </div>
   </header>
@@ -146,7 +146,7 @@
   </section>
 
   <section class="section-container">
-    <h2 class="section-title-small">This summary was generated from the following reports:</h2>
+    <h2 class="section-title-small">Click to expand:</h2>
     {#if loading}
       <LoadingState message="Loading analysis..." />
     {:else if error}
@@ -189,7 +189,7 @@
       {:else if filingsError}
         <ErrorState message="Error loading filings: {filingsError}" onRetry={fetchFilings} />
       {:else if availableFilings.length > 0}
-        <p>We have processed information from these filings:</p>
+        <p>We've gathered information from these filings:</p>
         <div class="list-container">
           {#each availableFilings as filing (filing.id)}
             <button
@@ -217,10 +217,10 @@
     </div>
   </section>
 
-  <section class="section-container">
-    <h2 class="section-title">Financials</h2>
-    <p class="meta-item">Quantitative analysis coming soon</p>
-  </section>
+  <!-- <section class="section-container"> -->
+  <!--   <h2 class="section-title">Financials</h2> -->
+  <!--   <MarkdownContent content={'Financials Coming Soon!'} /> -->
+  <!-- </section> -->
 </div>
 
 <style>

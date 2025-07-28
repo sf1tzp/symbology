@@ -251,7 +251,8 @@
 
   .document-name {
     display: block;
-    color: var(--color-text-light);
+    color: var(--color-text);
+    opacity: 0.8;
     font-size: 0.9rem;
     margin-top: var(--space-xs);
   }
@@ -277,12 +278,14 @@
 
   .action-hint {
     font-size: 0.8rem;
-    color: var(--color-text-light);
+    color: var(--color-text);
+    opacity: 0.8;
     font-style: italic;
   }
 
   .no-documents {
-    color: var(--color-text-light);
+    color: var(--color-text);
+    opacity: 0.7;
     font-style: italic;
     margin: 0;
     padding: var(--space-md);

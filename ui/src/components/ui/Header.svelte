@@ -1,6 +1,7 @@
 <!-- Header.svelte -->
 <script lang="ts">
   import appState, { actions } from '$utils/state-manager.svelte';
+  import MarkdownContent from './MarkdownContent.svelte';
 </script>
 
 <header class="header card">
@@ -15,7 +16,7 @@
     </button>
   </div>
 
-  <button class="theme-toggle" onclick={actions.toggleTheme} aria-label="Toggle theme">
+  <!-- <button class="theme-toggle" onclick={actions.toggleTheme} aria-label="Toggle theme">
     {#if appState.isDarkMode}
       <span class="theme-icon">☀️</span>
       <span class="theme-label">Light Mode</span>
@@ -23,7 +24,13 @@
       <span class="theme-icon">🌙</span>
       <span class="theme-label">Dark Mode</span>
     {/if}
-  </button>
+  </button> -->
+
+  <!-- <button class="theme-toggle">
+    <MarkdownContent
+      content="#### [🚧 Status Page](https://snapshots.raintank.io/dashboard/snapshot/BMPyLd8cvFdQMmpx1mJA0CjjMiVwdEMC?orgId=0&refresh=10s)"
+    />
+  </button> -->
 </header>
 
 <style>

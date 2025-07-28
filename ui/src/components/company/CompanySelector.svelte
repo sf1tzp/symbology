@@ -457,9 +457,9 @@
 
   .search-input:disabled {
     background-color: var(--color-background);
-    color: var(--color-text-light);
+    color: var(--color-text);
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: 0.7;
   }
 
   /* Search dropdown - positioned absolutely over other content */
@@ -494,6 +494,12 @@
     color: var(--color-primary);
   }
 
+  /* Improve contrast for meta text in this component */
+  .meta {
+    color: var(--color-text);
+    opacity: 0.8;
+  }
+
   /* Company list layout */
   .company-list-scrollable {
     flex: 1;
@@ -524,6 +530,6 @@
   }
 
   .is-collapsed {
-    opacity: 0.8;
+    opacity: 0.9;
   }
 </style>

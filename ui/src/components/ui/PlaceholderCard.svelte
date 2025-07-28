@@ -8,6 +8,7 @@
   const logger = getLogger('PlaceholderCard');
 
   let projectDescription = $state('');
+  let disclaimerText = $state('');
 
   // Read project description from markdown file
   onMount(async () => {
@@ -23,6 +24,18 @@
       logger.error('Error loading project description:', error);
       projectDescription = 'Error loading project description.';
     }
+    try {
+      const response = await fetch('/disclaimer.md');
+      if (response.ok) {
+        disclaimerText = await response.text();
+      } else {
+        logger.error('Failed to load project description');
+        disclaimerText = 'Failed to load project description.';
+      }
+    } catch (error) {
+      logger.error('Error loading project description:', error);
+      disclaimerText = 'Error loading project description.';
+    }
   });
 
   // Landing page component with Symbology branding and information
@@ -32,13 +45,11 @@
 </script>
 
 <div class="landing-page card">
-  <div class="header-section">
-    <div class="logo-container">
-      <img src="https://i.imgur.com/UeEDuUi.png" alt="Symbology Logo" class="logo" />
-    </div>
-    <h1>Symbology</h1>
-    <p class="tagline">Open Source Insights from SEC Filings</p>
-  </div>
+  <!-- <div class="header-section"> -->
+  <!--   <div class="logo-container"> -->
+  <!--     <img src="https://i.imgur.com/UeEDuUi.png" alt="Symbology Logo" class="logo" /> -->
+  <!--   </div> -->
+  <!-- </div> -->
 
   <div class="content-sections">
     <section class="about-section">
@@ -47,42 +58,27 @@
       {/if}
       {#if !appState.disclaimerAccepted}
         <div class="disclaimer-notice">
-          <strong>Important:</strong> The summaries presented by Symbology were generated with the
-          help of LLMs and are provided with no warranty or guarantee of accuracy.
-          <br /><br />
-          <strong>Please be aware that:</strong>
-          <ul>
-            <li>AI-generated content may contain errors, inaccuracies, or misinterpretations</li>
-            <li>This information is provided for research and educational purposes only</li>
-            <li>
-              You should verify all information independently before making any financial decisions
-            </li>
-            <li>
-              Symbology provides no warranty or guarantee of accuracy for any AI-generated content
-            </li>
-          </ul>
-          <p>
-            By continuing to use this site, you acknowledge that you understand these limitations
-            and agree to use the information at your own discretion.
-          </p>
+          <MarkdownContent content={disclaimerText} />
+          <br />
+          <br />
           <button class="accept-button" onclick={handleAcceptDisclaimer}>
-            I Understand and Accept
+            I understand the limitations of LLM technology
           </button>
         </div>
       {:else}
         <div class="disclaimer-accepted">
-          <strong>✓ Thanks.</strong> You have acknowledged the limitations of AI-generated content.
+          <strong>✓ Thanks.</strong> You have acknowledged the limitations of our LLM-generated content.
         </div>
       {/if}
     </section>
 
+    <!-- TODO: Let's create an ArticleViewer component to render markdown written in `public/articles`
     <section class="articles-section">
-      <!-- TODO: Let's create an ArticleViewer component to render markdown written in `public/articles`
       Here we will link to the articles
       - how it works
       - vibe coding
-      - labbing and infrastructure -->
     </section>
+    -->
 
     <section class="acknowledgments-section links-section">
       <h3>Acknowledgments</h3>
@@ -94,12 +90,12 @@
               U.S. Securities and Exchange Commision Database
             </a>
           </li>
-          <li>
+          <!-- <li>
             <a href="https://finance.yahoo.com/markets/stocks/most-active/" target="_blank">
               <strong>Yahoo! Finance:</strong>
               Most Active Stocks
             </a>
-          </li>
+          </li> -->
           <li>
             <a href="https://github.com/dgunning/edgartools" target="_blank">
               <strong>Edgar Tools:</strong>

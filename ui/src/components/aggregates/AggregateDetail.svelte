@@ -124,9 +124,8 @@
     <div class="header-top">
       <BackButton on:back={actions.navigateBack} />
       <h1>
-        Analysis of
         {formatTitleCase(company.display_name)}
-        '{formatTitleCase(formatDocumentType(aggregate.document_type))}' over time
+        '{formatTitleCase(formatDocumentType(aggregate.document_type))}'
       </h1>
     </div>
   </header>

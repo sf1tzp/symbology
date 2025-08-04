@@ -2,6 +2,7 @@
   import { getComponentLogger } from '$utils/logger';
   import { config, setRuntimeConfig } from '$utils/config';
   import { loadConfig } from '$utils/config-service';
+  import { Spinner } from 'kampsy-ui';
   import CompanySelector from '$components/company/CompanySelector.svelte';
   import DocumentDetail from '$components/documents/DocumentDetail.svelte';
   import PlaceholderCard from '$components/ui/PlaceholderCard.svelte';
@@ -129,11 +130,11 @@
 <main>
   {#if !configLoaded}
     <!-- Loading state while config is being fetched -->
-    <div class="loading-container">
-      <div class="loading-spinner"></div>
+    <div class="flex flex-col items-center justify-center h-screen gap-4 p-6 text-center">
+      <Spinner size="large" />
       <p>Loading application configuration...</p>
       {#if initializationError}
-        <div class="error-message">
+        <div class="bg-red-50 border border-red-300 text-red-600 p-4 rounded-md max-w-md">
           <p>⚠️ {initializationError}</p>
           <p>Continuing with fallback configuration...</p>
         </div>
@@ -141,11 +142,13 @@
     </div>
   {:else}
     <!-- Main application - only render after config is loaded -->
-    <div class="dashboard">
+    <div class="flex flex-col md:flex-row gap-1 md:gap-4 h-full md:h-screen min-h-0 box-border">
       <!-- Sidebar column -->
-      <div class="selectors full-height">
+      <div
+        class="flex flex-col gap-2 z-[100] h-full min-h-0 flex-none md:flex-1 box-border md:w-[30%] md:max-w-[350px] max-h-[35vh] md:max-h-none md:h-screen"
+      >
         <Header />
-        <div class="company-selector-wrapper">
+        <div class="flex-1 min-h-0 flex flex-col box-border">
           <CompanySelector
             on:companySelected={handleCompanySelected}
             on:companyCleared={handleCompanyCleared}
@@ -154,7 +157,9 @@
       </div>
 
       <!-- Content area with conditional layout based on currentView derived state -->
-      <div class="content-area">
+      <div
+        class="h-full min-h-[65vh] md:min-h-0 overflow-y-auto flex-1 box-border md:w-[70%] md:flex-grow px-1 md:px-0"
+      >
         {#if appState.currentView() === 'company' && appState.selectedCompany}
           <CompanyDetail
             company={appState.selectedCompany}
@@ -194,26 +199,6 @@
 </main>
 
 <style>
-  .dashboard {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-    height: 100%;
-    min-height: 0;
-    box-sizing: border-box;
-  }
-
-  .loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    gap: var(--space-md);
-    padding: var(--space-lg);
-    text-align: center;
-  }
-
   .loading-spinner {
     width: 40px;
     height: 40px;
@@ -221,15 +206,6 @@
     border-top: 4px solid var(--color-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
-  }
-
-  .error-message {
-    background: var(--color-error-bg, #fee);
-    border: 1px solid var(--color-error, #f44);
-    color: var(--color-error, #f44);
-    padding: var(--space-md);
-    border-radius: var(--radius-md);
-    max-width: 400px;
   }
 
   @keyframes spin {
@@ -246,47 +222,5 @@
     flex-direction: column;
     gap: var(--space-sm);
     z-index: 100;
-    height: 100%;
-    min-height: 0;
-    flex: 1 1 0;
-    box-sizing: border-box;
-  }
-
-  .company-selector-wrapper {
-    flex: 1 1 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-  }
-
-  .content-area {
-    height: 100%;
-    min-height: 0;
-    overflow-y: auto;
-    flex: 1 1 0;
-    box-sizing: border-box;
-  }
-
-  @media (min-width: 768px) {
-    .dashboard {
-      flex-direction: row;
-    }
-
-    .dashboard .selectors {
-      width: 30%;
-      max-width: 350px;
-      height: 100vh;
-      min-height: 0;
-      flex: 1 1 0;
-      box-sizing: border-box;
-    }
-
-    .dashboard .content-area {
-      width: 70%;
-      flex-grow: 1;
-      min-height: 0;
-      box-sizing: border-box;
-    }
   }
 </style>

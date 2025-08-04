@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from 'kampsy-ui';
+
   const {
     message,
     onRetry,
@@ -10,25 +12,9 @@
   }>();
 </script>
 
-<div class="error-message">
-  <p>{message}</p>
+<div class="text-gruvbox-red text-center p-6">
+  <p class="m-0 mb-2">{message}</p>
   {#if showRetry && onRetry}
-    <button onclick={onRetry} class="btn btn-action">Retry</button>
+    <Button onclick={onRetry} size="small" class="mt-2" aria-label="Retry operation">Retry</Button>
   {/if}
 </div>
-
-<style>
-  .error-message {
-    color: var(--color-error);
-    text-align: center;
-    padding: var(--space-lg);
-  }
-
-  .error-message p {
-    margin: 0 0 var(--space-sm) 0;
-  }
-
-  .error-message .btn {
-    margin-top: var(--space-sm);
-  }
-</style>

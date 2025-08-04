@@ -5,6 +5,7 @@
   import config from '$utils/config';
   import { createEventDispatcher } from 'svelte';
   import { onDestroy } from 'svelte';
+  import { Spinner } from 'kampsy-ui';
 
   const dispatch = createEventDispatcher<{
     aggregateSelected: AggregateResponse;
@@ -144,9 +145,9 @@
   {#if !company}
     <p class="no-content">Please select a company to view its aggregates</p>
   {:else if loading}
-    <div class="loading-container">
-      <div class="loading-spinner normal"></div>
-      <p class="loading-message">Loading aggregates...</p>
+    <div class="flex flex-col items-center p-8 gap-4">
+      <Spinner size="medium" />
+      <p class="text-[var(--color-text)] opacity-80 text-sm">Loading aggregates...</p>
     </div>
   {:else if error}
     <p class="error-message">Error: {error}</p>

@@ -15,6 +15,7 @@
   import MarkdownContent from '$components/ui/MarkdownContent.svelte';
   import BackButton from '$components/ui/BackButton.svelte';
   import { actions } from '$utils/state-manager.svelte';
+  import { Button } from 'kampsy-ui';
 
   const logger = getLogger('AggregateDetail');
   const dispatch = createEventDispatcher<{
@@ -161,12 +162,12 @@
           {:else if sourceCompletions.length > 0}
             <div class="list-container">
               {#each sourceCompletions as completion (completion.id)}
-                <div
-                  class="btn btn-item"
-                  role="button"
-                  tabindex="0"
+                <Button
+                  variant="secondary"
+                  size="medium"
                   onclick={() => handleCompletionClick(completion)}
                   onkeydown={(e) => e.key === 'Enter' && handleCompletionClick(completion)}
+                  class="w-full text-left"
                 >
                   {#if completion.source_documents?.length}
                     <ul>
@@ -175,7 +176,7 @@
                       {/each}
                     </ul>
                   {/if}
-                </div>
+                </Button>
               {/each}
             </div>
           {:else}

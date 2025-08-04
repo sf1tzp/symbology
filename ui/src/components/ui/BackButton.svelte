@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { Button } from 'kampsy-ui';
 
   const dispatch = createEventDispatcher<{
     back: void;
@@ -15,63 +16,14 @@
   }
 </script>
 
-<button
+<Button
   type="button"
-  class="btn btn-link {variant === 'minimal' ? 'minimal-back' : 'default-back'}"
+  variant={variant === 'minimal' ? 'tertiary' : 'secondary'}
   onclick={handleClick}
   aria-label={label}
+  size="small"
+  class="hover:-translate-x-0.5 transition-transform"
 >
-  <span class="back-icon">←</span>
-  <span class="back-label">{label}</span>
-</button>
-
-<style>
-  .default-back {
-    background-color: var(--color-surface);
-    border: 1px solid var(--color-border);
-    padding: var(--space-sm) var(--space-md);
-  }
-
-  .default-back:hover {
-    border-color: var(--color-primary);
-    background-color: var(--color-background);
-    transform: translateX(-2px);
-  }
-
-  .minimal-back {
-    background: none;
-    border: none;
-    padding: var(--space-xs) var(--space-sm);
-    color: var(--color-primary);
-  }
-
-  .minimal-back:hover {
-    background-color: var(--color-surface);
-    transform: translateX(-2px);
-  }
-
-  .back-icon {
-    font-size: 1.1rem;
-    font-weight: bold;
-  }
-
-  .back-label {
-    font-weight: var(--font-weight-medium);
-  }
-
-  /* Responsive adjustments */
-  @media (max-width: 600px) {
-    .btn {
-      padding: var(--space-xs) var(--space-sm);
-      font-size: 0.85rem;
-    }
-
-    .back-label {
-      display: none;
-    }
-
-    .back-icon {
-      font-size: 1.2rem;
-    }
-  }
-</style>
+  <span class="mr-1 text-lg font-bold">←</span>
+  <span class="hidden sm:inline font-medium">{label}</span>
+</Button>

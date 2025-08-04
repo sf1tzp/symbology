@@ -1,3 +1,9 @@
+@import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   /* Typography */
   --font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -120,6 +126,13 @@ body {
   max-width: var(--container-max-width);
   margin: 0 auto;
   padding: var(--space-xl);
+}
+
+/* Mobile-specific padding reduction */
+@media (max-width: 768px) {
+  #app {
+    padding: var(--space-sm);
+  }
 }
 
 /* Common utility classes */
@@ -418,6 +431,57 @@ body {
   color: var(--color-text);
   opacity: 0.8;
   margin: 0;
+}
+
+/* Mobile-specific utilities */
+@media (max-width: 768px) {
+  .mobile-compact {
+    padding: var(--space-xs) !important;
+  }
+
+  .mobile-small-text {
+    font-size: 0.9rem;
+  }
+
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  .card {
+    padding: var(--space-xs);
+    /* Much smaller card padding on mobile */
+    margin-bottom: var(--space-xs);
+    /* Reduce space between cards */
+  }
+
+  .section-container {
+    padding: var(--space-xs);
+    /* Reduce section padding */
+  }
+
+  .content-container {
+    padding: var(--space-xs);
+    /* Reduce content padding */
+  }
+
+  /* Make buttons more compact on mobile */
+  .btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.9rem;
+  }
+
+  /* Reduce spacing in flex containers */
+  .gap-sm {
+    gap: var(--space-xs);
+  }
+
+  .gap-md {
+    gap: var(--space-xs);
+  }
+
+  .gap-lg {
+    gap: var(--space-sm);
+  }
 }
 
 /* Responsive utilities */

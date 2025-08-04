@@ -6,6 +6,9 @@
   import { onDestroy, createEventDispatcher } from 'svelte';
   import appState, { actions } from '$utils/state-manager.svelte';
   import { formatTitleCase } from '$src/utils/formatters';
+  import { Button } from 'kampsy-ui';
+  import { SearchInput } from 'kampsy-ui';
+  import { Spinner } from 'kampsy-ui';
 
   const logger = getComponentLogger('CompanySelector');
 
@@ -15,7 +18,7 @@
   }>();
 
   // Local component state - much simplified
-  let ticker = $state('');
+  let ticker = $state('aapl');
   let searchResults = $state<CompanyResponse[]>([]);
   let showDropdown = $state(false);
   let allCompanies = $state<CompanyResponse[]>([]);
@@ -158,7 +161,7 @@
       }
 
       try {
-        const apiUrl = `${config.api.baseUrl}/companies/search?q=${encodeURIComponent(ticker)}`;
+        const apiUrl = `${config.api.baseUrl}/companies/search?query=${encodeURIComponent(ticker)}`;
         const results = await fetchApi<CompanyResponse[]>(apiUrl);
 
         if (options.isExactSearch && results.length === 1) {
@@ -313,29 +316,23 @@
   {/if}
 
   <div class="search-container">
-    <input
-      type="text"
+    <SearchInput
       bind:value={ticker}
       placeholder={disclaimerAccepted ? 'Enter a ticker symbol' : 'Please accept disclaimer first'}
       oninput={handleInput}
       onblur={handleInputBlur}
       onkeydown={handleInputKeydown}
       disabled={!disclaimerAccepted}
-      class="search-input"
     />
-    <button
-      onclick={searchCompany}
-      disabled={loading || !disclaimerAccepted}
-      class="btn btn-action"
-    >
+    <Button onclick={searchCompany} disabled={loading || !disclaimerAccepted} {loading}>
       {loading ? 'Searching' : 'Search'}
-    </button>
+    </Button>
   </div>
 
   {#if loading}
-    <div class="loading-container">
-      <div class="loading-spinner normal"></div>
-      <p class="loading-message">Loading...</p>
+    <div class="flex flex-col items-center p-8 gap-4">
+      <Spinner size="medium" />
+      <p class="text-[var(--color-text)] opacity-80 text-sm">Loading...</p>
     </div>
   {/if}
 
@@ -355,31 +352,33 @@
     >
       {#each searchResults as company, index (company.id)}
         {#if currentFocusIndex === index}
-          <button
-            type="button"
-            class="btn-item highlighted"
+          <Button
+            variant="secondary"
+            size="medium"
             onclick={() => selectCompanyFromDropdown(company)}
             onkeydown={(e) => handleKeydown(e, company)}
             role="option"
             aria-selected="true"
             disabled={!disclaimerAccepted}
+            class="w-full text-left bg-[var(--color-background)]"
           >
             <div class="company-name">{company.name}</div>
             <div class="meta">{company.tickers?.join(', ') || ''}</div>
-          </button>
+          </Button>
         {:else}
-          <button
-            type="button"
-            class="btn-item"
+          <Button
+            variant="secondary"
+            size="medium"
             onclick={() => selectCompanyFromDropdown(company)}
             onkeydown={(e) => handleKeydown(e, company)}
             role="option"
             aria-selected="false"
             disabled={!disclaimerAccepted}
+            class="w-full text-left"
           >
             <div class="company-name">{company.name}</div>
             <div class="meta">{company.tickers?.join(', ') || ''}</div>
-          </button>
+          </Button>
         {/if}
       {/each}
     </div>
@@ -387,13 +386,13 @@
 
   <!-- Company list section -->
   {#if showCompanyList}
-    <div class="section-container">
+    <div class="section-container company-list-section">
       <h3 class="section-title-small">Select a Company</h3>
 
       {#if listLoading && allCompanies.length === 0}
-        <div class="loading-container">
-          <div class="loading-spinner normal"></div>
-          <p class="loading-message">Loading companies...</p>
+        <div class="flex flex-col items-center p-8 gap-4">
+          <Spinner size="medium" />
+          <p class="text-[var(--color-text)] opacity-80 text-sm">Loading companies...</p>
         </div>
       {:else if listError}
         <p class="error-message">Error loading companies: {listError}</p>
@@ -413,27 +412,28 @@
                   <div class="company-name">{formatTitleCase(company.name)}</div>
                   <div class="meta">{company.tickers?.[0] || ''}</div>
                 </div>
-                <button
-                  class="btn btn-action"
+                <Button
+                  size="small"
                   onclick={() => selectCompanyFromDropdown(company)}
                   disabled={!disclaimerAccepted}
                 >
                   Select
-                </button>
+                </Button>
               </div>
             {/each}
           </div>
 
           {#if hasMoreCompanies}
             <div class="load-more-container">
-              <button
-                class="btn btn-action"
+              <Button
                 onclick={handleLoadMore}
                 disabled={listLoading || !disclaimerAccepted}
-                style="width: 100%"
+                loading={listLoading}
+                size="medium"
+                class="w-full"
               >
                 {listLoading ? 'Loading...' : 'Load more companies'}
-              </button>
+              </Button>
             </div>
           {/if}
         </div>
@@ -443,25 +443,6 @@
 </div>
 
 <style>
-  /* Custom input styling not covered by utilities */
-  .search-input {
-    width: 100%;
-    padding: var(--space-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    background-color: var(--color-input-background);
-    transition:
-      background-color 0.2s ease,
-      color 0.2s ease;
-  }
-
-  .search-input:disabled {
-    background-color: var(--color-background);
-    color: var(--color-text);
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-
   /* Search dropdown - positioned absolutely over other content */
   .search-dropdown {
     position: absolute;
@@ -531,5 +512,42 @@
 
   .is-collapsed {
     opacity: 0.9;
+  }
+
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    .content-container {
+      padding: var(--space-xs); /* Minimal internal padding */
+    }
+
+    .company-list-section {
+      display: none; /* Hide the company list on mobile */
+    }
+
+    .search-container {
+      gap: var(--space-xs); /* Reduce gap between input and button */
+    }
+
+    .btn-action {
+      padding: var(--space-xs) var(--space-sm); /* Smaller button padding */
+      font-size: 0.9rem; /* Smaller button text */
+    }
+
+    .search-dropdown {
+      max-height: 200px; /* Smaller dropdown on mobile */
+    }
+
+    .loading-container {
+      padding: var(--space-xs); /* Reduce loading container padding */
+    }
+
+    .loading-message {
+      font-size: 0.85rem; /* Smaller loading text */
+    }
+
+    .error-message {
+      font-size: 0.85rem; /* Smaller error text */
+      padding: var(--space-xs); /* Less padding on error messages */
+    }
   }
 </style>

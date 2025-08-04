@@ -9,6 +9,7 @@
   import MetaItems from '$components/ui/MetaItems.svelte';
   import BackButton from '$components/ui/BackButton.svelte';
   import { actions } from '$utils/state-manager.svelte';
+  import { Button } from 'kampsy-ui';
 
   const logger = getLogger('DocumentDetail');
 
@@ -134,22 +135,23 @@
 
         {#if document.filing}
           <div class="filing-actions">
-            <button type="button" class="btn btn-action" onclick={viewFilingDetail}>
+            <Button onclick={viewFilingDetail} size="small" aria-label="View Filing Details">
               📋 View Filing Details
-            </button>
+            </Button>
           </div>
         {/if}
 
         {#if document.filing?.filing_url}
           <div class="source-links">
-            <a
+            <Button
               href={document.filing.filing_url}
               target="_blank"
               rel="noopener noreferrer"
-              class="btn btn-action"
+              size="small"
+              aria-label="View Original SEC Filing"
             >
               📄 View Original SEC Filing
-            </a>
+            </Button>
           </div>
         {/if}
       </div>

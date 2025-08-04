@@ -118,6 +118,25 @@
     font-size: 1.2rem;
   }
 
+  @media (max-width: 768px) {
+    .header {
+      padding: var(--space-xs) var(--space-sm) var(--space-sm) var(--space-sm);
+    }
+
+    .logo {
+      max-width: 80px; /* Much smaller logo on mobile */
+    }
+
+    h1 {
+      font-size: 1.25rem; /* Even smaller title on mobile */
+      margin: 0;
+    }
+
+    .logo-section {
+      gap: var(--space-xs);
+    }
+  }
+
   @media (max-width: 600px) {
     .theme-label {
       display: none;

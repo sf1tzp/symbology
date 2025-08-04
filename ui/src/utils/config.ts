@@ -12,9 +12,9 @@ const defaultConfig = {
     port: Number(import.meta.env.SYMBOLOGY_API_PORT) || 8000,
     get baseUrl() {
       // FIXME: Dynamic configuration needed
-      return `https://api.symbology.online/api`;
+      // return `https://api.symbology.online/api`;
       // return `https://api.symbology.lofi/api`;
-      // return `http://10.0.0.3:8000/api`;
+      return `http://10.0.0.3:8000/api`;
     },
     timeout: 30000,
   },

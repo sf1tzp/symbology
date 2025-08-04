@@ -7,6 +7,7 @@
   import { config } from '$utils/config';
   import { getLogger } from '$utils/logger';
   import { onMount } from 'svelte';
+  import { Spinner } from 'kampsy-ui';
   import MarkdownContent from './MarkdownContent.svelte';
 
   const logger = getLogger('ModelConfig');
@@ -111,7 +112,7 @@
         {#if promptLoading}
           <div class="warning-item">
             <span class="label">Loading prompt...</span>
-            <span class="loading-spinner">⟳</span>
+            <Spinner size="small" />
           </div>
         {:else if promptError}
           <div class="warning-item error">

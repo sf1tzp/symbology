@@ -20,6 +20,7 @@
   import MarkdownContent from '$components/ui/MarkdownContent.svelte';
   import BackButton from '$components/ui/BackButton.svelte';
   import { actions } from '$utils/state-manager.svelte';
+  import { Button, Tabs } from 'kampsy-ui';
 
   const logger = getLogger('CompanyDetail');
   const dispatch = createEventDispatcher<{
@@ -38,12 +39,23 @@
   let error = $state<string | null>(null);
   let filingsError = $state<string | null>(null);
   let filingsCollapsed = $state(true);
+  let selectedAggregateId = $state<string>('');
 
   // Fetch aggregates when company changes
   $effect(() => {
     if (company) {
       fetchAggregates();
       fetchFilings();
+    }
+  });
+
+  // Handle tab selection
+  $effect(() => {
+    if (selectedAggregateId && availableAggregates.length > 0) {
+      const aggregate = availableAggregates.find((a) => a.id === selectedAggregateId);
+      if (aggregate) {
+        handleAggregateClick(aggregate);
+      }
     }
   });
 
@@ -65,6 +77,10 @@
 
       const aggregates = await fetchApi<AggregateResponse[]>(apiUrl);
       availableAggregates = aggregates;
+      // // Set the first aggregate as selected by default
+      // if (aggregates.length > 0 && !selectedAggregateId) {
+      //   selectedAggregateId = aggregates[0].id;
+      // }
       logger.info('aggregates_fetch_success', { count: aggregates.length, ticker });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -152,15 +168,14 @@
     {:else if error}
       <ErrorState message="Error loading analysis: {error}" onRetry={fetchAggregates} />
     {:else if availableAggregates.length > 0}
-      <div class="flex gap-md">
+      <div class="w-full flex flex-wrap gap-4 justify-between">
         {#each availableAggregates as aggregate (aggregate.id)}
-          <button
-            class="btn btn-link"
+          <Button
             onclick={() => handleAggregateClick(aggregate)}
             onkeydown={(e) => e.key === 'Enter' && handleAggregateClick(aggregate)}
           >
             {formatDocumentType(aggregate.document_type)}
-          </button>
+          </Button>
         {/each}
       </div>
     {:else}
@@ -192,10 +207,11 @@
         <p>We've gathered information from these filings:</p>
         <div class="list-container">
           {#each availableFilings as filing (filing.id)}
-            <button
-              class="btn btn-item"
+            <Button
+              size="medium"
               onclick={() => handleFilingClick(filing)}
               onkeydown={(e) => e.key === 'Enter' && handleFilingClick(filing)}
+              class="w-full text-left"
             >
               <div class="filing-header">
                 <div class="filing-type-info">
@@ -206,7 +222,7 @@
                   <span class="meta-item">{getFilingTypeLabel(filing.filing_type)}</span>
                 </div>
               </div>
-            </button>
+            </Button>
           {/each}
         </div>
       {:else}

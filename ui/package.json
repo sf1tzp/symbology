@@ -32,13 +32,16 @@
     },
     "dependencies": {
         "@sveltejs/vite-plugin-svelte": "^5.0.3",
+        "@tailwindcss/vite": "^4.1.11",
         "@tsconfig/svelte": "^5.0.4",
         "@types/dompurify": "^3.0.5",
         "dompurify": "^3.2.5",
         "eslint-plugin-svelte": "^3.5.1",
+        "kampsy-ui": "^2.3.0",
         "loglevel": "^1.9.2",
         "marked": "^16.0.0",
         "prettier-plugin-svelte": "^3.3.3",
-        "svelte-check": "^4.1.6"
+        "svelte-check": "^4.1.6",
+        "tailwindcss": "^4.1.11"
     }
 }

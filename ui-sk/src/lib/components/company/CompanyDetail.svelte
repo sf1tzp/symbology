@@ -184,7 +184,7 @@
 		<Card>
 			<CardHeader>
 				<CardTitle>Available Analysis</CardTitle>
-				<CardDescription>Click to view AI-generated analysis and insights</CardDescription>
+				<CardDescription>Click to view LLM-generated analysis and insights</CardDescription>
 			</CardHeader>
 			<CardContent>
 				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

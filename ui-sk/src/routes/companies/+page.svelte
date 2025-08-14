@@ -19,16 +19,6 @@
 		description?: string;
 	}
 
-	// Additional featured companies for sector browsing
-	const featuredCompanies = [
-		{ ticker: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
-		{ ticker: 'MSFT', name: 'Microsoft Corporation', sector: 'Technology' },
-		{ ticker: 'GOOGL', name: 'Alphabet Inc.', sector: 'Technology' },
-		{ ticker: 'TSLA', name: 'Tesla, Inc.', sector: 'Automotive' },
-		{ ticker: 'NVDA', name: 'NVIDIA Corporation', sector: 'Technology' },
-		{ ticker: 'META', name: 'Meta Platforms, Inc.', sector: 'Technology' }
-	];
-
 	function handleCompanySelected(event: CustomEvent<CompanyResponse>) {
 		const company = event.detail;
 		// Navigation is handled by the CompanySelector component
@@ -77,7 +67,7 @@
 	</section>
 
 	<!-- Browse by Sector -->
-	<section class="space-y-6">
+	<!-- <section class="space-y-6">
 		<div class="text-center">
 			<h2 class="text-2xl font-semibold">Browse by Sector</h2>
 			<p class="text-muted-foreground mt-2">Explore companies organized by industry sectors</p>
@@ -95,5 +85,5 @@
 				</Card>
 			{/each}
 		</div>
-	</section>
+	</section> -->
 </div>

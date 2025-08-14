@@ -8,21 +8,23 @@
 		CardHeader,
 		CardTitle
 	} from '$lib/components/ui/card';
+	import { ExternalLink } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import type { PageData } from './$types';
 	import type {
 		CompanyResponse,
-		AggregateResponse,
+		GeneratedContentResponse,
 		FilingResponse
 	} from '$lib/generated-api-types';
+	import Badge from '$lib/components/ui/badge/badge.svelte';
 
 	let { data }: { data: PageData } = $props();
 
 	// Extract data from loader
 	const ticker = data.ticker;
 	const company = data.company;
-	const aggregates = data.aggregates || [];
+	const generatedContent = data.generatedContent || [];
 	const filings = data.filings || [];
 	const error = data.error;
 
@@ -43,15 +45,14 @@
 		goto('/');
 	}
 
-	function handleAnalysisClick(aggregateId: string) {
-		// Generate a mock SHA for navigation - in real implementation,
-		// this would be derived from the aggregate data
-		const sha = aggregateId.substring(0, 12);
-		goto(`/g/${ticker}/${sha}`);
+	function handleAnalysisClick(contentId: string, shortHash?: string) {
+		// Use the short_hash if available, otherwise fall back to content ID substring
+		const hash = shortHash || contentId.substring(0, 12);
+		goto(`/g/${ticker}/${hash}`);
 	}
 
-	function handleFilingClick(filingId: string) {
-		goto(`/f/${filingId}`);
+	function handleFilingClick(accessionNumber: string) {
+		goto(`/f/${accessionNumber}`);
 	}
 
 	function handleBrowseAnalysis() {
@@ -74,14 +75,14 @@
 	// Helper function to get analysis type display name
 	function getAnalysisTypeDisplay(documentType: string): string {
 		switch (documentType?.toUpperCase()) {
-			case 'MDA':
-				return 'Management Discussion & Analysis';
+			case 'MANAGEMENT_DISCUSSION':
+				return 'Management Discussion';
 			case 'RISK_FACTORS':
-				return 'Risk Analysis';
-			case 'DESCRIPTION':
+				return 'Risk Factors';
+			case 'BUSINESS_DESCRIPTION':
 				return 'Business Description';
 			default:
-				return 'General Analysis';
+				return documentType;
 		}
 	}
 
@@ -91,6 +92,32 @@
 
 	function handleBrowseAllFilings() {
 		goto('/filings');
+	}
+
+	function format_filing_in_list(filing: FilingResponse) {
+		const year = new Date(filing.period_of_report).getFullYear();
+		return `${year} ${filing.filing_type}`;
+	}
+
+	/**
+	 * Clean content by removing <think> tags and internal reasoning patterns
+	 */
+	export function cleanContent(content: string | undefined): string | undefined {
+		if (!content) return undefined;
+
+		// Remove <think>...</think> blocks and any content before them
+		let cleaned = content.replace(/<think>[\s\S]*?<\/think>\s*/gi, '');
+
+		// Also handle cases where there might be thinking content without tags
+		cleaned = cleaned.replace(
+			/^(Okay,|Let me|I need to|First,|Based on)[\s\S]*?(?=\n\n|\. [A-Z])/i,
+			''
+		);
+
+		// Trim any remaining whitespace
+		cleaned = cleaned.trim();
+
+		return cleaned || undefined;
 	}
 </script>
 
@@ -123,13 +150,20 @@
 				</span>
 			</div>
 			<div class="text-muted-foreground flex items-center space-x-4 text-sm">
+				<!-- {#if displayCompany.cik}
+					<Badge>CIK: {displayCompany.cik}</Badge>
+				{/if} -->
 				{#if displayCompany.sic_description}
 					<span>{displayCompany.sic_description}</span>
 				{/if}
+				<!-- <div class="text-center">
+					<div class="text-primary text-2xl font-bold">{displayCompany.cik || 'N/A'}</div>
+					<div class="text-muted-foreground text-sm">CIK</div>
+				</div>
 				{#if displayCompany.exchanges && displayCompany.exchanges.length > 0}
 					{#if displayCompany.sic_description}<span>•</span>{/if}
 					<span>{displayCompany.exchanges.join(', ')}</span>
-				{/if}
+				{/if} -->
 			</div>
 		</div>
 	</div>
@@ -147,16 +181,12 @@
 		</CardHeader>
 		<CardContent class="space-y-4">
 			{#if displayCompany.summary && displayCompany.summary.trim()}
-				<MarkdownContent content={displayCompany.summary} />
+				<MarkdownContent content={cleanContent(displayCompany.summary) || 'what'} />
 			{:else}
 				<p class="text-muted-foreground leading-relaxed">No description available.</p>
 			{/if}
 
-			<div class="grid grid-cols-2 gap-4 border-t pt-4 md:grid-cols-4">
-				<div class="text-center">
-					<div class="text-primary text-2xl font-bold">{displayCompany.cik || 'N/A'}</div>
-					<div class="text-muted-foreground text-sm">CIK</div>
-				</div>
+			<!-- <div class="grid grid-cols-2 gap-4 border-t pt-4 md:grid-cols-4">
 				<div class="text-center">
 					<div class="text-primary text-2xl font-bold">{displayCompany.tickers?.length || 0}</div>
 					<div class="text-muted-foreground text-sm">Tickers</div>
@@ -173,7 +203,7 @@
 					</div>
 					<div class="text-muted-foreground text-sm">Type</div>
 				</div>
-			</div>
+			</div> -->
 		</CardContent>
 	</Card>
 
@@ -184,9 +214,23 @@
 				<span>📊</span>
 				<span>Financial Overview</span>
 			</CardTitle>
-			<CardDescription>Key financial metrics and performance indicators</CardDescription>
+			<CardDescription>
+				Key financial metrics and performance indicators (Coming Soon)
+			</CardDescription>
 		</CardHeader>
 		<CardContent>
+			<Button
+				size="sm"
+				href="https://finance.yahoo.com/quote/{data.ticker}/"
+				target="_blank"
+				class="bg-purple-700 text-white"
+			>
+				<ExternalLink class="mr-2 h-4 w-4" />
+				View on Yahoo! Finance
+			</Button>
+		</CardContent>
+
+		<!-- <CardContent>
 			<div class="py-12 text-center">
 				<div class="mb-4 text-6xl">🚧</div>
 				<h3 class="mb-2 text-xl font-semibold">Financial Overview Coming Soon</h3>
@@ -203,7 +247,7 @@
 					</ul>
 				</div>
 			</div>
-		</CardContent>
+		</CardContent> -->
 	</Card>
 
 	<!-- Section 3: Links to Filings / Analysis -->
@@ -213,35 +257,34 @@
 			<CardHeader>
 				<CardTitle class="flex items-center space-x-2">
 					<span>🤖</span>
-					<span>AI Analysis</span>
+					<span>LLM Analysis</span>
 				</CardTitle>
 				<CardDescription>
-					AI-generated insights and analysis for {displayCompany.display_name ||
+					LLM-generated insights and analysis for {displayCompany.display_name ||
 						displayCompany.name}
 				</CardDescription>
 			</CardHeader>
 			<CardContent class="space-y-4">
-				{#if aggregates.length > 0}
+				{#if generatedContent.length > 0}
 					<div class="space-y-3">
-						{#each aggregates as aggregate}
+						{#each generatedContent as content}
 							<div
 								class="hover:bg-muted flex items-center justify-between rounded-lg border p-3 transition-colors"
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
-										{getAnalysisTypeDisplay(aggregate.document_type)} Analysis
+										{getAnalysisTypeDisplay(content.document_type)} Analysis
 									</div>
 									<div class="text-muted-foreground flex items-center space-x-2 text-xs">
 										<span class="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs">
-											{aggregate.model}
+											Content Generated on {formatDate(content.created_at)}
 										</span>
-										<span>{formatDate(aggregate.created_at)}</span>
 									</div>
 								</div>
 								<Button
 									variant="outline"
 									size="sm"
-									onclick={() => handleAnalysisClick(aggregate.id)}
+									onclick={() => handleAnalysisClick(content.id, content.short_hash)}
 								>
 									View
 								</Button>
@@ -257,11 +300,11 @@
 					</div>
 				{/if}
 
-				<div class="border-t pt-4">
+				<!-- <div class="border-t pt-4">
 					<Button variant="outline" class="w-full" onclick={handleBrowseAnalysis}>
 						Browse All Analysis →
 					</Button>
-				</div>
+				</div> -->
 			</CardContent>
 		</Card>
 
@@ -283,13 +326,18 @@
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
-										{filing.filing_type} - {filing.period_of_report || 'Current Report'}
+										{format_filing_in_list(filing)}
+										<!-- {filing.filing_type} - {filing.period_of_report || 'Current Report'} -->
 									</div>
-									<div class="text-muted-foreground text-xs">
-										Filed: {formatDate(filing.filing_date)}
-									</div>
+									<!-- <div class="text-muted-foreground text-xs"> -->
+									<!-- 	Filed: {formatDate(filing.filing_date)} -->
+									<!-- </div> -->
 								</div>
-								<Button variant="outline" size="sm" onclick={() => handleFilingClick(filing.id)}>
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={() => handleFilingClick(filing.accession_number)}
+								>
 									View
 								</Button>
 							</div>
@@ -304,11 +352,11 @@
 					</div>
 				{/if}
 
-				<div class="border-t pt-4">
+				<!-- <div class="border-t pt-4">
 					<Button variant="outline" class="w-full" onclick={handleBrowseFilings}>
 						Browse All Filings →
 					</Button>
-				</div>
+				</div> -->
 			</CardContent>
 		</Card>
 	</div>

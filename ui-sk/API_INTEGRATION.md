@@ -147,7 +147,7 @@ node scripts/generate-api-types.js
 
 ### Company Page Enhancements
 - **Real Company Data**: Actual company information from API
-- **Dynamic Analysis**: Real AI-generated analysis with proper metadata
+- **Dynamic Analysis**: Real LLM-generated analysis with proper metadata
 - **Actual Filings**: Real SEC filing data with proper dates and types
 - **Error Resilience**: Graceful handling of missing or failed data
 

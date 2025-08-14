@@ -8,10 +8,12 @@ import type {
     AggregateResponse,
     FilingResponse,
     CompletionResponse,
-    DocumentResponse
+    DocumentResponse,
+    GeneratedContentResponse,
+    ModelConfigResponse
 } from './generated-api-types';
 import { fetchApi, isApiError } from './generated-api-types';
-import { buildApiUrl, logApiCall } from './config';
+import { buildApiUrl, logApiCall, config } from './config';
 
 /**
  * Search companies by name or ticker
@@ -75,6 +77,84 @@ export async function getCompanies(skip: number = 0, limit: number = 50): Promis
 }
 
 /**
+ * Get generated content (AI analysis) for a company by ticker
+ */
+export async function getGeneratedContentByTicker(ticker: string, limit: number = 10): Promise<GeneratedContentResponse[]> {
+    try {
+        const url = `${config.api.baseUrl}/generated-content/by-ticker/${encodeURIComponent(ticker)}?limit=${limit}`;
+
+        logApiCall('GET', url);
+
+        const generatedContent = await fetchApi<GeneratedContentResponse[]>(url);
+        return generatedContent;
+    } catch (error) {
+        console.error(`Error fetching generated content for ticker ${ticker}:`, error);
+        return []; // Return empty array rather than throwing for missing data
+    }
+}
+
+/**
+ * Get a specific generated content by ticker and hash
+ */
+export async function getGeneratedContentByTickerAndHash(ticker: string, hash: string): Promise<GeneratedContentResponse | null> {
+    try {
+        const url = `${config.api.baseUrl}/generated-content/by-ticker/${encodeURIComponent(ticker)}/${encodeURIComponent(hash)}`;
+
+        logApiCall('GET', url);
+
+        const generatedContent = await fetchApi<GeneratedContentResponse>(url);
+        return generatedContent;
+    } catch (error) {
+        console.error(`Error fetching generated content for ticker ${ticker} and hash ${hash}:`, error);
+        // Return null if content not found rather than throwing
+        if (error instanceof Error && error.message.includes('404')) {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/**
+ * Get model configuration by ID
+ */
+export async function getModelConfigById(id: string): Promise<ModelConfigResponse | null> {
+    try {
+        const url = buildApiUrl(`/model-configs/${encodeURIComponent(id)}`);
+
+        logApiCall('GET', url);
+
+        const modelConfig = await fetchApi<ModelConfigResponse>(url);
+        return modelConfig;
+    } catch (error) {
+        console.error(`Error fetching model config ${id}:`, error);
+        if (error instanceof Error && error.message.includes('404')) {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/**
+ * Get document by ID
+ */
+export async function getDocumentById(id: string): Promise<DocumentResponse | null> {
+    try {
+        const url = buildApiUrl(`/documents/${encodeURIComponent(id)}`);
+
+        logApiCall('GET', url);
+
+        const document = await fetchApi<DocumentResponse>(url);
+        return document;
+    } catch (error) {
+        console.error(`Error fetching document ${id}:`, error);
+        if (error instanceof Error && error.message.includes('404')) {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/**
  * Get aggregates (AI analysis) for a company by ticker
  */
 export async function getAggregatesByTicker(ticker: string, limit: number = 10): Promise<AggregateResponse[]> {
@@ -109,6 +189,26 @@ export async function getFilingsByTicker(ticker: string, limit: number = 10): Pr
     } catch (error) {
         console.error(`Error fetching filings for ticker ${ticker}:`, error);
         return []; // Return empty array rather than throwing for missing data
+    }
+}
+
+/**
+ * Get a specific generated content by ID
+ */
+export async function getGeneratedContentById(id: string): Promise<GeneratedContentResponse | null> {
+    try {
+        const url = `${config.api.baseUrl}/generated-content/${encodeURIComponent(id)}`;
+
+        logApiCall('GET', url);
+
+        const generatedContent = await fetchApi<GeneratedContentResponse>(url);
+        return generatedContent;
+    } catch (error) {
+        console.error(`Error fetching generated content ${id}:`, error);
+        if (error instanceof Error && error.message.includes('404')) {
+            return null;
+        }
+        throw error;
     }
 }
 

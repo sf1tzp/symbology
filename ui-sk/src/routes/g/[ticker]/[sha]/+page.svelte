@@ -8,6 +8,7 @@
 		CardHeader,
 		CardTitle
 	} from '$lib/components/ui/card';
+	import { Calendar, Clock, FileText, Eye, Copy, Check, HandCoins } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge, badgeVariants } from '$lib/components/ui/badge';
 	import ContentViewer from '$lib/components/content/ContentViewer.svelte';
@@ -20,46 +21,100 @@
 	function handleBackToCompany() {
 		goto(`/c/${data.ticker}`);
 	}
+	function formatDate(dateString: string): string {
+		const date = new Date(dateString);
+		return date.toLocaleDateString('en-US', {
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
+
+	function formatDuration(duration: number | null): string {
+		if (!duration) return 'N/A';
+		if (duration < 60) return `${duration.toFixed(1)}s`;
+		const minutes = Math.floor(duration / 60);
+		const seconds = Math.floor(duration % 60);
+		return `${minutes}m ${seconds}s`;
+	}
 
 	function handleSourceSelected(event: CustomEvent) {
 		const source = event.detail;
-		if (source.type === 'document' && source.edgar_id) {
-			goto(`/d/${source.edgar_id}`);
-		} else if (source.type === 'filing' && source.edgar_id) {
-			goto(`/f/${source.edgar_id}`);
+
+		if (source.type === 'document') {
+			// For documents, prefer the accession number + content hash route if available
+			if (source.accession_number && source.content_hash) {
+				const shortHash = source.content_hash.substring(0, 12);
+				goto(`/d/${source.accession_number}/${source.content_hash}`);
+			} else {
+				// Fallback to simple document viewer by ID
+				goto(`/documents/${source.id}`);
+			}
+		} else if (source.type === 'generated_content') {
+			// For generated content, navigate to the content view using ticker and hash
+			if (source.short_hash) {
+				goto(`/g/${data.ticker}/${source.short_hash}`);
+			} else if (source.content_hash) {
+				// Use first 12 characters of full hash if short hash not available
+				const shortHash = source.content_hash.substring(0, 12);
+				goto(`/g/${data.ticker}/${shortHash}`);
+			}
 		}
+	}
+
+	function estimateTokens(content: string) {
+		// Rough estimation: ~4 characters per token for English text
+		return Math.ceil(content.length / 4);
 	}
 
 	function getContentTitle(): string {
 		if (data.content.document_type) {
-			return `${data.content.document_type} Analysis`;
+			return `${getAnalysisTypeDisplay(data.content.document_type)} Analysis`;
 		}
 		return 'Generated Analysis';
+	}
+
+	// Helper function to get analysis type display name
+	function getAnalysisTypeDisplay(documentType: string): string {
+		switch (documentType?.toUpperCase()) {
+			case 'MANAGEMENT_DISCUSSION':
+				return 'Management Discussion';
+			case 'RISK_FACTORS':
+				return 'Risk Factors';
+			case 'BUSINESS_DESCRIPTION':
+				return 'Business Description';
+			default:
+				return documentType;
+		}
 	}
 </script>
 
 <svelte:head>
 	<title>{getContentTitle()} - {data.company.name} - Symbology</title>
-	<meta name="description" content="AI-generated analysis for {data.company.name}" />
+	<meta name="description" content="LLM-generated analysis for {data.company.name}" />
 </svelte:head>
 
 <div class="space-y-6">
 	<!-- Header with navigation -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center space-x-4">
-			<Button variant="ghost" onclick={handleBackToCompany}>
-				← Back to {data.company.name}
-			</Button>
+			<div>
+				<Button variant="ghost" onclick={handleBackToCompany}>
+					← Back to {data.company.name}
+				</Button>
+			</div>
 			<div>
 				<h1 class="text-2xl font-bold">{getContentTitle()}</h1>
 				<div class="mt-1 flex items-center space-x-2">
-					<Badge variant="outline">{data.ticker}</Badge>
+					<Badge variant="secondary" class="bg-gray-500 text-white">{data.ticker}</Badge>
 					<a href="/g/{data.ticker}/{data.sha}" class={badgeVariants({ variant: 'secondary' })}>
 						<span class="font-mono">{data.sha}</span>
 					</a>
-					{#if data.content.document_type}
+					<!-- {#if data.content.document_type}
 						<Badge variant="default">{data.content.document_type}</Badge>
-					{/if}
+					{/if} -->
 				</div>
 			</div>
 		</div>
@@ -67,19 +122,6 @@
 
 	<!-- Content Grid -->
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-		<!-- Main Content -->
-		<div class="space-y-6 lg:col-span-2">
-			<Card>
-				<CardHeader>
-					<CardTitle>Generated Content</CardTitle>
-					<CardDescription>AI-generated analysis based on source materials</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<ContentViewer content={data.content} />
-				</CardContent>
-			</Card>
-		</div>
-
 		<!-- Sidebar -->
 		<div class="space-y-6">
 			<!-- Model Configuration -->
@@ -100,6 +142,37 @@
 				</CardHeader>
 				<CardContent>
 					<SourcesList sources={data.content.sources} on:sourceSelected={handleSourceSelected} />
+				</CardContent>
+			</Card>
+		</div>
+
+		<!-- Main Content -->
+		<div class="space-y-6 lg:col-span-2">
+			<Card>
+				<CardHeader>
+					<CardTitle>Generated Content</CardTitle>
+					<CardDescription>
+						<div class="flex items-center">
+							<HandCoins class="mr-2 h-4 w-4" />
+							~{estimateTokens(data.content.content || '')} tokens
+						</div>
+					</CardDescription>
+
+					<div class="text-muted-foreground flex flex-col space-y-2 text-sm sm:text-right">
+						<div class="flex items-center">
+							<Calendar class="mr-2 h-4 w-4" />
+							Generated {formatDate(data.content.created_at)}
+						</div>
+						{#if data.content.total_duration}
+							<div class="flex items-center">
+								<Clock class="mr-2 h-4 w-4" />
+								Completed in {formatDuration(data.content.total_duration)}
+							</div>
+						{/if}
+					</div>
+				</CardHeader>
+				<CardContent>
+					<ContentViewer content={data.content} />
 				</CardContent>
 			</Card>
 		</div>

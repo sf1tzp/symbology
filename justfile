@@ -109,5 +109,44 @@ _untag version:
   git tag -d {{version}}
   git push --delete origin {{version}}
 
+# Database migration commands
+db-current: # Show current migration version
+  just -d src -f src/justfile _create_venv
+  uv run alembic current
+
+db-history: # Show migration history
+  just -d src -f src/justfile _create_venv
+  uv run alembic history --verbose
+
+db-upgrade TARGET="head": # Apply migrations
+  just -d src -f src/justfile _create_venv
+  uv run alembic upgrade {{TARGET}}
+
+db-downgrade TARGET: # Rollback to specific migration
+  just -d src -f src/justfile _create_venv
+  uv run alembic downgrade {{TARGET}}
+
+db-revision MESSAGE: # Create new migration
+  just -d src -f src/justfile _create_venv
+  uv run alembic revision -m "{{MESSAGE}}"
+
+db-auto-revision MESSAGE: # Auto-generate migration from model changes
+  just -d src -f src/justfile _create_venv
+  uv run alembic revision --autogenerate -m "{{MESSAGE}}"
+
+db-show-sql TARGET="head": # Show SQL without executing
+  just -d src -f src/justfile _create_venv
+  uv run alembic upgrade {{TARGET}} --sql
+
+db-stamp VERSION: # Mark migration as applied without running
+  just -d src -f src/justfile _create_venv
+  uv run alembic stamp {{VERSION}}
+
+db-reset: # Reset to base (WARNING: destructive)
+  just -d src -f src/justfile _create_venv
+  @echo "⚠️  This will reset the database to base state!"
+  @read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
+  uv run alembic downgrade base
+
 _generate-api-types:
   just -d ui -f ui/justfile generate-api-types

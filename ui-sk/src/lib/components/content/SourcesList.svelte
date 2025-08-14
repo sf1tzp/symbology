@@ -3,38 +3,103 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
-	import { FileText, ExternalLink, File, Folder } from '@lucide/svelte';
-	import type { MockDocument } from '$lib/mockData';
+	import { FileText, ExternalLink, File, Folder, Bot } from '@lucide/svelte';
+	import type { DocumentResponse, GeneratedContentResponse } from '$lib/generated-api-types';
 
-	let { sources }: { sources?: MockDocument[] } = $props();
+	// Accept both document and generated content sources
+	let { sources }: { sources?: (DocumentResponse | GeneratedContentResponse)[] } = $props();
 
 	const dispatch = createEventDispatcher();
 
-	function handleSourceClick(source: MockDocument) {
-		// Emit event with source information
-		dispatch('sourceSelected', {
-			type: 'document',
-			id: source.id,
-			filing_id: source.filing_id,
-			edgar_id: source.filing_id, // Assuming filing_id can be used as edgar_id
-			name: source.document_name
-		});
+	function handleSourceClick(source: DocumentResponse | GeneratedContentResponse) {
+		// Check if this is a document or generated content based on the presence of certain fields
+		if ('document_name' in source) {
+			// This is a document
+			const docSource = source as DocumentResponse;
+			dispatch('sourceSelected', {
+				type: 'document',
+				id: docSource.id,
+				filing_id: docSource.filing_id,
+				content_hash: docSource.content_hash,
+				name: docSource.document_name,
+				// Include filing accession number if available for URL construction
+				accession_number: docSource.filing?.accession_number
+			});
+		} else {
+			// This is generated content
+			const contentSource = source as GeneratedContentResponse;
+			dispatch('sourceSelected', {
+				type: 'generated_content',
+				id: contentSource.id,
+				content_hash: contentSource.content_hash,
+				short_hash: contentSource.short_hash,
+				company_id: contentSource.company_id,
+				document_type: contentSource.document_type
+			});
+		}
 	}
 
-	function getDocumentTypeFromName(name: string): string {
-		if (name.toLowerCase().includes('10-k')) return '10-K';
-		if (name.toLowerCase().includes('10-q')) return '10-Q';
-		if (name.toLowerCase().includes('8-k')) return '8-K';
-		if (name.toLowerCase().includes('mda') || name.toLowerCase().includes('management'))
-			return 'MD&A';
-		if (name.toLowerCase().includes('risk')) return 'Risk Factors';
-		if (name.toLowerCase().includes('business')) return 'Business';
-		return 'Document';
+	function getSourceTypeDisplay(source: DocumentResponse | GeneratedContentResponse): string {
+		if ('document_name' in source) {
+			// This is a document
+			const docSource = source as DocumentResponse;
+			const name = docSource.document_name.toLowerCase();
+			if (name.includes('10-k')) return '10-K';
+			if (name.includes('10-q')) return '10-Q';
+			if (name.includes('8-k')) return '8-K';
+			if (name.includes('mda') || name.includes('management')) return 'MD&A';
+			if (name.includes('risk')) return 'Risk Factors';
+			if (name.includes('business')) return 'Business';
+			return 'Document';
+		} else {
+			// This is generated content
+			const contentSource = source as GeneratedContentResponse;
+			switch (contentSource.document_type?.toUpperCase()) {
+				case 'MANAGEMENT_DISCUSSION':
+					return 'MD&A Analysis';
+				case 'RISK_FACTORS':
+					return 'Risk Analysis';
+				case 'BUSINESS_DESCRIPTION':
+					return 'Business Analysis';
+				default:
+					return 'Generated Content';
+			}
+		}
 	}
 
-	function truncateDocumentName(name: string, maxLength: number = 50): string {
+	function getSourceName(source: DocumentResponse | GeneratedContentResponse): string {
+		if ('document_name' in source) {
+			return (source as DocumentResponse).document_name;
+		} else {
+			const contentSource = source as GeneratedContentResponse;
+			return contentSource.document_type
+				? `${getSourceTypeDisplay(contentSource)}`
+				: 'Generated Content';
+		}
+	}
+
+	function getSourceIcon(source: DocumentResponse | GeneratedContentResponse) {
+		if ('document_name' in source) {
+			return FileText;
+		} else {
+			return Bot;
+		}
+	}
+
+	function truncateSourceName(name: string, maxLength: number = 50): string {
 		if (name.length <= maxLength) return name;
 		return name.substring(0, maxLength - 3) + '...';
+	}
+
+	function getSourceId(source: DocumentResponse | GeneratedContentResponse): string {
+		return source.id.substring(0, 8);
+	}
+
+	function getSourceHash(source: DocumentResponse | GeneratedContentResponse): string | null {
+		if ('content_hash' in source) {
+			return source.content_hash;
+		}
+		return null;
 	}
 </script>
 
@@ -43,7 +108,7 @@
 		<div class="space-y-2">
 			<div class="flex items-center space-x-2">
 				<Folder class="text-muted-foreground h-4 w-4" />
-				<span class="text-sm font-medium">Source Documents</span>
+				<span class="text-sm font-medium">Source Materials</span>
 				<Badge variant="outline" class="text-xs">
 					{sources.length}
 				</Badge>
@@ -62,7 +127,7 @@
 							<!-- Document Type Badge -->
 							<div class="flex items-start justify-between">
 								<Badge variant="secondary" class="text-xs">
-									{getDocumentTypeFromName(source.document_name)}
+									{getSourceTypeDisplay(source)}
 								</Badge>
 								<Button
 									variant="ghost"
@@ -76,50 +141,62 @@
 
 							<!-- Document Name -->
 							<div class="flex items-start space-x-2">
-								<FileText class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0" />
+								{#if getSourceIcon(source) === FileText}
+									<FileText class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0" />
+								{:else}
+									<Bot class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0" />
+								{/if}
 								<div class="min-w-0 flex-1">
 									<p class="text-sm font-medium leading-tight">
-										{truncateDocumentName(source.document_name)}
+										{truncateSourceName(getSourceName(source))}
 									</p>
+									{#if getSourceHash(source)}
+										<span class="text-muted-foreground font-mono text-xs">
+											{getSourceHash(source)?.substring(0, 12)}
+										</span>
+									{/if}
 								</div>
-							</div>
-
-							<!-- Document Actions -->
-							<div class="flex items-center justify-between pt-1">
-								<p class="text-muted-foreground text-xs">
-									ID: {source.id.substring(0, 8)}...
-								</p>
 								<Button
-									variant="ghost"
+									variant="outline"
 									size="sm"
 									onclick={() => handleSourceClick(source)}
 									class="h-6 px-2 text-xs"
 								>
-									View Document
+									View
 								</Button>
 							</div>
+
+							<!-- Document Actions -->
+							<!-- <div class="flex items-center justify-between pt-1"></div> -->
 						</div>
 					</div>
 				</div>
 			{/each}
 		</div>
 
-		<Separator />
+		<!-- <Separator /> -->
 
 		<!-- Summary Footer -->
-		<div class="text-center">
-			<p class="text-muted-foreground text-xs">
-				Generated from {sources.length} source {sources.length === 1 ? 'document' : 'documents'}
-			</p>
-		</div>
+		<!-- <div class="text-center"> -->
+		<!-- 	<p class="text-muted-foreground text-xs"> -->
+		<!-- 		Generated from {sources.length} source {sources.length === 1 ? 'document' : 'documents'} -->
+		<!-- 	</p> -->
+		<!-- </div> -->
 	{:else}
-		<div class="flex items-center justify-center p-6">
-			<div class="text-center">
-				<File class="text-muted-foreground mx-auto h-8 w-8" />
-				<p class="text-muted-foreground mt-2 text-sm">No source documents available</p>
-				<p class="text-muted-foreground text-xs">
-					This content may have been generated from other sources
-				</p>
+		<div class="flex items-center justify-center p-8">
+			<div class="space-y-3 text-center">
+				<div class="flex justify-center">
+					<div class="bg-muted rounded-full p-3">
+						<File class="text-muted-foreground h-6 w-6" />
+					</div>
+				</div>
+				<div class="space-y-1">
+					<p class="text-sm font-medium">No source materials found</p>
+					<p class="text-muted-foreground max-w-sm text-xs">
+						This analysis may have been generated from aggregated data or other non-document
+						sources.
+					</p>
+				</div>
 			</div>
 		</div>
 	{/if}

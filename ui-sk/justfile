@@ -1,3 +1,5 @@
 up:
   npm run dev -- --open --host 0.0.0.0
 
+generate-api-types:
+  node scripts/generate-api-types.js

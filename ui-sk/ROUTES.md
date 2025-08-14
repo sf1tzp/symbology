@@ -46,7 +46,7 @@ Following the Reddit-inspired short URL format:
 - **Landing Page**: `/`
 - **Companies Browse**: `/companies` - Browse and search companies
 - **Filings Browse**: `/filings` - Browse and search SEC filings
-- **Analysis Browse**: `/analysis` - Browse and search AI-generated analysis
+- **Analysis Browse**: `/analysis` - Browse and search LLM-generated analysis
 - **Company Overview**: `/c/{ticker}` (e.g., `/c/AAPL`)
 - **Generated Content**: `/g/{ticker}/{sha256[0:12]}` (e.g., `/g/AAPL/a1b2c3d4e5f6`)
 - **Filing Display**: `/f/{edgar_id}` (e.g., `/f/0000320193-23-000077`)

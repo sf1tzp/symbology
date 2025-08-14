@@ -28,13 +28,13 @@ Created three placeholder landing pages to match the navigation menu items, serv
 ### `/analysis` - AI Analysis Browse Page
 **Features:**
 - Analysis search functionality
-- Recent AI-generated analysis reports
+- Recent LLM-generated analysis reports
 - Analysis categories (Financial Summary, Risk Assessment, Revenue Analysis, etc.)
 - AI model information (GPT-4, Claude-3, Custom Models)
 - Mock data showing generated content with SHA identifiers
 - Direct navigation to generated content pages (`/g/{ticker}/{sha}`)
 
-**Purpose:** Central hub for discovering AI-generated financial insights
+**Purpose:** Central hub for discovering LLM-generated financial insights
 
 ## 🔄 Navigation Flow
 

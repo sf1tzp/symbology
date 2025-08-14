@@ -29,10 +29,7 @@
 
 <svelte:head>
 	<title>Symbology - Financial Analysis Platform</title>
-	<meta
-		name="description"
-		content="Explore financial data and AI-generated insights for public companies"
-	/>
+	<meta name="description" content="Explore LLM-generated insights on publicly traded companies." />
 </svelte:head>
 
 <div class="space-y-8">
@@ -40,7 +37,7 @@
 	<section class="space-y-4 text-center">
 		<h1 class="text-4xl font-bold tracking-tight">Symbology</h1>
 		<p class="text-muted-foreground mx-auto max-w-2xl text-xl">
-			Explore financial data and AI-generated insights for public companies
+			Explore LLM-generated insights from public SEC Filings
 		</p>
 	</section>
 
@@ -54,17 +51,13 @@
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<CompanySelector
-					on:companySelected={handleCompanySelected}
-					showCompanyList={false}
-					variant="compact"
-				/>
+				<CompanySelector showCompanyList={true} />
 			</CardContent>
 		</Card>
 	</section>
 
 	<!-- Quick Navigation -->
-	<section class="mx-auto grid max-w-4xl grid-cols-1 gap-6 md:grid-cols-3">
+	<!-- <section class="mx-auto grid max-w-4xl grid-cols-1 gap-6 md:grid-cols-3">
 		<Card>
 			<CardHeader>
 				<CardTitle class="text-lg">Companies</CardTitle>
@@ -75,7 +68,7 @@
 		<Card>
 			<CardHeader>
 				<CardTitle class="text-lg">Generated Content</CardTitle>
-				<CardDescription>View AI-generated analysis and insights</CardDescription>
+				<CardDescription>View LLM-generated analysis and insights</CardDescription>
 			</CardHeader>
 		</Card>
 
@@ -85,5 +78,5 @@
 				<CardDescription>Explore SEC filings and documents</CardDescription>
 			</CardHeader>
 		</Card>
-	</section>
+	</section> -->
 </div>

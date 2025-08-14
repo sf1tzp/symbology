@@ -275,11 +275,12 @@ def get_generated_content_by_company_and_ticker(ticker: str, content_hash: str) 
         raise
 
 
-def get_recent_generated_content_by_ticker(ticker: str) -> List[GeneratedContent]:
+def get_recent_generated_content_by_ticker(ticker: str, limit: int = 10) -> List[GeneratedContent]:
     """Get the most recent generated content for each document type by ticker.
 
     Args:
         ticker: Company ticker symbol
+        limit: Maximum number of results to return
 
     Returns:
         List of GeneratedContent objects - the most recent content for each document type
@@ -307,6 +308,7 @@ def get_recent_generated_content_by_ticker(ticker: str) -> List[GeneratedContent
                   (GeneratedContent.document_type == subquery.c.document_type) &
                   (GeneratedContent.created_at == subquery.c.latest_date))
             .filter(Company.tickers.any(ticker.upper()))
+            .limit(limit)
             .all()
         )
 

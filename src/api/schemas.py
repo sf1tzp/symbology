@@ -110,11 +110,13 @@ class DocumentResponse(BaseModel):
     """Response schema for a document."""
     id: UUID = Field(..., description="Unique identifier for the document")
     filing_id: Optional[UUID] = Field(None, description="ID of the filing this document belongs to")
-    company_id: UUID = Field(..., description="ID of the company this document belongs to")
+    company_ticker: str = Field(..., description="ID of the company this document belongs to")
     document_name: str = Field(..., description="Name of the document")
+    document_type: str = Field(..., description="Type of the document")
     content: Optional[str] = Field(None, description="Text content of the document")
     # Filing information (when available)
     filing: Optional[FilingResponse] = Field(None, description="Filing information including SEC URL")
+    content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
 
     class Config:
         json_schema_extra = {

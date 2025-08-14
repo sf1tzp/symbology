@@ -13,6 +13,7 @@
 	import FilingDetail from '$lib/components/filings/FilingDetail.svelte';
 	import DocumentsList from '$lib/components/documents/DocumentsList.svelte';
 	import type { PageData } from './$types';
+	import type { DocumentResponse } from '$lib/generated-api-types';
 
 	let { data }: { data: PageData } = $props();
 
@@ -24,8 +25,9 @@
 		}
 	}
 
-	function handleDocumentSelected(document: any) {
-		goto(`/d/${document.edgar_id}`);
+	function handleDocumentSelected(event: CustomEvent<DocumentResponse>) {
+		const hash = event.detail.content_hash.substring(0, 12);
+		goto(`/d/${data.accession_number}/${event.detail.content_hash}`);
 	}
 </script>
 
@@ -45,13 +47,13 @@
 				← Back to {data.company?.name || 'Company'}
 			</Button>
 			<div>
-				<h1 class="text-2xl font-bold">
+				<!-- <h1 class="text-2xl font-bold">
 					{data.filing.filing_type} Filing
-				</h1>
-				<div class="mt-1 flex items-center space-x-2">
+				</h1> -->
+				<!-- <div class="mt-1 flex items-center space-x-2">
 					<Badge variant="outline">{data.filing.filing_date}</Badge>
-					<Badge variant="secondary">ID: {data.edgar_id.substring(0, 8)}</Badge>
-				</div>
+					<Badge variant="secondary">ID: {data.accession_number.substring(0, 8)}</Badge>
+				</div> -->
 			</div>
 		</div>
 	</div>

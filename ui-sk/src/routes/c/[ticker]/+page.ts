@@ -1,16 +1,16 @@
 import type { PageLoad } from './$types';
-import type { CompanyResponse, AggregateResponse, FilingResponse } from '$lib/generated-api-types';
-import { getCompanyByTicker, getAggregatesByTicker, getFilingsByTicker } from '$lib/api';
+import type { CompanyResponse, GeneratedContentResponse, FilingResponse } from '$lib/generated-api-types';
+import { getCompanyByTicker, getGeneratedContentByTicker, getFilingsByTicker } from '$lib/api';
 
 export const load: PageLoad = async ({ params }) => {
     const { ticker } = params;
     const upperTicker = ticker.toUpperCase();
 
     try {
-        // Load company data, aggregates, and filings in parallel
-        const [company, aggregates, filings] = await Promise.all([
+        // Load company data, generated content, and filings in parallel
+        const [company, generatedContent, filings] = await Promise.all([
             getCompanyByTicker(upperTicker),
-            getAggregatesByTicker(upperTicker, 5),
+            getGeneratedContentByTicker(upperTicker, 5),
             getFilingsByTicker(upperTicker, 5)
         ]);
 
@@ -18,7 +18,7 @@ export const load: PageLoad = async ({ params }) => {
         return {
             ticker: upperTicker,
             company,
-            aggregates,
+            generatedContent,
             filings
         };
     } catch (error) {
@@ -28,7 +28,7 @@ export const load: PageLoad = async ({ params }) => {
         return {
             ticker: upperTicker,
             company: null,
-            aggregates: [],
+            generatedContent: [],
             filings: [],
             error: error instanceof Error ? error.message : 'Unknown error'
         };

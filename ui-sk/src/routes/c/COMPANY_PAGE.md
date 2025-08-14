@@ -27,7 +27,7 @@ Following the proposed sections from routes.md:
 **Two-column grid layout:**
 
 #### AI Analysis Section (🤖)
-- **Recent Analysis**: List of AI-generated reports
+- **Recent Analysis**: List of LLM-generated reports
 - **Analysis Types**: Financial Summary, Risk Analysis, Strategic Analysis
 - **Quick Actions**: View individual analysis, browse all analysis
 - **Navigation**: Links to `/g/{ticker}/{sha}` and `/analysis`
@@ -107,7 +107,7 @@ const mockCompany = {
 ### Real API Integration
 - **Company Data**: Replace mock company info with API calls
 - **Financial Data**: Integrate real financial metrics
-- **Analysis Data**: Connect to AI-generated content API
+- **Analysis Data**: Connect to LLM-generated content API
 - **Filing Data**: Connect to SEC filing API
 
 ### Enhanced Features

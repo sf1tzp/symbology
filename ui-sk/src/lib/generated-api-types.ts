@@ -91,13 +91,17 @@ export interface DocumentResponse {
   /** ID of the filing this document belongs to */
   filing_id?: any;
   /** ID of the company this document belongs to */
-  company_id: string;
+  company_ticker: string;
   /** Name of the document */
   document_name: string;
+  /** Type of the document */
+  document_type: string;
   /** Text content of the document */
   content?: any;
   /** Filing information including SEC URL */
   filing?: any;
+  /** SHA256 hash of the content */
+  content_hash?: any;
 }
 
 export interface FilingResponse {
@@ -117,6 +121,64 @@ export interface FilingResponse {
   period_of_report?: any;
 }
 
+export interface GeneratedContentCreateRequest {
+  /** ID of the company */
+  company_id?: any;
+  /** Type of document */
+  document_type?: any;
+  /** Type of sources (documents, generated_content, both) */
+  source_type: string;
+  /** The generated content */
+  content?: any;
+  /** Summary of the content */
+  summary?: any;
+  /** ID of the model configuration */
+  model_config_id?: any;
+  /** ID of the system prompt */
+  system_prompt_id?: any;
+  /** ID of the user prompt */
+  user_prompt_id?: any;
+  /** List of source document IDs */
+  source_document_ids?: any;
+  /** List of source content IDs */
+  source_content_ids?: any;
+  /** Generation duration in seconds */
+  total_duration?: any;
+}
+
+export interface GeneratedContentResponse {
+  /** Unique identifier for the generated content */
+  id: string;
+  /** SHA256 hash of the content */
+  content_hash?: any;
+  /** Shortened hash for URLs (first 12 characters) */
+  short_hash?: any;
+  /** ID of the company this content belongs to */
+  company_id?: any;
+  /** Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION) */
+  document_type?: any;
+  /** Type of sources used (documents, generated_content, both) */
+  source_type: string;
+  /** Timestamp when the content was created */
+  created_at: string;
+  /** Total duration of content generation in seconds */
+  total_duration?: any;
+  /** The actual AI-generated content */
+  content?: any;
+  /** Generated summary of the content */
+  summary?: any;
+  /** ID of the model configuration used */
+  model_config_id?: any;
+  /** ID of the system prompt used */
+  system_prompt_id?: any;
+  /** ID of the user prompt used */
+  user_prompt_id?: any;
+  /** List of source document IDs */
+  source_document_ids?: string[];
+  /** List of source content IDs */
+  source_content_ids?: string[];
+}
+
 export interface HTTPValidationError {
   detail?: ValidationError[];
 }
@@ -127,6 +189,31 @@ export interface LogRequest {
   component: string;
   event: string;
   user_agent: string;
+}
+
+export interface ModelConfigResponse {
+  /** Unique identifier for the model config */
+  id: string;
+  /** Model name */
+  name: string;
+  /** Timestamp when the config was created */
+  created_at: string;
+  /** Ollama options as JSON */
+  options?: any;
+  /** Context window size */
+  num_ctx?: any;
+  /** Temperature parameter */
+  temperature?: any;
+  /** Top-k parameter */
+  top_k?: any;
+  /** Top-p parameter */
+  top_p?: any;
+  /** Random seed */
+  seed?: any;
+  /** Number of tokens to predict */
+  num_predict?: any;
+  /** Number of GPUs to use */
+  num_gpu?: any;
 }
 
 export interface PromptResponse {

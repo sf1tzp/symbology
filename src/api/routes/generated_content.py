@@ -30,7 +30,7 @@ logger = get_logger(__name__)
         500: {"description": "Internal server error"}
     }
 )
-async def get_company_generated_content_by_ticker(ticker: str):
+async def get_company_generated_content_by_ticker(ticker: str, limit: int = 10):
     """Get the most recent generated content for each document type by ticker.
 
     Returns only the most recent content for each document type to avoid duplicates
@@ -38,6 +38,7 @@ async def get_company_generated_content_by_ticker(ticker: str):
 
     Args:
         ticker: Company ticker symbol (e.g., 'AAPL', 'GOOGL')
+        limit: Maximum number of results to return (default: 10)
 
     Returns:
         List of GeneratedContentResponse objects - the most recent content for each document type
@@ -45,7 +46,7 @@ async def get_company_generated_content_by_ticker(ticker: str):
     logger.info("api_get_company_generated_content_by_ticker", ticker=ticker)
 
     try:
-        content_list = get_recent_generated_content_by_ticker(ticker)
+        content_list = get_recent_generated_content_by_ticker(ticker, limit)
 
         if not content_list:
             raise HTTPException(

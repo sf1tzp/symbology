@@ -154,14 +154,12 @@
 			<Card>
 				<CardHeader>
 					<CardTitle class="text-lg">Generated Content</CardTitle>
-					<CardDescription>
-						{#if data.content?.content}
-							<div class="flex items-center">
-								<HandCoins class="mr-2 h-4 w-4" />
-								~{estimateTokens(data.content.content || '')} tokens
-							</div>
-						{/if}
-					</CardDescription>
+					{#if data.content?.content}
+						<div class="text-muted-foreground flex items-center text-sm">
+							<HandCoins class="mr-2 h-4 w-4" />
+							~{estimateTokens(data.content.content || '')} tokens
+						</div>
+					{/if}
 
 					<div class="text-muted-foreground flex flex-col space-y-2 text-sm sm:text-right">
 						{#if data.content?.content}

@@ -26,15 +26,13 @@
 <Card class="h-full w-full">
 	<CardHeader>
 		<CardTitle class="text-lg">Document Content</CardTitle>
-		<CardDescription>
-			{#if document.content}
-				<div class="flex items-center">
-					<HandCoins class="mr-2 h-4 w-4" />
-					~{estimateTokens(document.content || '')} tokens
-				</div>
-			{/if}
-			<!-- TODO: add 'Retrieved on ...' -->
-		</CardDescription>
+		{#if document.content}
+			<div class="text-muted-foreground flex items-center text-sm">
+				<HandCoins class="mr-2 h-4 w-4" />
+				~{estimateTokens(document.content || '')} tokens
+			</div>
+		{/if}
+		<!-- TODO: add 'Retrieved on ...' -->
 	</CardHeader>
 	<CardContent>
 		<div class="space-y-4">

@@ -1,12 +1,8 @@
-# shellcheck shell=bash
-# shellcheck disable=SC2035,SC2050,SC2148
+up:
+  npm run dev -- --open --host 0.0.0.0
 
 generate-api-types:
-    node scripts/generate-api-types.js
-
-deps:
-    rm -rf node_modules
-    npm install
+  node scripts/generate-api-types.js
 
 lint *ARGS: format
         npm run lint {{ARGS}} | tee ui-lint.log
@@ -20,9 +16,3 @@ format:
 
 check *ARGS: format
     npm run check {{ARGS}} | tee npm-check.log
-
-# Production build with quality checks
-build:
-    npm run build:prod
-    nerdctl build . -t symbology-ui:latest
-

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import {
 		Card,
@@ -12,12 +11,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import type { PageData } from './$types';
-	import type {
-		CompanyResponse,
-		GeneratedContentResponse,
-		FilingResponse
-	} from '$lib/generated-api-types';
-	import Badge from '$lib/components/ui/badge/badge.svelte';
+	import type { FilingResponse } from '$lib/generated-api-types';
 
 	let { data }: { data: PageData } = $props();
 
@@ -145,25 +139,14 @@
 		<div class="space-y-2">
 			<div class="flex items-center space-x-3">
 				<h1 class="text-4xl font-bold">{displayCompany.display_name || displayCompany.name}</h1>
-				<span class="rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
+				<span class="bg-primary text-primary-foreground rounded-full px-3 py-1 text-sm font-medium">
 					{ticker}
 				</span>
 			</div>
-			<div class="flex items-center space-x-4 text-sm text-muted-foreground">
-				<!-- {#if displayCompany.cik}
-					<Badge>CIK: {displayCompany.cik}</Badge>
-				{/if} -->
+			<div class="text-muted-foreground flex items-center space-x-4 text-sm">
 				{#if displayCompany.sic_description}
 					<span>{displayCompany.sic_description}</span>
 				{/if}
-				<!-- <div class="text-center">
-					<div class="text-primary text-2xl font-bold">{displayCompany.cik || 'N/A'}</div>
-					<div class="text-muted-foreground text-sm">CIK</div>
-				</div>
-				{#if displayCompany.exchanges && displayCompany.exchanges.length > 0}
-					{#if displayCompany.sic_description}<span>•</span>{/if}
-					<span>{displayCompany.exchanges.join(', ')}</span>
-				{/if} -->
 			</div>
 		</div>
 	</div>
@@ -183,27 +166,8 @@
 			{#if displayCompany.summary && displayCompany.summary.trim()}
 				<MarkdownContent content={cleanContent(displayCompany.summary) || 'what'} />
 			{:else}
-				<p class="leading-relaxed text-muted-foreground">No description available.</p>
+				<p class="text-muted-foreground leading-relaxed">No description available.</p>
 			{/if}
-
-			<!-- <div class="grid grid-cols-2 gap-4 border-t pt-4 md:grid-cols-4">
-				<div class="text-center">
-					<div class="text-primary text-2xl font-bold">{displayCompany.tickers?.length || 0}</div>
-					<div class="text-muted-foreground text-sm">Tickers</div>
-				</div>
-				<div class="text-center">
-					<div class="text-primary text-2xl font-bold">
-						{displayCompany.sic_description || 'Unknown'}
-					</div>
-					<div class="text-muted-foreground text-sm">Industry</div>
-				</div>
-				<div class="text-center">
-					<div class="text-primary text-2xl font-bold">
-						{displayCompany.entity_type || 'Company'}
-					</div>
-					<div class="text-muted-foreground text-sm">Type</div>
-				</div>
-			</div> -->
 		</CardContent>
 	</Card>
 
@@ -227,25 +191,6 @@
 				View on Yahoo! Finance
 			</Button>
 		</CardContent>
-
-		<!-- <CardContent>
-			<div class="py-12 text-center">
-				<div class="mb-4 text-6xl">🚧</div>
-				<h3 class="mb-2 text-xl font-semibold">Financial Overview Coming Soon</h3>
-				<p class="text-muted-foreground mb-6">
-					We're working on integrating comprehensive financial data and metrics.
-				</p>
-				<div class="text-muted-foreground text-sm">
-					This section will include:
-					<ul class="mt-2 list-inside list-disc space-y-1">
-						<li>Revenue and earnings trends</li>
-						<li>Key financial ratios</li>
-						<li>Balance sheet highlights</li>
-						<li>Cash flow analysis</li>
-					</ul>
-				</div>
-			</div>
-		</CardContent> -->
 	</Card>
 
 	<!-- Section 3: Links to Filings / Analysis -->
@@ -267,14 +212,14 @@
 					<div class="space-y-3">
 						{#each generatedContent as content}
 							<div
-								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
+								class="hover:bg-muted flex items-center justify-between rounded-lg border p-3 transition-colors"
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
 										{getAnalysisTypeDisplay(content.document_type)} Analysis
 									</div>
-									<div class="flex items-center space-x-2 text-xs text-muted-foreground">
-										<span class="rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground">
+									<div class="text-muted-foreground flex items-center space-x-2 text-xs">
+										<span class="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs">
 											Content Generated on {formatDate(content.created_at)}
 										</span>
 									</div>
@@ -291,18 +236,12 @@
 					</div>
 				{:else}
 					<div class="py-8 text-center">
-						<div class="mb-4 text-muted-foreground">No analysis available yet</div>
-						<p class="text-sm text-muted-foreground">
+						<div class="text-muted-foreground mb-4">No analysis available yet</div>
+						<p class="text-muted-foreground text-sm">
 							Analysis will be generated from company filings and documents.
 						</p>
 					</div>
 				{/if}
-
-				<!-- <div class="border-t pt-4">
-					<Button variant="outline" class="w-full" onclick={handleBrowseAnalysis}>
-						Browse All Analysis →
-					</Button>
-				</div> -->
 			</CardContent>
 		</Card>
 
@@ -320,16 +259,12 @@
 					<div class="space-y-3">
 						{#each filings as filing}
 							<div
-								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
+								class="hover:bg-muted flex items-center justify-between rounded-lg border p-3 transition-colors"
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
 										{format_filing_in_list(filing)}
-										<!-- {filing.filing_type} - {filing.period_of_report || 'Current Report'} -->
 									</div>
-									<!-- <div class="text-muted-foreground text-xs"> -->
-									<!-- 	Filed: {formatDate(filing.filing_date)} -->
-									<!-- </div> -->
 								</div>
 								<Button
 									variant="outline"
@@ -343,18 +278,12 @@
 					</div>
 				{:else}
 					<div class="py-8 text-center">
-						<div class="mb-4 text-muted-foreground">No filings available</div>
-						<p class="text-sm text-muted-foreground">
+						<div class="text-muted-foreground mb-4">No filings available</div>
+						<p class="text-muted-foreground text-sm">
 							SEC filings will appear here when available for this company.
 						</p>
 					</div>
 				{/if}
-
-				<!-- <div class="border-t pt-4">
-					<Button variant="outline" class="w-full" onclick={handleBrowseFilings}>
-						Browse All Filings →
-					</Button>
-				</div> -->
 			</CardContent>
 		</Card>
 	</div>

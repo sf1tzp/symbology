@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import {
@@ -29,15 +28,15 @@
 		<CardHeader>
 			<div class="flex items-center space-x-2">
 				<AlertCircle class="h-5 w-5 text-red-500" />
-				<CardTitle>Content Not Found</CardTitle>
+				<CardTitle class="text-lg">Content Not Found</CardTitle>
 			</div>
 			<CardDescription>
 				The generated content you're looking for could not be found.
 			</CardDescription>
 		</CardHeader>
 		<CardContent class="space-y-4">
-			<p class="text-sm text-muted-foreground">This might happen if:</p>
-			<ul class="space-y-1 text-sm text-muted-foreground">
+			<p class="text-muted-foreground text-sm">This might happen if:</p>
+			<ul class="text-muted-foreground space-y-1 text-sm">
 				<li>• The content hash is invalid</li>
 				<li>• The content has been removed</li>
 				<li>• The API is temporarily unavailable</li>

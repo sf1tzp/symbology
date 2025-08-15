@@ -64,7 +64,7 @@
 	<!-- Documents -->
 	<Card>
 		<CardHeader>
-			<CardTitle>Filing Documents</CardTitle>
+			<CardTitle class="text-lg">Filing Documents</CardTitle>
 			<CardDescription>Documents contained within this SEC filing</CardDescription>
 		</CardHeader>
 		<CardContent>

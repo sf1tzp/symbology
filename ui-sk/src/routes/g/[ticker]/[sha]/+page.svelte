@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import {
 		Card,
@@ -8,14 +7,13 @@
 		CardHeader,
 		CardTitle
 	} from '$lib/components/ui/card';
-	import { Calendar, Clock, FileText, Eye, Copy, Check, HandCoins } from '@lucide/svelte';
+	import { Calendar, Clock, HandCoins } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge, badgeVariants } from '$lib/components/ui/badge';
 	import ContentViewer from '$lib/components/content/ContentViewer.svelte';
 	import SourcesList from '$lib/components/content/SourcesList.svelte';
 	import ModelConfig from '$lib/components/content/ModelConfig.svelte';
 	import type { PageData } from './$types';
-	import Separator from '$lib/components/ui/separator/separator.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -117,9 +115,6 @@
 				<a href="/g/{data.ticker}/{data.sha}" class={badgeVariants({ variant: 'secondary' })}>
 					<span class="font-mono">{data.sha}</span>
 				</a>
-				<!-- {#if data.content.document_type}
-						<Badge variant="default">{data.content.document_type}</Badge>
-					{/if} -->
 			</div>
 		</div>
 	</div>
@@ -134,7 +129,9 @@
 					<CardTitle class="text-lg">Model Configuration</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<ModelConfig config={data.content.modelConfig} />
+					{#if data.content?.modelConfig}
+						<ModelConfig config={data.content.modelConfig} />
+					{/if}
 				</CardContent>
 			</Card>
 
@@ -145,7 +142,9 @@
 					<CardDescription>Documents and data used to generate this content</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<SourcesList sources={data.content.sources} on:sourceSelected={handleSourceSelected} />
+					{#if data.content?.sources}
+						<SourcesList sources={data.content.sources} on:sourceSelected={handleSourceSelected} />
+					{/if}
 				</CardContent>
 			</Card>
 		</div>
@@ -154,19 +153,23 @@
 		<div class="space-y-6 lg:col-span-2">
 			<Card>
 				<CardHeader>
-					<CardTitle>Generated Content</CardTitle>
+					<CardTitle class="text-lg">Generated Content</CardTitle>
 					<CardDescription>
-						<div class="flex items-center">
-							<HandCoins class="mr-2 h-4 w-4" />
-							~{estimateTokens(data.content.content || '')} tokens
-						</div>
+						{#if data.content?.content}
+							<div class="flex items-center">
+								<HandCoins class="mr-2 h-4 w-4" />
+								~{estimateTokens(data.content.content || '')} tokens
+							</div>
+						{/if}
 					</CardDescription>
 
-					<div class="flex flex-col space-y-2 text-sm text-muted-foreground sm:text-right">
-						<div class="flex items-center">
-							<Calendar class="mr-2 h-4 w-4" />
-							Generated {formatDate(data.content.created_at)}
-						</div>
+					<div class="text-muted-foreground flex flex-col space-y-2 text-sm sm:text-right">
+						{#if data.content?.content}
+							<div class="flex items-center">
+								<Calendar class="mr-2 h-4 w-4" />
+								Generated {formatDate(data.content.created_at)}
+							</div>
+						{/if}
 						{#if data.content.total_duration}
 							<div class="flex items-center">
 								<Clock class="mr-2 h-4 w-4" />

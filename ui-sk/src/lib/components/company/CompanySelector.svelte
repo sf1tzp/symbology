@@ -4,13 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/components/ui/card';
+	import { Card, CardContent } from '$lib/components/ui/card';
 	import type { CompanyResponse } from '$lib/generated-api-types';
 	import { searchCompanies, getCompanies, handleApiError } from '$lib/api';
 
@@ -211,7 +205,7 @@
 					variant="ghost"
 					size="sm"
 					onclick={clearSearch}
-					class="absolute top-1/2 right-2 h-6 w-6 -translate-y-1/2 p-0"
+					class="absolute right-2 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
 				>
 					×
 				</Button>
@@ -236,19 +230,19 @@
 
 	<!-- Search Results Dropdown -->
 	{#if showDropdown && searchResults.length > 0}
-		<div class="absolute top-full right-0 left-0 z-50 mt-1">
+		<div class="absolute left-0 right-0 top-full z-50 mt-1">
 			<Card class="shadow-lg">
 				<CardContent class="p-0">
 					<div class="max-h-60 overflow-y-auto">
 						{#each searchResults as company, index}
 							<button
-								class="w-full border-b p-3 text-left transition-colors last:border-b-0 hover:bg-muted"
+								class="hover:bg-muted w-full border-b p-3 text-left transition-colors last:border-b-0"
 								class:bg-muted={currentFocusIndex === index}
 								onclick={() => selectCompany(company)}
 								type="button"
 							>
-								<div class="font-medium text-foreground">{company.name}</div>
-								<div class="text-sm text-muted-foreground">
+								<div class="text-foreground font-medium">{company.name}</div>
+								<div class="text-muted-foreground text-sm">
 									{company.tickers?.join(', ') || 'No tickers'}
 									{#if company.sic_description}
 										• {company.sic_description}
@@ -273,7 +267,7 @@
 							<div class="flex items-center justify-between">
 								<div class="flex-1">
 									<div class="text-sm font-medium">{company.name}</div>
-									<div class="text-xs text-muted-foreground">
+									<div class="text-muted-foreground text-xs">
 										{company.tickers?.[0] || 'N/A'}
 										{#if company.sic_description}
 											• {company.sic_description}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { ModeWatcher } from 'mode-watcher';
-	import { page } from '$app/stores';
+	import { page } from '$app/stores'; // fixme: deprecated
 	import Header from '$lib/components/Header.svelte';
 	import Navigation from '$lib/components/ui/Navigation.svelte';
 
@@ -10,7 +10,7 @@
 
 <ModeWatcher />
 
-<div class="min-h-screen bg-background">
+<div class="bg-background min-h-screen">
 	<Header />
 
 	<!-- Mobile-first navigation -->

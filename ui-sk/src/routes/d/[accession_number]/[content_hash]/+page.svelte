@@ -94,22 +94,7 @@
 	<!-- Document Title -->
 	<div>
 		<h1 class="text-2xl font-bold">{formatTitle(data.document)}</h1>
-		<h3 class="text-muted-foreground">
-			<div class="flex items-center">
-				<HandCoins class="mr-2 h-4 w-4" />
-				~{estimateTokens(data.document.content || '')} tokens
-			</div>
-		</h3>
-		<!-- {#if data.document.filing}
-			<p class="text-muted-foreground mt-1">
-				From {data.document.filing.filing_type} filing on {new Date(
-					data.document.filing.filing_date
-				).toLocaleDateString()}
-			</p>
-			<p class="text-muted-foreground text-sm">
-				Accession: {data.accession_number}
-			</p>
-		{/if} -->
+
 	</div>
 
 	<!-- Document Content -->

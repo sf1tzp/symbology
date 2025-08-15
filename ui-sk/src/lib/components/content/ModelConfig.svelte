@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Settings, Cpu, Thermometer, Target, Hash, Dice6, Gpu, FileText } from '@lucide/svelte';
 	import type { ModelConfigResponse } from '$lib/generated-api-types';
@@ -19,17 +18,6 @@
 		return String(value);
 	}
 
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
-
 	function getModelDisplayName(name: string): string {
 		// Convert model names to more readable format
 
@@ -46,7 +34,7 @@
 		<!-- Model Information -->
 		<div class="space-y-2">
 			<div class="flex items-center space-x-2">
-				<Cpu class="h-4 w-4 text-muted-foreground" />
+				<Cpu class="text-muted-foreground h-4 w-4" />
 				<span class="font-medium">Model</span>
 				<Badge variant="secondary" class="font-mono text-sm">
 					{getModelDisplayName(config.name)}
@@ -59,7 +47,7 @@
 		<!-- Model Parameters -->
 		<div class="space-y-3">
 			<div class="flex items-center space-x-2">
-				<Settings class="h-4 w-4 text-muted-foreground" />
+				<Settings class="text-muted-foreground h-4 w-4" />
 				<span class="text-sm font-medium">Parameters</span>
 			</div>
 
@@ -67,37 +55,17 @@
 				{#if config.temperature !== null}
 					<div class="flex items-center justify-between">
 						<div class="flex items-center space-x-2">
-							<Thermometer class="h-3 w-3 text-muted-foreground" />
+							<Thermometer class="text-muted-foreground h-3 w-3" />
 							<span class="text-muted-foreground">Temperature</span>
 						</div>
 						<span class="font-mono">{formatValue(config.temperature)}</span>
 					</div>
 				{/if}
 
-				<!-- {#if config.top_p !== null}
-					<div class="flex items-center justify-between">
-						<div class="flex items-center space-x-2">
-							<Target class="text-muted-foreground h-3 w-3" />
-							<span class="text-muted-foreground">Top-p</span>
-						</div>
-						<span class="font-mono">{formatValue(config.top_p)}</span>
-					</div>
-				{/if}
-
-				{#if config.top_k !== null}
-					<div class="flex items-center justify-between">
-						<div class="flex items-center space-x-2">
-							<Hash class="text-muted-foreground h-3 w-3" />
-							<span class="text-muted-foreground">Top-k</span>
-						</div>
-						<span class="font-mono">{formatValue(config.top_k)}</span>
-					</div>
-				{/if} -->
-
 				{#if config.num_ctx !== null}
 					<div class="flex items-center justify-between">
 						<div class="flex items-center space-x-2">
-							<FileText class="h-3 w-3 text-muted-foreground" />
+							<FileText class="text-muted-foreground h-3 w-3" />
 							<span class="text-muted-foreground">Context Window</span>
 						</div>
 						<span class="font-mono">{formatValue(config.num_ctx)}</span>
@@ -107,7 +75,7 @@
 				{#if config.seed !== null}
 					<div class="flex items-center justify-between">
 						<div class="flex items-center space-x-2">
-							<Dice6 class="h-3 w-3 text-muted-foreground" />
+							<Dice6 class="text-muted-foreground h-3 w-3" />
 							<span class="text-muted-foreground">Seed</span>
 						</div>
 						<span class="font-mono text-xs">{formatValue(config.seed)}</span>
@@ -117,7 +85,7 @@
 				{#if config.num_gpu !== null && config.num_gpu > 0}
 					<div class="flex items-center justify-between">
 						<div class="flex items-center space-x-2">
-							<Gpu class="h-3 w-3 text-muted-foreground" />
+							<Gpu class="text-muted-foreground h-3 w-3" />
 							<span class="text-muted-foreground">GPUs</span>
 						</div>
 						<span class="font-mono">{formatValue(config.num_gpu)}</span>
@@ -125,24 +93,12 @@
 				{/if}
 			</div>
 		</div>
-
-		<!-- <Separator /> -->
-
-		<!-- Metadata -->
-		<!-- <div class="space-y-1">
-			<p class="text-muted-foreground text-xs">
-				Created {formatDate(config.created_at)}
-			</p>
-			<p class="text-muted-foreground font-mono text-xs">
-				ID: {config.id.substring(0, 8)}...
-			</p>
-		</div> -->
 	</div>
 {:else}
 	<div class="flex items-center justify-center p-6">
 		<div class="text-center">
-			<Settings class="mx-auto h-8 w-8 text-muted-foreground" />
-			<p class="mt-2 text-sm text-muted-foreground">No model configuration available</p>
+			<Settings class="text-muted-foreground mx-auto h-8 w-8" />
+			<p class="text-muted-foreground mt-2 text-sm">No model configuration available</p>
 		</div>
 	</div>
 {/if}

@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { Button } from '$lib/components/ui/button';
 	import {
 		Card,
 		CardContent,
@@ -36,7 +34,7 @@
 	<!-- Hero Section -->
 	<section class="space-y-4 text-center">
 		<h1 class="text-4xl font-bold tracking-tight">Symbology</h1>
-		<p class="mx-auto max-w-2xl text-xl text-muted-foreground">
+		<p class="text-muted-foreground mx-auto max-w-2xl text-xl">
 			Explore LLM-generated insights from public SEC Filings
 		</p>
 	</section>
@@ -45,7 +43,7 @@
 	<section class="mx-auto max-w-2xl">
 		<Card>
 			<CardHeader>
-				<CardTitle>Get Started</CardTitle>
+				<CardTitle class="text-lg">Get Started</CardTitle>
 				<CardDescription>
 					Search for a company to explore their financial data and analysis
 				</CardDescription>

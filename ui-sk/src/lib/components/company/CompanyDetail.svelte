@@ -130,13 +130,13 @@
 					<div class="mt-2 flex items-center space-x-2">
 						{#each company.tickers as ticker}
 							<span
-								class="rounded-full bg-primary px-2 py-1 text-sm font-medium text-primary-foreground"
+								class="bg-primary text-primary-foreground rounded-full px-2 py-1 text-sm font-medium"
 							>
 								{ticker}
 							</span>
 						{/each}
 						{#if company.sector}
-							<span class="rounded-full bg-secondary px-2 py-1 text-sm text-secondary-foreground">
+							<span class="bg-secondary text-secondary-foreground rounded-full px-2 py-1 text-sm">
 								{company.sector}
 							</span>
 						{/if}
@@ -148,7 +148,7 @@
 		{#if cleanSummary}
 			<CardContent>
 				<div class="prose prose-sm max-w-none">
-					<p class="leading-relaxed text-muted-foreground">
+					<p class="text-muted-foreground leading-relaxed">
 						{showFullSummary ? cleanSummary : truncatedSummary}
 					</p>
 					{#if cleanSummary.length > 300}
@@ -166,8 +166,8 @@
 		<Card>
 			<CardContent class="flex items-center justify-center py-8">
 				<div class="space-y-2 text-center">
-					<div class="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
-					<p class="text-sm text-muted-foreground">Loading analysis...</p>
+					<div class="border-primary mx-auto h-8 w-8 animate-spin rounded-full border-b-2"></div>
+					<p class="text-muted-foreground text-sm">Loading analysis...</p>
 				</div>
 			</CardContent>
 		</Card>
@@ -183,7 +183,7 @@
 	{:else if aggregates.length > 0}
 		<Card>
 			<CardHeader>
-				<CardTitle>Available Analysis</CardTitle>
+				<CardTitle class="text-lg">Available Analysis</CardTitle>
 				<CardDescription>Click to view LLM-generated analysis and insights</CardDescription>
 			</CardHeader>
 			<CardContent>
@@ -199,7 +199,7 @@
 									{formatDocumentType(aggregate.document_type)}
 								</div>
 								{#if aggregate.title}
-									<div class="mt-1 text-sm text-muted-foreground">
+									<div class="text-muted-foreground mt-1 text-sm">
 										{aggregate.title}
 									</div>
 								{/if}
@@ -217,7 +217,7 @@
 			<CardHeader>
 				<div class="flex items-center justify-between">
 					<div>
-						<CardTitle>SEC Filings</CardTitle>
+						<CardTitle class="text-lg">SEC Filings</CardTitle>
 						<CardDescription>Recent regulatory filings and documents</CardDescription>
 					</div>
 					<Button
@@ -248,18 +248,18 @@
 										{formatYear(filing.period_of_report)}
 										{filing.filing_type}
 									</div>
-									<div class="text-sm text-muted-foreground">
+									<div class="text-muted-foreground text-sm">
 										{getFilingTypeLabel(filing.filing_type)}
 									</div>
 								</div>
-								<div class="text-right text-sm text-muted-foreground">
+								<div class="text-muted-foreground text-right text-sm">
 									{new Date(filing.filing_date).toLocaleDateString()}
 								</div>
 							</Button>
 						{/each}
 
 						{#if filings.length > 10}
-							<p class="pt-2 text-center text-sm text-muted-foreground">
+							<p class="text-muted-foreground pt-2 text-center text-sm">
 								and {filings.length - 10} more filings...
 							</p>
 						{/if}
@@ -267,7 +267,7 @@
 				</CardContent>
 			{:else}
 				<CardContent>
-					<p class="text-sm text-muted-foreground">
+					<p class="text-muted-foreground text-sm">
 						{filings.length} filing{filings.length === 1 ? '' : 's'} available. Click "Show Details"
 						to view them.
 					</p>

@@ -24,8 +24,6 @@ generate *ARGS: # Run with defaults (AAPL, 2022)
 
 logging *ARGS: # Run with defaults (AAPL, 2022)
     uv run -m src.bin.logging {{ARGS}}
-# summarize:
-#     uv run run.py summarize --document-id 3 --template-id 2 --temperature 0.7
 
 # test and lint outputs are logged to make it easy to include as llm context
 test *ARGS: _create_venv

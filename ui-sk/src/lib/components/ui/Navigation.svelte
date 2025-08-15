@@ -43,7 +43,7 @@
 
 <!-- Mobile navigation -->
 <div
-	class="bg-background/95 supports-[backdrop-filter]:bg-background/60 border-b backdrop-blur lg:hidden"
+	class="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:hidden"
 >
 	<div class="flex h-14 items-center px-4">
 		<Button
@@ -73,7 +73,7 @@
 
 	<!-- Mobile dropdown menu -->
 	{#if mobileMenuOpen}
-		<div class="bg-background border-t px-4 py-2">
+		<div class="border-t bg-background px-4 py-2">
 			<nav class="flex flex-col space-y-2">
 				{#each navItems as item}
 					<Button
@@ -94,7 +94,7 @@
 
 <!-- Desktop navigation -->
 <div
-	class="bg-background/95 supports-[backdrop-filter]:bg-background/60 hidden border-b backdrop-blur lg:block"
+	class="hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:block"
 >
 	<div class="container flex h-14 items-center">
 		<NavigationMenu class="mx-6">
@@ -103,10 +103,10 @@
 					<NavigationMenuItem>
 						<NavigationMenuLink
 							href={item.href}
-							class="bg-background hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground group inline-flex h-9 w-max items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus:outline-none disabled:pointer-events-none disabled:opacity-50 {isCurrentPath(
+							class="group inline-flex h-9 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 {isCurrentPath(
 								item.href
 							)
-								? 'text-foreground font-semibold'
+								? 'font-semibold text-foreground'
 								: 'text-muted-foreground'}"
 						>
 							{item.label}

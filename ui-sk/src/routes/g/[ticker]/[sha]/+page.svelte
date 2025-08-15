@@ -15,6 +15,7 @@
 	import SourcesList from '$lib/components/content/SourcesList.svelte';
 	import ModelConfig from '$lib/components/content/ModelConfig.svelte';
 	import type { PageData } from './$types';
+	import Separator from '$lib/components/ui/separator/separator.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -105,17 +106,20 @@
 					← Back to {data.company.name}
 				</Button>
 			</div>
-			<div>
-				<h1 class="text-2xl font-bold">{getContentTitle()}</h1>
-				<div class="mt-1 flex items-center space-x-2">
-					<Badge variant="secondary" class="bg-gray-500 text-white">{data.ticker}</Badge>
-					<a href="/g/{data.ticker}/{data.sha}" class={badgeVariants({ variant: 'secondary' })}>
-						<span class="font-mono">{data.sha}</span>
-					</a>
-					<!-- {#if data.content.document_type}
+		</div>
+	</div>
+
+	<div class="flex items-center space-x-4">
+		<div>
+			<h1 class="text-2xl font-bold">{getContentTitle()}</h1>
+			<div class="mt-1 flex items-center space-x-2">
+				<Badge variant="secondary" class="bg-gray-500 text-white">{data.ticker}</Badge>
+				<a href="/g/{data.ticker}/{data.sha}" class={badgeVariants({ variant: 'secondary' })}>
+					<span class="font-mono">{data.sha}</span>
+				</a>
+				<!-- {#if data.content.document_type}
 						<Badge variant="default">{data.content.document_type}</Badge>
 					{/if} -->
-				</div>
 			</div>
 		</div>
 	</div>
@@ -158,7 +162,7 @@
 						</div>
 					</CardDescription>
 
-					<div class="text-muted-foreground flex flex-col space-y-2 text-sm sm:text-right">
+					<div class="flex flex-col space-y-2 text-sm text-muted-foreground sm:text-right">
 						<div class="flex items-center">
 							<Calendar class="mr-2 h-4 w-4" />
 							Generated {formatDate(data.content.created_at)}

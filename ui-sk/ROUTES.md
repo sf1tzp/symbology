@@ -1,6 +1,7 @@
 # SvelteKit Routes Structure
 
 ## Overview
+
 This document outlines the routes structure established for the Symbology SvelteKit migration.
 
 ## Routes Directory Structure
@@ -78,6 +79,7 @@ Each route uses SvelteKit's `+page.ts` files for server-side data loading:
 ## Component Dependencies
 
 The routes reference these component categories:
+
 - `$lib/components/ui/*` - shadcn-ui components (Button, Card, Badge, etc.)
 - `$lib/components/company/*` - Company-specific components
 - `$lib/components/filings/*` - Filing-specific components
@@ -96,6 +98,7 @@ The routes reference these component categories:
 ## State Management
 
 Unlike the original single-page app with centralized state, the SvelteKit version uses:
+
 - Page-level state management through load functions
 - URL-based navigation state
 - Local component state with Svelte 5 runes

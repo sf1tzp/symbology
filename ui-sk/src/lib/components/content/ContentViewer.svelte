@@ -119,8 +119,8 @@
 	{:else}
 		<div class="flex items-center justify-center rounded-lg border border-dashed p-8">
 			<div class="text-center">
-				<Eye class="text-muted-foreground mx-auto h-8 w-8" />
-				<p class="text-muted-foreground mt-2 text-sm">No content available</p>
+				<Eye class="mx-auto h-8 w-8 text-muted-foreground" />
+				<p class="mt-2 text-sm text-muted-foreground">No content available</p>
 			</div>
 		</div>
 	{/if}

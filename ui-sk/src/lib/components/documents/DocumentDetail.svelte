@@ -73,7 +73,7 @@
 	<CardHeader>
 		<div class="flex items-start justify-between">
 			<div class="flex items-center space-x-2">
-				<FileText class="text-muted-foreground h-5 w-5" />
+				<FileText class="h-5 w-5 text-muted-foreground" />
 				<div>
 					<CardTitle class="text-lg">Document Content:</CardTitle>
 				</div>
@@ -121,7 +121,7 @@
 
 			<Separator />
 			<div
-				class="bg-muted/30 mt-3 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-md p-4 text-sm"
+				class="mt-3 max-h-96 overflow-y-auto rounded-md bg-muted/30 p-4 text-sm whitespace-pre-wrap"
 			>
 				<MarkdownContent content={document.content} />
 			</div>

@@ -83,7 +83,9 @@
 			<div>
 				<CardTitle class="text-xl">{headerTitle()}</CardTitle>
 				<div class="mt-2 flex flex-wrap items-center gap-2">
-					<Badge variant="secondary" class="bg-gray-500 text-white">{company?.tickers[0]}</Badge>
+					<Badge variant="secondary" class="bg-gray-500 text-white"
+						>{company?.tickers?.[0] ?? 'N/A'}</Badge
+					>
 					<Badge variant="default">{getFilingTypeLabel(filing.filing_type)}</Badge>
 					<Badge variant="outline">Filed on {formatDate(filing.filing_date)}</Badge>
 				</div>

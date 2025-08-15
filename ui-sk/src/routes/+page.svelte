@@ -36,7 +36,7 @@
 	<!-- Hero Section -->
 	<section class="space-y-4 text-center">
 		<h1 class="text-4xl font-bold tracking-tight">Symbology</h1>
-		<p class="text-muted-foreground mx-auto max-w-2xl text-xl">
+		<p class="mx-auto max-w-2xl text-xl text-muted-foreground">
 			Explore LLM-generated insights from public SEC Filings
 		</p>
 	</section>

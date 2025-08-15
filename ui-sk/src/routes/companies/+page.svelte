@@ -9,15 +9,7 @@
 		CardTitle
 	} from '$lib/components/ui/card';
 	import CompanySelector from '$lib/components/company/CompanySelector.svelte';
-
-	// Mock type for now - will be replaced with real API types
-	interface CompanyResponse {
-		id: string;
-		name: string;
-		tickers: string[];
-		sector?: string;
-		description?: string;
-	}
+	import type { CompanyResponse } from '$lib/generated-api-types';
 
 	function handleCompanySelected(event: CustomEvent<CompanyResponse>) {
 		const company = event.detail;
@@ -42,7 +34,7 @@
 	<!-- Header -->
 	<section class="space-y-4 text-center">
 		<h1 class="text-4xl font-bold tracking-tight">Companies</h1>
-		<p class="text-muted-foreground mx-auto max-w-2xl text-xl">
+		<p class="mx-auto max-w-2xl text-xl text-muted-foreground">
 			Browse and explore public company profiles, financial data, and analysis
 		</p>
 	</section>

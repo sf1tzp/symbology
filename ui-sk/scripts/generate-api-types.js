@@ -19,8 +19,6 @@
  *    - ENV (default: development)
  */
 
-
-
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
@@ -40,141 +38,143 @@ const API_PORT = Number(process.env.SYMBOLOGY_API_PORT) || 8000;
 
 // Build API URL - adapted from config.ts logic
 function getApiUrl() {
-    let host = API_HOST;
+	let host = API_HOST;
 
-    // In development mode, try to get the local IP address if using localhost
-    if (ENV === 'development' && host === 'localhost') {
-        // Try to get the local network IP address
-        const networkInterfaces = os.networkInterfaces();
-        for (const interfaceName in networkInterfaces) {
-            const addresses = networkInterfaces[interfaceName];
-            for (const addr of addresses) {
-                // Look for IPv4 address that's not loopback and not internal
-                if (addr.family === 'IPv4' && !addr.internal) {
-                    host = addr.address;
-                    break;
-                }
-            }
-            if (host !== 'localhost') break;
-        }
-    }
+	// In development mode, try to get the local IP address if using localhost
+	if (ENV === 'development' && host === 'localhost') {
+		// Try to get the local network IP address
+		const networkInterfaces = os.networkInterfaces();
+		for (const interfaceName in networkInterfaces) {
+			const addresses = networkInterfaces[interfaceName];
+			for (const addr of addresses) {
+				// Look for IPv4 address that's not loopback and not internal
+				if (addr.family === 'IPv4' && !addr.internal) {
+					host = addr.address;
+					break;
+				}
+			}
+			if (host !== 'localhost') break;
+		}
+	}
 
-    return `http://${host}:${API_PORT}/openapi.json`;
+	return `http://${host}:${API_PORT}/openapi.json`;
 }
 
 const API_URL = getApiUrl();
 console.log(`Using API URL: ${API_URL}`);
 
 async function fetchOpenApiSpec(url) {
-    return new Promise((resolve, reject) => {
-        const client = url.startsWith('https') ? https : http;
+	return new Promise((resolve, reject) => {
+		const client = url.startsWith('https') ? https : http;
 
-        client.get(url, (res) => {
-            let data = '';
+		client
+			.get(url, (res) => {
+				let data = '';
 
-            res.on('data', (chunk) => {
-                data += chunk;
-            });
+				res.on('data', (chunk) => {
+					data += chunk;
+				});
 
-            res.on('end', () => {
-                try {
-                    const schema = JSON.parse(data);
-                    resolve(schema);
-                } catch (err) {
-                    reject(new Error(`Failed to parse OpenAPI schema: ${err.message}`));
-                }
-            });
-        }).on('error', (err) => {
-            reject(new Error(`Failed to fetch OpenAPI schema: ${err.message}`));
-        });
-    });
+				res.on('end', () => {
+					try {
+						const schema = JSON.parse(data);
+						resolve(schema);
+					} catch (err) {
+						reject(new Error(`Failed to parse OpenAPI schema: ${err.message}`));
+					}
+				});
+			})
+			.on('error', (err) => {
+				reject(new Error(`Failed to fetch OpenAPI schema: ${err.message}`));
+			});
+	});
 }
 
 function generateTypeFromSchema(schema, modelName) {
-    const modelSchema = schema.components.schemas[modelName];
-    if (!modelSchema) {
-        throw new Error(`Schema not found for model: ${modelName}`);
-    }
+	const modelSchema = schema.components.schemas[modelName];
+	if (!modelSchema) {
+		throw new Error(`Schema not found for model: ${modelName}`);
+	}
 
-    let typeDefinition = `export interface ${modelName} {\n`;
+	let typeDefinition = `export interface ${modelName} {\n`;
 
-    // Process properties
-    if (modelSchema.properties) {
-        Object.entries(modelSchema.properties).forEach(([propName, propSchema]) => {
-            const isRequired = modelSchema.required && modelSchema.required.includes(propName);
-            const optional = isRequired ? '' : '?';
-            let tsType;
+	// Process properties
+	if (modelSchema.properties) {
+		Object.entries(modelSchema.properties).forEach(([propName, propSchema]) => {
+			const isRequired = modelSchema.required && modelSchema.required.includes(propName);
+			const optional = isRequired ? '' : '?';
+			let tsType;
 
-            switch (propSchema.type) {
-                case 'string':
-                    if (propSchema.format === 'date' || propSchema.format === 'date-time') {
-                        tsType = 'string'; // Could also use Date but string is more compatible with API
-                    } else if (propSchema.format === 'uuid') {
-                        tsType = 'string';
-                    } else {
-                        tsType = 'string';
-                    }
-                    break;
-                case 'integer':
-                case 'number':
-                    tsType = 'number';
-                    break;
-                case 'boolean':
-                    tsType = 'boolean';
-                    break;
-                case 'array':
-                    if (propSchema.items.type) {
-                        tsType = `${propSchema.items.type}[]`;
-                    } else if (propSchema.items.$ref) {
-                        const refType = propSchema.items.$ref.split('/').pop();
-                        tsType = `${refType}[]`;
-                    } else {
-                        tsType = 'any[]';
-                    }
-                    break;
-                case 'object':
-                    tsType = 'Record<string, any>';
-                    break;
-                default:
-                    if (propSchema.$ref) {
-                        tsType = propSchema.$ref.split('/').pop();
-                    } else {
-                        tsType = 'any';
-                    }
-            }
+			switch (propSchema.type) {
+				case 'string':
+					if (propSchema.format === 'date' || propSchema.format === 'date-time') {
+						tsType = 'string'; // Could also use Date but string is more compatible with API
+					} else if (propSchema.format === 'uuid') {
+						tsType = 'string';
+					} else {
+						tsType = 'string';
+					}
+					break;
+				case 'integer':
+				case 'number':
+					tsType = 'number';
+					break;
+				case 'boolean':
+					tsType = 'boolean';
+					break;
+				case 'array':
+					if (propSchema.items.type) {
+						tsType = `${propSchema.items.type}[]`;
+					} else if (propSchema.items.$ref) {
+						const refType = propSchema.items.$ref.split('/').pop();
+						tsType = `${refType}[]`;
+					} else {
+						tsType = 'any[]';
+					}
+					break;
+				case 'object':
+					tsType = 'Record<string, any>';
+					break;
+				default:
+					if (propSchema.$ref) {
+						tsType = propSchema.$ref.split('/').pop();
+					} else {
+						tsType = 'any';
+					}
+			}
 
-            // Add description as comment if available
-            if (propSchema.description) {
-                typeDefinition += `  /** ${propSchema.description} */\n`;
-            }
+			// Add description as comment if available
+			if (propSchema.description) {
+				typeDefinition += `  /** ${propSchema.description} */\n`;
+			}
 
-            typeDefinition += `  ${propName}${optional}: ${tsType};\n`;
-        });
-    }
+			typeDefinition += `  ${propName}${optional}: ${tsType};\n`;
+		});
+	}
 
-    typeDefinition += '}\n\n';
-    return typeDefinition;
+	typeDefinition += '}\n\n';
+	return typeDefinition;
 }
 
 async function generateTypes() {
-    try {
-        console.log('Fetching OpenAPI schema...');
-        const schema = await fetchOpenApiSpec(API_URL);
+	try {
+		console.log('Fetching OpenAPI schema...');
+		const schema = await fetchOpenApiSpec(API_URL);
 
-        console.log('Generating TypeScript interfaces...');
-        let output = '/**\n';
-        output += ' * GENERATED FILE - DO NOT EDIT\n';
-        output += ' * This file was automatically generated from the OpenAPI schema.\n';
-        output += ' * Run generate-api-types.js to regenerate.\n';
-        output += ' */\n\n';
+		console.log('Generating TypeScript interfaces...');
+		let output = '/**\n';
+		output += ' * GENERATED FILE - DO NOT EDIT\n';
+		output += ' * This file was automatically generated from the OpenAPI schema.\n';
+		output += ' * Run generate-api-types.js to regenerate.\n';
+		output += ' */\n\n';
 
-        // Generate interfaces for each schema
-        for (const modelName in schema.components.schemas) {
-            output += generateTypeFromSchema(schema, modelName);
-        }
+		// Generate interfaces for each schema
+		for (const modelName in schema.components.schemas) {
+			output += generateTypeFromSchema(schema, modelName);
+		}
 
-        // Add utility functions
-        output += `/**
+		// Add utility functions
+		output += `/**
  * API Error Response
  */
 export interface ApiError {
@@ -206,13 +206,13 @@ export async function fetchApi<T>(
 }
 `;
 
-        // Write to file
-        fs.writeFileSync(OUTPUT_FILE, output);
-        console.log(`TypeScript interfaces generated successfully at ${OUTPUT_FILE}`);
-    } catch (error) {
-        console.error('Error generating TypeScript interfaces:', error);
-        process.exit(1);
-    }
+		// Write to file
+		fs.writeFileSync(OUTPUT_FILE, output);
+		console.log(`TypeScript interfaces generated successfully at ${OUTPUT_FILE}`);
+	} catch (error) {
+		console.error('Error generating TypeScript interfaces:', error);
+		process.exit(1);
+	}
 }
 
 // Run the generator

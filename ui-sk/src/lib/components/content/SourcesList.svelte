@@ -107,7 +107,7 @@
 	{#if sources && sources.length > 0}
 		<div class="space-y-2">
 			<div class="flex items-center space-x-2">
-				<Folder class="text-muted-foreground h-4 w-4" />
+				<Folder class="h-4 w-4 text-muted-foreground" />
 				<span class="text-sm font-medium">Source Materials</span>
 				<Badge variant="outline" class="text-xs">
 					{sources.length}
@@ -122,7 +122,7 @@
 						<Separator />
 					{/if}
 
-					<div class="hover:bg-muted/50 group rounded-lg border p-3 transition-colors">
+					<div class="group rounded-lg border p-3 transition-colors hover:bg-muted/50">
 						<div class="space-y-2">
 							<!-- Document Type Badge -->
 							<div class="flex items-start justify-between">
@@ -142,16 +142,16 @@
 							<!-- Document Name -->
 							<div class="flex items-start space-x-2">
 								{#if getSourceIcon(source) === FileText}
-									<FileText class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0" />
+									<FileText class="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
 								{:else}
-									<Bot class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0" />
+									<Bot class="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
 								{/if}
 								<div class="min-w-0 flex-1">
-									<p class="text-sm font-medium leading-tight">
+									<p class="text-sm leading-tight font-medium">
 										{truncateSourceName(getSourceName(source))}
 									</p>
 									{#if getSourceHash(source)}
-										<span class="text-muted-foreground font-mono text-xs">
+										<span class="font-mono text-xs text-muted-foreground">
 											{getSourceHash(source)?.substring(0, 12)}
 										</span>
 									{/if}
@@ -186,13 +186,13 @@
 		<div class="flex items-center justify-center p-8">
 			<div class="space-y-3 text-center">
 				<div class="flex justify-center">
-					<div class="bg-muted rounded-full p-3">
-						<File class="text-muted-foreground h-6 w-6" />
+					<div class="rounded-full bg-muted p-3">
+						<File class="h-6 w-6 text-muted-foreground" />
 					</div>
 				</div>
 				<div class="space-y-1">
 					<p class="text-sm font-medium">No source materials found</p>
-					<p class="text-muted-foreground max-w-sm text-xs">
+					<p class="max-w-sm text-xs text-muted-foreground">
 						This analysis may have been generated from aggregated data or other non-document
 						sources.
 					</p>

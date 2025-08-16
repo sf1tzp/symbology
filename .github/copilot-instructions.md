@@ -4,8 +4,6 @@
 ## Project Overview
 Symbology is a financial intelligence platform that transforms SEC EDGAR filings into AI-powered insights. The system processes 10-K reports through a multi-stage pipeline: ingestion → LLM processing → aggregated insights → research UI.
 
-### MILESTONE UPDATE: Implement production UI using sveltekit in `ui-sk/`. Although sveltekit provides a serverside typescript feature, we won't utilize it at this stage. THe client will call the API directly
-
 ## Environment & Tools
 - **Python Environment**: Uses `uv` for dependency management with `.venv` at project root
 - **Build System**: `just` commands for all operations - never use `python` directly, always prefix with `uv run`

@@ -4,11 +4,21 @@ up:
 generate-api-types:
   node scripts/generate-api-types.js
 
+build:
+  npm run build
+
+preview: build
+  npm run preview
+
+docker-build: build
+  nerdctl build . -t symbology-ui:latest
+
+run: docker-build
+  nerdctl run -p 8080:8081 symbology-ui
+
 lint *ARGS: format
         npm run lint {{ARGS}} | tee ui-lint.log
 
-run *ARGS:
-    npm run dev -- --host
 
 # Add these commands once we set up the npm scripts
 format:

@@ -29,7 +29,7 @@ run component *ARGS:
     just -d . -f src/justfile generate {{ARGS}}
 
   elif [[ "{{component}}" == "ui" ]]; then
-    just -d ui -f ui/justfile run {{ARGS}}
+    just -d ui -f ui/justfile up {{ARGS}}
 
   elif [[ "{{component}}" == "db" ]]; then
     just -d infra -f infra/justfile up
@@ -45,10 +45,8 @@ test component *ARGS:
 
   elif [[ "{{component}}" == "ui" ]]; then
     echo "no testing for ui yet"
-    just -d ui -f ui/justfile check {{ARGS}}
   else
     echo "Error: Unknown component '{{component}}'" && exit 1
-
   fi
 
 # j benchmark production https://symbology.online
@@ -63,9 +61,7 @@ lint component *ARGS:
   if [[ "{{component}}" == "api" ]]; then
     just -d src -f src/justfile lint {{ARGS}}
   elif [[ "{{component}}" == "ui" ]]; then
-    pushd ui
-    just lint {{ARGS}}
-    popd
+    just -d ui -f ui/justfile lint {{ARGS}}
   else
     echo "Error: Unknown component '{{component}}'"
     exit 1

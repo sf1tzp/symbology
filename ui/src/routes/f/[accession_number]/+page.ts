@@ -1,14 +1,21 @@
 import type { PageLoad } from './$types';
+import { getFilingByAccession, getDocumentsByAccession, getCompanyByAccession } from '$lib/api';
+import { error } from '@sveltejs/kit';
 
-export const load: PageLoad = async ({ params, fetch }) => {
+export const load: PageLoad = async ({ params }) => {
 	const { accession_number } = params;
 
 	try {
 		const [filing, documents, company] = await Promise.all([
-			fetch(`/api/filings/${accession_number}`).then((r) => r.json()),
-			fetch(`/api/filings/${accession_number}/documents`).then((r) => r.json()),
-			fetch(`/api/filings/${accession_number}/company`).then((r) => r.json())
+			getFilingByAccession(accession_number),
+			getDocumentsByAccession(accession_number),
+			getCompanyByAccession(accession_number)
 		]);
+
+		// Ensure we have at least a filing to display the page
+		if (!filing) {
+			throw error(404, 'Filing not found');
+		}
 
 		return {
 			filing,

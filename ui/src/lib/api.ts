@@ -313,6 +313,86 @@ export async function getDocumentsByFiling(filingId: string): Promise<DocumentRe
 }
 
 /**
+ * Get filing by accession number
+ */
+export async function getFilingByAccession(accessionNumber: string): Promise<FilingResponse | null> {
+	try {
+		const url = buildApiUrl(`/filings/${encodeURIComponent(accessionNumber)}`);
+
+		logApiCall('GET', url);
+
+		const filing = await fetchApi<FilingResponse>(url);
+		return filing;
+	} catch (error) {
+		console.error(`Error fetching filing by accession ${accessionNumber}:`, error);
+		if (error instanceof Error && error.message.includes('404')) {
+			return null;
+		}
+		throw error;
+	}
+}
+
+/**
+ * Get documents for a filing by accession number
+ */
+export async function getDocumentsByAccession(accessionNumber: string): Promise<DocumentResponse[]> {
+	try {
+		const url = buildApiUrl(`/filings/${encodeURIComponent(accessionNumber)}/documents`);
+
+		logApiCall('GET', url);
+
+		const documents = await fetchApi<DocumentResponse[]>(url);
+		return documents;
+	} catch (error) {
+		console.error(`Error fetching documents for accession ${accessionNumber}:`, error);
+		return [];
+	}
+}
+
+/**
+ * Get company by filing accession number
+ */
+export async function getCompanyByAccession(accessionNumber: string): Promise<CompanyResponse | null> {
+	try {
+		const url = buildApiUrl(`/filings/${encodeURIComponent(accessionNumber)}/company`);
+
+		logApiCall('GET', url);
+
+		const company = await fetchApi<CompanyResponse>(url);
+		return company;
+	} catch (error) {
+		console.error(`Error fetching company for accession ${accessionNumber}:`, error);
+		if (error instanceof Error && error.message.includes('404')) {
+			return null;
+		}
+		throw error;
+	}
+}
+
+/**
+ * Get document by accession number and content hash
+ */
+export async function getDocumentByAccessionAndHash(
+	accessionNumber: string,
+	contentHash: string
+): Promise<DocumentResponse | null> {
+	try {
+		const url = buildApiUrl(`/documents/by-accession/${encodeURIComponent(accessionNumber)}/${encodeURIComponent(contentHash)}`);
+
+		logApiCall('GET', url);
+
+		const document = await fetchApi<DocumentResponse>(url);
+		return document;
+	} catch (error) {
+		console.error(`Error fetching document for accession ${accessionNumber} and hash ${contentHash}:`, error);
+		if (error instanceof Error && error.message.includes('404')) {
+			return null;
+		}
+		throw error;
+	}
+}
+
+/**
  * Error handler for API responses
  */
 export function handleApiError(error: unknown): string {

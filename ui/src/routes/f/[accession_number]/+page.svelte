@@ -18,7 +18,7 @@
 	let { data }: { data: PageData } = $props();
 
 	function handleBackToCompany() {
-		if (data.company && data.company.tickers.length > 0) {
+		if (data.company && data.company.tickers && data.company.tickers.length > 0) {
 			goto(`/c/${data.company.tickers[0]}`);
 		} else {
 			goto('/');
@@ -32,7 +32,9 @@
 </script>
 
 <svelte:head>
-	<title>Filing {data.filing.filing_type} - {data.company?.name || 'Unknown'} - Symbology</title>
+	<title
+		>Filing {data.filing?.filing_type || 'Unknown'} - {data.company?.name || 'Unknown'} - Symbology</title
+	>
 	<meta
 		name="description"
 		content="SEC filing details and documents for {data.company?.name || 'company'}"
@@ -59,7 +61,9 @@
 	</div>
 
 	<!-- Filing Details -->
-	<FilingDetail filing={data.filing} company={data.company} />
+	{#if data.filing}
+		<FilingDetail filing={data.filing} company={data.company || undefined} />
+	{/if}
 
 	<!-- Documents -->
 	<Card>

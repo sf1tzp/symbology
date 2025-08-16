@@ -1,16 +1,16 @@
-export const load = async ({ params, fetch }: { params: any; fetch: any }) => {
+
+import type { PageLoad } from './$types';
+import { getDocumentByAccessionAndHash } from '$lib/api';
+
+export const load: PageLoad = async ({ params }) => {
 	const { accession_number, content_hash } = params;
 
 	try {
-		// Use the new API endpoint that accepts accession_number and content_hash
-		const document = await fetch(
-			`/api/documents/by-accession/${accession_number}/${content_hash}`
-		).then((r: any) => {
-			if (!r.ok) {
-				throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-			}
-			return r.json();
-		});
+		const document = await getDocumentByAccessionAndHash(accession_number, content_hash);
+
+		if (!document) {
+			throw new Error(`Document not found`);
+		}
 
 		return {
 			document,

@@ -90,7 +90,9 @@ export async function getGeneratedContentByTicker(
 	limit: number = 10
 ): Promise<GeneratedContentResponse[]> {
 	try {
-		const url = `${config.api.baseUrl}/generated-content/by-ticker/${encodeURIComponent(ticker)}?limit=${limit}`;
+		const url = buildApiUrl(`/generated-content/by-ticker/${encodeURIComponent(ticker)}`, {
+			limit: limit.toString()
+		});
 
 		logApiCall('GET', url);
 
@@ -110,7 +112,7 @@ export async function getGeneratedContentByTickerAndHash(
 	hash: string
 ): Promise<GeneratedContentResponse | null> {
 	try {
-		const url = `${config.api.baseUrl}/generated-content/by-ticker/${encodeURIComponent(ticker)}/${encodeURIComponent(hash)}`;
+		const url = buildApiUrl(`/generated-content/by-ticker/${encodeURIComponent(ticker)}/${encodeURIComponent(hash)}`);
 
 		logApiCall('GET', url);
 
@@ -217,7 +219,7 @@ export async function getGeneratedContentById(
 	id: string
 ): Promise<GeneratedContentResponse | null> {
 	try {
-		const url = `${config.api.baseUrl}/generated-content/${encodeURIComponent(id)}`;
+		const url = buildApiUrl(`/generated-content/${encodeURIComponent(id)}`);
 
 		logApiCall('GET', url);
 

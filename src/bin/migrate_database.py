@@ -173,10 +173,10 @@ class DatabaseMigrator:
         target_counts = self.get_table_counts(self.target_url)
 
         # Key tables to highlight
-        key_tables = ['companies', 'filings', 'documents', 'aggregates', 'completions', 'prompts']
+        key_tables = ['companies', 'filings', 'documents', 'aggregates', 'completions', 'prompts', 'model_configs', 'generated_content']
 
-        print(f"{'Table':<15} {'Source':<10} {'Target':<10} {'Status'}")
-        print("-" * 50)
+        print(f"{'Table':<20} {'Source':<10} {'Target':<10} {'Status'}")
+        print("-" * 60)
 
         for table in key_tables:
             source_count = source_counts.get(table, 0)
@@ -191,7 +191,7 @@ class DatabaseMigrator:
             else:
                 status = "❓ Unknown"
 
-            print(f"{table:<15} {source_count:<10} {target_count:<10} {status}")
+            print(f"{table:<20} {source_count:<10} {target_count:<10} {status}")
 
         if self.dry_run:
             print(f"\n🏃 DRY RUN MODE - No changes will be made")
@@ -228,14 +228,18 @@ class DatabaseMigrator:
                 existing_source_tables = {row[0] for row in result.fetchall()}
                 logger.info("existing_source_tables", tables=sorted(existing_source_tables))
 
-            # Define tables in dependency order, excluding completions for special handling
+            # Define tables in dependency order, including all new tables
             tables_in_order = [
                 'companies',
                 'prompts',
+                'model_configs',
                 'filings',
                 'documents',
                 'financial_values',
                 'aggregates',
+                'generated_content',
+                'generated_content_document_association',
+                'generated_content_source_association',
                 'completion_document_association',
                 'aggregate_completion_association'
             ]
@@ -251,7 +255,7 @@ class DatabaseMigrator:
                     f.write("-- No tables to dump\n")
                 return dump_file
 
-            # Build pg_dump command with specific table order, excluding completions
+            # Build pg_dump command with specific table order, including all new tables
             cmd = [
                 'pg_dump',
                 '--host', str(self.source_config['host']),
@@ -352,6 +356,9 @@ class DatabaseMigrator:
             tables_to_clear = [
                 'completion_document_association',  # Association tables first
                 'aggregate_completion_association',
+                'generated_content_source_association',
+                'generated_content_document_association',
+                'generated_content',
                 'completions',
                 'documents',
                 'filings',
@@ -359,6 +366,7 @@ class DatabaseMigrator:
                 'aggregates',
                 'companies',  # Clear companies too to avoid PK conflicts
                 'prompts',    # Clear prompts too to avoid PK conflicts
+                'model_configs',  # Clear model configs too to avoid PK conflicts
             ]
 
             # Filter to only tables that actually exist
@@ -775,7 +783,7 @@ class DatabaseMigrator:
             print("-" * 40)
 
             # Key tables to verify
-            key_tables = ['companies', 'filings', 'documents', 'aggregates', 'completions']
+            key_tables = ['companies', 'filings', 'documents', 'aggregates', 'completions', 'prompts', 'model_configs', 'generated_content']
 
             all_good = True
 

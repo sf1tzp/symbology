@@ -4,21 +4,21 @@
  */
 
 // Environment variables with defaults
-const ENV = import.meta.env.MODE || 'development';
-const API_HOST = import.meta.env.SYMBOLOGY_API_HOST || '10.0.0.3';
+const ENV = import.meta.env.ENVIRONMENT || 'development';
+const API_HOST = import.meta.env.SYMBOLOGY_API_HOST || 'localhost';
 const API_PORT = Number(import.meta.env.SYMBOLOGY_API_PORT) || 8000;
 
 /**
  * Build API base URL based on environment
  */
 function getApiBaseUrl(): string {
-	// In production, use the configured API host
-	if (ENV === 'production') {
-		return `https://${API_HOST}/api`;
+	// In production/staging, use HTTPS and the public API host
+	if (ENV === 'production' || ENV === 'staging') {
+		return `https://${API_HOST}`;
 	}
 
-	// In development, use local API server
-	return `http://${API_HOST}:${API_PORT}/api`;
+	// In development, use local API server with HTTP
+	return `http://${API_HOST}:${API_PORT}`;
 }
 
 export const config = {
@@ -26,16 +26,6 @@ export const config = {
 	api: {
 		baseUrl: getApiBaseUrl(),
 		timeout: 30000,
-		endpoints: {
-			companies: '/companies',
-			companyByTicker: '/companies/by-ticker',
-			aggregates: '/aggregates',
-			aggregatesByTicker: '/aggregates/by-ticker',
-			filings: '/filings',
-			filingsByTicker: '/filings/by-ticker',
-			completions: '/completions',
-			documents: '/documents'
-		}
 	},
 	logging: {
 		level: import.meta.env.LOG_LEVEL || 'info',

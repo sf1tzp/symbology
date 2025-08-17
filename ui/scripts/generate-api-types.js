@@ -32,7 +32,7 @@ const __dirname = path.dirname(__filename);
 const OUTPUT_FILE = path.resolve(__dirname, '../src/lib/generated-api-types.ts');
 
 // Configuration - adapted from config.ts for Node.js environment
-const ENV = process.env.ENV || 'development';
+const ENV = process.env.ENVRONMENT || 'development';
 const API_HOST = process.env.SYMBOLOGY_API_HOST || 'localhost';
 const API_PORT = Number(process.env.SYMBOLOGY_API_PORT) || 8000;
 

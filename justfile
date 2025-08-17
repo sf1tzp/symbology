@@ -67,21 +67,20 @@ lint component *ARGS:
     exit 1
   fi
 
-build component: _generate-api-types
+build component *ARGS: _generate-api-types
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
     just -d src -f src/justfile build
   elif [[ "{{component}}" == "ui" ]]; then
-    just -d ui -f ui/justfile build
+    ENV="${1:-staging}"
+    just -d ui -f ui/justfile build-for-deploy "$ENV"
   elif [[ "{{component}}" == "images" ]]; then
-    just build api
-    just build ui
-    nerdctl pull postgres:17.4
-    nerdctl save symbology-api:latest -o /tmp/symbology-api-latest.tar
-    nerdctl save symbology-ui:latest -o /tmp/symbology-ui-latest.tar
-    nerdctl save postgres:17.4 -o /tmp/postgres-17.4.tar
+    ENV="${1:-staging}"
+    echo "Building all images for $ENV environment..."
+    ./build-images.sh "$ENV"
   else
     echo "Error: Unknown component '{{component}}'"
+    echo "Usage: just build [api|ui|images] [staging|production]"
     exit 1
   fi
 

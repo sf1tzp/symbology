@@ -44,10 +44,10 @@ def create_app() -> FastAPI:
         ],
         contact={
             "name": "Symbology Team",
-            "url": "https://github.com/yourusername/symbology",  # Update with your repo
+            "url": "https://github.com/sf1tzp/symbology",  # Update with your repo
         },
         license_info={
-            "name": "Private",
+            "name": "MIT",
         },
     )
 
@@ -76,10 +76,10 @@ def create_app() -> FastAPI:
         )
 
     # Include API routes
-    app.include_router(api_router, prefix="/api")
+    app.include_router(api_router)
 
 
-    @app.get("/")
+    @app.get("/health")
     async def root():
         """Root endpoint for API health check."""
         logger = get_logger(__name__)

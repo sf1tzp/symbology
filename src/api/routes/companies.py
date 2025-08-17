@@ -73,7 +73,7 @@ async def get_company_by_ticker_route(ticker: str):
     return company
 
 @router.get(
-    "/",
+    "",
     response_model=List[CompanyResponse],
     status_code=status.HTTP_200_OK,
     responses={

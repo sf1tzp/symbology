@@ -14,10 +14,22 @@
     - Can be toggled via environment variable for A/B testing
     - Performance tracking included for both strategies
 
-# Build and Deploy 
+# Build and Deploy
 - update container build for sveletkit
 
 - Test build(s) in staging
     - Update k6 tests for our new urls
     - Update k6 to test a wide variety of content
+
+- Host networking for real ip addresses in nginx logs
+
+
+
+
+---
+
+Welcome page
+
+Technical Page / F.A.Q
+
 

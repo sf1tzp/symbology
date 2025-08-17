@@ -101,7 +101,7 @@
       {% endfor %}
 
       # Reload nginx
-      docker exec symbology-ui nginx -s reload
+      ~/.local/bin/nerdctl exec symbology-ui nginx -s reload
     dest: /usr/local/bin/renew-certificates.sh
     mode: "0755"
   become: true

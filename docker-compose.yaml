@@ -5,9 +5,6 @@ services:
     restart: always
     environment:
       NGINX_ENVSUBST_TEMPLATE_SUFFIX: ".template"
-      # these are used by nginx.conf
-      SYMBOLOGY_UI_DOMAIN: ${SYMBOLOGY_UI_DOMAIN:-symbology.lofi}
-      SYMBOLOGY_API_DOMAIN: ${SYMBOLOGY_API_DOMAIN:-api.symbology.lofi}
     volumes:
       - ./certificates:/certificates:ro
     ports:
@@ -20,7 +17,7 @@ services:
     restart: always
     environment:
       SYMBOLOGY_API_HOST: 0.0.0.0
-      DATABASE_HOST: symbology-database
+      DATABASE_HOST: symbology-database # container networking
     depends_on:
       symbology-database:
         condition: service_healthy

@@ -117,6 +117,7 @@ class DocumentResponse(BaseModel):
     # Filing information (when available)
     filing: Optional[FilingResponse] = Field(None, description="Filing information including SEC URL")
     content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
+    short_hash: Optional[str] = Field(None, description="Shortened version of content hash for URLs")
 
     class Config:
         json_schema_extra = {

@@ -7,6 +7,7 @@
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import type { CompanyResponse } from '$lib/generated-api-types';
 	import { searchCompanies, getCompanies, handleApiError } from '$lib/api';
+	import { RefreshCcw } from '@lucide/svelte';
 
 	// Event dispatcher for parent components
 	const dispatch = createEventDispatcher<{
@@ -40,16 +41,29 @@
 
 	// Featured companies - loaded from API on mount
 	let featuredCompanies = $state<CompanyResponse[]>([]);
+	let isShuffling = $state(false);
 
 	// Load featured companies on mount
 	async function loadFeaturedCompanies() {
 		try {
-			const companies = await getCompanies(0, 8);
-			featuredCompanies = companies;
+			isShuffling = true;
+			// Get up to 48 companies to pick from
+			const companies = await getCompanies(0, 48);
+
+			// Randomly select 8 companies from the available pool
+			const shuffled = [...companies].sort(() => Math.random() - 0.5);
+			featuredCompanies = shuffled.slice(0, 8);
 		} catch (error) {
 			console.error('Failed to load featured companies:', error);
 			searchError = handleApiError(error);
+		} finally {
+			isShuffling = false;
 		}
+	}
+
+	// Shuffle featured companies
+	async function shuffleFeaturedCompanies() {
+		await loadFeaturedCompanies();
 	}
 
 	// Search function with debounce
@@ -205,10 +219,38 @@
 					variant="ghost"
 					size="sm"
 					onclick={clearSearch}
-					class="absolute right-2 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
+					class="absolute top-1/2 right-2 h-6 w-6 -translate-y-1/2 p-0"
 				>
 					×
 				</Button>
+			{/if}
+
+			<!-- Search Results Dropdown -->
+			{#if showDropdown && searchResults.length > 0}
+				<div class="absolute top-full right-0 left-0 z-50 mt-1">
+					<Card class="border bg-popover shadow-lg">
+						<CardContent class="p-0">
+							<div class="max-h-60 overflow-y-auto">
+								{#each searchResults as company, index}
+									<button
+										class="w-full border-b p-3 text-left transition-colors last:border-b-0 hover:bg-muted"
+										class:bg-muted={currentFocusIndex === index}
+										onclick={() => selectCompany(company)}
+										type="button"
+									>
+										<div class="font-medium text-foreground">{company.name}</div>
+										<div class="text-sm text-muted-foreground">
+											{company.tickers?.join(', ') || 'No tickers'}
+											{#if company.sic_description}
+												• {company.sic_description}
+											{/if}
+										</div>
+									</button>
+								{/each}
+							</div>
+						</CardContent>
+					</Card>
+				</div>
 			{/if}
 		</div>
 
@@ -228,38 +270,26 @@
 		</div>
 	{/if}
 
-	<!-- Search Results Dropdown -->
-	{#if showDropdown && searchResults.length > 0}
-		<div class="absolute left-0 right-0 top-full z-50 mt-1">
-			<Card class="shadow-lg">
-				<CardContent class="p-0">
-					<div class="max-h-60 overflow-y-auto">
-						{#each searchResults as company, index}
-							<button
-								class="hover:bg-muted w-full border-b p-3 text-left transition-colors last:border-b-0"
-								class:bg-muted={currentFocusIndex === index}
-								onclick={() => selectCompany(company)}
-								type="button"
-							>
-								<div class="text-foreground font-medium">{company.name}</div>
-								<div class="text-muted-foreground text-sm">
-									{company.tickers?.join(', ') || 'No tickers'}
-									{#if company.sic_description}
-										• {company.sic_description}
-									{/if}
-								</div>
-							</button>
-						{/each}
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-	{/if}
-
 	<!-- Featured Companies List (only shown when showCompanyList is true) -->
-	{#if showCompanyList && variant === 'default' && !searchTerm}
+	{#if showCompanyList && variant === 'default'}
 		<div class="mt-6">
-			<h3 class="mb-4 text-lg font-semibold">Popular Companies</h3>
+			<div class="mb-4 flex items-center justify-between">
+				<h3 class="text-lg font-semibold">Popular Companies</h3>
+				<Button
+					variant="outline"
+					size="sm"
+					onclick={shuffleFeaturedCompanies}
+					disabled={disabled || isShuffling}
+					class="flex items-center gap-2"
+				>
+					<RefreshCcw class={isShuffling ? 'animate-spin' : ''} size={16} />
+					{#if isShuffling}
+						Shuffling...
+					{:else}
+						Shuffle
+					{/if}
+				</Button>
+			</div>
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				{#each featuredCompanies.slice(0, 8) as company}
 					<Card class="cursor-pointer transition-shadow hover:shadow-md">
@@ -267,7 +297,7 @@
 							<div class="flex items-center justify-between">
 								<div class="flex-1">
 									<div class="text-sm font-medium">{company.name}</div>
-									<div class="text-muted-foreground text-xs">
+									<div class="text-xs text-muted-foreground">
 										{company.tickers?.[0] || 'N/A'}
 										{#if company.sic_description}
 											• {company.sic_description}

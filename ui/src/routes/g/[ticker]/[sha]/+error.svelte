@@ -35,8 +35,8 @@
 			</CardDescription>
 		</CardHeader>
 		<CardContent class="space-y-4">
-			<p class="text-muted-foreground text-sm">This might happen if:</p>
-			<ul class="text-muted-foreground space-y-1 text-sm">
+			<p class="text-sm text-muted-foreground">This might happen if:</p>
+			<ul class="space-y-1 text-sm text-muted-foreground">
 				<li>• The content hash is invalid</li>
 				<li>• The content has been removed</li>
 				<li>• The API is temporarily unavailable</li>

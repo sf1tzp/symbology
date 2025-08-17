@@ -16,156 +16,170 @@
 	}
 </script>
 
-<div class="markdown-content {className}">
+<div class="prose prose-gray dark:prose-invert max-w-none {className}">
 	{@html renderMarkdown(content)}
 </div>
 
 <style>
-	.markdown-content :global(p) {
-		margin: 0 0 var(--space-sm) 0;
-		line-height: 1.6;
-		color: var(--color-text);
-		word-break: break-word;
+	:global(.prose p) {
+		margin-bottom: 1rem;
+		line-height: 1.7;
+		color: hsl(var(--foreground));
 	}
 
-	.markdown-content :global(p:last-child) {
+	:global(.prose p:last-child) {
 		margin-bottom: 0;
 	}
 
-	.markdown-content :global(h1),
-	.markdown-content :global(h2),
-	.markdown-content :global(h3),
-	.markdown-content :global(h4),
-	.markdown-content :global(h5),
-	.markdown-content :global(h6) {
-		margin: var(--space-md) 0 var(--space-sm) 0;
-		color: var(--color-primary);
-		font-weight: var(--font-weight-bold);
+	:global(.prose h1),
+	:global(.prose h2),
+	:global(.prose h3),
+	:global(.prose h4),
+	:global(.prose h5),
+	:global(.prose h6) {
+		margin-top: 1.5rem;
+		margin-bottom: 0.75rem;
+		color: hsl(var(--foreground));
+		font-weight: 600;
+		line-height: 1.3;
 	}
 
-	.markdown-content :global(h1:first-child),
-	.markdown-content :global(h2:first-child),
-	.markdown-content :global(h3:first-child),
-	.markdown-content :global(h4:first-child),
-	.markdown-content :global(h5:first-child),
-	.markdown-content :global(h6:first-child) {
+	:global(.prose h1:first-child),
+	:global(.prose h2:first-child),
+	:global(.prose h3:first-child),
+	:global(.prose h4:first-child),
+	:global(.prose h5:first-child),
+	:global(.prose h6:first-child) {
 		margin-top: 0;
 	}
 
-	.markdown-content :global(h1) {
-		font-size: 1.8rem;
-		border-bottom: 2px solid var(--color-border);
-		padding-bottom: var(--space-sm);
+	:global(.prose h1) {
+		font-size: 1.875rem;
+		border-bottom: 2px solid hsl(var(--border));
+		padding-bottom: 0.5rem;
 	}
 
-	.markdown-content :global(h2) {
+	:global(.prose h2) {
 		font-size: 1.5rem;
-		border-bottom: 1px solid var(--color-border);
-		padding-bottom: var(--space-xs);
+		border-bottom: 1px solid hsl(var(--border));
+		padding-bottom: 0.25rem;
 	}
 
-	.markdown-content :global(h3) {
-		font-size: 1.3rem;
+	:global(.prose h3) {
+		font-size: 1.25rem;
 	}
 
-	.markdown-content :global(h4) {
-		font-size: 1.1rem;
+	:global(.prose h4) {
+		font-size: 1.125rem;
 	}
 
-	.markdown-content :global(h5) {
+	:global(.prose h5) {
 		font-size: 1rem;
 	}
 
-	.markdown-content :global(h6) {
-		font-size: 0.9rem;
+	:global(.prose h6) {
+		font-size: 0.875rem;
+		color: hsl(var(--muted-foreground));
 	}
 
-	.markdown-content :global(ul),
-	.markdown-content :global(ol) {
-		margin: var(--space-sm) 0;
-		padding-left: var(--space-lg);
+	:global(.prose ul),
+	:global(.prose ol) {
+		margin: 1rem 0;
+		padding-left: 1.5rem;
 	}
 
-	.markdown-content :global(li) {
-		margin: var(--space-xs) 0;
-		line-height: 1.5;
+	:global(.prose li) {
+		margin: 0.25rem 0;
+		line-height: 1.6;
 	}
 
-	.markdown-content :global(strong) {
-		font-weight: var(--font-weight-bold);
-		color: var(--color-text);
+	:global(.prose strong) {
+		font-weight: 600;
+		color: hsl(var(--foreground));
 	}
 
-	.markdown-content :global(em) {
+	:global(.prose em) {
 		font-style: italic;
 	}
 
-	.markdown-content :global(code) {
-		background-color: var(--color-surface);
-		padding: var(--space-xs);
-		border-radius: var(--border-radius);
-		font-family: monospace;
-		font-size: 0.9em;
-		border: 1px solid var(--color-border);
+	:global(.prose code) {
+		background-color: hsl(var(--muted));
+		padding: 0.125rem 0.25rem;
+		border-radius: calc(var(--radius) - 2px);
+		font-family:
+			ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New',
+			monospace;
+		font-size: 0.875em;
+		border: 1px solid hsl(var(--border));
 	}
 
-	.markdown-content :global(pre) {
-		background-color: var(--color-surface);
-		padding: var(--space-md);
-		border-radius: var(--border-radius);
+	:global(.prose pre) {
+		background-color: hsl(var(--muted));
+		padding: 1rem;
+		border-radius: var(--radius);
 		overflow-x: auto;
-		margin: var(--space-sm) 0;
-		border: 1px solid var(--color-border);
+		margin: 1rem 0;
+		border: 1px solid hsl(var(--border));
 	}
 
-	.markdown-content :global(pre code) {
+	:global(.prose pre code) {
 		background: none;
 		padding: 0;
 		border: none;
+		font-size: 0.875rem;
 	}
 
-	.markdown-content :global(blockquote) {
-		border-left: 4px solid var(--color-primary);
-		padding-left: var(--space-md);
-		margin: var(--space-sm) 0;
+	:global(.prose blockquote) {
+		border-left: 4px solid hsl(var(--primary));
+		padding-left: 1rem;
+		margin: 1rem 0;
 		font-style: italic;
-		color: var(--color-text-light);
-		background-color: var(--color-surface);
-		padding: var(--space-md);
-		border-radius: var(--border-radius);
+		color: hsl(var(--muted-foreground));
+		background-color: hsl(var(--muted) / 0.5);
+		padding: 1rem;
+		border-radius: var(--radius);
 	}
 
-	.markdown-content :global(table) {
+	:global(.prose table) {
 		border-collapse: collapse;
 		width: 100%;
-		margin: var(--space-md) 0;
-		border: 1px solid var(--color-border);
+		margin: 1.5rem 0;
+		border: 1px solid hsl(var(--border));
+		border-radius: var(--radius);
+		overflow: hidden;
 	}
 
-	.markdown-content :global(th),
-	.markdown-content :global(td) {
-		border: 1px solid var(--color-border);
-		padding: var(--space-sm);
+	:global(.prose th),
+	:global(.prose td) {
+		border: 1px solid hsl(var(--border));
+		padding: 0.75rem;
 		text-align: left;
 	}
 
-	.markdown-content :global(th) {
-		background-color: var(--color-surface);
-		font-weight: var(--font-weight-bold);
+	:global(.prose th) {
+		background-color: hsl(var(--muted));
+		font-weight: 600;
+		color: hsl(var(--foreground));
 	}
 
-	.markdown-content :global(hr) {
+	:global(.prose tr:nth-child(even)) {
+		background-color: hsl(var(--muted) / 0.3);
+	}
+
+	:global(.prose hr) {
 		border: none;
-		border-top: 2px solid var(--color-border);
-		margin: var(--space-lg) 0;
+		border-top: 1px solid hsl(var(--border));
+		margin: 2rem 0;
 	}
 
-	.markdown-content :global(a) {
-		color: var(--color-primary);
+	:global(.prose a) {
+		color: hsl(var(--primary));
 		text-decoration: underline;
+		text-underline-offset: 2px;
 	}
 
-	.markdown-content :global(a:hover) {
-		color: var(--color-primary-hover);
+	:global(.prose a:hover) {
+		color: hsl(var(--primary));
+		text-decoration: none;
 	}
 </style>

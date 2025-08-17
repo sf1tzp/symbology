@@ -1,4 +1,3 @@
-
 import type { PageLoad } from './$types';
 import {
 	getCompanyByTicker,

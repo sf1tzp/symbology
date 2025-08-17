@@ -188,6 +188,7 @@ async def get_filing_documents_by_accession(accession_number: str) -> List[Docum
                 "document_type": document.document_type,
                 "content": document.content,
                 "content_hash": document.content_hash,
+                "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
                 "filing": None
             }
 

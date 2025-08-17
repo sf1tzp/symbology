@@ -41,6 +41,7 @@ async def get_document_by_id(document_id: UUID):
             "document_type": document.document_type,
             "content": document.content,
             "content_hash": getattr(document, 'content_hash', None),
+            "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
             "filing": None
         }
 
@@ -142,6 +143,7 @@ async def get_documents_by_filing_id(filing_id: UUID):
                 "document_type": document.document_type,
                 "content": document.content,
                 "content_hash": getattr(document, 'content_hash', None),
+                "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
                 "filing": None
             }
 
@@ -213,6 +215,7 @@ async def get_documents_by_ids(document_ids: List[UUID]):
                 "document_name": document.document_name,
                 "content": document.content,
                 "content_hash": getattr(document, 'content_hash', None),
+                "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
                 "filing": None
             }
 
@@ -297,6 +300,7 @@ async def get_document_by_accession_and_hash(accession_number: str, content_hash
             "document_name": document.document_name,
             "content": document.content,
             "content_hash": getattr(document, 'content_hash', None),
+            "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
             "filing": None
         }
 

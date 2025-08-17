@@ -130,13 +130,13 @@
 					<div class="mt-2 flex items-center space-x-2">
 						{#each company.tickers as ticker}
 							<span
-								class="bg-primary text-primary-foreground rounded-full px-2 py-1 text-sm font-medium"
+								class="rounded-full bg-primary px-2 py-1 text-sm font-medium text-primary-foreground"
 							>
 								{ticker}
 							</span>
 						{/each}
 						{#if company.sector}
-							<span class="bg-secondary text-secondary-foreground rounded-full px-2 py-1 text-sm">
+							<span class="rounded-full bg-secondary px-2 py-1 text-sm text-secondary-foreground">
 								{company.sector}
 							</span>
 						{/if}
@@ -148,7 +148,7 @@
 		{#if cleanSummary}
 			<CardContent>
 				<div class="prose prose-sm max-w-none">
-					<p class="text-muted-foreground leading-relaxed">
+					<p class="leading-relaxed text-muted-foreground">
 						{showFullSummary ? cleanSummary : truncatedSummary}
 					</p>
 					{#if cleanSummary.length > 300}
@@ -166,8 +166,8 @@
 		<Card>
 			<CardContent class="flex items-center justify-center py-8">
 				<div class="space-y-2 text-center">
-					<div class="border-primary mx-auto h-8 w-8 animate-spin rounded-full border-b-2"></div>
-					<p class="text-muted-foreground text-sm">Loading analysis...</p>
+					<div class="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+					<p class="text-sm text-muted-foreground">Loading analysis...</p>
 				</div>
 			</CardContent>
 		</Card>
@@ -199,7 +199,7 @@
 									{formatDocumentType(aggregate.document_type)}
 								</div>
 								{#if aggregate.title}
-									<div class="text-muted-foreground mt-1 text-sm">
+									<div class="mt-1 text-sm text-muted-foreground">
 										{aggregate.title}
 									</div>
 								{/if}
@@ -248,18 +248,18 @@
 										{formatYear(filing.period_of_report)}
 										{filing.filing_type}
 									</div>
-									<div class="text-muted-foreground text-sm">
+									<div class="text-sm text-muted-foreground">
 										{getFilingTypeLabel(filing.filing_type)}
 									</div>
 								</div>
-								<div class="text-muted-foreground text-right text-sm">
+								<div class="text-right text-sm text-muted-foreground">
 									{new Date(filing.filing_date).toLocaleDateString()}
 								</div>
 							</Button>
 						{/each}
 
 						{#if filings.length > 10}
-							<p class="text-muted-foreground pt-2 text-center text-sm">
+							<p class="pt-2 text-center text-sm text-muted-foreground">
 								and {filings.length - 10} more filings...
 							</p>
 						{/if}
@@ -267,7 +267,7 @@
 				</CardContent>
 			{:else}
 				<CardContent>
-					<p class="text-muted-foreground text-sm">
+					<p class="text-sm text-muted-foreground">
 						{filings.length} filing{filings.length === 1 ? '' : 's'} available. Click "Show Details"
 						to view them.
 					</p>

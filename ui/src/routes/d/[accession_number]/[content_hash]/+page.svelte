@@ -68,7 +68,7 @@
 	}
 
 	// Get short hash for display
-	const shortHash = data.content_hash.substring(0, 8);
+	const shortHash = data.document.short_hash || data.content_hash.substring(0, 8);
 </script>
 
 <svelte:head>
@@ -94,7 +94,13 @@
 	<!-- Document Title -->
 	<div>
 		<h1 class="text-2xl font-bold">{formatTitle(data.document)}</h1>
-
+		<Badge variant="secondary" class="bg-gray-500 text-white">{data.document.company_ticker}</Badge>
+		<a
+			href="/d/{data.accession_number}/{shortHash}"
+			class={badgeVariants({ variant: 'secondary' })}
+		>
+			<span class="font-mono">{shortHash}</span>
+		</a>
 	</div>
 
 	<!-- Document Content -->

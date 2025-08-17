@@ -25,7 +25,7 @@ export const config = {
 	env: ENV,
 	api: {
 		baseUrl: getApiBaseUrl(),
-		timeout: 30000,
+		timeout: 30000
 	},
 	logging: {
 		level: import.meta.env.LOG_LEVEL || 'info',

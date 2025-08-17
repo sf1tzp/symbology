@@ -26,8 +26,11 @@
 	}
 
 	function handleDocumentSelected(event: CustomEvent<DocumentResponse>) {
-		const hash = event.detail.content_hash.substring(0, 12);
-		goto(`/d/${data.accession_number}/${event.detail.content_hash}`);
+		const hash =
+			event.detail.short_hash ||
+			event.detail.content_hash?.substring(0, 12) ||
+			event.detail.content_hash;
+		goto(`/d/${data.accession_number}/${hash}`);
 	}
 </script>
 

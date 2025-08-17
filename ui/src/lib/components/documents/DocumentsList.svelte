@@ -55,26 +55,26 @@
 {#if documents.length === 0}
 	<div class="flex items-center justify-center p-8 text-center">
 		<div>
-			<FileText class="text-muted-foreground mx-auto mb-4 h-12 w-12" />
+			<FileText class="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
 			<p class="text-muted-foreground">No documents found in this filing</p>
 		</div>
 	</div>
 {:else}
 	<div class="space-y-4">
 		{#each documents as document (document.id)}
-			<Card class="hover:bg-muted/50 transition-colors">
+			<Card class="transition-colors hover:bg-muted/50">
 				<CardHeader class="pb-3">
 					<div class="flex items-start justify-between">
 						<div class="space-y-2">
 							<div class="flex items-center space-x-2">
-								<FileText class="text-muted-foreground h-4 w-4" />
+								<FileText class="h-4 w-4 text-muted-foreground" />
 								<CardTitle class="text-base">
 									{getAnalysisTypeDisplay(document.document_type)}
 								</CardTitle>
 							</div>
 							<div class="flex flex-wrap items-center gap-2">
 								<Badge variant="outline" class="font-mono text-xs">
-									{formatDocumentId(document.content_hash)}
+									{document.short_hash || formatDocumentId(document.content_hash)}
 								</Badge>
 							</div>
 						</div>
@@ -92,7 +92,7 @@
 
 				{#if document.content}
 					<CardContent class="pt-0">
-						<div class="text-muted-foreground text-sm">
+						<div class="text-sm text-muted-foreground">
 							<p class="leading-relaxed">
 								{getContentPreview(document.content)}
 							</p>
@@ -103,7 +103,7 @@
 		{/each}
 
 		<div class="mt-6 text-center">
-			<p class="text-muted-foreground text-sm">
+			<p class="text-sm text-muted-foreground">
 				We processed {documents.length} document{documents.length === 1 ? '' : 's'} from this filing
 			</p>
 		</div>

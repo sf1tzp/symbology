@@ -102,6 +102,8 @@ export interface DocumentResponse {
   filing?: any;
   /** SHA256 hash of the content */
   content_hash?: any;
+  /** Shortened version of content hash for URLs */
+  short_hash?: any;
 }
 
 export interface FilingResponse {

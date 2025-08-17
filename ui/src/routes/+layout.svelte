@@ -10,13 +10,13 @@
 
 <ModeWatcher />
 
-<div class="bg-background min-h-screen">
+<div class="min-h-screen bg-background">
 	<Header />
 
 	<!-- Mobile-first navigation -->
 	<Navigation currentPath={$page.url.pathname} />
 
-	<main class="container mx-auto px-4 py-6">
+	<main class="container mx-auto px-4 py-6 lg:max-w-7xl">
 		{@render children?.()}
 	</main>
 </div>

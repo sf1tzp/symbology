@@ -112,7 +112,9 @@ export async function getGeneratedContentByTickerAndHash(
 	hash: string
 ): Promise<GeneratedContentResponse | null> {
 	try {
-		const url = buildApiUrl(`/generated-content/by-ticker/${encodeURIComponent(ticker)}/${encodeURIComponent(hash)}`);
+		const url = buildApiUrl(
+			`/generated-content/by-ticker/${encodeURIComponent(ticker)}/${encodeURIComponent(hash)}`
+		);
 
 		logApiCall('GET', url);
 
@@ -317,7 +319,9 @@ export async function getDocumentsByFiling(filingId: string): Promise<DocumentRe
 /**
  * Get filing by accession number
  */
-export async function getFilingByAccession(accessionNumber: string): Promise<FilingResponse | null> {
+export async function getFilingByAccession(
+	accessionNumber: string
+): Promise<FilingResponse | null> {
 	try {
 		const url = buildApiUrl(`/filings/${encodeURIComponent(accessionNumber)}`);
 
@@ -337,7 +341,9 @@ export async function getFilingByAccession(accessionNumber: string): Promise<Fil
 /**
  * Get documents for a filing by accession number
  */
-export async function getDocumentsByAccession(accessionNumber: string): Promise<DocumentResponse[]> {
+export async function getDocumentsByAccession(
+	accessionNumber: string
+): Promise<DocumentResponse[]> {
 	try {
 		const url = buildApiUrl(`/filings/${encodeURIComponent(accessionNumber)}/documents`);
 
@@ -354,7 +360,9 @@ export async function getDocumentsByAccession(accessionNumber: string): Promise<
 /**
  * Get company by filing accession number
  */
-export async function getCompanyByAccession(accessionNumber: string): Promise<CompanyResponse | null> {
+export async function getCompanyByAccession(
+	accessionNumber: string
+): Promise<CompanyResponse | null> {
 	try {
 		const url = buildApiUrl(`/filings/${encodeURIComponent(accessionNumber)}/company`);
 
@@ -379,14 +387,19 @@ export async function getDocumentByAccessionAndHash(
 	contentHash: string
 ): Promise<DocumentResponse | null> {
 	try {
-		const url = buildApiUrl(`/documents/by-accession/${encodeURIComponent(accessionNumber)}/${encodeURIComponent(contentHash)}`);
+		const url = buildApiUrl(
+			`/documents/by-accession/${encodeURIComponent(accessionNumber)}/${encodeURIComponent(contentHash)}`
+		);
 
 		logApiCall('GET', url);
 
 		const document = await fetchApi<DocumentResponse>(url);
 		return document;
 	} catch (error) {
-		console.error(`Error fetching document for accession ${accessionNumber} and hash ${contentHash}:`, error);
+		console.error(
+			`Error fetching document for accession ${accessionNumber} and hash ${contentHash}:`,
+			error
+		);
 		if (error instanceof Error && error.message.includes('404')) {
 			return null;
 		}

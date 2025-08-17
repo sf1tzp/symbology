@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
+	import DarkmodeToggle from '$lib/components/DarkmodeToggle.svelte';
 	import {
 		NavigationMenuRoot as NavigationMenu,
 		NavigationMenuContent,
@@ -21,7 +22,8 @@
 	// Navigation items
 	const navItems = [
 		{ href: '/', label: 'Home' },
-		{ href: '/companies', label: 'Companies' }
+		{ href: '/companies', label: 'Companies' },
+		{ href: '/faq', label: 'FAQ' }
 		// { href: '/filings', label: 'Filings' },
 		// { href: '/analysis', label: 'Analysis' }
 	];
@@ -96,7 +98,7 @@
 <div
 	class="hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:block"
 >
-	<div class="container flex h-14 items-center">
+	<div class="container flex h-14 items-center justify-between">
 		<NavigationMenu class="mx-6">
 			<NavigationMenuList>
 				{#each navItems as item}
@@ -115,5 +117,10 @@
 				{/each}
 			</NavigationMenuList>
 		</NavigationMenu>
+
+		<!-- Theme toggle on desktop -->
+		<div class="mr-10">
+			<DarkmodeToggle />
+		</div>
 	</div>
 </div>

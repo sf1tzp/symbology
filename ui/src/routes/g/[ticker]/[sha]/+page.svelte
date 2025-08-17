@@ -45,8 +45,8 @@
 		if (source.type === 'document') {
 			// For documents, prefer the accession number + content hash route if available
 			if (source.accession_number && source.content_hash) {
-				const shortHash = source.content_hash.substring(0, 12);
-				goto(`/d/${source.accession_number}/${source.content_hash}`);
+				const shortHash = source.short_hash || source.content_hash.substring(0, 12);
+				goto(`/d/${source.accession_number}/${shortHash}`);
 			} else {
 				// Fallback to simple document viewer by ID
 				goto(`/documents/${source.id}`);
@@ -155,13 +155,13 @@
 				<CardHeader>
 					<CardTitle class="text-lg">Generated Content</CardTitle>
 					{#if data.content?.content}
-						<div class="text-muted-foreground flex items-center text-sm">
+						<div class="flex items-center text-sm text-muted-foreground">
 							<HandCoins class="mr-2 h-4 w-4" />
 							~{estimateTokens(data.content.content || '')} tokens
 						</div>
 					{/if}
 
-					<div class="text-muted-foreground flex flex-col space-y-2 text-sm sm:text-right">
+					<div class="flex flex-col space-y-2 text-sm text-muted-foreground sm:text-right">
 						{#if data.content?.content}
 							<div class="flex items-center">
 								<Calendar class="mr-2 h-4 w-4" />

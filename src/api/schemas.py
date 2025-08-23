@@ -110,11 +110,14 @@ class DocumentResponse(BaseModel):
     """Response schema for a document."""
     id: UUID = Field(..., description="Unique identifier for the document")
     filing_id: Optional[UUID] = Field(None, description="ID of the filing this document belongs to")
-    company_id: UUID = Field(..., description="ID of the company this document belongs to")
+    company_ticker: str = Field(..., description="ID of the company this document belongs to")
     document_name: str = Field(..., description="Name of the document")
+    document_type: str = Field(..., description="Type of the document")
     content: Optional[str] = Field(None, description="Text content of the document")
     # Filing information (when available)
     filing: Optional[FilingResponse] = Field(None, description="Filing information including SEC URL")
+    content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
+    short_hash: Optional[str] = Field(None, description="Shortened version of content hash for URLs")
 
     class Config:
         json_schema_extra = {
@@ -282,3 +285,92 @@ class AggregateResponse(BaseModel):
                 "system_prompt_id": "123e4567-e89b-12d3-a456-426614174003"
             }
         }
+
+
+# New schemas for the refactored architecture
+
+class ModelConfigResponse(BaseModel):
+    """Response schema for a model configuration."""
+    id: UUID = Field(..., description="Unique identifier for the model config")
+    name: str = Field(..., description="Model name")
+    created_at: datetime = Field(..., description="Timestamp when the config was created")
+    options: Optional[Dict[str, Any]] = Field(None, description="Ollama options as JSON")
+    num_ctx: Optional[int] = Field(None, description="Context window size")
+    temperature: Optional[float] = Field(None, description="Temperature parameter")
+    top_k: Optional[int] = Field(None, description="Top-k parameter")
+    top_p: Optional[float] = Field(None, description="Top-p parameter")
+    seed: Optional[int] = Field(None, description="Random seed")
+    num_predict: Optional[int] = Field(None, description="Number of tokens to predict")
+    num_gpu: Optional[int] = Field(None, description="Number of GPUs to use")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174006",
+                "name": "llama3.2:3b",
+                "created_at": "2023-12-25T12:30:45.123456",
+                "options": {"num_ctx": 4096, "temperature": 0.8},
+                "num_ctx": 4096,
+                "temperature": 0.8,
+                "top_k": 40,
+                "top_p": 0.9,
+                "seed": 42,
+                "num_predict": -1,
+                "num_gpu": 1
+            }
+        }
+
+
+class GeneratedContentResponse(BaseModel):
+    """Response schema for generated content (consolidates Aggregate and Completion)."""
+    id: UUID = Field(..., description="Unique identifier for the generated content")
+    content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
+    short_hash: Optional[str] = Field(None, description="Shortened hash for URLs (first 12 characters)")
+    company_id: Optional[UUID] = Field(None, description="ID of the company this content belongs to")
+    document_type: Optional[str] = Field(None, description="Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION)")
+    source_type: str = Field(..., description="Type of sources used (documents, generated_content, both)")
+    created_at: datetime = Field(..., description="Timestamp when the content was created")
+    total_duration: Optional[float] = Field(None, description="Total duration of content generation in seconds")
+    content: Optional[str] = Field(None, description="The actual AI-generated content")
+    summary: Optional[str] = Field(None, description="Generated summary of the content")
+    model_config_id: Optional[UUID] = Field(None, description="ID of the model configuration used")
+    system_prompt_id: Optional[UUID] = Field(None, description="ID of the system prompt used")
+    user_prompt_id: Optional[UUID] = Field(None, description="ID of the user prompt used")
+    source_document_ids: List[UUID] = Field(default_factory=list, description="List of source document IDs")
+    source_content_ids: List[UUID] = Field(default_factory=list, description="List of source content IDs")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174007",
+                "content_hash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2",
+                "short_hash": "a1b2c3d4e5f6",
+                "company_id": "123e4567-e89b-12d3-a456-426614174000",
+                "document_type": "MDA",
+                "source_type": "documents",
+                "created_at": "2023-12-25T12:30:45.123456",
+                "total_duration": 3.8,
+                "content": "This comprehensive analysis of the company's financial performance...",
+                "summary": "Key insights from financial analysis...",
+                "model_config_id": "123e4567-e89b-12d3-a456-426614174006",
+                "system_prompt_id": "123e4567-e89b-12d3-a456-426614174003",
+                "user_prompt_id": None,
+                "source_document_ids": ["123e4567-e89b-12d3-a456-426614174002"],
+                "source_content_ids": []
+            }
+        }
+
+
+class GeneratedContentCreateRequest(BaseModel):
+    """Request schema for creating generated content."""
+    company_id: Optional[UUID] = Field(None, description="ID of the company")
+    document_type: Optional[str] = Field(None, description="Type of document")
+    source_type: str = Field(..., description="Type of sources (documents, generated_content, both)")
+    content: Optional[str] = Field(None, description="The generated content")
+    summary: Optional[str] = Field(None, description="Summary of the content")
+    model_config_id: Optional[UUID] = Field(None, description="ID of the model configuration")
+    system_prompt_id: Optional[UUID] = Field(None, description="ID of the system prompt")
+    user_prompt_id: Optional[UUID] = Field(None, description="ID of the user prompt")
+    source_document_ids: Optional[List[UUID]] = Field(None, description="List of source document IDs")
+    source_content_ids: Optional[List[UUID]] = Field(None, description="List of source content IDs")
+    total_duration: Optional[float] = Field(None, description="Generation duration in seconds")

@@ -17,7 +17,7 @@ services:
     restart: always
     environment:
       SYMBOLOGY_API_HOST: 0.0.0.0
-      DATABASE_HOST: symbology-database
+      DATABASE_HOST: symbology-database # container networking
     depends_on:
       symbology-database:
         condition: service_healthy

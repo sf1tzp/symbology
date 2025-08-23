@@ -1,6 +1,6 @@
 ---
 - name: Deploy Symbology
-  hosts: "production"
+  hosts: "staging" # todo: make variable
   become: no
   gather_facts: yes
 

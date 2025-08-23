@@ -11,6 +11,7 @@ from uuid_extensions import uuid7
 if TYPE_CHECKING:
     from src.database.aggregates import Aggregate
     from src.database.completions import Completion
+    from src.database.generated_content import GeneratedContent
 
 # Initialize structlog
 logger = get_logger(__name__)
@@ -23,12 +24,15 @@ class Rating(Base):
     # Primary identifier
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
-    # Relationships - can rate either a Completion or an Aggregate
+    # Relationships - can rate either a Completion, an Aggregate, or GeneratedContent
     completion_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("completions.id"), index=True, nullable=True)
     completion: Mapped[Optional["Completion"]] = relationship("Completion", back_populates="ratings")
 
     aggregate_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("aggregates.id"), index=True, nullable=True)
     aggregate: Mapped[Optional["Aggregate"]] = relationship("Aggregate", back_populates="ratings")
+
+    generated_content_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("generated_content.id"), index=True, nullable=True)
+    generated_content: Mapped[Optional["GeneratedContent"]] = relationship("GeneratedContent", back_populates="ratings")
 
     # Rating details
     content_score: Mapped[Optional[int]] = mapped_column(Integer)
@@ -41,6 +45,8 @@ class Rating(Base):
             return f"<Rating(id={self.id}, completion_id={self.completion_id})>"
         elif self.aggregate_id:
             return f"<Rating(id={self.id}, aggregate_id={self.aggregate_id})>"
+        elif self.generated_content_id:
+            return f"<Rating(id={self.id}, generated_content_id={self.generated_content_id})>"
         else:
             return f"<Rating(id={self.id})>"
 

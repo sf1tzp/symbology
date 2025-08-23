@@ -36,9 +36,12 @@ async def get_document_by_id(document_id: UUID):
         response_data = {
             "id": document.id,
             "filing_id": document.filing_id,
-            "company_id": document.company_id,
+            "company_ticker": document.company.ticker,
             "document_name": document.document_name,
+            "document_type": document.document_type,
             "content": document.content,
+            "content_hash": getattr(document, 'content_hash', None),
+            "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
             "filing": None
         }
 
@@ -135,9 +138,12 @@ async def get_documents_by_filing_id(filing_id: UUID):
             doc_data = {
                 "id": document.id,
                 "filing_id": document.filing_id,
-                "company_id": document.company_id,
+                "company_ticker": document.company.ticker,
                 "document_name": document.document_name,
+                "document_type": document.document_type,
                 "content": document.content,
+                "content_hash": getattr(document, 'content_hash', None),
+                "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
                 "filing": None
             }
 
@@ -204,9 +210,12 @@ async def get_documents_by_ids(document_ids: List[UUID]):
             doc_data = {
                 "id": document.id,
                 "filing_id": document.filing_id,
-                "company_id": document.company_id,
+                "company_ticker": document.company.ticker,
+                "document_type": document.document_type,
                 "document_name": document.document_name,
                 "content": document.content,
+                "content_hash": getattr(document, 'content_hash', None),
+                "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
                 "filing": None
             }
 
@@ -244,3 +253,82 @@ async def get_documents_by_ids(document_ids: List[UUID]):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get documents: {str(e)}"
         ) from e
+
+
+@router.get(
+    "/by-accession/{accession_number}/{content_hash}",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        404: {"description": "Document not found"},
+        500: {"description": "Internal server error"}
+    }
+)
+async def get_document_by_accession_and_hash(accession_number: str, content_hash: str):
+    """Get a document by filing accession number and content hash.
+
+    This endpoint supports the new URL pattern: /d/[accession_number]/[content_hash]
+
+    Args:
+        accession_number: SEC filing accession number (e.g., "0001326380-21-000032")
+        content_hash: Full or partial SHA256 hash of document content (e.g., "c2b97228e5a1")
+
+    Returns:
+        DocumentResponse object with document details and filing information
+    """
+    try:
+        logger.info("api_get_document_by_accession_and_hash",
+                   accession_number=accession_number, content_hash=content_hash)
+
+        from src.database.documents import get_document_by_accession_and_hash
+        document = get_document_by_accession_and_hash(accession_number, content_hash)
+
+        if not document:
+            logger.warning("document_not_found_by_accession_and_hash",
+                          accession_number=accession_number, content_hash=content_hash)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document not found with accession number {accession_number} and content hash {content_hash}"
+            )
+
+        # Convert document to response format
+        response_data = {
+            "id": document.id,
+            "filing_id": document.filing_id,
+            "company_ticker": document.company.ticker,
+            "document_type": document.document_type,
+            "document_name": document.document_name,
+            "content": document.content,
+            "content_hash": getattr(document, 'content_hash', None),
+            "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
+            "filing": None
+        }
+
+        # Include filing information if available
+        if document.filing_id and hasattr(document, 'filing') and document.filing:
+            filing = document.filing
+            response_data["filing"] = {
+                "id": filing.id,
+                "company_id": filing.company_id,
+                "accession_number": filing.accession_number,
+                "filing_type": filing.filing_type,
+                "filing_date": filing.filing_date,
+                "filing_url": filing.filing_url,
+                "period_of_report": filing.period_of_report
+            }
+
+        logger.info("api_get_document_by_accession_and_hash_success",
+                   accession_number=accession_number, content_hash=content_hash,
+                   document_id=str(document.id))
+        return DocumentResponse(**response_data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("api_get_document_by_accession_and_hash_failed",
+                    accession_number=accession_number, content_hash=content_hash,
+                    error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while retrieving document"
+        )

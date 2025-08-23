@@ -56,39 +56,24 @@ async def get_company_by_id(company_id: UUID):
     return company
 
 @router.get(
-    "/",
+    "/by-ticker/{ticker}",
     response_model=CompanyResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        400: {"description": "Bad request - missing required parameters"},
         404: {"description": "Company not found"},
         500: {"description": "Internal server error"}
     }
 )
-async def search_companies(
-    ticker: Optional[str] = Query(None, description="Company ticker symbol"),
-    cik: Optional[str] = Query(None, description="Company CIK")
-):
-    """Search for companies by ticker or CIK."""
-    company = None
-
-    if ticker:
-        logger.info("api_search_companies_by_ticker", ticker=ticker)
-        company = get_company_by_ticker(ticker)
-        if not company:
-            raise HTTPException(status_code=404, detail=f"Company with ticker {ticker} not found")
-        return company
-    elif cik:
-        logger.info("api_search_companies_by_cik", cik=cik)
-        company = get_company_by_cik(cik)
-        if not company:
-            raise HTTPException(status_code=404, detail=f"Company with CIK {cik} not found")
-        return company
-    else:
-        raise HTTPException(status_code=400, detail="Either ticker or CIK parameter is required")
+async def get_company_by_ticker_route(ticker: str):
+    """Get a company by its ticker symbol."""
+    logger.info("api_get_company_by_ticker_route", ticker=ticker)
+    company = get_company_by_ticker(ticker)
+    if not company:
+        raise HTTPException(status_code=404, detail=f"Company with ticker {ticker} not found")
+    return company
 
 @router.get(
-    "/list",
+    "",
     response_model=List[CompanyResponse],
     status_code=status.HTTP_200_OK,
     responses={
@@ -96,15 +81,43 @@ async def search_companies(
         500: {"description": "Internal server error"}
     }
 )
-async def list_companies(
-    offset: int = Query(0, description="Number of companies to skip", ge=0),
-    limit: int = Query(50, description="Maximum number of companies to return", ge=1, le=100)
+async def get_companies_route(
+    search: Optional[str] = Query(None, description="Search query for company name or ticker"),
+    skip: int = Query(0, description="Number of companies to skip", ge=0),
+    limit: int = Query(50, description="Maximum number of companies to return", ge=1, le=100),
+    ticker: Optional[str] = Query(None, description="Company ticker symbol"),
+    cik: Optional[str] = Query(None, description="Company CIK")
 ):
-    """List all companies with summaries and pagination.
+    """Get companies with various filtering options.
 
-    Returns a paginated list of companies that have summaries in the database.
-    This is primarily used for browsing companies with available summaries.
+    Can be used for:
+    - Searching companies by name/ticker with 'search' parameter
+    - Getting paginated list with 'skip' and 'limit' parameters
+    - Finding specific company by 'ticker' or 'cik' parameters
     """
-    logger.info("api_list_companies", offset=offset, limit=limit)
-    companies = list_all_companies(offset=offset, limit=limit)
+    # Handle specific ticker/CIK lookup
+    if ticker:
+        logger.info("api_get_companies_by_ticker", ticker=ticker)
+        company = get_company_by_ticker(ticker)
+        if not company:
+            raise HTTPException(status_code=404, detail=f"Company with ticker {ticker} not found")
+        return [company]
+    elif cik:
+        logger.info("api_get_companies_by_cik", cik=cik)
+        company = get_company_by_cik(cik)
+        if not company:
+            raise HTTPException(status_code=404, detail=f"Company with CIK {cik} not found")
+        return [company]
+
+    # Handle search functionality
+    if search:
+        logger.info("api_get_companies_search", search=search, limit=limit)
+        companies = search_companies_by_query(search, limit)
+        return companies
+
+    # Handle paginated list
+    logger.info("api_get_companies_list", skip=skip, limit=limit)
+    companies = list_all_companies(offset=skip, limit=limit)
     return companies
+
+

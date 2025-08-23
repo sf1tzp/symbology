@@ -3,7 +3,7 @@ import re
 import time
 from typing import Dict, List, Optional
 
-from ollama import ChatResponse, Client, GenerateResponse
+from ollama import ChatResponse, Client, GenerateResponse, Options
 from src.utils.config import settings
 from src.utils.logging import get_logger
 from transformers import AutoTokenizer
@@ -14,16 +14,24 @@ logger = get_logger(__name__)
 # get_logger("httpcore").setLevel(DEBUG)
 
 @dataclass
-# TODO: replace with ollama's Options class
 class ModelConfig:
+    """Extended ModelConfig that includes the model name along with ollama Options."""
     name: str
-    num_ctx: int = 4096
-    temperature: float = 0.8
-    top_k: int = 40
-    top_p: float = 0.9
-    seed: int = 0b111001111110011101101110001011011111101100110111111001111111001 # symbology
-    num_predict: int = -1
-    num_gpu: Optional[int] = None
+    options: Options
+
+    @classmethod
+    def create_default(cls, name: str) -> 'ModelConfig':
+        """Create a ModelConfig with default ollama options."""
+        default_options = Options(
+            num_ctx=4096,
+            temperature=0.8,
+            top_k=40,
+            top_p=0.9,
+            seed=0b111001111110011101101110001011011111101100110111111001111111001,  # symbology
+            num_predict=-1,
+            num_gpu=None
+        )
+        return cls(name=name, options=default_options)
 
 def retry_backoff(timeout, func, *args, **kwargs):
     backoff = 1
@@ -67,31 +75,11 @@ def get_chat_response(
 
     logger.info("sending_chat_request", model=model_config.name, input_tokens=input_tokens)
 
-    if input_tokens > model_config.num_ctx:
-        logger.warn("oversized_input", input_tokens=input_tokens, num_ctx=model_config.num_ctx)
+    if input_tokens > (model_config.options.num_ctx or 4096):
+        logger.warn("oversized_input", input_tokens=input_tokens, num_ctx=model_config.options.num_ctx)
 
-    options = {
-        "num_ctx": model_config.num_ctx,
-        "temperature": model_config.temperature,
-        "top_k": model_config.top_k,
-        "top_p": model_config.top_p,
-        "seed": model_config.seed,
-        "num_predict": model_config.num_predict,
-    }
+    response = retry_backoff(3600, client.chat, model_config.name, options=model_config.options, messages=messages)
 
-    response = retry_backoff(3600, client.chat, model_config.name, options=options, messages=messages)
-
-    # response = client.chat(model_config.name,
-    #     options = {
-    #         "num_ctx": model_config.num_ctx,
-    #         "temperature": model_config.temperature,
-    #         "top_k": model_config.top_k,
-    #         "top_p": model_config.top_p,
-    #         "seed": model_config.seed,
-    #         "num_predict": model_config.num_predict,
-    #     },
-    #     messages = messages,
-    # )
     duration=response.total_duration / 1e9
     output_tokens=count_tokens(model_config, response.message.content)
     tokens_per_second = output_tokens / duration
@@ -180,9 +168,8 @@ def get_generate_response(model_config: ModelConfig, system_prompt: str, user_pr
 
     logger.info("sending_generate_request", model=model_config.name, input_tokens=input_tokens)
 
-    if input_tokens > model_config.num_ctx:
-        logger.warn("oversized_input", tokens=input_tokens, num_ctx=model_config.num_ctx)
-
+    if input_tokens > (model_config.options.num_ctx or 4096):
+        logger.warn("oversized_input", tokens=input_tokens, num_ctx=model_config.options.num_ctx)
 
     response = retry_backoff(
         timeout=3600,
@@ -190,14 +177,7 @@ def get_generate_response(model_config: ModelConfig, system_prompt: str, user_pr
         model = model_config.name,
         system = system_prompt,
         prompt = user_prompt,
-        options = {
-            "num_ctx": model_config.num_ctx,
-            "temperature": model_config.temperature,
-            "top_k": model_config.top_k,
-            "top_p": model_config.top_p,
-            "seed": model_config.seed,
-            "num_predict": model_config.num_predict,
-        },
+        options = model_config.options,
     )
     duration=response.total_duration / 1e9
     output_tokens=count_tokens(model_config, response.response)

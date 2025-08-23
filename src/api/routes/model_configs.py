@@ -5,12 +5,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from src.api.schemas import ModelConfigResponse
 from src.database.model_configs import (
+    get_all_model_configs,
     get_model_config,
     get_model_config_by_name,
-    get_all_model_configs,
-    create_model_config,
-    update_model_config,
-    delete_model_config
 )
 from src.utils.logging import get_logger
 

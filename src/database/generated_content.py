@@ -1,7 +1,7 @@
 """Database models for generated content (consolidates Aggregates and Completions)."""
-import hashlib
 from datetime import datetime
 from enum import Enum
+import hashlib
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
@@ -17,9 +17,9 @@ from uuid_extensions import uuid7
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
     from src.database.documents import Document
+    from src.database.model_configs import ModelConfig
     from src.database.prompts import Prompt
     from src.database.ratings import Rating
-    from src.database.model_configs import ModelConfig
 
 # Initialize structlog
 logger = get_logger(__name__)

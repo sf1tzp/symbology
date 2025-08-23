@@ -72,10 +72,10 @@ build component *ARGS: _generate-api-types
   if [[ "{{component}}" == "api" ]]; then
     just -d src -f src/justfile build
   elif [[ "{{component}}" == "ui" ]]; then
-    ENV="${1:-staging}"
+    ENV="{{ ARGS }}"
     just -d ui -f ui/justfile build-for-deploy "$ENV"
   elif [[ "{{component}}" == "images" ]]; then
-    ENV="${1:-staging}"
+    ENV="{{ ARGS }}"
     echo "Building all images for $ENV environment..."
     ./build-images.sh "$ENV"
   else

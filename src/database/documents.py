@@ -1,17 +1,17 @@
 from enum import Enum
+import hashlib
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
-import hashlib
 
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import joinedload, Mapped, mapped_column, relationship
 from src.database.base import Base, get_db_session
-from src.utils.logging import get_logger
-from uuid_extensions import uuid7
 
 # Import Filing for the new functions
 from src.database.filings import Filing
+from src.utils.logging import get_logger
+from uuid_extensions import uuid7
 
 # Initialize structlog
 logger = get_logger(__name__)

@@ -46,7 +46,7 @@
 						content={`
 > The Securities Exchange Act of 1933 was written in the spirit of full disclosure.
 
-> But wading through the verbose filings can be a challenge. We leverage the power of Large Language Models (LLMs) to distill these primary source documents into clear, concise summaries, revealing what companies are up to, and how that's changing over time. Explore company activity directly from the source - completely open source and easily shareable.  Learn more in our [FAQ](https://symbology.lofi/faq), or leave us a star on [GitHub](https://github.com/sf1tzp/symbology)
+> But wading through the verbose filings can be a challenge. We leverage the power of Large Language Models (LLMs) to distill these primary source documents into clear, concise summaries, revealing what companies are up to, and how that's changing over time. Explore company activity directly from the source - completely open source and easily shareable.  Learn more in our [FAQ](https://symbology.online/faq), or leave us a star on [GitHub](https://github.com/sf1tzp/symbology)
 						`}
 					/>
 				</CardContent>
@@ -88,7 +88,7 @@
 
 But full disclosure is extremely verbose.
 
-We leverage the power of Large Language Models to distill primary source documents from the [SEC](https://sec.gov) into clear, concise summaries. revealing what companies are up to, and how that's changing over time. Explore company activity directly from the source - completely open source and easily shareable.  Learn more in our [FAQ](https://symbology.lofi/faq), or leave us a star on [GitHub](https://github.com/sf1tzp/symbology).
+We leverage the power of Large Language Models to distill primary source documents from the [SEC](https://sec.gov) into clear, concise summaries. revealing what companies are up to, and how that's changing over time. Explore company activity directly from the source - completely open source and easily shareable.  Learn more in our [FAQ](https://symbology.online/faq), or leave us a star on [GitHub](https://github.com/sf1tzp/symbology).
 							`}
 						/>
 					</CardContent>

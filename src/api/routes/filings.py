@@ -3,9 +3,9 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from src.api.schemas import FilingResponse, DocumentResponse, CompanyResponse
-from src.database.filings import get_filings_by_company, get_filing_by_accession_number
+from src.api.schemas import CompanyResponse, DocumentResponse, FilingResponse
 from src.database.documents import get_documents_by_filing
+from src.database.filings import get_filing_by_accession_number, get_filings_by_company
 from src.utils.logging import get_logger
 
 # Create logger for this module

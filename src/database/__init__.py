@@ -19,31 +19,6 @@ from src.database.aggregates import (
 )
 from src.database.base import Base, close_session, get_db, get_db_session, init_db
 
-# New consolidated models
-from src.database.model_configs import (
-    ModelConfig,
-    create_model_config,
-    delete_model_config,
-    get_model_config,
-    get_model_config_by_name,
-    get_model_config_ids,
-    get_all_model_configs,
-    update_model_config,
-)
-from src.database.generated_content import (
-    GeneratedContent,
-    ContentSourceType,
-    create_generated_content,
-    delete_generated_content,
-    get_generated_content,
-    get_generated_content_by_hash,
-    get_generated_content_by_company_and_ticker,
-    get_recent_generated_content_by_ticker,
-    get_generated_content_by_source_document,
-    get_generated_content_by_source_content,
-    update_generated_content,
-)
-
 # Companies
 from src.database.companies import (
     Company,
@@ -102,6 +77,31 @@ from src.database.financial_values import (
     get_financial_value,
     get_financial_value_ids,
     update_financial_value,
+)
+from src.database.generated_content import (
+    ContentSourceType,
+    create_generated_content,
+    delete_generated_content,
+    GeneratedContent,
+    get_generated_content,
+    get_generated_content_by_company_and_ticker,
+    get_generated_content_by_hash,
+    get_generated_content_by_source_content,
+    get_generated_content_by_source_document,
+    get_recent_generated_content_by_ticker,
+    update_generated_content,
+)
+
+# New consolidated models
+from src.database.model_configs import (
+    create_model_config,
+    delete_model_config,
+    get_all_model_configs,
+    get_model_config,
+    get_model_config_by_name,
+    get_model_config_ids,
+    ModelConfig,
+    update_model_config,
 )
 
 # Prompts

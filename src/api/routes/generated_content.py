@@ -1,19 +1,15 @@
 """API routes for generated content."""
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from src.api.schemas import GeneratedContentResponse, GeneratedContentCreateRequest
+from src.api.schemas import GeneratedContentCreateRequest, GeneratedContentResponse
 from src.database.generated_content import (
-    get_generated_content,
-    get_generated_content_by_hash,
-    get_generated_content_by_company_and_ticker,
-    get_recent_generated_content_by_ticker,
     create_generated_content,
-    update_generated_content,
-    delete_generated_content,
-    get_generated_content_by_source_document,
-    get_generated_content_by_source_content
+    get_generated_content,
+    get_generated_content_by_company_and_ticker,
+    get_generated_content_by_hash,
+    get_recent_generated_content_by_ticker,
 )
 from src.utils.logging import get_logger
 

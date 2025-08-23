@@ -1,10 +1,10 @@
 """Database models for model configurations."""
 from datetime import datetime
+import json
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-import json
-from sqlalchemy import Column, DateTime, String, Text
+from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from src.database.base import Base, get_db_session

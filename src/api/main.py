@@ -30,12 +30,8 @@ def create_app() -> FastAPI:
                 "description": "Operations related to filing documents and content",
             },
             {
-                "name": "completions",
-                "description": "Operations related to AI-generated completions",
-            },
-            {
-                "name": "aggregates",
-                "description": "Operations related to AI-generated aggregates",
+                "name": "generated_content",
+                "description": "Operations related to LLM generated content",
             },
             {
                 "name": "prompts",

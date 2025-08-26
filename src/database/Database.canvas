@@ -3,168 +3,245 @@
     {
       "type": "text",
       "id": "cee9d5250c394252",
-      "x": -479,
-      "y": -660,
-      "width": 250,
-      "height": 550,
-      "text": "# Company\n\n```\nid: UUID\ncik: String (optional)\n\nname: String\ndisplay_name: String (optional)\nis_company: Boolean\ntickers: String[]\nexchanges: String[]\nsic: String (optional)\nsic_description: String (optional)\nfiscal_year_end: Date (optional)\nentity_type: String (optional)\nein: String (optional)\nformer_names: JSON\n```"
+      "x": -1800,
+      "y": -980,
+      "width": 260,
+      "height": 560,
+      "text": "# Company\n\n```\nid: UUID\ncik: String (optional)\n\nfilings *\ndocuments *\nfinancial_values *\n\nname\ndisplay_name\nis_company\ntickers\nexchanges\nsic\nsic_description\nfiscal_year_end\nentity_type\nein\nformer_names\n\nsummary\n```"
     },
     {
       "type": "text",
       "id": "ff7980577283db04",
-      "x": -480,
-      "y": -20,
+      "x": -1360,
+      "y": -320,
       "width": 250,
       "height": 320,
-      "text": "# Filing\n```\nid: UUID\ncompany_id: UUID\n\naccession_number: String\nfiling_type: String\nfiling_date: Date\nfiling_url: String (optional)\nperiod_of_report: Date (optional)\n```"
+      "text": "# Filing\n```\nid\ncompany_id\ncompany *\ndocument *\nfinancial_values *\naccession_number\nfiling_type\nfiling_date\nfiling_url\nperiod_of_report\n```"
     },
     {
       "type": "text",
       "id": "e6a797d5d27e5c04",
-      "x": -40,
-      "y": -60,
-      "width": 250,
-      "height": 320,
-      "text": "# Document\n```\nid: UUID\nfiling_id: UUID (optional)\ncompany_id: UUID\n\ndocument_name: String\ncontent: Text (optional)\n```"
+      "x": -1580,
+      "y": 120,
+      "width": 260,
+      "height": 360,
+      "text": "# Document\n```\nid\nfiling_id\nfiling *\ncompany_id\ncompany *\ndocument_name\ndocument_type\ncontent\ncontent_hash\n```"
     },
     {
       "type": "text",
       "id": "1b1b33d44dce8fc9",
-      "x": -1220,
-      "y": -480,
-      "width": 250,
+      "x": -1059.9999999999998,
+      "y": -1219.9999999999998,
+      "width": 320,
       "height": 320,
-      "text": "# FinancialConcept\n```\nid: UUID\n\nname: String\ndescription: Text (optional)\nlabels: String[]\n```"
+      "text": "# FinancialConcept\n```\nid\n\nname\ndescription\nlabels\n\nfinancial_values *\n```"
     },
     {
       "type": "text",
       "id": "09738010faebfcea",
-      "x": -920,
-      "y": -40,
-      "width": 250,
-      "height": 320,
-      "text": "# FinancialValue\n```\nid: UUID\ncompany_id: UUID\nconcept_id: UUID\nfiling_id: UUID (optional)\n\nvalue_date: Date\nvalue: Decimal\n```"
+      "x": -1039.9999999999998,
+      "y": -819.9999999999999,
+      "width": 260,
+      "height": 380,
+      "text": "# FinancialValue\n```\nid\ncompany_id\nconcept_id\nfiling_id\n\ncompany *\nconcept *\nfiling *\n\n\nvalue_date\nvalue\n```"
     },
     {
       "type": "text",
       "id": "f033f15a172a3b98",
-      "x": 680,
-      "y": -720,
-      "width": 250,
-      "height": 320,
-      "text": "# Rating\n```\nid: UUID\ncompletion_id: UUID\n\ncontent_score: Integer (optional)\nformat_score: Integer (optional)\ncomment: String (optional)\ntags: String[]\n```"
+      "x": -359.99999999999994,
+      "y": 259.99999999999994,
+      "width": 260,
+      "height": 340,
+      "text": "# Rating\n```\nid\ngenerated_content_id\ngenerated_content *\ncontent_score\nformat_score\ncomment\ntags\n```"
     },
     {
       "type": "text",
       "id": "3e537afd9323fbea",
-      "x": 700,
-      "y": -180,
-      "width": 250,
-      "height": 450,
-      "text": "# Prompt\n```\nid: UUID\nname: String\ndescription: String (optional)\nrole: PromptRole\ntemplate: Text\ntemplate_vars: JSON (optional)\ndefault_values: JSON (optional)\n```"
+      "x": -279.99999999999994,
+      "y": -39.99999999999999,
+      "width": 260,
+      "height": 240,
+      "text": "# Prompt\n```\nid\nname\ndescription\nrole\ncontent\n```"
     },
     {
       "type": "text",
       "id": "37329761d98ec0a3",
-      "x": 260,
-      "y": -660,
-      "width": 280,
+      "x": -900,
+      "y": -200,
+      "width": 400,
       "height": 560,
-      "text": "# Completion\n```\nid: UUID\n\nsystem_prompt_id: UUID (optional)\n\n\n\nmodel: String\ntemperature: Float (optional)\ntop_p: Float (optional)\n```"
+      "text": "# GeneratedContent\n\n```\nid\ncontent_hash\ncompany_id\ncompany *\ndocument_type\nsource_type\ncreated_at\ntotal_duration\ncontent\nsummary\nmodel_config_id\nmodel_config *\nsystem_prompt_id\nsystem_prompt *\nuser_prompt_id\nuser_prompt *\nsource_documents *\nsource_content * (self referential)\nratings *\n```"
     },
     {
       "type": "text",
-      "id": "ad9d918d-924e-4323-b698-4ee8176f9693",
-      "x": -166.01668030977916,
-      "y": -980.1476258638621,
+      "id": "ab231984-a4fb-4f3d-9e79-caa29df473f1",
+      "x": -279.99999999999994,
+      "y": -359.99999999999994,
       "width": 260,
-      "height": 80,
-      "text": "### Aggregate\n\n```\nid\n```"
+      "height": 240,
+      "text": "# ModelConfig\n\n```\nid\nname\ncreated_at\noptions_json\n\n```"
     }
   ],
   "edges": [
     {
-      "id": "710a264ed84ea41e",
+      "id": "cba1a462-5933-40ea-b363-581a79de78b4",
+      "fromNode": "cee9d5250c394252",
+      "fromSide": "right",
+      "toNode": "ff7980577283db04",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "1cb13e2d-342b-4310-8779-08d5b28bd779",
       "fromNode": "ff7980577283db04",
-      "fromSide": "top",
-      "toNode": "cee9d5250c394252",
-      "toSide": "bottom",
+      "fromSide": "right",
+      "toNode": "09738010faebfcea",
+      "toSide": "left",
       "toEnd": "arrow",
-      "label": "Many to One"
+      "style": "dashed",
+      "shape": "stepped"
     },
     {
-      "id": "b27a46373c02b68e",
-      "fromNode": "f033f15a172a3b98",
-      "fromSide": "left",
-      "toNode": "37329761d98ec0a3",
-      "toSide": "right",
-      "toEnd": "arrow",
-      "label": "Many to One"
-    },
-    {
-      "id": "071442e59dd4387b",
+      "id": "c7b88669-56d6-4a65-b504-e23f0a58cf83",
       "fromNode": "09738010faebfcea",
-      "fromSide": "left",
+      "fromSide": "right",
+      "toNode": "ff7980577283db04",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "c7e56863-2d8a-415d-9fb9-934fe08b4bbc",
+      "fromNode": "ff7980577283db04",
+      "fromSide": "right",
+      "toNode": "e6a797d5d27e5c04",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "a4d637ed-fd2c-40fe-bb73-a99d4fc622a9",
+      "fromNode": "ff7980577283db04",
+      "fromSide": "right",
+      "toNode": "cee9d5250c394252",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "f9d64b49-4b84-4400-a509-9f4b02d29e7a",
+      "fromNode": "09738010faebfcea",
+      "fromSide": "right",
       "toNode": "1b1b33d44dce8fc9",
-      "toSide": "right",
+      "toSide": "left",
       "toEnd": "arrow",
-      "label": "Many to One"
+      "style": "solid",
+      "shape": "curved"
     },
     {
-      "id": "d47af42453fd8a14",
+      "id": "2c247ff9-ce98-462d-8b38-c3292ba2e0a4",
+      "fromNode": "1b1b33d44dce8fc9",
+      "fromSide": "right",
+      "toNode": "09738010faebfcea",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "8e2957df-efe5-4768-9fd7-608da09e3091",
       "fromNode": "e6a797d5d27e5c04",
-      "fromSide": "left",
-      "toNode": "ff7980577283db04",
-      "toSide": "right",
-      "toEnd": "arrow",
-      "label": "Many to One (optional)"
-    },
-    {
-      "id": "daafdadaaa31bfda",
-      "fromNode": "09738010faebfcea",
       "fromSide": "right",
       "toNode": "ff7980577283db04",
       "toSide": "left",
       "toEnd": "arrow",
-      "label": "Many to One (optional)"
+      "style": "solid",
+      "shape": "curved"
     },
     {
-      "id": "0b261b7af299b898",
-      "fromNode": "09738010faebfcea",
-      "fromSide": "top",
-      "toNode": "cee9d5250c394252",
-      "toSide": "left",
-      "toEnd": "arrow",
-      "label": "Many to One"
-    },
-    {
-      "id": "e5c0b840316c4534",
-      "fromNode": "e6a797d5d27e5c04",
-      "fromSide": "top",
-      "toNode": "cee9d5250c394252",
-      "toSide": "right",
-      "toEnd": "arrow",
-      "label": "Many to One"
-    },
-    {
-      "id": "616fc91980b7359d",
+      "id": "5663e4bf-937b-4947-a30b-7072d8b5c764",
       "fromNode": "e6a797d5d27e5c04",
       "fromSide": "right",
-      "toNode": "37329761d98ec0a3",
+      "toNode": "cee9d5250c394252",
       "toSide": "left",
       "toEnd": "arrow",
-      "label": "Many to Many"
+      "style": "solid",
+      "shape": "curved"
     },
     {
-      "id": "f87482e5-e071-446f-b1c6-e8ccc0f58197",
+      "id": "81583f92-509e-4726-badc-7374f30cfdea",
       "fromNode": "37329761d98ec0a3",
-      "fromSide": "bottom",
+      "fromSide": "right",
+      "toNode": "cee9d5250c394252",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "63645f42-90d2-4700-9952-f7cd58b09e12",
+      "fromNode": "37329761d98ec0a3",
+      "fromSide": "right",
+      "toNode": "e6a797d5d27e5c04",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "b216f9e5-4cc9-45a1-9120-b2af3aedeeaa",
+      "fromNode": "37329761d98ec0a3",
+      "fromSide": "right",
+      "toNode": "ab231984-a4fb-4f3d-9e79-caa29df473f1",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "solid",
+      "shape": "stepped"
+    },
+    {
+      "id": "f5af8b6f-dfa5-4fe7-9e30-70ed3ab4d372",
+      "fromNode": "37329761d98ec0a3",
+      "fromSide": "right",
       "toNode": "3e537afd9323fbea",
       "toSide": "left",
       "toEnd": "arrow",
-      "label": "Many to One (both system and user)",
+      "style": "solid",
+      "shape": "stepped"
+    },
+    {
+      "id": "d2889433-7935-4c44-a2f8-f8400f12d453",
+      "fromNode": "37329761d98ec0a3",
+      "fromSide": "right",
+      "toNode": "f033f15a172a3b98",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "dashed",
+      "shape": "stepped"
+    },
+    {
+      "id": "94bb73b4-8c38-427a-9779-e4b65f1b37b1",
+      "fromNode": "f033f15a172a3b98",
+      "fromSide": "right",
+      "toNode": "37329761d98ec0a3",
+      "toSide": "left",
+      "toEnd": "arrow",
       "style": "solid",
       "shape": "curved"
+    },
+    {
+      "id": "c06da2d5-a406-4ce4-b1e9-51419eaabfc1",
+      "fromNode": "cee9d5250c394252",
+      "fromSide": "right",
+      "toNode": "09738010faebfcea",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "style": "dashed",
+      "shape": "stepped"
     }
   ]
 }

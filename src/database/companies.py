@@ -28,9 +28,9 @@ class Company(Base):
     cik: Mapped[Optional[str]] = mapped_column(String(10), unique=True, index=True)
 
     # Relationships
-    filings: Mapped[List["Filing"]] = relationship("Filing", back_populates="company", cascade="all, delete-orphan")
-    documents: Mapped[List["Document"]] = relationship("Document", back_populates="company", cascade="all, delete-orphan")
-    financial_values: Mapped[List["FinancialValue"]] = relationship("FinancialValue", back_populates="company", cascade="all, delete-orphan")
+    filings: Mapped[List["Filing"]] = relationship("Filing", back_populates="company", cascade="all, delete-orphan", lazy="selectin")
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="company", cascade="all, delete-orphan", lazy="selectin")
+    financial_values: Mapped[List["FinancialValue"]] = relationship("FinancialValue", back_populates="company", cascade="all, delete-orphan", lazy="noload")
 
     # Company details
     name: Mapped[str] = mapped_column(String(255))

@@ -45,7 +45,10 @@ generated_content_source_association = Table(
     "generated_content_source_association",
     Base.metadata,
     Column("parent_content_id", ForeignKey("generated_content.id"), primary_key=True),
-    Column("source_content_id", ForeignKey("generated_content.id"), primary_key=True)
+    Column("source_content_id", ForeignKey("generated_content.id"), primary_key=True),
+    # Add metadata for richer relationships
+    Column("relationship_type", String, default="derived_from"),  # 'references', 'summarizes', etc.
+    Column("created_at", DateTime, default=func.now())
 )
 
 
@@ -85,7 +88,7 @@ class GeneratedContent(Base):
     total_duration: Mapped[Optional[float]] = mapped_column(Float)
 
     # The actual content of the generated content
-    content: Mapped[Optional[str]] = mapped_column(Text)
+    content: Mapped[Optional[str]] = mapped_column(Text, deferred=True)
 
     # Generated summary of the content (optional)
     summary: Mapped[Optional[str]] = mapped_column(Text)
@@ -95,6 +98,7 @@ class GeneratedContent(Base):
     model_config: Mapped[Optional["ModelConfig"]] = relationship(
         "ModelConfig",
         foreign_keys=[model_config_id],
+        lazy="selectin"
     )
 
     # Prompt references
@@ -102,19 +106,22 @@ class GeneratedContent(Base):
     system_prompt: Mapped[Optional["Prompt"]] = relationship(
         "Prompt",
         foreign_keys=[system_prompt_id],
+        lazy="selectin"
     )
 
     user_prompt_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("prompts.id", ondelete="SET NULL"), index=True)
     user_prompt: Mapped[Optional["Prompt"]] = relationship(
         "Prompt",
         foreign_keys=[user_prompt_id],
+        lazy="selectin"
     )
 
     # Source relationships
     source_documents: Mapped[List["Document"]] = relationship(
         "Document",
         secondary=generated_content_document_association,
-        backref="generated_content"
+        backref="generated_content",
+        lazy="select"
     )
 
     source_content: Mapped[List["GeneratedContent"]] = relationship(
@@ -122,13 +129,24 @@ class GeneratedContent(Base):
         secondary=generated_content_source_association,
         primaryjoin=id == generated_content_source_association.c.parent_content_id,
         secondaryjoin=id == generated_content_source_association.c.source_content_id,
-        backref="parent_content"
+        lazy="select",
+        order_by="GeneratedContent.created_at.desc()"
     )
 
-    ratings: Mapped[Optional[List["Rating"]]] = relationship("Rating", back_populates="generated_content")
+    # Explicit reverse relationship instead of backref to prevent accidental deep loading
+    derived_content: Mapped[List["GeneratedContent"]] = relationship(
+        "GeneratedContent",
+        secondary=generated_content_source_association,
+        primaryjoin=id == generated_content_source_association.c.source_content_id,
+        secondaryjoin=id == generated_content_source_association.c.parent_content_id,
+        lazy="noload",  # Force explicit loading to prevent accidental deep loading
+        overlaps="source_content"
+    )
+
+    ratings: Mapped[Optional[List["Rating"]]] = relationship("Rating", back_populates="generated_content", lazy="noload")
 
     def __repr__(self) -> str:
-        return f"<GeneratedContent(id={self.id}, source_type='{self.source_type}', hash='{self.content_hash[:12] if self.content_hash else None}')>"
+        return f"<GeneratedContent(id={self.id}, source_type='{self.source_type.value}', hash='{self.content_hash[:12] if self.content_hash else None}')>"
 
     def generate_content_hash(self) -> str:
         """Generate SHA256 hash of the content for URL identification."""
@@ -146,6 +164,53 @@ class GeneratedContent(Base):
     def update_content_hash(self):
         """Update the content hash based on current content."""
         self.content_hash = self.generate_content_hash()
+
+    def get_direct_derivatives(self, session=None):
+        """Get content that directly uses this as a source.
+
+        Args:
+            session: Optional database session. If not provided, uses default session.
+
+        Returns:
+            List of GeneratedContent objects that use this content as a source
+        """
+        if session is None:
+            session = get_db_session()
+
+        return session.query(GeneratedContent)\
+            .join(generated_content_source_association,
+                  generated_content_source_association.c.parent_content_id == GeneratedContent.id)\
+            .filter(generated_content_source_association.c.source_content_id == self.id)\
+            .all()
+
+    def get_source_chain_depth(self, max_depth: int = 10, visited: Optional[set] = None) -> int:
+        """Calculate maximum derivation depth with cycle detection.
+
+        Args:
+            max_depth: Maximum depth to traverse (prevents infinite recursion)
+            visited: Set of visited content IDs for cycle detection
+
+        Returns:
+            Maximum depth of source chain
+        """
+        if visited is None:
+            visited = set()
+
+        # Cycle detection
+        if self.id in visited or max_depth <= 0:
+            return 0
+
+        visited.add(self.id)
+
+        if not self.source_content:
+            return 0
+
+        max_source_depth = 0
+        for source in self.source_content:
+            source_depth = source.get_source_chain_depth(max_depth - 1, visited.copy())
+            max_source_depth = max(max_source_depth, source_depth)
+
+        return max_source_depth + 1
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert GeneratedContent to dictionary for API responses."""
@@ -165,6 +230,7 @@ class GeneratedContent(Base):
             "user_prompt_id": str(self.user_prompt_id) if self.user_prompt_id else None,
             "source_document_ids": [str(doc.id) for doc in self.source_documents],
             "source_content_ids": [str(content.id) for content in self.source_content],
+            "derived_content_ids": [str(content.id) for content in self.derived_content] if hasattr(self, '_derived_content_loaded') else None,
         }
 
 
@@ -466,4 +532,34 @@ def get_generated_content_by_source_content(source_content_id: Union[UUID, str])
     except Exception as e:
         logger.error("get_generated_content_by_source_content_failed",
                     source_content_id=str(source_content_id), error=str(e), exc_info=True)
+        raise
+
+
+def get_content_with_sources_loaded(content_id: Union[UUID, str]) -> Optional[GeneratedContent]:
+    """Get content with sources efficiently loaded using selectinload.
+
+    Args:
+        content_id: UUID of the content to retrieve
+
+    Returns:
+        GeneratedContent with sources pre-loaded, or None if not found
+    """
+    try:
+        from sqlalchemy.orm import selectinload
+
+        session = get_db_session()
+        content = session.query(GeneratedContent)\
+            .options(selectinload(GeneratedContent.source_content))\
+            .options(selectinload(GeneratedContent.source_documents))\
+            .filter_by(id=content_id)\
+            .first()
+
+        if content:
+            logger.info("retrieved_content_with_sources_loaded", content_id=str(content_id))
+        else:
+            logger.warning("content_not_found_for_sources_loading", content_id=str(content_id))
+
+        return content
+    except Exception as e:
+        logger.error("get_content_with_sources_loaded_failed", content_id=str(content_id), error=str(e), exc_info=True)
         raise

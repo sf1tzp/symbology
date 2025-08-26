@@ -29,9 +29,9 @@ class Filing(Base):
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
 
     # Relationships
-    company: Mapped[Company] = relationship("Company", back_populates="filings")
-    documents: Mapped[List["Document"]] = relationship("Document", back_populates="filing", cascade="all, delete-orphan")
-    financial_values: Mapped[List["FinancialValue"]] = relationship("FinancialValue", back_populates="filing", cascade="all, delete-orphan")
+    company: Mapped[Company] = relationship("Company", back_populates="filings", lazy="joined")
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="filing", cascade="all, delete-orphan", lazy="selectin")
+    financial_values: Mapped[List["FinancialValue"]] = relationship("FinancialValue", back_populates="filing", cascade="all, delete-orphan", lazy="noload")
 
     # Filing details
     accession_number: Mapped[str] = mapped_column(String(20), unique=True, index=True)

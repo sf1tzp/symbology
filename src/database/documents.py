@@ -38,8 +38,8 @@ class Document(Base):
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
 
     # Relationships
-    filing = relationship("Filing", back_populates="documents")
-    company = relationship("Company", back_populates="documents")
+    filing = relationship("Filing", back_populates="documents", lazy="joined")
+    company = relationship("Company", back_populates="documents", lazy="joined")
 
     # Document details
     document_name: Mapped[str] = mapped_column(String(255))
@@ -47,7 +47,7 @@ class Document(Base):
         SQLEnum(DocumentType, name="document_type_enum"), nullable=True
     )
 
-    content: Mapped[Optional[str]] = mapped_column(Text)
+    content: Mapped[Optional[str]] = mapped_column(Text, deferred=True)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
 
     def __repr__(self) -> str:

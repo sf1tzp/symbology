@@ -17,6 +17,11 @@ deploy environment="staging": _generate-api-types
   ansible-playbook -i infra/inventories/{{environment}} infra/deploy-symbology.yml
 
 # Development resources
+
+# CLI interface to symbology tools
+cli *ARGS:
+  uv run -m src.cli.main {{ARGS}}
+
 run component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then

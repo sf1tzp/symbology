@@ -1,4 +1,5 @@
 import enum
+import hashlib
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
@@ -35,6 +36,7 @@ class Prompt(Base):
 
     role: Mapped[PromptRole] = mapped_column(Enum(PromptRole), index=True)
     content: Mapped[str] = mapped_column(Text)
+    content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True, unique=True)
 
 
     def __repr__(self) -> str:
@@ -50,6 +52,23 @@ class Prompt(Base):
         print("-" * 40)
         print(self.content)
         print("-" * 40)
+
+    def generate_content_hash(self) -> str:
+        """Generate SHA256 hash of the content for URL identification."""
+        if not self.content:
+            return ""
+
+        return hashlib.sha256(self.content.encode('utf-8')).hexdigest()
+
+    def get_short_hash(self, length: int = 12) -> str:
+        """Get shortened version of content hash for URLs."""
+        if not self.content_hash:
+            return ""
+        return self.content_hash[:length]
+
+    def update_content_hash(self):
+        """Update the content hash based on current content."""
+        self.content_hash = self.generate_content_hash()
 
 def get_prompt_ids() -> List[UUID]:
     """Get a list of all prompt IDs in the database.
@@ -210,23 +229,33 @@ def delete_prompt(prompt_id: Union[UUID, str]) -> bool:
         raise
 
 
-def get_prompt_by_name(name: str) -> Optional[Prompt]:
-    """Get a prompt by its name.
+
+def get_prompt_by_content_hash(content_hash: str) -> Optional[Prompt]:
+    """Get prompt by its content hash.
 
     Args:
-        name: Name of the prompt to retrieve
+        content_hash: Full or partial SHA256 hash of the prompt content
 
     Returns:
         Prompt object if found, None otherwise
     """
     try:
         session = get_db_session()
-        prompt = session.query(Prompt).filter(Prompt.name == name).first()
-        if prompt:
-            logger.info("retrieved_prompt_by_name", name=name, prompt_id=str(prompt.id))
+
+        # Try exact match first
+        document = session.query(Prompt).filter(Prompt.content_hash == content_hash).first()
+
+        # If no exact match and hash is short, try prefix match
+        if not document and len(content_hash) < 64:
+            document = session.query(Prompt).filter(
+                Prompt.content_hash.like(f"{content_hash}%")
+            ).first()
+
+        if document:
+            logger.info("retrieved_document_by_content_hash", content_hash=content_hash)
         else:
-            logger.warning("prompt_by_name_not_found", name=name)
-        return prompt
+            logger.warning("document_not_found_by_content_hash", content_hash=content_hash)
+        return document
     except Exception as e:
-        logger.error("get_prompt_by_name_failed", name=name, error=str(e), exc_info=True)
+        logger.error("get_document_by_content_hash_failed", content_hash=content_hash, error=str(e), exc_info=True)
         raise

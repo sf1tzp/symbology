@@ -3,9 +3,8 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from src.api.schemas import GeneratedContentCreateRequest, GeneratedContentResponse
+from src.api.schemas import GeneratedContentResponse
 from src.database.generated_content import (
-    create_generated_content,
     get_generated_content,
     get_generated_content_by_company_and_ticker,
     get_generated_content_by_hash,
@@ -212,61 +211,6 @@ async def get_generated_content_by_hash_only(content_hash: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving generated content"
-        )
-
-
-@router.post(
-    "/",
-    response_model=GeneratedContentResponse,
-    status_code=status.HTTP_201_CREATED,
-    responses={
-        400: {"description": "Invalid request data"},
-        500: {"description": "Internal server error"}
-    }
-)
-async def create_new_generated_content(request: GeneratedContentCreateRequest):
-    """Create new generated content.
-
-    Args:
-        request: GeneratedContentCreateRequest with content data
-
-    Returns:
-        GeneratedContentResponse object with the created content details
-    """
-    logger.info("api_create_generated_content", request_data=request.dict())
-
-    try:
-        content_data = request.dict(exclude_none=True)
-
-        # Convert list fields for database relationships
-        if 'source_document_ids' in content_data:
-            # This will be handled by the ORM relationship
-            del content_data['source_document_ids']
-        if 'source_content_ids' in content_data:
-            # This will be handled by the ORM relationship
-            del content_data['source_content_ids']
-
-        content = create_generated_content(content_data)
-
-        # Handle source relationships if provided
-        if request.source_document_ids:
-            # Add logic to associate source documents
-            pass
-        if request.source_content_ids:
-            # Add logic to associate source content
-            pass
-
-        content_dict = content.to_dict()
-        response = GeneratedContentResponse(**content_dict)
-
-        logger.info("api_create_generated_content_success", content_id=str(content.id))
-        return response
-
-    except Exception as e:
-        logger.error("api_create_generated_content_failed", error=str(e), exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error while creating generated content"
         )
 
 

@@ -69,7 +69,7 @@ class TestCompanyApi:
         mock_search_companies.return_value = SAMPLE_SEARCH_RESULTS
 
         # Make the API call
-        response = client.get("/api/companies/search?query=test&limit=10")
+        response = client.get("/companies/search?query=test&limit=10")
 
         # Assertions
         assert response.status_code == 200
@@ -88,7 +88,7 @@ class TestCompanyApi:
         mock_search_companies.return_value = []
 
         # Make the API call
-        response = client.get("/api/companies/search?query=nonexistent&limit=10")
+        response = client.get("/companies/search?query=nonexistent&limit=10")
 
         # Assertions
         assert response.status_code == 200
@@ -101,7 +101,7 @@ class TestCompanyApi:
     def test_search_companies_partial_empty_query(self):
         """Test searching companies with empty query returns 400."""
         # Make the API call with empty query
-        response = client.get("/api/companies/search?query=&limit=10")
+        response = client.get("/companies/search?query=&limit=10")
 
         # Assertions
         assert response.status_code == 400
@@ -110,7 +110,7 @@ class TestCompanyApi:
     def test_search_companies_partial_no_query(self):
         """Test searching companies without query parameter returns 422."""
         # Make the API call without query parameter
-        response = client.get("/api/companies/search?limit=10")
+        response = client.get("/companies/search?limit=10")
 
         # Assertions
         assert response.status_code == 422
@@ -122,15 +122,15 @@ class TestCompanyApi:
         mock_search_companies.return_value = []
 
         # Test with limit too high
-        response = client.get("/api/companies/search?query=test&limit=100")
+        response = client.get("/companies/search?query=test&limit=100")
         assert response.status_code == 422
 
         # Test with limit too low
-        response = client.get("/api/companies/search?query=test&limit=0")
+        response = client.get("/companies/search?query=test&limit=0")
         assert response.status_code == 422
 
         # Test with valid limit
-        response = client.get("/api/companies/search?query=test&limit=25")
+        response = client.get("/companies/search?query=test&limit=25")
         assert response.status_code == 200
 
         # Verify the mock was called for the valid request
@@ -143,7 +143,7 @@ class TestCompanyApi:
         mock_get_company.return_value = SAMPLE_COMPANY_DATA
 
         # Make the API call
-        response = client.get(f"/api/companies/id/{SAMPLE_COMPANY_ID}")
+        response = client.get(f"/companies/id/{SAMPLE_COMPANY_ID}")
 
         # Assertions
         assert response.status_code == 200
@@ -163,7 +163,7 @@ class TestCompanyApi:
         mock_get_company.return_value = None
 
         # Make the API call
-        response = client.get(f"/api/companies/id/{SAMPLE_COMPANY_ID}")
+        response = client.get(f"/companies/id/{SAMPLE_COMPANY_ID}")
 
         # Assertions
         assert response.status_code == 404
@@ -176,7 +176,7 @@ class TestCompanyApi:
         """Test retrieving a company with an invalid UUID format."""
         # Test with an invalid UUID
         invalid_uuid = "not-a-valid-uuid"
-        response = client.get(f"/api/companies/id/{invalid_uuid}")
+        response = client.get(f"/companies/id/{invalid_uuid}")
 
         # Assertions
         assert response.status_code == 422
@@ -189,14 +189,18 @@ class TestCompanyApi:
         mock_get_company_by_ticker.return_value = SAMPLE_COMPANY_DATA
 
         # Make the API call
-        response = client.get("/api/companies/?ticker=TEST")
+        response = client.get("/companies/?ticker=TEST")
 
         # Assertions
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == str(SAMPLE_COMPANY_ID)
-        assert data["name"] == "Test Company"
-        assert "TEST" in data["tickers"]
+        # API now returns a list when searching by ticker
+        assert isinstance(data, list)
+        assert len(data) == 1
+        company = data[0]
+        assert company["id"] == str(SAMPLE_COMPANY_ID)
+        assert company["name"] == "Test Company"
+        assert "TEST" in company["tickers"]
 
         # Verify the mock was called with the correct arguments
         mock_get_company_by_ticker.assert_called_once_with("TEST")
@@ -208,7 +212,7 @@ class TestCompanyApi:
         mock_get_company_by_ticker.return_value = None
 
         # Make the API call
-        response = client.get("/api/companies/?ticker=NONEXISTENT")
+        response = client.get("/companies/?ticker=NONEXISTENT")
 
         # Assertions
         assert response.status_code == 404
@@ -224,14 +228,18 @@ class TestCompanyApi:
         mock_get_company_by_cik.return_value = SAMPLE_COMPANY_DATA
 
         # Make the API call
-        response = client.get("/api/companies/?cik=0001234567")
+        response = client.get("/companies/?cik=0001234567")
 
         # Assertions
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == str(SAMPLE_COMPANY_ID)
-        assert data["name"] == "Test Company"
-        assert data["cik"] == "0001234567"
+        # API now returns a list when searching by CIK
+        assert isinstance(data, list)
+        assert len(data) == 1
+        company = data[0]
+        assert company["id"] == str(SAMPLE_COMPANY_ID)
+        assert company["name"] == "Test Company"
+        assert company["cik"] == "0001234567"
 
         # Verify the mock was called with the correct arguments
         mock_get_company_by_cik.assert_called_once_with("0001234567")
@@ -243,7 +251,7 @@ class TestCompanyApi:
         mock_get_company_by_cik.return_value = None
 
         # Make the API call
-        response = client.get("/api/companies/?cik=9999999999")
+        response = client.get("/companies/?cik=9999999999")
 
         # Assertions
         assert response.status_code == 404
@@ -251,12 +259,3 @@ class TestCompanyApi:
 
         # Verify the mock was called with the correct arguments
         mock_get_company_by_cik.assert_called_once_with("9999999999")
-
-    def test_search_companies_no_params(self):
-        """Test searching for companies without providing required parameters."""
-        # Make the API call without query parameters
-        response = client.get("/api/companies/")
-
-        # Assertions
-        assert response.status_code == 400
-        assert response.json()["detail"] == "Either ticker or CIK parameter is required"

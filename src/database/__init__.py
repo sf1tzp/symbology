@@ -4,19 +4,6 @@ This package contains database models and CRUD functions for all entities
 used in the symbology system.
 """
 
-# Import base database utilities
-# Import models
-# Import CRUD functions
-# Aggregates
-from src.database.aggregates import (
-    Aggregate,
-    create_aggregate,
-    delete_aggregate,
-    get_aggregate,
-    get_aggregate_ids,
-    get_aggregates_by_completion,
-    update_aggregate,
-)
 from src.database.base import Base, close_session, get_db, get_db_session, init_db
 
 # Companies
@@ -27,16 +14,6 @@ from src.database.companies import (
     get_company,
     get_company_ids,
     update_company,
-)
-
-# Completions
-from src.database.completions import (
-    Completion,
-    create_completion,
-    delete_completion,
-    get_completion,
-    get_completion_ids,
-    update_completion,
 )
 
 # Documents

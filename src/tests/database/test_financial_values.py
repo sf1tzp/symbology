@@ -183,9 +183,11 @@ def test_financial_value_relationships(db_session, create_test_company, create_t
     assert financial_value.filing.accession_number == create_test_filing.accession_number
 
     # Check from the company side
+    # Since Company.financial_values uses lazy="noload", query manually
     company = db_session.query(Company).filter_by(id=create_test_company.id).first()
-    assert len(company.financial_values) > 0
-    assert company.financial_values[0].id == financial_value.id
+    company_financial_values = db_session.query(FinancialValue).filter_by(company_id=create_test_company.id).all()
+    assert len(company_financial_values) > 0
+    assert company_financial_values[0].id == financial_value.id
 
     # Check from the concept side
     concept = db_session.query(FinancialConcept).filter_by(id=create_test_concept.id).first()
@@ -193,9 +195,11 @@ def test_financial_value_relationships(db_session, create_test_company, create_t
     assert concept.financial_values[0].id == financial_value.id
 
     # Check from the filing side
+    # Since Filing.financial_values uses lazy="noload", query manually
     filing = db_session.query(Filing).filter_by(id=create_test_filing.id).first()
-    assert len(filing.financial_values) > 0
-    assert filing.financial_values[0].id == financial_value.id
+    filing_financial_values = db_session.query(FinancialValue).filter_by(filing_id=create_test_filing.id).all()
+    assert len(filing_financial_values) > 0
+    assert filing_financial_values[0].id == financial_value.id
 
 def test_get_financial_value_by_id(db_session, sample_financial_value_data):
     """Test retrieving a financial value by ID using the get_financial_value function."""

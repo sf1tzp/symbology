@@ -1,6 +1,7 @@
 """Database models for model configurations."""
 from datetime import datetime
 import json
+import hashlib
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
@@ -31,7 +32,7 @@ class ModelConfig(Base):
 
     # All ollama Options stored as JSON - single source of truth
     options_json: Mapped[str] = mapped_column(Text, nullable=False)
-
+    content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
     def __repr__(self) -> str:
         return f"<ModelConfig(id={self.id}, name='{self.name}')>"
 
@@ -43,6 +44,20 @@ class ModelConfig(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "options": json.loads(self.options_json),
         }
+
+    def generate_content_hash(self) -> str:
+        """Generate SHA256 hash of the content for URL identification."""
+        return hashlib.sha256(self.to_dict().encode('utf-8')).hexdigest()
+
+    def get_short_hash(self, length: int = 12) -> str:
+        """Get shortened version of content hash for URLs."""
+        if not self.content_hash:
+            return ""
+        return self.content_hash[:length]
+
+    def update_content_hash(self):
+        """Update the content hash based on current content."""
+        self.content_hash = self.generate_content_hash()
 
     @classmethod
     def from_llm_model_config(cls, model_config) -> 'ModelConfig':
@@ -267,4 +282,34 @@ def get_all_model_configs() -> List[ModelConfig]:
         return model_configs
     except Exception as e:
         logger.error("get_all_model_configs_failed", error=str(e), exc_info=True)
+        raise
+
+def get_model_config_by_content_hash(content_hash: str) -> Optional[ModelConfig]:
+    """Get ModelConfig by its content hash.
+
+    Args:
+        content_hash: Full or partial SHA256 hash of the prompt content
+
+    Returns:
+        ModelConfig object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+
+        # Try exact match first
+        document = session.query(ModelConfig).filter(ModelConfig.content_hash == content_hash).first()
+
+        # If no exact match and hash is short, try prefix match
+        if not document and len(content_hash) < 64:
+            document = session.query(ModelConfig).filter(
+                ModelConfig.content_hash.like(f"{content_hash}%")
+            ).first()
+
+        if document:
+            logger.info("retrieved_document_by_content_hash", content_hash=content_hash)
+        else:
+            logger.warning("document_not_found_by_content_hash", content_hash=content_hash)
+        return document
+    except Exception as e:
+        logger.error("get_document_by_content_hash_failed", content_hash=content_hash, error=str(e), exc_info=True)
         raise

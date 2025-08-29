@@ -9,8 +9,6 @@ from src.utils.logging import get_logger
 from uuid_extensions import uuid7
 
 if TYPE_CHECKING:
-    from src.database.aggregates import Aggregate
-    from src.database.completions import Completion
     from src.database.generated_content import GeneratedContent
 
 # Initialize structlog
@@ -24,13 +22,6 @@ class Rating(Base):
     # Primary identifier
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
-    # Relationships - can rate either a Completion, an Aggregate, or GeneratedContent
-    completion_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("completions.id"), index=True, nullable=True)
-    completion: Mapped[Optional["Completion"]] = relationship("Completion", back_populates="ratings")
-
-    aggregate_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("aggregates.id"), index=True, nullable=True)
-    aggregate: Mapped[Optional["Aggregate"]] = relationship("Aggregate", back_populates="ratings")
-
     generated_content_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("generated_content.id"), index=True, nullable=True)
     generated_content: Mapped[Optional["GeneratedContent"]] = relationship("GeneratedContent", back_populates="ratings")
 
@@ -41,11 +32,7 @@ class Rating(Base):
     tags: Mapped[List[str]] = mapped_column(ARRAY(String), default=list)
 
     def __repr__(self) -> str:
-        if self.completion_id:
-            return f"<Rating(id={self.id}, completion_id={self.completion_id})>"
-        elif self.aggregate_id:
-            return f"<Rating(id={self.id}, aggregate_id={self.aggregate_id})>"
-        elif self.generated_content_id:
+        if self.generated_content_id:
             return f"<Rating(id={self.id}, generated_content_id={self.generated_content_id})>"
         else:
             return f"<Rating(id={self.id})>"
@@ -101,29 +88,18 @@ def create_rating(rating_data: Dict[str, Any]) -> Rating:
     try:
         session = get_db_session()
 
-        # Check if completion or aggregate exists (but not both)
-        completion_id = rating_data.get('completion_id')
-        aggregate_id = rating_data.get('aggregate_id')
+        # Check if generated_content exists
+        generated_content_id = rating_data.get('generated_content_id')
 
-        if completion_id and aggregate_id:
-            raise ValueError("Rating cannot be associated with both completion and aggregate")
+        if not generated_content_id:
+            raise ValueError("Rating must be associated with generated content")
 
-        if not completion_id and not aggregate_id:
-            raise ValueError("Rating must be associated with either a completion or aggregate")
-
-        if completion_id:
-            from src.database.completions import Completion
-            completion = session.query(Completion).filter(Completion.id == completion_id).first()
-            if not completion:
-                logger.error("create_rating_failed", error=f"Completion with ID {completion_id} not found")
-                raise ValueError(f"Completion with ID {completion_id} not found")
-
-        if aggregate_id:
-            from src.database.aggregates import Aggregate
-            aggregate = session.query(Aggregate).filter(Aggregate.id == aggregate_id).first()
-            if not aggregate:
-                logger.error("create_rating_failed", error=f"Aggregate with ID {aggregate_id} not found")
-                raise ValueError(f"Aggregate with ID {aggregate_id} not found")
+        # Verify the generated content exists
+        from src.database.generated_content import GeneratedContent
+        generated_content = session.query(GeneratedContent).filter(GeneratedContent.id == generated_content_id).first()
+        if not generated_content:
+            logger.error("create_rating_failed", error=f"Generated content with ID {generated_content_id} not found")
+            raise ValueError(f"Generated content with ID {generated_content_id} not found")
 
         # Validate scores
         if 'content_score' in rating_data and rating_data['content_score'] is not None:
@@ -138,9 +114,7 @@ def create_rating(rating_data: Dict[str, Any]) -> Rating:
         session.add(rating)
         session.commit()
 
-        target_id = completion_id or aggregate_id
-        target_type = "completion" if completion_id else "aggregate"
-        logger.info("created_rating", rating_id=str(rating.id), target_type=target_type, target_id=str(target_id))
+        logger.info("created_rating", rating_id=str(rating.id), generated_content_id=str(generated_content_id))
         return rating
     except Exception as e:
         session.rollback()
@@ -165,20 +139,13 @@ def update_rating(rating_id: Union[UUID, str], rating_data: Dict[str, Any]) -> O
             logger.warning("update_rating_not_found", rating_id=str(rating_id))
             return None
 
-        # If completion_id or aggregate_id is being updated, check if new completion or aggregate exists
-        if 'completion_id' in rating_data and rating_data['completion_id']:
-            from src.database.completions import Completion
-            completion = session.query(Completion).filter(Completion.id == rating_data['completion_id']).first()
-            if not completion:
-                logger.error("update_rating_failed", error=f"Completion with ID {rating_data['completion_id']} not found")
-                raise ValueError(f"Completion with ID {rating_data['completion_id']} not found")
-
-        if 'aggregate_id' in rating_data and rating_data['aggregate_id']:
-            from src.database.aggregates import Aggregate
-            aggregate = session.query(Aggregate).filter(Aggregate.id == rating_data['aggregate_id']).first()
-            if not aggregate:
-                logger.error("update_rating_failed", error=f"Aggregate with ID {rating_data['aggregate_id']} not found")
-                raise ValueError(f"Aggregate with ID {rating_data['aggregate_id']} not found")
+        # If generated_content_id is being updated, check if new generated content exists
+        if 'generated_content_id' in rating_data and rating_data['generated_content_id']:
+            from src.database.generated_content import GeneratedContent
+            generated_content = session.query(GeneratedContent).filter(GeneratedContent.id == rating_data['generated_content_id']).first()
+            if not generated_content:
+                logger.error("update_rating_failed", error=f"Generated content with ID {rating_data['generated_content_id']} not found")
+                raise ValueError(f"Generated content with ID {rating_data['generated_content_id']} not found")
 
         # Validate scores
         if 'content_score' in rating_data and rating_data['content_score'] is not None:
@@ -229,3 +196,23 @@ def delete_rating(rating_id: Union[UUID, str]) -> bool:
         logger.error("delete_rating_failed", rating_id=str(rating_id), error=str(e), exc_info=True)
         raise
 
+
+def get_ratings_by_generated_content(generated_content_id: Union[UUID, str]) -> List[Rating]:
+    """Get all ratings for a specific generated content.
+
+    Args:
+        generated_content_id: UUID of the generated content
+
+    Returns:
+        List of Rating objects for the specified generated content
+    """
+    try:
+        session = get_db_session()
+        ratings = session.query(Rating).filter(Rating.generated_content_id == generated_content_id).all()
+        logger.info("retrieved_ratings_by_generated_content",
+                   generated_content_id=str(generated_content_id), count=len(ratings))
+        return ratings
+    except Exception as e:
+        logger.error("get_ratings_by_generated_content_failed",
+                    generated_content_id=str(generated_content_id), error=str(e), exc_info=True)
+        raise

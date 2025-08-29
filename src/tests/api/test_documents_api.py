@@ -20,8 +20,19 @@ def create_mock_document():
     mock_document.filing_id = SAMPLE_FILING_ID
     mock_document.company_id = SAMPLE_COMPANY_ID
     mock_document.document_name = "test_10k.htm"
+    mock_document.document_type = "10-K"
     mock_document.content = "This is a sample 10-K document content"
+    mock_document.content_hash = "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
     mock_document.filing = None  # No filing relationship for basic test
+
+    # Mock the company relationship
+    mock_company = MagicMock()
+    mock_company.ticker = "AAPL"
+    mock_document.company = mock_company
+
+    # Mock the get_short_hash method
+    mock_document.get_short_hash.return_value = "a1b2c3d4"
+
     return mock_document
 
 
@@ -35,14 +46,20 @@ class TestDocumentApi:
         mock_get_document.return_value = create_mock_document()
 
         # Make the API call
-        response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}")
+        response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}")
 
         # Assertions
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == str(SAMPLE_DOCUMENT_ID)
+        assert data["filing_id"] == str(SAMPLE_FILING_ID)
+        assert data["company_ticker"] == "AAPL"
         assert data["document_name"] == "test_10k.htm"
+        assert data["document_type"] == "10-K"
         assert data["content"] == "This is a sample 10-K document content"
+        assert data["content_hash"] == "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
+        assert data["short_hash"] == "a1b2c3d4"
+        assert data["filing"] is None
 
         # Verify the mock was called with the correct arguments
         mock_get_document.assert_called_once_with(SAMPLE_DOCUMENT_ID)
@@ -54,7 +71,7 @@ class TestDocumentApi:
         mock_get_document.return_value = None
 
         # Make the API call
-        response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}")
+        response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}")
 
         # Assertions
         assert response.status_code == 404
@@ -67,7 +84,7 @@ class TestDocumentApi:
         """Test retrieving a document with an invalid UUID format."""
         # Test with an invalid UUID
         invalid_uuid = "not-a-valid-uuid"
-        response = client.get(f"/api/documents/{invalid_uuid}")
+        response = client.get(f"/documents/{invalid_uuid}")
 
         # Assertions
         assert response.status_code == 422
@@ -80,7 +97,7 @@ class TestDocumentApi:
         mock_get_document.return_value = create_mock_document()
 
         # Make the API call
-        response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}/content")
+        response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}/content")
 
         # Assertions
         assert response.status_code == 200
@@ -97,7 +114,7 @@ class TestDocumentApi:
         mock_get_document.return_value = None
 
         # Make the API call
-        response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}/content")
+        response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}/content")
 
         # Assertions
         assert response.status_code == 404
@@ -115,7 +132,7 @@ class TestDocumentApi:
         mock_get_document.return_value = mock_document
 
         # Make the API call
-        response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}/content")
+        response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}/content")
 
         # Assertions
         assert response.status_code == 404
@@ -133,7 +150,7 @@ class TestDocumentApi:
         mock_get_document.return_value = mock_document
 
         # Make the API call
-        response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}/content")
+        response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}/content")
 
         # Assertions
         assert response.status_code == 200
@@ -147,7 +164,7 @@ class TestDocumentApi:
         """Test retrieving document content with an invalid UUID format."""
         # Test with an invalid UUID
         invalid_uuid = "not-a-valid-uuid"
-        response = client.get(f"/api/documents/{invalid_uuid}/content")
+        response = client.get(f"/documents/{invalid_uuid}/content")
 
         # Assertions
         assert response.status_code == 422
@@ -160,7 +177,7 @@ class TestDocumentApi:
         mock_get_document.side_effect = Exception("Database connection error")
 
         # Make the API call
-        response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}")
+        response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}")
 
         # Assertions
         assert response.status_code == 500
@@ -176,7 +193,7 @@ class TestDocumentApi:
         mock_get_document.side_effect = Exception("Database connection error")
 
         # Make the API call
-        response = client.get(f"/api/documents/{SAMPLE_DOCUMENT_ID}/content")
+        response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}/content")
 
         # Assertions
         assert response.status_code == 500

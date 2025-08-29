@@ -47,7 +47,7 @@ class TestFilingsApi:
         mock_get_filings.return_value = [mock_filing]
 
         # Make the API call
-        response = client.get(f"/api/filings/by-company/{SAMPLE_COMPANY_ID}")
+        response = client.get(f"/filings/by-company/{SAMPLE_COMPANY_ID}")
 
         # Assertions
         assert response.status_code == 200
@@ -71,7 +71,7 @@ class TestFilingsApi:
         mock_get_filings.return_value = []
 
         # Make the API call
-        response = client.get(f"/api/filings/by-company/{SAMPLE_COMPANY_ID}")
+        response = client.get(f"/filings/by-company/{SAMPLE_COMPANY_ID}")
 
         # Assertions
         assert response.status_code == 200
@@ -93,7 +93,7 @@ class TestFilingsApi:
         mock_get_filings.return_value = [mock_filing1, mock_filing2]
 
         # Make the API call
-        response = client.get(f"/api/filings/by-company/{SAMPLE_COMPANY_ID}")
+        response = client.get(f"/filings/by-company/{SAMPLE_COMPANY_ID}")
 
         # Assertions
         assert response.status_code == 200
@@ -109,7 +109,7 @@ class TestFilingsApi:
         """Test retrieving filings with an invalid UUID format."""
         # Test with an invalid UUID
         invalid_uuid = "not-a-valid-uuid"
-        response = client.get(f"/api/filings/by-company/{invalid_uuid}")
+        response = client.get(f"/filings/by-company/{invalid_uuid}")
 
         # Assertions
         assert response.status_code == 422
@@ -122,7 +122,7 @@ class TestFilingsApi:
         mock_get_filings.side_effect = Exception("Database connection failed")
 
         # Make the API call
-        response = client.get(f"/api/filings/by-company/{SAMPLE_COMPANY_ID}")
+        response = client.get(f"/filings/by-company/{SAMPLE_COMPANY_ID}")
 
         # Assertions
         assert response.status_code == 500
@@ -139,7 +139,7 @@ class TestFilingsApi:
         mock_get_filings.return_value = [mock_filing]
 
         # Make the API call
-        response = client.get(f"/api/filings/by-ticker/{SAMPLE_TICKER}")
+        response = client.get(f"/filings/by-ticker/{SAMPLE_TICKER}")
 
         # Assertions
         assert response.status_code == 200
@@ -160,7 +160,7 @@ class TestFilingsApi:
         mock_get_company.return_value = None
 
         # Make the API call
-        response = client.get(f"/api/filings/by-ticker/{SAMPLE_TICKER}")
+        response = client.get(f"/filings/by-ticker/{SAMPLE_TICKER}")
 
         # Assertions
         assert response.status_code == 404
@@ -179,7 +179,7 @@ class TestFilingsApi:
         mock_get_filings.return_value = []
 
         # Make the API call
-        response = client.get(f"/api/filings/by-ticker/{SAMPLE_TICKER}")
+        response = client.get(f"/filings/by-ticker/{SAMPLE_TICKER}")
 
         # Assertions
         assert response.status_code == 200
@@ -197,7 +197,7 @@ class TestFilingsApi:
         mock_get_company.side_effect = Exception("Database connection failed")
 
         # Make the API call
-        response = client.get(f"/api/filings/by-ticker/{SAMPLE_TICKER}")
+        response = client.get(f"/filings/by-ticker/{SAMPLE_TICKER}")
 
         # Assertions
         assert response.status_code == 500
@@ -213,7 +213,7 @@ class TestFilingsApi:
         mock_get_filings.side_effect = Exception("Failed to get filings")
 
         # Make the API call
-        response = client.get(f"/api/filings/by-ticker/{SAMPLE_TICKER}")
+        response = client.get(f"/filings/by-ticker/{SAMPLE_TICKER}")
 
         # Assertions
         assert response.status_code == 500

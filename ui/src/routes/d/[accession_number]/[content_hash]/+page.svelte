@@ -1,0 +1,108 @@
+<script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import {
+		Card,
+		CardContent,
+		CardDescription,
+		CardHeader,
+		CardTitle
+	} from '$lib/components/ui/card';
+	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
+	import DocumentDetail from '$lib/components/documents/DocumentDetail.svelte';
+	import type { DocumentResponse } from '$lib/generated-api-types';
+	import { badgeVariants } from '$lib/components/ui/badge/index.js';
+	import { ExternalLink, HandCoins } from '@lucide/svelte';
+
+	let { data }: { data: any } = $props();
+
+	function handleBackToFiling() {
+		if (data.document.filing && data.document.filing.accession_number) {
+			goto(`/f/${data.document.filing.accession_number}`);
+		} else {
+			goto('/filings');
+		}
+	}
+
+	function handleBackToCompany() {
+		if (data.document.filing && data.document.company_ticker) {
+			// Note: We'd need to fetch company details or include ticker in the response
+			// For now, navigate to companies list
+			goto(`/c/${data.document.company_ticker}`);
+		} else {
+			goto('/companies');
+		}
+	}
+
+	function formatYear(dateString: string): string {
+		try {
+			return new Date(dateString).getFullYear().toString();
+		} catch {
+			return dateString;
+		}
+	}
+	function estimateTokens(content: string) {
+		// Rough estimation: ~4 characters per token for English text
+		return Math.ceil(content.length / 4);
+	}
+
+	// Helper function to get analysis type display name
+	function getAnalysisTypeDisplay(documentType: string): string {
+		switch (documentType?.toUpperCase()) {
+			case 'MANAGEMENT_DISCUSSION':
+				return 'Management Discussion';
+			case 'RISK_FACTORS':
+				return 'Risk Factors';
+			case 'BUSINESS_DESCRIPTION':
+				return 'Business Description';
+			default:
+				return documentType;
+		}
+	}
+
+	function formatTitle(document: DocumentResponse): string {
+		const type = getAnalysisTypeDisplay(document.document_type);
+		const year = formatYear(document.filing.period_of_report);
+		return `${document.company_ticker}. ${year} ${type}`;
+	}
+
+	// Get short hash for display
+	const shortHash = data.document.short_hash || data.content_hash.substring(0, 8);
+</script>
+
+<svelte:head>
+	<title>{data.document.document_name} - Symbology</title>
+	<meta name="description" content="SEC document details and content" />
+</svelte:head>
+
+<div class="space-y-6">
+	<!-- Header with navigation -->
+	<div class="flex items-center justify-between">
+		<div class="flex items-center space-x-2">
+			<Button variant="ghost" onclick={handleBackToFiling}>← Back to Filing</Button>
+			<Button variant="ghost" onclick={handleBackToCompany}>← Back to Company</Button>
+		</div>
+		<!-- <div class="flex items-center space-x-2"> -->
+		<!-- 	<Button variant="outline" size="sm" href={data.document.filing.filing_url} target="_blank"> -->
+		<!-- 		<ExternalLink class="mr-2 h-4 w-4" /> -->
+		<!-- 		View on sec.gov -->
+		<!-- 	</Button> -->
+		<!-- </div> -->
+	</div>
+
+	<!-- Document Title -->
+	<div>
+		<h1 class="text-2xl font-bold">{formatTitle(data.document)}</h1>
+		<Badge variant="secondary" class="bg-gray-500 text-white">{data.document.company_ticker}</Badge>
+		<a
+			href="/d/{data.accession_number}/{shortHash}"
+			class={badgeVariants({ variant: 'secondary' })}
+		>
+			<span class="font-mono">{shortHash}</span>
+		</a>
+	</div>
+
+	<!-- Document Content -->
+	<DocumentDetail document={data.document} />
+</div>

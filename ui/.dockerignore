@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+.svelte-kit/
+
+# Development files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+coverage/
+
+# Documentation
+*.md
+docs/
+
+# Development configs
+.prettierrc
+.prettierignore
+todos.md

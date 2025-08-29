@@ -2,7 +2,10 @@ from typing import Any, Dict, List
 import uuid
 
 import pytest
-from src.database.completions import Completion, create_completion
+
+# Import GeneratedContent for testing relationships
+from src.database.generated_content import ContentSourceType, create_generated_content, GeneratedContent
+from src.database.model_configs import ModelConfig
 
 # Import the Prompt model and functions
 from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole, update_prompt
@@ -127,15 +130,33 @@ def create_test_prompts(db_session, sample_system_prompt_data, sample_user_promp
     db_session.commit()
     return prompts
 
+# Sample model config data fixture
 @pytest.fixture
-def sample_completion_data(create_test_system_prompt, create_test_user_prompt) -> Dict[str, Any]:
-    """Sample completion data for testing prompt relationships."""
+def sample_model_config_data() -> Dict[str, Any]:
+    """Sample model config data for testing."""
+    return {
+        "name": "gpt-4",
+        "options_json": '{"temperature": 0.7, "top_p": 1.0, "num_ctx": 4096}'
+    }
+
+@pytest.fixture
+def create_test_model_config(db_session, sample_model_config_data):
+    """Create and return a test model config."""
+    model_config = ModelConfig(**sample_model_config_data)
+    db_session.add(model_config)
+    db_session.commit()
+    return model_config
+
+@pytest.fixture
+def sample_generated_content_data(create_test_system_prompt, create_test_user_prompt, create_test_model_config) -> Dict[str, Any]:
+    """Sample generated content data for testing prompt relationships."""
     return {
         "system_prompt_id": create_test_system_prompt.id,
-        "model": "gpt-4",
-        "temperature": 0.7,
-        "top_p": 1.0,
-        "num_ctx": 4096
+        "user_prompt_id": create_test_user_prompt.id,
+        "model_config_id": create_test_model_config.id,
+        "source_type": ContentSourceType.DOCUMENTS,
+        "content": "This is a test generated content.",
+        "summary": "Test summary"
     }
 
 # Test cases for Prompt CRUD operations
@@ -471,61 +492,70 @@ def test_get_prompt_ids(db_session, multiple_prompt_data):
         # Restore the original function
         prompts_module.get_db_session = original_get_db_session
 
-def test_prompt_completion_relationship(db_session, create_test_system_prompt, create_test_user_prompt, sample_completion_data):
-    """Test the relationship between prompts and completions."""
-    # Create a completion associated with the system prompt only
-    completion = Completion(**sample_completion_data)
-    db_session.add(completion)
+def test_prompt_generated_content_relationship(db_session, create_test_system_prompt, create_test_user_prompt, sample_generated_content_data):
+    """Test the relationship between prompts and generated content."""
+    # Create generated content associated with both system and user prompts
+    generated_content = GeneratedContent(**sample_generated_content_data)
+    db_session.add(generated_content)
     db_session.commit()
 
-    # Verify the relationship from completion side
-    assert completion.system_prompt_id == create_test_system_prompt.id
+    # Verify the relationship from generated content side
+    assert generated_content.system_prompt_id == create_test_system_prompt.id
+    assert generated_content.user_prompt_id == create_test_user_prompt.id
 
-    # Verify the system prompt relationship from completion side
-    assert completion.system_prompt.name == create_test_system_prompt.name
+    # Verify the prompt relationships from generated content side
+    assert generated_content.system_prompt.name == create_test_system_prompt.name
+    assert generated_content.user_prompt.name == create_test_user_prompt.name
 
-def test_create_completion_with_prompts(db_session, create_test_system_prompt, create_test_user_prompt):
-    """Test creating a completion with prompt references using the create_completion function."""
+def test_create_generated_content_with_prompts(db_session, create_test_system_prompt, create_test_user_prompt, create_test_model_config):
+    """Test creating generated content with prompt references using the create_generated_content function."""
     # Mock the db_session global
-    import src.database.completions as completions_module
-    original_get_db_session = completions_module.get_db_session
-    completions_module.get_db_session = lambda: db_session
+    import src.database.generated_content as generated_content_module
+    original_get_db_session = generated_content_module.get_db_session
+    generated_content_module.get_db_session = lambda: db_session
 
     try:
-        # Create completion data with prompt references
-        completion_data = {
+        # Create generated content data with prompt references
+        content_data = {
             "system_prompt_id": create_test_system_prompt.id,
-            "model": "gpt-3.5-turbo",
-            "num_ctx": 4096
+            "user_prompt_id": create_test_user_prompt.id,
+            "model_config_id": create_test_model_config.id,
+            "source_type": ContentSourceType.DOCUMENTS,
+            "content": "Test generated content with prompts"
         }
 
-        # Create the completion
-        completion = create_completion(completion_data)
+        # Create the generated content
+        generated_content = create_generated_content(content_data)
 
         # Verify prompt relationships
-        assert completion.system_prompt_id == create_test_system_prompt.id
+        assert generated_content.system_prompt_id == create_test_system_prompt.id
+        assert generated_content.user_prompt_id == create_test_user_prompt.id
 
-        # Verify that the completion has a reference to the system prompt
-        assert completion.system_prompt is not None
-        assert completion.system_prompt.id == create_test_system_prompt.id
+        # Verify that the generated content has references to the prompts
+        assert generated_content.system_prompt is not None
+        assert generated_content.system_prompt.id == create_test_system_prompt.id
+        assert generated_content.user_prompt is not None
+        assert generated_content.user_prompt.id == create_test_user_prompt.id
     finally:
         # Restore the original function
-        completions_module.get_db_session = original_get_db_session
+        generated_content_module.get_db_session = original_get_db_session
 
-def test_delete_prompt_with_completions(db_session, create_test_system_prompt, create_test_user_prompt, sample_completion_data):
-    """Test that deleting a prompt with associated completions works properly."""
-    # Create a completion with prompt associations
-    completion = Completion(**sample_completion_data)
-    db_session.add(completion)
+def test_delete_prompt_with_generated_content(db_session, create_test_system_prompt, create_test_user_prompt, sample_generated_content_data):
+    """Test that deleting a prompt with associated generated content works properly."""
+    # Create generated content with prompt associations
+    generated_content = GeneratedContent(**sample_generated_content_data)
+    db_session.add(generated_content)
     db_session.commit()
-    completion_id = completion.id
+    content_id = generated_content.id
 
-    # Get the completion to verify it has the system prompt reference
-    completion = db_session.query(Completion).filter_by(id=completion_id).first()
-    assert completion.system_prompt_id == create_test_system_prompt.id
+    # Get the generated content to verify it has the prompt references
+    generated_content = db_session.query(GeneratedContent).filter_by(id=content_id).first()
+    assert generated_content.system_prompt_id == create_test_system_prompt.id
+    assert generated_content.user_prompt_id == create_test_user_prompt.id
 
-    # First update the completion to remove the reference to the system prompt
-    completion.system_prompt_id = None
+    # First update the generated content to remove the references to the prompts
+    generated_content.system_prompt_id = None
+    generated_content.user_prompt_id = None
     db_session.commit()
 
     # Now we can delete the prompts
@@ -533,7 +563,8 @@ def test_delete_prompt_with_completions(db_session, create_test_system_prompt, c
     db_session.delete(create_test_user_prompt)
     db_session.commit()
 
-    # Verify that the completion still exists but without prompt references
-    completion = db_session.query(Completion).filter_by(id=completion_id).first()
-    assert completion is not None
-    assert completion.system_prompt_id is None
+    # Verify that the generated content still exists but without prompt references
+    generated_content = db_session.query(GeneratedContent).filter_by(id=content_id).first()
+    assert generated_content is not None
+    assert generated_content.system_prompt_id is None
+    assert generated_content.user_prompt_id is None

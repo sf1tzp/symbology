@@ -4,13 +4,14 @@ import uuid
 
 import pytest
 from src.database.companies import Company
-from src.database.completions import Completion
 from src.database.documents import Document
 from src.database.filings import Filing
+from src.database.generated_content import ContentSourceType, GeneratedContent
+from src.database.model_configs import ModelConfig
 from src.database.prompts import Prompt, PromptRole
 
 # Import the Rating model and functions
-from src.database.ratings import create_rating, delete_rating, get_rating, get_rating_ids, Rating, update_rating
+from src.database.ratings import create_rating, delete_rating, get_rating, get_rating_ids, get_ratings_by_generated_content, Rating, update_rating
 
 
 # Sample company and filing data fixtures
@@ -112,69 +113,90 @@ def create_test_prompts(db_session, sample_system_prompt_data, sample_user_promp
     db_session.commit()
     return system_prompt, user_prompt
 
-# Sample completion data fixture
+# Sample model config data fixture
 @pytest.fixture
-def sample_completion_data(create_test_prompts) -> Dict[str, Any]:
-    """Sample completion data for testing."""
-    system_prompt, user_prompt = create_test_prompts
+def sample_model_config_data() -> Dict[str, Any]:
+    """Sample model config data for testing."""
     return {
-        "system_prompt_id": system_prompt.id,
-        "model": "gpt-4",
-        "temperature": 0.7,
-        "top_p": 1.0,
-        "num_ctx": 4096
+        "name": "gpt-4",
+        "options_json": '{"temperature": 0.7, "top_p": 1.0, "num_ctx": 4096}'
     }
 
 @pytest.fixture
-def create_test_completion(db_session, sample_completion_data, create_test_document):
-    """Create and return a test completion."""
-    # Create completion directly with the test session
-    completion = Completion(**sample_completion_data)
-    # Add document to the completion
-    completion.source_documents.append(create_test_document)
-    db_session.add(completion)
+def create_test_model_config(db_session, sample_model_config_data):
+    """Create and return a test model config."""
+    model_config = ModelConfig(**sample_model_config_data)
+    db_session.add(model_config)
     db_session.commit()
-    return completion
+    return model_config
+
+# Sample generated content data fixture
+@pytest.fixture
+def sample_generated_content_data(create_test_prompts, create_test_model_config) -> Dict[str, Any]:
+    """Sample generated content data for testing."""
+    system_prompt, user_prompt = create_test_prompts
+    return {
+        "system_prompt_id": system_prompt.id,
+        "user_prompt_id": user_prompt.id,
+        "model_config_id": create_test_model_config.id,
+        "source_type": ContentSourceType.DOCUMENTS,
+        "content": "This is a test generated content about financial performance.",
+        "summary": "Test financial summary"
+    }
+
+@pytest.fixture
+def create_test_generated_content(db_session, sample_generated_content_data, create_test_document):
+    """Create and return a test generated content."""
+    # Create generated content directly with the test session
+    generated_content = GeneratedContent(**sample_generated_content_data)
+    # Add document to the generated content
+    generated_content.source_documents.append(create_test_document)
+    db_session.add(generated_content)
+    db_session.commit()
+    # Update content hash after content is set
+    generated_content.update_content_hash()
+    db_session.commit()
+    return generated_content
 
 # Sample rating data fixtures
 @pytest.fixture
-def sample_rating_data(create_test_completion) -> Dict[str, Any]:
+def sample_rating_data(create_test_generated_content) -> Dict[str, Any]:
     """Sample rating data for testing."""
     return {
-        "completion_id": create_test_completion.id,
+        "generated_content_id": create_test_generated_content.id,
         "content_score": 8,
         "format_score": 7,
-        "comment": "This completion was very helpful in analyzing the financial data.",
+        "comment": "This generated content was very helpful in analyzing the financial data.",
         "tags": ["accurate", "concise", "helpful"]
     }
 
 @pytest.fixture
-def sample_minimal_rating_data(create_test_completion) -> Dict[str, Any]:
+def sample_minimal_rating_data(create_test_generated_content) -> Dict[str, Any]:
     """Sample minimal rating data with only required fields."""
     return {
-        "completion_id": create_test_completion.id
+        "generated_content_id": create_test_generated_content.id
     }
 
 @pytest.fixture
-def multiple_rating_data(create_test_completion) -> List[Dict[str, Any]]:
+def multiple_rating_data(create_test_generated_content) -> List[Dict[str, Any]]:
     """Generate data for multiple ratings with different scores."""
     return [
         {
-            "completion_id": create_test_completion.id,
+            "generated_content_id": create_test_generated_content.id,
             "content_score": 9,
             "format_score": 8,
             "comment": "Excellent analysis with clear insights.",
             "tags": ["insightful", "detailed"]
         },
         {
-            "completion_id": create_test_completion.id,
+            "generated_content_id": create_test_generated_content.id,
             "content_score": 6,
             "format_score": 5,
             "comment": "Adequate analysis but could be more detailed.",
             "tags": ["adequate", "needs-improvement"]
         },
         {
-            "completion_id": create_test_completion.id,
+            "generated_content_id": create_test_generated_content.id,
             "content_score": 10,
             "format_score": 9,
             "comment": "Perfect analysis with comprehensive details.",
@@ -192,10 +214,10 @@ def test_create_rating(db_session, sample_rating_data):
 
     # Verify it was created
     assert rating.id is not None
-    assert rating.completion_id == sample_rating_data["completion_id"]
+    assert rating.generated_content_id == sample_rating_data["generated_content_id"]
     assert rating.content_score == 8
     assert rating.format_score == 7
-    assert rating.comment == "This completion was very helpful in analyzing the financial data."
+    assert rating.comment == "This generated content was very helpful in analyzing the financial data."
     assert "accurate" in rating.tags
     assert "concise" in rating.tags
     assert "helpful" in rating.tags
@@ -216,26 +238,29 @@ def test_create_minimal_rating(db_session, sample_minimal_rating_data):
 
     # Verify it was created with defaults
     assert rating.id is not None
-    assert rating.completion_id == sample_minimal_rating_data["completion_id"]
+    assert rating.generated_content_id == sample_minimal_rating_data["generated_content_id"]
     assert rating.content_score is None
     assert rating.format_score is None
     assert rating.comment is None
     assert rating.tags == []
 
-def test_rating_completion_relationship(db_session, sample_rating_data, create_test_completion):
-    """Test the relationship between ratings and completions."""
+def test_rating_generated_content_relationship(db_session, sample_rating_data, create_test_generated_content):
+    """Test the relationship between ratings and generated content."""
     # Create a rating
     rating = Rating(**sample_rating_data)
     db_session.add(rating)
     db_session.commit()
 
-    # Verify the completion relationship
-    assert rating.completion_id == create_test_completion.id
+    # Verify the generated content relationship
+    assert rating.generated_content_id == create_test_generated_content.id
 
-    # Check the relationship from the Completion side
-    completion = db_session.query(Completion).filter_by(id=create_test_completion.id).first()
-    assert len(completion.ratings) > 0
-    assert completion.ratings[0].id == rating.id
+    # Check the relationship from the GeneratedContent side
+    generated_content = db_session.query(GeneratedContent).filter_by(id=create_test_generated_content.id).first()
+    # Need to explicitly load the ratings since it's lazy loaded
+    db_session.refresh(generated_content)
+    ratings = db_session.query(Rating).filter_by(generated_content_id=generated_content.id).all()
+    assert len(ratings) > 0
+    assert ratings[0].id == rating.id
 
 def test_get_rating_by_id(db_session, sample_rating_data):
     """Test retrieving a rating by ID using the get_rating function."""
@@ -271,10 +296,10 @@ def test_create_rating_function(db_session, sample_rating_data):
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
-    # Mock the completions module's get_db_session too, since it's imported in ratings.py
-    import src.database.completions as completions_module
-    original_completions_get_db_session = completions_module.get_db_session
-    completions_module.get_db_session = lambda: db_session
+    # Mock the generated_content module's get_db_session too, since it's imported in ratings.py
+    import src.database.generated_content as generated_content_module
+    original_generated_content_get_db_session = generated_content_module.get_db_session
+    generated_content_module.get_db_session = lambda: db_session
 
     try:
         # Create a rating using the helper function
@@ -284,7 +309,7 @@ def test_create_rating_function(db_session, sample_rating_data):
         assert rating.id is not None
         assert rating.content_score == 8
         assert rating.format_score == 7
-        assert rating.comment == "This completion was very helpful in analyzing the financial data."
+        assert rating.comment == "This generated content was very helpful in analyzing the financial data."
         assert rating.tags == ["accurate", "concise", "helpful"]
 
         # Verify it exists in the database
@@ -295,33 +320,33 @@ def test_create_rating_function(db_session, sample_rating_data):
     finally:
         # Restore the original functions
         ratings_module.get_db_session = original_get_db_session
-        completions_module.get_db_session = original_completions_get_db_session
+        generated_content_module.get_db_session = original_generated_content_get_db_session
 
-def test_validation_of_content_score(db_session, sample_completion_data, create_test_document):
+def test_validation_of_content_score(db_session, sample_generated_content_data, create_test_document):
     """Test validation of content score range."""
     # Mock the db_session global
     import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
-    # Mock the completions module's get_db_session too
-    import src.database.completions as completions_module
-    original_completions_get_db_session = completions_module.get_db_session
-    completions_module.get_db_session = lambda: db_session
+    # Mock the generated_content module's get_db_session too
+    import src.database.generated_content as generated_content_module
+    original_generated_content_get_db_session = generated_content_module.get_db_session
+    generated_content_module.get_db_session = lambda: db_session
 
     try:
-        # Create a fresh completion specifically for this test
-        completion = Completion(**sample_completion_data)
-        completion.source_documents.append(create_test_document)
-        db_session.add(completion)
+        # Create a fresh generated content specifically for this test
+        generated_content = GeneratedContent(**sample_generated_content_data)
+        generated_content.source_documents.append(create_test_document)
+        db_session.add(generated_content)
         db_session.commit()
 
         # Create invalid rating data with content score outside the valid range
         invalid_content_data = {
-            "completion_id": completion.id,
+            "generated_content_id": generated_content.id,
             "content_score": 11,  # Should be between 1 and 10
             "format_score": 7,
-            "comment": "This completion was helpful.",
+            "comment": "This generated content was helpful.",
             "tags": ["test"]
         }
 
@@ -331,33 +356,33 @@ def test_validation_of_content_score(db_session, sample_completion_data, create_
     finally:
         # Restore the original functions
         ratings_module.get_db_session = original_get_db_session
-        completions_module.get_db_session = original_completions_get_db_session
+        generated_content_module.get_db_session = original_generated_content_get_db_session
 
-def test_validation_of_format_score(db_session, sample_completion_data, create_test_document):
+def test_validation_of_format_score(db_session, sample_generated_content_data, create_test_document):
     """Test validation of format score range."""
     # Mock the db_session global
     import src.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
-    # Mock the completions module's get_db_session too
-    import src.database.completions as completions_module
-    original_completions_get_db_session = completions_module.get_db_session
-    completions_module.get_db_session = lambda: db_session
+    # Mock the generated_content module's get_db_session too
+    import src.database.generated_content as generated_content_module
+    original_generated_content_get_db_session = generated_content_module.get_db_session
+    generated_content_module.get_db_session = lambda: db_session
 
     try:
-        # Create a fresh completion specifically for this test
-        completion = Completion(**sample_completion_data)
-        completion.source_documents.append(create_test_document)
-        db_session.add(completion)
+        # Create a fresh generated content specifically for this test
+        generated_content = GeneratedContent(**sample_generated_content_data)
+        generated_content.source_documents.append(create_test_document)
+        db_session.add(generated_content)
         db_session.commit()
 
         # Create invalid rating data with format score outside the valid range
         invalid_format_data = {
-            "completion_id": completion.id,
+            "generated_content_id": generated_content.id,
             "content_score": 8,
             "format_score": 0,  # Should be between 1 and 10
-            "comment": "This completion was helpful.",
+            "comment": "This generated content was helpful.",
             "tags": ["test"]
         }
 
@@ -367,7 +392,7 @@ def test_validation_of_format_score(db_session, sample_completion_data, create_t
     finally:
         # Restore the original functions
         ratings_module.get_db_session = original_get_db_session
-        completions_module.get_db_session = original_completions_get_db_session
+        generated_content_module.get_db_session = original_generated_content_get_db_session
 
 def test_update_rating(db_session, sample_rating_data):
     """Test updating a rating using the update_rating function."""
@@ -516,45 +541,82 @@ def test_get_rating_with_string_uuid(db_session, sample_rating_data):
         # Restore the original function
         ratings_module.get_db_session = original_get_db_session
 
-def test_multiple_ratings_for_completion(db_session, create_test_completion, multiple_rating_data):
-    """Test creating multiple ratings for the same completion."""
-    # Create multiple ratings for the same completion
+def test_multiple_ratings_for_generated_content(db_session, create_test_generated_content, multiple_rating_data):
+    """Test creating multiple ratings for the same generated content."""
+    # Create multiple ratings for the same generated content
     for data in multiple_rating_data:
         rating = Rating(**data)
         db_session.add(rating)
     db_session.commit()
 
-    # Check from completion side that there are multiple ratings
-    completion = db_session.query(Completion).filter_by(id=create_test_completion.id).first()
-    assert len(completion.ratings) == 3
+    # Check from generated content side that there are multiple ratings
+    generated_content = db_session.query(GeneratedContent).filter_by(id=create_test_generated_content.id).first()
+    ratings = db_session.query(Rating).filter_by(generated_content_id=generated_content.id).all()
+    assert len(ratings) == 3
 
     # Check the ratings have different content
-    scores = [rating.content_score for rating in completion.ratings]
+    scores = [rating.content_score for rating in ratings]
     assert 9 in scores
     assert 6 in scores
     assert 10 in scores
 
-def test_deleting_completion_should_delete_ratings(db_session, sample_rating_data, create_test_completion):
-    """Test that deleting a completion deletes associated ratings (if cascade is set)."""
-    # Create a rating associated with the completion
+def test_deleting_generated_content_should_delete_ratings(db_session, sample_rating_data, create_test_generated_content):
+    """Test that deleting generated content deletes associated ratings (if cascade is set)."""
+    # Create a rating associated with the generated content
     rating = Rating(**sample_rating_data)
     db_session.add(rating)
     db_session.commit()
     rating_id = rating.id
 
-    # Save the completion_id for verification
-    completion_id = create_test_completion.id
+    # Save the generated_content_id for verification
+    generated_content_id = create_test_generated_content.id
 
-    # The ratings table has a not-null constraint on completion_id
-    # We need to manually delete the rating before deleting the completion
+    # The ratings table has a not-null constraint on generated_content_id
+    # We need to manually delete the rating before deleting the generated content
     # in this test since cascade delete is not configured in the model
     db_session.delete(rating)
     db_session.commit()
 
-    # Now delete the completion
-    db_session.delete(create_test_completion)
+    # Now delete the generated content
+    db_session.delete(create_test_generated_content)
     db_session.commit()
 
-    # Verify both rating and completion are deleted
+    # Verify both rating and generated content are deleted
     assert db_session.query(Rating).filter_by(id=rating_id).first() is None
-    assert db_session.query(Completion).filter_by(id=completion_id).first() is None
+    assert db_session.query(GeneratedContent).filter_by(id=generated_content_id).first() is None
+
+def test_get_ratings_by_generated_content(db_session, multiple_rating_data):
+    """Test retrieving all ratings for a specific generated content."""
+    # Create multiple ratings
+    rating_ids = []
+    generated_content_id = multiple_rating_data[0]["generated_content_id"]
+
+    for data in multiple_rating_data:
+        rating = Rating(**data)
+        db_session.add(rating)
+        db_session.commit()
+        rating_ids.append(rating.id)
+
+    # Mock the db_session global
+    import src.database.ratings as ratings_module
+    original_get_db_session = ratings_module.get_db_session
+    ratings_module.get_db_session = lambda: db_session
+
+    try:
+        # Get all ratings for the generated content
+        ratings = get_ratings_by_generated_content(generated_content_id)
+
+        # Verify all created ratings are included
+        assert len(ratings) == 3
+        retrieved_ids = [rating.id for rating in ratings]
+        for rating_id in rating_ids:
+            assert rating_id in retrieved_ids
+
+        # Verify the content scores are correct
+        content_scores = [rating.content_score for rating in ratings]
+        assert 9 in content_scores
+        assert 6 in content_scores
+        assert 10 in content_scores
+    finally:
+        # Restore the original function
+        ratings_module.get_db_session = original_get_db_session

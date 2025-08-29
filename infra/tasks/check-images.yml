@@ -10,6 +10,7 @@
   delegate_to: localhost
   run_once: true
 
+# Fixme: just build the images
 - name: Fail if images not found
   fail:
     msg: |

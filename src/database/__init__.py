@@ -4,19 +4,6 @@ This package contains database models and CRUD functions for all entities
 used in the symbology system.
 """
 
-# Import base database utilities
-# Import models
-# Import CRUD functions
-# Aggregates
-from src.database.aggregates import (
-    Aggregate,
-    create_aggregate,
-    delete_aggregate,
-    get_aggregate,
-    get_aggregate_ids,
-    get_aggregates_by_completion,
-    update_aggregate,
-)
 from src.database.base import Base, close_session, get_db, get_db_session, init_db
 
 # Companies
@@ -27,16 +14,6 @@ from src.database.companies import (
     get_company,
     get_company_ids,
     update_company,
-)
-
-# Completions
-from src.database.completions import (
-    Completion,
-    create_completion,
-    delete_completion,
-    get_completion,
-    get_completion_ids,
-    update_completion,
 )
 
 # Documents
@@ -77,6 +54,31 @@ from src.database.financial_values import (
     get_financial_value,
     get_financial_value_ids,
     update_financial_value,
+)
+from src.database.generated_content import (
+    ContentSourceType,
+    create_generated_content,
+    delete_generated_content,
+    GeneratedContent,
+    get_generated_content,
+    get_generated_content_by_company_and_ticker,
+    get_generated_content_by_hash,
+    get_generated_content_by_source_content,
+    get_generated_content_by_source_document,
+    get_recent_generated_content_by_ticker,
+    update_generated_content,
+)
+
+# New consolidated models
+from src.database.model_configs import (
+    create_model_config,
+    delete_model_config,
+    get_all_model_configs,
+    get_model_config,
+    get_model_config_by_name,
+    get_model_config_ids,
+    ModelConfig,
+    update_model_config,
 )
 
 # Prompts

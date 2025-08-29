@@ -1,4 +1,5 @@
 from enum import Enum
+import hashlib
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
@@ -6,6 +7,9 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import joinedload, Mapped, mapped_column, relationship
 from src.database.base import Base, get_db_session
+
+# Import Filing for the new functions
+from src.database.filings import Filing
 from src.utils.logging import get_logger
 from uuid_extensions import uuid7
 
@@ -34,8 +38,8 @@ class Document(Base):
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
 
     # Relationships
-    filing = relationship("Filing", back_populates="documents")
-    company = relationship("Company", back_populates="documents")
+    filing = relationship("Filing", back_populates="documents", lazy="joined")
+    company = relationship("Company", back_populates="documents", lazy="joined")
 
     # Document details
     document_name: Mapped[str] = mapped_column(String(255))
@@ -43,10 +47,27 @@ class Document(Base):
         SQLEnum(DocumentType, name="document_type_enum"), nullable=True
     )
 
-    content: Mapped[Optional[str]] = mapped_column(Text)
+    content: Mapped[Optional[str]] = mapped_column(Text, deferred=True)
+    content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
 
     def __repr__(self) -> str:
         return f"{self.company.ticker} {self.filing.period_of_report.year} {self.filing.filing_type} {self.document_type.value}"
+
+    def generate_content_hash(self) -> str:
+        """Generate SHA256 hash of the content for URL identification."""
+        if not self.content:
+            return ""
+        return hashlib.sha256(self.content.encode('utf-8')).hexdigest()
+
+    def get_short_hash(self, length: int = 12) -> str:
+        """Get shortened version of content hash for URLs."""
+        if not self.content_hash:
+            return ""
+        return self.content_hash[:length]
+
+    def update_content_hash(self):
+        """Update the content hash based on current content."""
+        self.content_hash = self.generate_content_hash()
 
 
 def get_document_ids() -> List[UUID]:
@@ -292,4 +313,75 @@ def get_documents_by_ids(document_ids: List[UUID]) -> List[Document]:
                     document_ids=[str(doc_id) for doc_id in document_ids],
                     error=str(e),
                     exc_info=True)
+        raise
+
+
+def get_document_by_content_hash(content_hash: str) -> Optional[Document]:
+    """Get document by its content hash.
+
+    Args:
+        content_hash: Full or partial SHA256 hash of the document content
+
+    Returns:
+        Document object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+
+        # Try exact match first
+        document = session.query(Document).filter(Document.content_hash == content_hash).first()
+
+        # If no exact match and hash is short, try prefix match
+        if not document and len(content_hash) < 64:
+            document = session.query(Document).filter(
+                Document.content_hash.like(f"{content_hash}%")
+            ).first()
+
+        if document:
+            logger.info("retrieved_document_by_content_hash", content_hash=content_hash)
+        else:
+            logger.warning("document_not_found_by_content_hash", content_hash=content_hash)
+        return document
+    except Exception as e:
+        logger.error("get_document_by_content_hash_failed", content_hash=content_hash, error=str(e), exc_info=True)
+        raise
+
+
+def get_document_by_accession_and_hash(accession_number: str, content_hash: str) -> Optional[Document]:
+    """Get document by filing accession number and content hash (for URL routing).
+
+    Args:
+        accession_number: SEC filing accession number
+        content_hash: Full or partial SHA256 hash of the document content
+
+    Returns:
+        Document object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+
+        # Join with filing to filter by accession number
+        query = (
+            session.query(Document)
+            .join(Filing, Document.filing_id == Filing.id)
+            .filter(Filing.accession_number == accession_number)
+        )
+
+        # Try exact hash match first
+        document = query.filter(Document.content_hash == content_hash).first()
+
+        # If no exact match and hash is short, try prefix match
+        if not document and len(content_hash) < 64:
+            document = query.filter(Document.content_hash.like(f"{content_hash}%")).first()
+
+        if document:
+            logger.info("retrieved_document_by_accession_and_hash",
+                       accession_number=accession_number, content_hash=content_hash)
+        else:
+            logger.warning("document_not_found_by_accession_and_hash",
+                          accession_number=accession_number, content_hash=content_hash)
+        return document
+    except Exception as e:
+        logger.error("get_document_by_accession_and_hash_failed",
+                    accession_number=accession_number, content_hash=content_hash, error=str(e), exc_info=True)
         raise

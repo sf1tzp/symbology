@@ -37,7 +37,7 @@ class TestPromptsApi:
         mock_get_prompt.return_value = create_mock_prompt()
 
         # Make the API call
-        response = client.get(f"/api/prompts/{SAMPLE_PROMPT_ID}")
+        response = client.get(f"/prompts/{SAMPLE_PROMPT_ID}")
 
         # Assertions
         assert response.status_code == 200
@@ -58,7 +58,7 @@ class TestPromptsApi:
         mock_get_prompt.return_value = None
 
         # Make the API call
-        response = client.get(f"/api/prompts/{SAMPLE_PROMPT_ID}")
+        response = client.get(f"/prompts/{SAMPLE_PROMPT_ID}")
 
         # Assertions
         assert response.status_code == 404
@@ -71,7 +71,7 @@ class TestPromptsApi:
         """Test retrieving a prompt with an invalid UUID format."""
         # Test with an invalid UUID
         invalid_uuid = "not-a-valid-uuid"
-        response = client.get(f"/api/prompts/{invalid_uuid}")
+        response = client.get(f"/prompts/{invalid_uuid}")
 
         # Assertions
         assert response.status_code == 422
@@ -84,7 +84,7 @@ class TestPromptsApi:
         mock_get_prompt.side_effect = Exception("Database connection failed")
 
         # Make the API call
-        response = client.get(f"/api/prompts/{SAMPLE_PROMPT_ID}")
+        response = client.get(f"/prompts/{SAMPLE_PROMPT_ID}")
 
         # Assertions
         assert response.status_code == 500
@@ -100,7 +100,7 @@ class TestPromptsApi:
         mock_get_prompt.side_effect = ValueError("Invalid UUID format")
 
         # Make the API call
-        response = client.get(f"/api/prompts/{SAMPLE_PROMPT_ID}")
+        response = client.get(f"/prompts/{SAMPLE_PROMPT_ID}")
 
         # Assertions
         assert response.status_code == 400
@@ -127,7 +127,7 @@ class TestPromptsApi:
         mock_get_prompt.return_value = mock_prompt
 
         # Make the API call
-        response = client.get(f"/api/prompts/{SAMPLE_PROMPT_ID}")
+        response = client.get(f"/prompts/{SAMPLE_PROMPT_ID}")
 
         # Assertions
         assert response.status_code == 200
@@ -149,7 +149,7 @@ class TestPromptsApi:
         mock_prompt.role.value = "assistant"
         mock_get_prompt.return_value = mock_prompt
 
-        response = client.get(f"/api/prompts/{SAMPLE_PROMPT_ID}")
+        response = client.get(f"/prompts/{SAMPLE_PROMPT_ID}")
 
         assert response.status_code == 200
         data = response.json()
@@ -157,7 +157,7 @@ class TestPromptsApi:
 
         # Test with user role
         mock_prompt.role.value = "user"
-        response = client.get(f"/api/prompts/{SAMPLE_PROMPT_ID}")
+        response = client.get(f"/prompts/{SAMPLE_PROMPT_ID}")
 
         assert response.status_code == 200
         data = response.json()

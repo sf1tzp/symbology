@@ -25,12 +25,14 @@ class Company(Base):
 
     # Primary identifiers
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
-    cik: Mapped[Optional[str]] = mapped_column(String(10), unique=True, index=True)
+
+    # cik is not globally unique, some special companies share a CIK of all 0's
+    cik: Mapped[Optional[str]] = mapped_column(String(10), unique=False, index=True)
 
     # Relationships
-    filings: Mapped[List["Filing"]] = relationship("Filing", back_populates="company", cascade="all, delete-orphan")
-    documents: Mapped[List["Document"]] = relationship("Document", back_populates="company", cascade="all, delete-orphan")
-    financial_values: Mapped[List["FinancialValue"]] = relationship("FinancialValue", back_populates="company", cascade="all, delete-orphan")
+    filings: Mapped[List["Filing"]] = relationship("Filing", back_populates="company", cascade="all, delete-orphan", lazy="selectin")
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="company", cascade="all, delete-orphan", lazy="selectin")
+    financial_values: Mapped[List["FinancialValue"]] = relationship("FinancialValue", back_populates="company", cascade="all, delete-orphan", lazy="noload")
 
     # Company details
     name: Mapped[str] = mapped_column(String(255))

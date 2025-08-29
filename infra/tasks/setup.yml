@@ -1,7 +1,10 @@
 ---
 - name: Run set-up playbook
   delegate_to: localhost
-  shell: ansible-playbook ~/.files/homelab/vms/set-up.yaml --inventory infra/inventories/production
+  # Fixme: shold use the environment
+  shell: ansible-playbook ~/.files/homelab/vms/set-up.yaml --inventory infra/inventories/staging
+
+# Fixmeyou can add 'net.ipv4.ip_unprivileged_port_start=80' to /etc/sysctl.conf (currently 1024),
 
 - name: Stop exiting services
   shell: ~/.local/bin/just down

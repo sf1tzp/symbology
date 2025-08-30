@@ -1,19 +1,20 @@
 """CLI commands for filing management."""
 
+import json
+import logging
 import sys
 
 import click
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-
+from rich.table import Table
 from src.database.base import get_db_session
 from src.database.companies import get_company_by_ticker
-from src.database.filings import Filing, get_filings_by_company, get_filing_by_accession_number
+from src.database.filings import get_filing_by_accession_number, get_filings_by_company
 from src.ingestion.edgar_db.accessors import edgar_login
 import src.ingestion.ingestion_helpers as ih
-from src.utils.logging import get_logger
 from src.utils.config import settings
+from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 console = Console()
@@ -90,10 +91,20 @@ def ingest_filings(ticker: str, form: str, count: int, force: bool, include_docu
 @filings.command('list')
 @click.argument('ticker')
 @click.option('--form', help='Filter by form type (10-K, 10-Q, 8-K)')
-def list_filings(ticker: str, form: str):
+@click.option('-o', '--output', type=click.Choice(['table', 'json']), default='table', help='Output format')
+def list_filings(ticker: str, form: str, output: str):
     """List filings for a company."""
 
     ticker = ticker.upper()
+
+    # For JSON output, temporarily suppress INFO level logs to avoid interference with JSON parsing
+    if output == 'json':
+        # Get all loggers and set their level to WARNING temporarily
+        original_levels = {}
+        for logger_name in ['src.database.companies', 'src.database.filings']:
+            db_logger = logging.getLogger(logger_name)
+            original_levels[logger_name] = db_logger.level
+            db_logger.setLevel(logging.WARNING)
 
     try:
         init_session()
@@ -101,7 +112,11 @@ def list_filings(ticker: str, form: str):
         # Get company
         company_obj = get_company_by_ticker(ticker)
         if not company_obj:
-            console.print(f"[red]Error: Company {ticker} not found[/red]")
+            if output == 'json':
+                error_data = {"error": f"Company {ticker} not found"}
+                click.echo(json.dumps(error_data))
+            else:
+                console.print(f"[red]Error: Company {ticker} not found[/red]")
             sys.exit(1)
 
         # Get filings
@@ -110,66 +125,135 @@ def list_filings(ticker: str, form: str):
         )
 
         if not filings_list:
-            console.print(f"[yellow]No filings found for {ticker}[/yellow]")
+            if output == 'json':
+                click.echo(json.dumps([]))
+            else:
+                console.print(f"[yellow]No filings found for {ticker}[/yellow]")
             return
 
-        table = Table(title=f"Filings for {company_obj.name} ({ticker})")
-        table.add_column("Form Type", style="cyan")
-        table.add_column("Filing Date", style="white")
-        table.add_column("Period End", style="yellow")
-        table.add_column("Accession Number", style="green")
-        table.add_column("Documents", style="magenta")
-
+        # Filter by form type if specified
+        filtered_filings = []
         for filing in filings_list:
-            if form is not None and filing.form != form:
-                continue
+            if form is None or filing.form == form:
+                filtered_filings.append(filing)
 
-            # Count documents for this filing
-            doc_count = len(filing.documents) if hasattr(filing, 'documents') else 0
+        if output == 'json':
+            # Prepare data for JSON output
+            filings_data = []
+            for filing in filtered_filings:
+                doc_count = len(filing.documents) if hasattr(filing, 'documents') else 0
+                filing_data = {
+                    "form": filing.form,
+                    "filing_date": filing.filing_date.strftime("%Y-%m-%d") if filing.filing_date else None,
+                    "period_of_report": filing.period_of_report.strftime("%Y-%m-%d") if filing.period_of_report else None,
+                    "accession_number": filing.accession_number,
+                    "document_count": doc_count
+                }
+                filings_data.append(filing_data)
 
-            table.add_row(
-                filing.form,
-                filing.filing_date.strftime("%Y-%m-%d") if filing.filing_date else "Unknown",
-                filing.period_of_report.strftime("%Y-%m-%d") if filing.period_of_report else "Unknown",
-                filing.accession_number,
-                str(doc_count)
-            )
+            click.echo(json.dumps(filings_data, indent=2))
+        else:
+            # Original table output
+            table = Table(title=f"Filings for {company_obj.name} ({ticker})")
+            table.add_column("Form Type", style="cyan")
+            table.add_column("Filing Date", style="white")
+            table.add_column("Period End", style="yellow")
+            table.add_column("Accession Number", style="green")
+            table.add_column("Documents", style="magenta")
 
-        console.print(table)
+            for filing in filtered_filings:
+                # Count documents for this filing
+                doc_count = len(filing.documents) if hasattr(filing, 'documents') else 0
+
+                table.add_row(
+                    filing.form,
+                    filing.filing_date.strftime("%Y-%m-%d") if filing.filing_date else "Unknown",
+                    filing.period_of_report.strftime("%Y-%m-%d") if filing.period_of_report else "Unknown",
+                    filing.accession_number,
+                    str(doc_count)
+                )
+
+            console.print(table)
 
     except Exception as e:
-        console.print(f"[red]Error listing filings: {e}[/red]")
+        if output == 'json':
+            error_data = {"error": str(e)}
+            click.echo(json.dumps(error_data))
+        else:
+            console.print(f"[red]Error listing filings: {e}[/red]")
         logger.exception("Failed to list filings")
         sys.exit(1)
+    finally:
+        # Restore original log levels
+        if output == 'json':
+            for logger_name, original_level in original_levels.items():
+                db_logger = logging.getLogger(logger_name)
+                db_logger.setLevel(original_level)
 
 
 @filings.command('get')
 @click.argument('accession_number')
-def get_filing(accession_number: str):
+@click.option('-o', '--output', type=click.Choice(['table', 'json']), default='table', help='Output format')
+def get_filing(accession_number: str, output: str):
     """Get detailed information about a specific filing."""
+
+    # For JSON output, temporarily suppress INFO level logs to avoid interference with JSON parsing
+    if output == 'json':
+        # Get all loggers and set their level to WARNING temporarily
+        original_levels = {}
+        for logger_name in ['src.database.filings']:
+            db_logger = logging.getLogger(logger_name)
+            original_levels[logger_name] = db_logger.level
+            db_logger.setLevel(logging.WARNING)
 
     try:
         session = init_session()
         filing = get_filing_by_accession_number(accession_number)
 
         if not filing:
-            console.print(f"[red]Error: Filing with accession number '{accession_number}' not found[/red]")
+            if output == 'json':
+                error_data = {"error": f"Filing with accession number '{accession_number}' not found"}
+                click.echo(json.dumps(error_data))
+            else:
+                console.print(f"[red]Error: Filing with accession number '{accession_number}' not found[/red]")
             sys.exit(1)
 
-        # Display filing info
-        panel_title = f"Filing: {filing.form}"
+        if output == 'json':
+            # Prepare data for JSON output
+            filing_data = {
+                "accession_number": filing.accession_number,
+                "form": filing.form,
+                "company_name": filing.company.name if filing.company else None,
+                "filing_date": filing.filing_date.strftime("%Y-%m-%d") if filing.filing_date else None,
+                "period_of_report": filing.period_of_report.strftime("%Y-%m-%d") if filing.period_of_report else None,
+                "document_count": len(filing.documents) if hasattr(filing, 'documents') else 0
+            }
+            click.echo(json.dumps(filing_data, indent=2))
+        else:
+            # Original table output
+            panel_title = f"Filing: {filing.form}"
 
-        table = Table(show_header=False, box=None, padding=(0, 1))
-        table.add_row("[bold blue]Accession Number:[/bold blue]", filing.accession_number)
-        table.add_row("[bold blue]Form Type:[/bold blue]", filing.form)
-        table.add_row("[bold blue]Company:[/bold blue]", filing.company.name if filing.company else "Unknown")
-        table.add_row("[bold blue]Filing Date:[/bold blue]", filing.filing_date.strftime("%Y-%m-%d") if filing.filing_date else "Unknown")
-        table.add_row("[bold blue]Period End:[/bold blue]", filing.period_of_report.strftime("%Y-%m-%d") if filing.period_of_report else "Unknown")
-        table.add_row("[bold blue]Documents:[/bold blue]", str(len(filing.documents)) if hasattr(filing, 'documents') else "0")
+            table = Table(show_header=False, box=None, padding=(0, 1))
+            table.add_row("[bold blue]Accession Number:[/bold blue]", filing.accession_number)
+            table.add_row("[bold blue]Form Type:[/bold blue]", filing.form)
+            table.add_row("[bold blue]Company:[/bold blue]", filing.company.name if filing.company else "Unknown")
+            table.add_row("[bold blue]Filing Date:[/bold blue]", filing.filing_date.strftime("%Y-%m-%d") if filing.filing_date else "Unknown")
+            table.add_row("[bold blue]Period End:[/bold blue]", filing.period_of_report.strftime("%Y-%m-%d") if filing.period_of_report else "Unknown")
+            table.add_row("[bold blue]Documents:[/bold blue]", str(len(filing.documents)) if hasattr(filing, 'documents') else "0")
 
-        console.print(Panel(table, title=panel_title))
+            console.print(Panel(table, title=panel_title))
 
     except Exception as e:
-        console.print(f"[red]Error retrieving filing: {e}[/red]")
+        if output == 'json':
+            error_data = {"error": str(e)}
+            click.echo(json.dumps(error_data))
+        else:
+            console.print(f"[red]Error retrieving filing: {e}[/red]")
         logger.exception("Failed to get filing")
         sys.exit(1)
+    finally:
+        # Restore original log levels
+        if output == 'json':
+            for logger_name, original_level in original_levels.items():
+                db_logger = logging.getLogger(logger_name)
+                db_logger.setLevel(original_level)

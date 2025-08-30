@@ -17,21 +17,13 @@ deploy environment="staging": _generate-api-types
   ansible-playbook -i infra/inventories/{{environment}} infra/deploy-symbology.yml
 
 # Development resources
-
-# CLI interface to symbology tools
-cli *ARGS:
-  uv run -m src.cli.main {{ARGS}}
-
 run component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
-    just -d . -f src/justfile run
+    uv run -m src.api.main {{ARGS}}
 
-  elif [[ "{{component}}" == "ingest" ]]; then
-    just -d . -f src/justfile ingest {{ARGS}}
-
-  elif [[ "{{component}}" == "generate" ]]; then
-    just -d . -f src/justfile generate {{ARGS}}
+  elif [[ "{{component}}" == "cli" ]]; then
+    uv run -m src.cli.main {{ARGS}}
 
   elif [[ "{{component}}" == "ui" ]]; then
     just -d ui -f ui/justfile up {{ARGS}}
@@ -150,3 +142,53 @@ db-reset: # Reset to base (WARNING: destructive)
 
 _generate-api-types:
   just -d ui -f ui/justfile generate-api-types
+
+five-year-10-k-business-description-reporting TICKER:
+  #!/usr/bin/env bash
+  just run cli companies ingest {{TICKER}}
+  just run cli filings ingest {{TICKER}} 10-K 5
+
+  model_config1=$(just run cli model-configs create qwen3:4b --num-ctx 24567 -o json | jq -r '.content_hash')
+  model_config2=$(just run cli model-configs create qwen3:14b --num-ctx 8000 -o json | jq -r '.content_hash')
+  model_config3=$(just run cli model-configs create gemma3:12b --num-ctx 10000 -o json | jq -r '.content_hash')
+
+  prompt1=$(just run cli prompts create business-description-single -o json | jq -r '.content_hash')
+  prompt2=$(just run cli prompts create aggregate-simple -o json | jq -r '.content_hash')
+  prompt3=$(just run cli prompts create business-description-summary -o json | jq -r '.content_hash')
+
+  accession_numbers=$(just run cli filings list {{TICKER}} --form 10-K -o json | jq -r '.[] | .accession_number')
+
+  # build list of document hashes from business descriptions
+  set -ex
+  initial_summaries="[]"
+
+  for accession in $accession_numbers; do
+    document=$(just run cli documents list "$accession" --document-type DESCRIPTION -o json | jq -r '.[0].content_hash')
+    single_summary=$(just run cli generated-content create \
+      --company {{TICKER}} \
+      --document-type DESCRIPTION \
+      --prompt $prompt1 \
+      --model-config $model_config1 \
+      --source-documents $document -o json | jq -r '.content_hash')
+
+    # Append the single_summary to the initial_summaries array using jq
+    initial_summaries=$(echo "$initial_summaries" | jq --arg item "$single_summary" '. += [$item]')
+  done
+
+  # Convert JSON array to individual --source-content arguments
+  source_content_args=""
+  for hash in $(echo "$initial_summaries" | jq -r '.[]'); do
+    source_content_args="$source_content_args --source-content $hash"
+  done
+
+  aggregate_summary=$(just run cli generated-content create \
+    --company {{TICKER}} \
+    --prompt $prompt2 \
+    --model-config $model_config2 \
+    $source_content_args -o json  | jq -r '.content_hash')
+
+  just run cli generated-content create \
+    --company {{TICKER}} \
+    --prompt $prompt3 \
+    --model-config $model_config3 \
+    --source-content $aggregate_summary

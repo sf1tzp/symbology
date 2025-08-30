@@ -10,7 +10,7 @@ from rich.table import Table
 from rich.panel import Panel
 
 from src.database.base import get_db_session
-from src.database.prompts import Prompt, create_prompt, get_prompt_by_content_hash
+import src.database.prompts as db
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -58,11 +58,9 @@ def create_prompt(name: str, description: Optional[str], role: str, examples_dir
     if examples_dir_path.exists() and examples_dir_path.is_dir():
         example_files = sorted(examples_dir_path.glob("*.md"))
         if example_files:
-            content += "\n\n# Examples\n"
             for example_file in example_files:
-                console.print(f"[blue]Adding example: {example_file.name}[/blue]")
-                content += f"\n## {example_file.stem}\n"
-                content += example_file.read_text().strip() + "\n"
+                content += "\n\n"
+                content += example_file.read_text().strip()
 
     # Create prompt in database
     try:
@@ -73,9 +71,14 @@ def create_prompt(name: str, description: Optional[str], role: str, examples_dir
             'role': role,
             'content': content
         }
-        prompt_obj = create_prompt(prompt_data)
 
-        console.print(f"[green]✓[/green] Prompt created: {name}")
+        prompt_obj, was_created = db.create_prompt(prompt_data)
+
+        if was_created:
+            console.print(f"[green]✓[/green] Prompt created: {name}")
+        else:
+            console.print(f"[yellow]⚡[/yellow] Found existing prompt with same content: {prompt_obj.get_short_hash()}")
+
         console.print(f"[blue]Hash:[/blue] {prompt_obj.get_short_hash()}")
         console.print(f"[blue]ID:[/blue] {prompt_obj.id}")
 
@@ -91,12 +94,13 @@ def get_prompt(hash_or_name: str):
     """Get and display a prompt by hash or name."""
 
     try:
+        init_session()
         # Try to get by hash first, then by name
-        prompt_obj = get_prompt_by_content_hash(hash_or_name)
+        prompt_obj = db.get_prompt_by_content_hash(hash_or_name)
         if not prompt_obj:
             # Try by name
             session = init_session()
-            prompt_obj = session.query(Prompt).filter(Prompt.name == hash_or_name).first()
+            prompt_obj = session.query(db.Prompt).filter(db.Prompt.name == hash_or_name).first()
 
         if not prompt_obj:
             console.print(f"[red]Error: Prompt '{hash_or_name}' not found[/red]")
@@ -129,7 +133,7 @@ def list_prompts(limit: int):
 
     try:
         session = init_session()
-        prompts_list = session.query(Prompt).limit(limit).all()
+        prompts_list = session.query(db.Prompt).limit(limit).all()
 
         if not prompts_list:
             console.print("[yellow]No prompts found[/yellow]")

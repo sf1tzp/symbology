@@ -31,10 +31,10 @@ class Prompt(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
     # Prompt details
-    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), unique=False, index=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
 
-    role: Mapped[PromptRole] = mapped_column(Enum(PromptRole), index=True)
+    role: Mapped[PromptRole] = mapped_column(Enum(PromptRole), index=False)
     content: Mapped[str] = mapped_column(Text)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True, unique=True)
 
@@ -108,23 +108,18 @@ def get_prompt(prompt_id: Union[UUID, str]) -> Optional[Prompt]:
         raise
 
 
-def create_prompt(prompt_data: Dict[str, Any]) -> Prompt:
+def create_prompt(prompt_data: Dict[str, Any]) -> tuple[Prompt, bool]:
     """Create a new prompt in the database.
 
     Args:
         prompt_data: Dictionary containing prompt attributes
 
     Returns:
-        Newly created Prompt object
+        Tuple of (Prompt object, was_created: bool).
+        was_created is True if a new prompt was created, False if existing was returned.
     """
     try:
         session = get_db_session()
-
-        # Check if a prompt with the same name already exists
-        name = prompt_data.get('name')
-        if name and session.query(Prompt).filter(Prompt.name == name).first():
-            logger.error("create_prompt_failed", error=f"Prompt with name '{name}' already exists")
-            raise ValueError(f"Prompt with name '{name}' already exists")
 
         # Convert role string to enum if needed
         if 'role' in prompt_data and isinstance(prompt_data['role'], str):
@@ -135,71 +130,30 @@ def create_prompt(prompt_data: Dict[str, Any]) -> Prompt:
                 logger.error("create_prompt_failed", error=f"Invalid role '{prompt_data['role']}'. Valid roles: {valid_roles}")
                 raise ValueError(f"Invalid role '{prompt_data['role']}'. Valid roles: {valid_roles}") from None
 
+        # Create a temporary prompt to generate content hash
+        temp_prompt = Prompt(**prompt_data)
+        temp_prompt.update_content_hash()
+        content_hash = temp_prompt.content_hash
+
+        # Check if a prompt with the same content hash already exists
+        existing_prompt = session.query(Prompt).filter(Prompt.content_hash == content_hash).first()
+        if existing_prompt:
+            logger.info("found_existing_prompt_with_same_content",
+                       prompt_id=str(existing_prompt.id),
+                       name=existing_prompt.name,
+                       content_hash=content_hash)
+            return existing_prompt, False
+
+        # Create new prompt if no duplicate found
         prompt = Prompt(**prompt_data)
+        prompt.update_content_hash()
         session.add(prompt)
         session.commit()
-        logger.info("created_prompt", prompt_id=str(prompt.id), name=prompt.name)
-        return prompt
+        logger.info("created_prompt", prompt_id=str(prompt.id), name=prompt.name, content_hash=content_hash)
+        return prompt, True
     except Exception as e:
         session.rollback()
         logger.error("create_prompt_failed", error=str(e), exc_info=True)
-        raise
-
-
-def update_prompt(prompt_id: Union[UUID, str], prompt_data: Dict[str, Any]) -> Optional[Prompt]:
-    """Update an existing prompt in the database.
-
-    Args:
-        prompt_id: UUID of the prompt to update
-        prompt_data: Dictionary containing prompt attributes to update
-
-    Returns:
-        Updated Prompt object if found, None otherwise
-    """
-    try:
-        session = get_db_session()
-        prompt = session.query(Prompt).filter(Prompt.id == prompt_id).first()
-        if not prompt:
-            logger.warning("update_prompt_not_found", prompt_id=str(prompt_id))
-            return None
-
-        # If name is being updated, check if it already exists for another prompt
-        if 'name' in prompt_data and prompt_data['name'] != prompt.name:
-            existing = session.query(Prompt).filter(
-                Prompt.name == prompt_data['name'],
-                Prompt.id != prompt_id
-            ).first()
-            if existing:
-                logger.error(
-                    "update_prompt_failed",
-                    error=f"Prompt with name '{prompt_data['name']}' already exists"
-                )
-                raise ValueError(f"Prompt with name '{prompt_data['name']}' already exists")
-
-        # Convert role string to enum if needed
-        if 'role' in prompt_data and isinstance(prompt_data['role'], str):
-            try:
-                prompt_data['role'] = PromptRole(prompt_data['role'])
-            except ValueError:
-                valid_roles = [role.value for role in PromptRole]
-                logger.error("update_prompt_failed", error=f"Invalid role '{prompt_data['role']}'. Valid roles: {valid_roles}")
-                raise ValueError(f"Invalid role '{prompt_data['role']}'. Valid roles: {valid_roles}") from None
-
-        for key, value in prompt_data.items():
-            if hasattr(prompt, key):
-                setattr(prompt, key, value)
-                # Flag JSON fields as modified to ensure changes are detected
-                if key in ['template_vars', 'default_vars']:
-                    attributes.flag_modified(prompt, key)
-            else:
-                logger.warning("update_prompt_invalid_attribute", prompt_id=str(prompt_id), attribute=key)
-
-        session.commit()
-        logger.info("updated_prompt", prompt_id=str(prompt.id), name=prompt.name)
-        return prompt
-    except Exception as e:
-        session.rollback()
-        logger.error("update_prompt_failed", prompt_id=str(prompt_id), error=str(e), exc_info=True)
         raise
 
 

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+import json
 import re
 import time
 from typing import Dict, List, Optional
@@ -13,25 +13,8 @@ logger = get_logger(__name__)
 # get_logger("httpx").setLevel(DEBUG)
 # get_logger("httpcore").setLevel(DEBUG)
 
-@dataclass
-class ModelConfig:
-    """Extended ModelConfig that includes the model name along with ollama Options."""
-    name: str
-    options: Options
-
-    @classmethod
-    def create_default(cls, name: str) -> 'ModelConfig':
-        """Create a ModelConfig with default ollama options."""
-        default_options = Options(
-            num_ctx=4096,
-            temperature=0.8,
-            top_k=40,
-            top_p=0.9,
-            seed=0b111001111110011101101110001011011111101100110111111001111111001,  # symbology
-            num_predict=-1,
-            num_gpu=None
-        )
-        return cls(name=name, options=default_options)
+# Import the database ModelConfig - this is now the single source of truth
+from src.database.model_configs import ModelConfig
 
 def retry_backoff(timeout, func, *args, **kwargs):
     backoff = 1
@@ -73,19 +56,24 @@ def get_chat_response(
     contents = [msg['content'] for msg in messages]
     input_tokens = sum(count_tokens(model_config, content) for content in contents)
 
-    logger.info("sending_chat_request", model=model_config.name, input_tokens=input_tokens)
+    logger.info("sending_chat_request", model=model_config.model, input_tokens=input_tokens)
 
-    if input_tokens > (model_config.options.num_ctx or 4096):
-        logger.warn("oversized_input", input_tokens=input_tokens, num_ctx=model_config.options.num_ctx)
+    # Get options from the database model
+    options_dict = json.loads(model_config.options_json)
+    options = Options(**options_dict)
+    num_ctx = options_dict.get('num_ctx', 4096)
 
-    response = retry_backoff(3600, client.chat, model_config.name, options=model_config.options, messages=messages)
+    if input_tokens > num_ctx:
+        logger.warn("oversized_input", input_tokens=input_tokens, num_ctx=num_ctx)
+
+    response = retry_backoff(3600, client.chat, model_config.model, options=options, messages=messages)
 
     duration=response.total_duration / 1e9
     output_tokens=count_tokens(model_config, response.message.content)
     tokens_per_second = output_tokens / duration
 
     logger.info("recieved_chat_response",
-        model=model_config.name,
+        model=model_config.model,
         done=response.done,
         done_reason=response.done_reason,
         duration=f"{duration / 1e9:.2f}s",
@@ -98,9 +86,9 @@ def get_chat_response(
 
 
 def count_tokens(model_config: ModelConfig, content: str):
-    if 'qwen' in model_config.name.lower():
+    if 'qwen' in model_config.model.lower():
         encoder = "Qwen/Qwen3-4B"
-    elif 'gemma' in model_config.name.lower():
+    elif 'gemma' in model_config.model.lower():
         encoder = "google/gemma-3-12b-it"
 
     tokenizer = AutoTokenizer.from_pretrained(encoder, token=settings.huggingface_api.token)
@@ -115,48 +103,10 @@ def remove_thinking_tags(content: str):
     # Remove <think>...</think> blocks and any content before them
     cleaned = re.sub(r'<think>[\s\S]*?</think>\s*', '', content, flags=re.IGNORECASE)
 
-    # Also handle cases where there might be thinking content without tags
-    # cleaned = re.sub(
-    #     r'^(Okay,|Let me|I need to|First,|Based on)[\s\S]*?(?=\n\n|\. [A-Z])',
-    #     '',
-    #     cleaned,
-    #     flags=re.IGNORECASE
-    # )
-
     # Trim any remaining whitespace
     cleaned = cleaned.strip()
 
     return cleaned or None
-
-# class CompletionRequest(BaseModel):
-#     """Parameters for a completion request."""
-
-#     model: str = Field(default_factory=lambda: settings.openai.default_model)
-#     messages: List[Message]
-#     temperature: float = Field(default=0.7)
-#     max_tokens: Optional[int] = Field(default=4000)
-#     top_p: Optional[float] = Field(default=1.0)
-#     frequency_penalty: Optional[float] = Field(default=0.0)
-#     presence_penalty: Optional[float] = Field(default=0.0)
-#     stop: Optional[Union[str, List[str]]] = Field(default=None)
-#     stream: bool = Field(default=False)
-
-#     def to_dict(self) -> Dict[str, Any]:
-#         """Convert to dictionary for API request."""
-#         result = self.model_dump(exclude_none=True)
-#         result["messages"] = [m.model_dump() for m in self.messages]
-#         return result
-
-
-# class CompletionResponse(BaseModel):
-#     """Response from a completion request."""
-
-#     id: str
-#     object: str
-#     created: int
-#     model: str
-#     choices: List[Dict[str, Any]]
-#     usage: Dict[str, int]
 
 
 
@@ -166,25 +116,30 @@ def get_generate_response(model_config: ModelConfig, system_prompt: str, user_pr
 
     input_tokens = count_tokens(model_config, system_prompt + user_prompt)
 
-    logger.info("sending_generate_request", model=model_config.name, input_tokens=input_tokens)
+    logger.info("sending_generate_request", model=model_config.model, input_tokens=input_tokens)
 
-    if input_tokens > (model_config.options.num_ctx or 4096):
-        logger.warn("oversized_input", tokens=input_tokens, num_ctx=model_config.options.num_ctx)
+    # Get options from the database model
+    options_dict = json.loads(model_config.options_json)
+    options = Options(**options_dict)
+    num_ctx = options_dict.get('num_ctx', 4096)
+
+    if input_tokens > num_ctx:
+        logger.warn("oversized_input", tokens=input_tokens, num_ctx=num_ctx)
 
     response = retry_backoff(
         timeout=3600,
         func=client.generate,
-        model = model_config.name,
+        model = model_config.model,
         system = system_prompt,
         prompt = user_prompt,
-        options = model_config.options,
+        options = options,
     )
     duration=response.total_duration / 1e9
     output_tokens=count_tokens(model_config, response.response)
     tokens_per_second = output_tokens / duration
 
     logger.info("recieved_generate_response",
-        model=model_config.name,
+        model=model_config.model,
         done=response.done,
         done_reason=response.done_reason,
         duration=f"{response.total_duration / 1e9:.2f}s",

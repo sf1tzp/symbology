@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.panel import Panel
 
 from src.database.base import get_db_session
-from src.database.model_configs import ModelConfig, create_model_config, get_model_config_by_content_hash
+import src.database.model_configs as db
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -38,11 +38,12 @@ def model_configs():
 @click.option('--num-ctx', type=int, help='Context window size')
 @click.option('--top-k', type=int, help='Top-k sampling')
 @click.option('--top-p', type=float, help='Top-p sampling')
+@click.option('--num-predict', type=int, help='Maximum number of tokens to predict')
 @click.option('--num-gpu', type=int, help='Number of GPUs to use')
 @click.option('--options', help='JSON string of additional options')
 def create_model_config(model_name: str, temperature: Optional[float], num_ctx: Optional[int],
-                       top_k: Optional[int], top_p: Optional[float], num_gpu: Optional[int],
-                       options: Optional[str]):
+                       top_k: Optional[int], top_p: Optional[float],
+                       num_predict: Optional[int], num_gpu: Optional[int], options: Optional[str]):
     """
     Create a new model configuration.
 
@@ -50,9 +51,11 @@ def create_model_config(model_name: str, temperature: Optional[float], num_ctx: 
     """
     init_session()
 
-    # Build options dictionary
-    config_options = {}
+    # Start with default model config
+    model_config_obj = db.ModelConfig.create_default(model_name)
+    config_options = json.loads(model_config_obj.options_json)
 
+    # Override with CLI-provided options
     if temperature is not None:
         config_options['temperature'] = temperature
     if num_ctx is not None:
@@ -61,10 +64,12 @@ def create_model_config(model_name: str, temperature: Optional[float], num_ctx: 
         config_options['top_k'] = top_k
     if top_p is not None:
         config_options['top_p'] = top_p
+    if num_predict is not None:
+        config_options['num_predict'] = num_predict
     if num_gpu is not None:
         config_options['num_gpu'] = num_gpu
 
-    # Parse additional options if provided
+    # Parse and merge additional options if provided
     if options:
         try:
             additional_options = json.loads(options)
@@ -73,21 +78,12 @@ def create_model_config(model_name: str, temperature: Optional[float], num_ctx: 
             console.print(f"[red]Error parsing options JSON: {e}[/red]")
             sys.exit(1)
 
-    # Use default options if none provided
-    if not config_options:
-        config_options = {
-            'temperature': 0.7,
-            'num_ctx': 4096,
-            'top_k': 40
-        }
-        console.print("[yellow]No options provided, using defaults[/yellow]")
-
     try:
         model_config_data = {
-            'name': model_name,
-            'options_json': json.dumps(config_options)
+            'model': model_name,
+            'options_json': json.dumps(config_options, sort_keys=True)
         }
-        model_config_obj = create_model_config(model_config_data)
+        model_config_obj = db.create_model_config(model_config_data)
 
         console.print(f"[green]✓[/green] Model config created: {model_name}")
         console.print(f"[blue]Hash:[/blue] {model_config_obj.get_short_hash()}")
@@ -106,14 +102,15 @@ def get_model_config(hash_or_id: str):
     """Get and display a model configuration by hash or ID."""
 
     try:
+        init_session()
         # Try to get by hash first, then by ID
-        model_config_obj = get_model_config_by_content_hash(hash_or_id)
+        model_config_obj = db.get_model_config_by_content_hash(hash_or_id)
         if not model_config_obj:
             # Try by ID
             session = init_session()
             try:
                 uuid_obj = UUID(hash_or_id)
-                model_config_obj = session.query(ModelConfig).filter(ModelConfig.id == uuid_obj).first()
+                model_config_obj = session.query(db.ModelConfig).filter(db.ModelConfig.id == uuid_obj).first()
             except ValueError:
                 pass
 
@@ -122,11 +119,11 @@ def get_model_config(hash_or_id: str):
             sys.exit(1)
 
         # Display model config info
-        panel_title = f"Model Config: {model_config_obj.name}"
+        panel_title = f"Model Config: {model_config_obj.model}"
 
         table = Table(show_header=False, box=None, padding=(0, 1))
         table.add_row("[bold blue]ID:[/bold blue]", str(model_config_obj.id))
-        table.add_row("[bold blue]Name:[/bold blue]", model_config_obj.name)
+        table.add_row("[bold blue]Name:[/bold blue]", model_config_obj.model)
         table.add_row("[bold blue]Hash:[/bold blue]", model_config_obj.get_short_hash())
         table.add_row("[bold blue]Created:[/bold blue]", model_config_obj.created_at.isoformat() if model_config_obj.created_at else "Unknown")
 
@@ -148,7 +145,7 @@ def list_model_configs(limit: int):
 
     try:
         session = init_session()
-        configs = session.query(ModelConfig).limit(limit).all()
+        configs = session.query(db.ModelConfig).limit(limit).all()
 
         if not configs:
             console.print("[yellow]No model configs found[/yellow]")
@@ -167,7 +164,7 @@ def list_model_configs(limit: int):
                 options_str += "..."
 
             table.add_row(
-                config.name,
+                config.model,
                 config.get_short_hash()[:8],
                 config.created_at.strftime("%Y-%m-%d") if config.created_at else "Unknown",
                 options_str

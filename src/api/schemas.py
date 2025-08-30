@@ -283,7 +283,7 @@ class AggregateResponse(BaseModel):
 class ModelConfigResponse(BaseModel):
     """Response schema for a model configuration."""
     id: UUID = Field(..., description="Unique identifier for the model config")
-    name: str = Field(..., description="Model name")
+    model: str = Field(..., description="Model name")
     created_at: datetime = Field(..., description="Timestamp when the config was created")
     options: Optional[Dict[str, Any]] = Field(None, description="Ollama options as JSON")
     num_ctx: Optional[int] = Field(None, description="Context window size")
@@ -298,7 +298,7 @@ class ModelConfigResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174006",
-                "name": "llama3.2:3b",
+                "model": "llama3.2:3b",
                 "created_at": "2023-12-25T12:30:45.123456",
                 "options": {"num_ctx": 4096, "temperature": 0.8},
                 "num_ctx": 4096,

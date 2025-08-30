@@ -3,25 +3,25 @@ from decimal import Decimal, InvalidOperation
 from typing import Dict, Optional, Tuple
 from uuid import UUID
 
-from edgar import EntityData, Filing
+from edgar import EntityData, Company, Filing
 import pandas as pd
-from src.database.companies import upsert_company_by_cik
+from src.database.companies import get_company_by_ticker, create_company, update_company
 from src.database.documents import DocumentType, find_or_create_document
 from src.database.filings import upsert_filing_by_accession_number
 from src.database.financial_concepts import find_or_create_financial_concept
 from src.database.financial_values import upsert_financial_value
-from src.ingestion.edgar_db.accessors import (
-    _year_from_period_of_report,
-    get_10k_filing,
-    get_balance_sheet_values,
-    get_business_description,
-    get_cash_flow_statement_values,
-    get_company,
-    get_cover_page_values,
-    get_income_statement_values,
-    get_management_discussion,
-    get_risk_factors,
-)
+# from src.ingestion.edgar_db.accessors import (
+#     _year_from_period_of_report,
+#     get_10k_filing,
+#     get_balance_sheet_values,
+#     get_business_description,
+#     get_cash_flow_statement_values,
+#     get_company,
+#     get_cover_page_values,
+#     get_income_statement_values,
+#     get_management_discussion,
+#     get_risk_factors,
+# )
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -48,7 +48,7 @@ def _is_numeric_value(value_str: str) -> bool:
     except (ValueError, TypeError, InvalidOperation):
         return False
 
-def ingest_company(ticker: str) -> Tuple[EntityData, UUID]:
+def ingest_company(ticker: str) -> Tuple[Company, UUID]:
     """Fetch company data from EDGAR and store in database.
 
     Args:
@@ -59,25 +59,22 @@ def ingest_company(ticker: str) -> Tuple[EntityData, UUID]:
     """
     try:
         # Get company data from EDGAR
-        edgar_company = get_company(ticker)
+        edgar_company = Company(ticker)
+        entity_data = edgar_company.data
 
         # Prepare data for database
         company_data = {
-            'cik': edgar_company.cik,
-            'name': edgar_company.name,
-            'display_name': edgar_company.display_name,
-            'is_company': edgar_company.is_company,
-            'tickers': edgar_company.tickers,
-            'exchanges': edgar_company.exchanges if hasattr(edgar_company, 'exchanges') else [],
-            'sic': edgar_company.sic,
-            'sic_description': edgar_company.sic_description,
-            'entity_type': edgar_company.entity_type if hasattr(edgar_company, 'entity_type') else None,
-            'ein': edgar_company.ein if hasattr(edgar_company, 'ein') else None,
-            'former_names': edgar_company.former_names if hasattr(edgar_company, 'former_names') else [],
+            'name': entity_data.name,
+            'display_name': entity_data.display_name,
+            'ticker': edgar_company.get_ticker(),
+            'exchanges': edgar_company.get_exchanges(),
+            'sic': entity_data.sic,
+            'sic_description': entity_data.sic_description,
+            'former_names': entity_data.former_names if hasattr(entity_data, 'former_names') else [],
         }
 
         # Handle fiscal_year_end conversion from MMDD string to date
-        if hasattr(edgar_company, 'fiscal_year_end') and edgar_company.fiscal_year_end:
+        if hasattr(entity_data, 'fiscal_year_end') and edgar_company.fiscal_year_end:
             # If it's in MMDD format, convert to a proper date
             if isinstance(edgar_company.fiscal_year_end, str) and len(edgar_company.fiscal_year_end) == 4:
                 try:
@@ -100,11 +97,15 @@ def ingest_company(ticker: str) -> Tuple[EntityData, UUID]:
             company_data['fiscal_year_end'] = None
 
         # Store in database
-        db_company = upsert_company_by_cik(company_data)
+        db_company = get_company_by_ticker(ticker)
+        if db_company != None:
+            db_company = update_company(db_company.id, company_data)
+        else:
+            db_company = create_company(company_data)
+
 
         logger.info("company_ingested",
                    ticker=ticker,
-                   cik=edgar_company.cik,
                    company_id=str(db_company.id))
 
         return edgar_company, db_company.id

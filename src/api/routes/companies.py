@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from src.api.schemas import CompanyResponse
-from src.database.companies import get_company, get_company_by_cik, get_company_by_ticker, list_all_companies, search_companies_by_query
+from src.database.companies import get_company, get_company_by_ticker, list_all_companies, search_companies_by_query
 from src.utils.logging import get_logger
 
 # Create logger for this module
@@ -86,27 +86,20 @@ async def get_companies_route(
     skip: int = Query(0, description="Number of companies to skip", ge=0),
     limit: int = Query(50, description="Maximum number of companies to return", ge=1, le=100),
     ticker: Optional[str] = Query(None, description="Company ticker symbol"),
-    cik: Optional[str] = Query(None, description="Company CIK")
 ):
     """Get companies with various filtering options.
 
     Can be used for:
     - Searching companies by name/ticker with 'search' parameter
     - Getting paginated list with 'skip' and 'limit' parameters
-    - Finding specific company by 'ticker' or 'cik' parameters
+    - Finding specific company by 'ticker'
     """
-    # Handle specific ticker/CIK lookup
+    # Handle specific ticker lookup
     if ticker:
         logger.info("api_get_companies_by_ticker", ticker=ticker)
         company = get_company_by_ticker(ticker)
         if not company:
             raise HTTPException(status_code=404, detail=f"Company with ticker {ticker} not found")
-        return [company]
-    elif cik:
-        logger.info("api_get_companies_by_cik", cik=cik)
-        company = get_company_by_cik(cik)
-        if not company:
-            raise HTTPException(status_code=404, detail=f"Company with CIK {cik} not found")
         return [company]
 
     # Handle search functionality

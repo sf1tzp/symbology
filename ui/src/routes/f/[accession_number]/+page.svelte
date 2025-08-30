@@ -18,8 +18,8 @@
 	let { data }: { data: PageData } = $props();
 
 	function handleBackToCompany() {
-		if (data.company && data.company.tickers && data.company.tickers.length > 0) {
-			goto(`/c/${data.company.tickers[0]}`);
+		if (data.company && data.company.ticker) {
+			goto(`/c/${data.company.ticker}`);
 		} else {
 			goto('/');
 		}

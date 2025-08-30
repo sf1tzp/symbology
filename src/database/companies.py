@@ -26,9 +26,6 @@ class Company(Base):
     # Primary identifiers
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
-    # cik is not globally unique, some special companies share a CIK of all 0's
-    cik: Mapped[Optional[str]] = mapped_column(String(10), unique=False, index=True)
-
     # Relationships
     filings: Mapped[List["Filing"]] = relationship("Filing", back_populates="company", cascade="all, delete-orphan", lazy="selectin")
     documents: Mapped[List["Document"]] = relationship("Document", back_populates="company", cascade="all, delete-orphan", lazy="selectin")
@@ -37,25 +34,18 @@ class Company(Base):
     # Company details
     name: Mapped[str] = mapped_column(String(255))
     display_name: Mapped[Optional[str]] = mapped_column(String(255))
-    is_company: Mapped[bool] = mapped_column(Boolean, default=True)
-    tickers: Mapped[List[str]] = mapped_column(ARRAY(String), default=list)
+    ticker: Mapped[str] = mapped_column(String(10))
     exchanges: Mapped[List[str]] = mapped_column(ARRAY(String), default=list)
     sic: Mapped[Optional[str]] = mapped_column(String(4), index=True)
     sic_description: Mapped[Optional[str]] = mapped_column(String(255))
     fiscal_year_end: Mapped[Optional[date]] = mapped_column(Date)
-    entity_type: Mapped[Optional[str]] = mapped_column(String(50))
-    ein: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True)
     former_names: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
 
     # Generated Content
     summary: Mapped[Optional[str]] = mapped_column(Text)
 
     def __repr__(self) -> str:
-        return f"<Company(id={self.id}, name='{self.name}', cik='{self.cik}')>"
-
-    @property
-    def ticker(self) -> str:
-        return self.tickers[0] if self.tickers else ""
+        return f"<Company(id={self.id}, name='{self.name}', ticker='{self.ticker}')>"
 
 
 def get_company_ids() -> List[UUID]:
@@ -205,71 +195,6 @@ def delete_company(company_id: Union[UUID, str]) -> bool:
         raise
 
 
-def upsert_company_by_cik(company_data: Dict[str, Any]) -> Company:
-    """Create a company or update it if it already exists based on CIK.
-
-    Args:
-        company_data: Dictionary containing company attributes
-
-    Returns:
-        Created or updated Company object
-    """
-    try:
-        session = get_db_session()
-        cik = company_data.get('cik')
-
-        if not cik:
-            logger.error("upsert_company_failed", error="CIK is required")
-            raise ValueError("CIK is required for company upsert")
-
-        # Ensure CIK is a string when querying the database
-        existing_company = session.query(Company).filter(Company.cik == str(cik)).first()
-
-        if existing_company:
-            # Update existing company
-            for key, value in company_data.items():
-                if hasattr(existing_company, key):
-                    setattr(existing_company, key, value)
-                    # Flag JSON fields as modified to ensure changes are detected
-                    if key == 'former_names':
-                        attributes.flag_modified(existing_company, key)
-
-            session.commit()
-            logger.info("updated_existing_company", company_id=str(existing_company.id), cik=cik)
-            return existing_company
-        else:
-            # Create new company
-            company = Company(**company_data)
-            session.add(company)
-            session.commit()
-            logger.info("created_new_company", company_id=str(company.id), cik=cik)
-            return company
-    except Exception as e:
-        session.rollback()
-        logger.error("upsert_company_failed", error=str(e), exc_info=True)
-        raise
-
-def get_company_by_cik(cik: str) -> Optional[Company]:
-    """Get a company by its CIK.
-
-    Args:
-        cik: CIK of the company to retrieve
-
-    Returns:
-        Company object if found, None otherwise
-    """
-    try:
-        session = get_db_session()
-        company = session.query(Company).filter(Company.cik == cik).first()
-        if company:
-            logger.info("retrieved_company_by_cik", company_id=str(company.id), cik=cik)
-        else:
-            logger.warning("company_by_cik_not_found", cik=cik)
-        return company
-    except Exception as e:
-        logger.error("get_company_by_cik_failed", cik=cik, error=str(e), exc_info=True)
-        raise
-
 def get_company_by_ticker(ticker: str) -> Optional[Company]:
     """Get a company by one of its ticker symbols.
 
@@ -282,7 +207,7 @@ def get_company_by_ticker(ticker: str) -> Optional[Company]:
     try:
         session = get_db_session()
         # Since tickers is an array field, we need to use the 'any' operator
-        company = session.query(Company).filter(ticker.upper() == any_(Company.tickers)).first()
+        company = session.query(Company).filter(ticker.upper() == Company.ticker).first()
         if company:
             logger.info("retrieved_company_by_ticker", company=company.name, ticker=company.ticker)
         else:

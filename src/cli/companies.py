@@ -7,17 +7,15 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from src.database.base import get_db_session
+from src.database.base import init_db, get_db_session
 from src.database.companies import Company, create_company, get_company_by_ticker
 from src.ingestion.edgar_db.accessors import edgar_login
 from src.ingestion.ingestion_helpers import ingest_company
-from src.database.base import init_db
 from src.utils.config import settings
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 console = Console()
-
 
 def init_session():
     """Initialize database session."""
@@ -56,11 +54,11 @@ def ingest_company_cmd(ticker: str, force: bool):
             return
 
         # Ingest company
-        company_obj = ingest_company(ticker)
-        if company_obj:
-            console.print(f"[green]✓[/green] Company ingested: {company_obj.name}")
-            console.print(f"[blue]ID:[/blue] {company_obj.id}")
-            console.print(f"[blue]Ticker:[/blue] {company_obj.ticker}")
+        edgar_company, db_id = ingest_company(ticker)
+        if edgar_company:
+            console.print(f"[green]✓[/green] Company ingested: {edgar_company.name}")
+            console.print(f"[blue]ID:[/blue] {db_id}")
+            console.print(f"[blue]Ticker:[/blue] {edgar_company.get_ticker()}")
         else:
             console.print(f"[red]✗[/red] Failed to ingest company {ticker}")
             sys.exit(1)
@@ -93,10 +91,7 @@ def get_company(ticker: str):
         table.add_row("[bold blue]ID:[/bold blue]", str(company_obj.id))
         table.add_row("[bold blue]Name:[/bold blue]", company_obj.name)
         table.add_row("[bold blue]Ticker:[/bold blue]", company_obj.ticker)
-        table.add_row("[bold blue]CIK:[/bold blue]", company_obj.cik or "Unknown")
-        table.add_row("[bold blue]SIC:[/bold blue]", company_obj.sic or "Unknown")
-        table.add_row("[bold blue]Industry:[/bold blue]", company_obj.industry or "Unknown")
-        table.add_row("[bold blue]Sector:[/bold blue]", company_obj.sector or "Unknown")
+        table.add_row("[bold blue]Industry:[/bold blue]", company_obj.sic_description or "Unknown")
 
         console.print(Panel(table, title=panel_title))
 
@@ -134,7 +129,6 @@ def list_companies(limit: int, sector: str, industry: str):
         table.add_column("Name", style="white")
         table.add_column("Sector", style="magenta")
         table.add_column("Industry", style="yellow")
-        table.add_column("CIK", style="green")
 
         for company in companies_list:
             table.add_row(
@@ -142,7 +136,6 @@ def list_companies(limit: int, sector: str, industry: str):
                 company.name[:40] + "..." if len(company.name) > 40 else company.name,
                 company.sector or "Unknown",
                 company.industry[:30] + "..." if company.industry and len(company.industry) > 30 else (company.industry or "Unknown"),
-                company.cik or "Unknown"
             )
 
         console.print(table)

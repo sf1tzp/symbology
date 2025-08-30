@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 # Development dependencies for data ingestion, analysis, and LLM features
 dev = [
-  "edgartools==3.15.0",
+  "edgartools==4.9.0",
   "httpx==0.28.1",
   "ollama==0.4.7",
   "tiktoken",

@@ -231,7 +231,7 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
                 doc = find_or_create_document(
                     company_id=company_id,
                     filing_id=filing_id,
-                    document_name=document_name,
+                    title=document_name,
                     document_type=doc_type,
                     content=content
                 )

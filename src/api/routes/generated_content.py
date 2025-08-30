@@ -247,7 +247,7 @@ async def get_generated_content_sources(content_id: UUID):
             "source_documents": [
                 {
                     "id": str(doc.id),
-                    "name": doc.document_name,
+                    "name": doc.title,
                     "type": "document"
                 } for doc in content.source_documents
             ],

@@ -75,7 +75,7 @@ class ModelConfig(Base):
         }
 
         model_config = cls(
-            name=name,
+            model=name,
             options_json=json.dumps(default_options, sort_keys=True)
         )
         model_config.update_content_hash()

@@ -206,7 +206,7 @@ def delete_document(document_id: Union[UUID, str]) -> bool:
         raise
 
 
-def find_or_create_document(company_id: UUID, document_name: str, document_type: DocumentType, content: Optional[str],
+def find_or_create_document(company_id: UUID, title: str, document_type: DocumentType, content: Optional[str],
                            filing_id: Optional[UUID] = None) -> Document:
     """Find a document by company, filing, and name or create it if it doesn't exist.
 
@@ -225,7 +225,7 @@ def find_or_create_document(company_id: UUID, document_name: str, document_type:
         # Build query
         query = session.query(Document).filter(
             Document.company_id == company_id,
-            Document.title == document_name
+            Document.title == title
         )
 
         if filing_id:
@@ -242,13 +242,13 @@ def find_or_create_document(company_id: UUID, document_name: str, document_type:
                 session.commit()
                 logger.info("updated_document_content",
                            document_id=str(existing_document.id),
-                           document_name=document_name)
+                           document_name=title)
             return existing_document
         else:
             # Create new document
             document_data = {
                 'company_id': company_id,
-                'document_name': document_name,
+                'title': title,
                 'document_type': document_type,
                 'content': content
             }
@@ -261,7 +261,7 @@ def find_or_create_document(company_id: UUID, document_name: str, document_type:
             session.commit()
             logger.info("created_new_document",
                        document_id=str(document.id),
-                       document_name=document_name)
+                       document_name=title)
             return document
     except Exception as e:
         session.rollback()

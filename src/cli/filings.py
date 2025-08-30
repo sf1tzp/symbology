@@ -64,10 +64,22 @@ def ingest_filings(ticker: str, form: str, count: int, force: bool, include_docu
 
         console.print(f"[green]Found company: {db_company.name}[/green]")
 
+        filing_info = ih.ingest_filings(
+            db_company.id,
+            ticker=ticker,
+            form=form,
+            count=count,
+            include_documents=include_documents
+        )
 
-        filing_info = ih.ingest_filings(db_company.id, ticker=ticker, form=form, count=count)
+        # Display results
+        if include_documents:
+            console.print(f"[green]Successfully ingested {len(filing_info)} {form} filings with documents[/green]")
+        else:
+            console.print(f"[green]Successfully ingested {len(filing_info)} {form} filings (documents skipped)[/green]")
+
         for f in filing_info:
-            console.print(f"{f[0]} {f[1]} {f[2]} {f[3]}")
+            console.print(f"  {f[0]} {f[1]} {f[2]} {f[3]}")
 
     except Exception as e:
         console.print(f"[red]Error during filing ingestion: {e}[/red]")

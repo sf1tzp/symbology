@@ -5,23 +5,19 @@ from uuid import UUID
 
 from edgar import EntityData, Company, Filing
 import pandas as pd
-from src.database.companies import get_company_by_ticker, create_company, update_company
+from src.database.companies import get_company_by_ticker, create_company, update_company, get_company
 from src.database.documents import DocumentType, find_or_create_document
 from src.database.filings import upsert_filing_by_accession_number
 from src.database.financial_concepts import find_or_create_financial_concept
 from src.database.financial_values import upsert_financial_value
-# from src.ingestion.edgar_db.accessors import (
-#     _year_from_period_of_report,
-#     get_10k_filing,
-#     get_balance_sheet_values,
-#     get_business_description,
-#     get_cash_flow_statement_values,
-#     get_company,
-#     get_cover_page_values,
-#     get_income_statement_values,
-#     get_management_discussion,
-#     get_risk_factors,
-# )
+from src.ingestion.edgar_db.accessors import (
+    get_business_description,
+    get_management_discussion,
+    get_risk_factors,
+    get_sections_for_document_types,
+    FormSection,
+    SECTION_TO_DOCUMENT_TYPE,
+)
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -113,16 +109,18 @@ def ingest_company(ticker: str) -> Tuple[Company, UUID]:
         logger.error("ingest_company_failed", ticker=ticker, error=str(e), exc_info=True)
         raise
 
-def ingest_filings(db_id: str, ticker: str, form: str, count: int) -> List[Tuple]:
-    """Fetch 10-K filing from EDGAR and store in database.
+def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_documents: bool = True) -> List[Tuple]:
+    """Fetch filings from EDGAR and store in database.
 
     Args:
-        company_id: UUID of the company in database
-        edgar_company: EDGAR company data
-        year: Year of the filing
+        db_id: UUID of the company in database
+        ticker: Company ticker symbol
+        form: Form type (10-K, 10-Q, etc.)
+        count: Number of filings to retrieve
+        include_documents: Whether to also ingest filing documents
 
     Returns:
-        Tuple of (EDGAR filing data, filing UUID in database) or (None, None) if not found
+        List of tuples containing (ticker, form, period_of_report, filing_id)
     """
     try:
         company = Company(ticker)
@@ -158,6 +156,25 @@ def ingest_filings(db_id: str, ticker: str, form: str, count: int) -> List[Tuple
             # Store in database
             db_filing = upsert_filing_by_accession_number(filing_data)
 
+            # Optionally ingest filing documents
+            document_uuids = {}
+            if include_documents:
+                logger.info("ingest_filing_documents",
+                           accession_number=filing.accession_number,
+                           filing_id=str(db_filing.id))
+
+                document_uuids = ingest_filing_documents(
+                    company_id=db_id,
+                    filing_id=db_filing.id,
+                    filing=filing
+                )
+
+                logger.info("filing_documents_ingested",
+                           accession_number=filing.accession_number,
+                           filing_id=str(db_filing.id),
+                           document_count=len(document_uuids),
+                           document_types=[doc_type.value for doc_type in document_uuids.keys()])
+
             logger.info("filing_ingested",
                        company_id=str(db_id),
                        accession_number=filing.accession_number,
@@ -180,50 +197,54 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
         company_name: Name of the company (optional)
 
     Returns:
-        Dictionary mapping document names to their UUIDs in database
+        Dictionary mapping DocumentType to their UUIDs in database
     """
     try:
         company = get_company(company_id)
+        formatted_base_name = f"{company.name} {filing.form} {filing.period_of_report}"
 
-        formatted_base_name = f"{company.name} {filing.period_of_report.year} {filing.form}"
+        logger.info("ingest_filing_documents_start",
+                   form=filing.form,
+                   accession_number=filing.accession_number)
 
-        logger.info("ingest_business_description")
         document_uuids = {}
-        # Business description
-        business_description = get_business_description(filing)
-        if business_description:
-            doc = find_or_create_document(
-                company_id=company_id,
-                filing_id=filing_id,
-                document_name=f"{formatted_base_name} - Business Description",
-                document_type=DocumentType.DESCRIPTION,
-                content=business_description
-            )
-            document_uuids[DocumentType.DESCRIPTION] = doc.id
 
-        # Risk factors
-        risk_factors = get_risk_factors(filing)
-        if risk_factors:
-            doc = find_or_create_document(
-                company_id=company_id,
-                filing_id=filing_id,
-                document_name=f"{formatted_base_name} - Risk Factors",
-                document_type=DocumentType.RISK_FACTORS,
-                content=risk_factors
-            )
-            document_uuids[DocumentType.RISK_FACTORS] = doc.id
+        # Use the new mapping system to get all available sections for this document type
+        sections_content = get_sections_for_document_types(filing)
 
-        # MD&A
-        mda = get_management_discussion(filing)
-        if mda:
-            doc = find_or_create_document(
-                company_id=company_id,
-                filing_id=filing_id,
-                document_name=f"{formatted_base_name} - Management Discussion",
-                document_type=DocumentType.MDA,
-                content=mda
-            )
-            document_uuids[DocumentType.MDA] = doc.id
+        for doc_type, content in sections_content.items():
+            if content and content.strip():
+                # Create a readable document name based on the document type
+                doc_type_names = {
+                    DocumentType.DESCRIPTION: "Business Description",
+                    DocumentType.RISK_FACTORS: "Risk Factors",
+                    DocumentType.MDA: "Management Discussion and Analysis",
+                    DocumentType.CONTROLS_PROCEDURES: "Controls and Procedures",
+                    DocumentType.LEGAL_PROCEEDINGS: "Legal Proceedings",
+                    DocumentType.MARKET_RISK: "Market Risk Disclosures",
+                    DocumentType.EXECUTIVE_COMPENSATION: "Executive Compensation",
+                    DocumentType.DIRECTORS_OFFICERS: "Directors and Officers"
+                }
+
+                document_name = f"{formatted_base_name} - {doc_type_names.get(doc_type, doc_type.value)}"
+
+                doc = find_or_create_document(
+                    company_id=company_id,
+                    filing_id=filing_id,
+                    document_name=document_name,
+                    document_type=doc_type,
+                    content=content
+                )
+                document_uuids[doc_type] = doc.id
+
+                logger.debug("document_ingested",
+                           document_type=doc_type.value,
+                           document_id=str(doc.id),
+                           content_length=len(content))
+
+        logger.info("ingest_filing_documents_complete",
+                   document_count=len(document_uuids),
+                   document_types=[doc_type.value for doc_type in document_uuids.keys()])
 
         return document_uuids
     except Exception as e:

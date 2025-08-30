@@ -114,13 +114,13 @@ def test_create_document(db_session, sample_document_data):
 
     # Verify it was created
     assert document.id is not None
-    assert document.document_name == "10-K Annual Report"
+    assert document.title == "10-K Annual Report"
     assert document.content is not None
 
     # Verify it can be retrieved from the database
     retrieved = db_session.query(Document).filter_by(id=document.id).first()
     assert retrieved is not None
-    assert retrieved.document_name == document.document_name
+    assert retrieved.document_name == document.title
     assert retrieved.content == document.content
 
 def test_create_minimal_document(db_session, sample_document_data_minimal):
@@ -131,7 +131,7 @@ def test_create_minimal_document(db_session, sample_document_data_minimal):
 
     # Verify it was created correctly
     assert document.id is not None
-    assert document.document_name == "Press Release"
+    assert document.title == "Press Release"
     assert document.filing_id is None  # Should be None since not provided
 
 def test_document_relationships(db_session, create_test_company, create_test_filing, sample_document_data):
@@ -176,7 +176,7 @@ def test_get_document_by_id(db_session, sample_document_data):
         retrieved = get_document(document.id)
         assert retrieved is not None
         assert retrieved.id == document.id
-        assert retrieved.document_name == "10-K Annual Report"
+        assert retrieved.title == "10-K Annual Report"
 
         # Test with non-existent ID
         non_existent = get_document(uuid.uuid4())
@@ -198,13 +198,13 @@ def test_create_document_function(db_session, sample_document_data):
 
         # Verify it was created correctly
         assert document.id is not None
-        assert document.document_name == "10-K Annual Report"
+        assert document.title == "10-K Annual Report"
         assert document.content is not None
 
         # Verify it exists in the database
         retrieved = db_session.query(Document).filter_by(id=document.id).first()
         assert retrieved is not None
-        assert retrieved.document_name == document.document_name
+        assert retrieved.document_name == document.title
     finally:
         # Restore the original function
         documents_module.get_db_session = original_get_db_session
@@ -232,7 +232,7 @@ def test_update_document(db_session, sample_document_data):
 
         # Verify updates were applied
         assert updated is not None
-        assert updated.document_name == "Updated 10-K Report"
+        assert updated.title == "Updated 10-K Report"
         assert updated.content == "Updated content for the annual report."
 
         # Check that other fields weren't changed
@@ -325,7 +325,7 @@ def test_update_with_invalid_attributes(db_session, sample_document_data):
         # Should still update valid fields but ignore invalid ones
         updated = update_document(document.id, updates)
         assert updated is not None
-        assert updated.document_name == "Valid Update"
+        assert updated.title == "Valid Update"
 
         # The invalid field should not be added to the object
         assert not hasattr(updated, "invalid_field")
@@ -400,7 +400,7 @@ def test_document_without_filing(db_session, create_test_company):
 
     # Verify it was created correctly
     assert document.id is not None
-    assert document.document_name == "Standalone Document"
+    assert document.title == "Standalone Document"
     assert document.filing_id is None
     assert document.filing is None
     assert document.company_id == create_test_company.id
@@ -473,7 +473,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
         )
 
         assert document is not None
-        assert document.document_name == "Risk Factors"
+        assert document.title == "Risk Factors"
         assert document.content == "This is the risk factors content."
         document_id = document.id
 
@@ -488,7 +488,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
 
         # Should be same document but with updated content
         assert document2.id == document_id
-        assert document2.document_name == "Risk Factors"
+        assert document2.title == "Risk Factors"
         assert document2.content == "This is updated risk factors content."
 
         # Now test creating a document without a filing ID
@@ -501,7 +501,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
         )
 
         assert standalone_doc is not None
-        assert standalone_doc.document_name == "Standalone Document"
+        assert standalone_doc.title == "Standalone Document"
         assert standalone_doc.filing_id is None
     finally:
         # Restore the original function
@@ -567,7 +567,7 @@ def test_get_documents_by_filing(db_session, create_test_company, create_test_fi
         assert len(documents) == len(multiple_document_data)
 
         # Check that the document names match what we created
-        doc_names = [doc.document_name for doc in documents]
+        doc_names = [doc.title for doc in documents]
         for data in multiple_document_data:
             assert data["document_name"] in doc_names
 

@@ -62,7 +62,7 @@ def list_documents(accession_number: str, document_type: str, limit: int):
             console.print(f"[yellow]No documents found for filing {accession_number}[/yellow]")
             return
 
-        console.print(f"[blue]Filing:[/blue] {filing.form_type} - {filing.company.name if filing.company else 'Unknown'}")
+        console.print(f"[blue]Filing:[/blue] {filing.form} - {filing.company.name if filing.company else 'Unknown'}")
 
         table = Table(title=f"Documents ({len(documents_list)} found)")
         table.add_column("Type", style="cyan")
@@ -72,12 +72,12 @@ def list_documents(accession_number: str, document_type: str, limit: int):
 
         for doc in documents_list:
             content_size = f"{len(doc.content):,} chars" if doc.content else "No content"
-            title = doc.title[:50] + "..." if doc.title and len(doc.title) > 50 else (doc.title or "Unknown")
+            title = doc.title
 
             table.add_row(
                 doc.document_type.value if doc.document_type else "Unknown",
                 title,
-                doc.get_short_hash()[:8] if hasattr(doc, 'get_short_hash') else "N/A",
+                doc.get_short_hash(),
                 content_size
             )
 
@@ -137,63 +137,3 @@ def get_document(content_hash: str, show_content: bool):
         logger.exception("Failed to get document")
         sys.exit(1)
 
-
-@documents.command('search')
-@click.argument('query')
-@click.option('--document-type', type=click.Choice(['MDA', 'RISK_FACTORS', 'BUSINESS', 'FINANCIALS']),
-              help='Filter by document type')
-@click.option('--limit', default=10, help='Maximum number of results to show')
-def search_documents(query: str, document_type: str, limit: int):
-    """Search documents by title or content."""
-
-    try:
-        session = init_session()
-
-        # Build query
-        search_query = session.query(Document)
-
-        # Add text search (case-insensitive)
-        search_query = search_query.filter(
-            Document.title.ilike(f"%{query}%") |
-            Document.content.ilike(f"%{query}%")
-        )
-
-        # Filter by document type if specified
-        if document_type:
-            doc_type_enum = DocumentType(document_type)
-            search_query = search_query.filter(Document.document_type == doc_type_enum)
-
-        documents_list = search_query.limit(limit).all()
-
-        if not documents_list:
-            console.print(f"[yellow]No documents found matching '{query}'[/yellow]")
-            return
-
-        table = Table(title=f"Search Results for '{query}' ({len(documents_list)} found)")
-        table.add_column("Type", style="cyan")
-        table.add_column("Title", style="white")
-        table.add_column("Company", style="magenta")
-        table.add_column("Filing", style="yellow")
-        table.add_column("Hash", style="green")
-
-        for doc in documents_list:
-            title = doc.title[:40] + "..." if doc.title and len(doc.title) > 40 else (doc.title or "Unknown")
-            company_name = doc.filing.company.name[:20] + "..." if doc.filing and doc.filing.company and len(doc.filing.company.name) > 20 else (doc.filing.company.name if doc.filing and doc.filing.company else "Unknown")
-
-            table.add_row(
-                doc.document_type.value if doc.document_type else "Unknown",
-                title,
-                company_name,
-                doc.filing.accession_number if doc.filing else "Unknown",
-                doc.content_hash[:8] if doc.content_hash else "N/A"
-            )
-
-        console.print(table)
-
-        if len(documents_list) == limit:
-            console.print(f"\n[yellow]Showing first {limit} results. Use --limit to see more.[/yellow]")
-
-    except Exception as e:
-        console.print(f"[red]Error searching documents: {e}[/red]")
-        logger.exception("Failed to search documents")
-        sys.exit(1)

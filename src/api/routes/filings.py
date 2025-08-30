@@ -184,7 +184,7 @@ async def get_filing_documents_by_accession(accession_number: str) -> List[Docum
                 "id": document.id,
                 "filing_id": document.filing_id,
                 "company_ticker": document.company.ticker,
-                "document_name": document.document_name,
+                "title": document.title,
                 "document_type": document.document_type,
                 "content": document.content,
                 "content_hash": document.content_hash,

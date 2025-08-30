@@ -17,9 +17,17 @@ from uuid_extensions import uuid7
 logger = get_logger(__name__)
 
 class DocumentType(Enum):
+    # Core document types that appear in multiple form types
     MDA = "management_discussion"
     RISK_FACTORS = "risk_factors"
     DESCRIPTION = "business_description"
+
+    # Additional document sections from various form types
+    CONTROLS_PROCEDURES = "controls_procedures"
+    LEGAL_PROCEEDINGS = "legal_proceedings"
+    MARKET_RISK = "market_risk"
+    EXECUTIVE_COMPENSATION = "executive_compensation"
+    DIRECTORS_OFFICERS = "directors_officers"
 
     def __repr__(self) -> str:
         return f"{ self.value }"
@@ -42,7 +50,7 @@ class Document(Base):
     company = relationship("Company", back_populates="documents", lazy="joined")
 
     # Document details
-    document_name: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str] = mapped_column(String(255))
     document_type: Mapped[Optional[DocumentType]] = mapped_column(
         SQLEnum(DocumentType, name="document_type_enum"), nullable=True
     )
@@ -100,7 +108,7 @@ def get_document(document_id: Union[UUID, str]) -> Optional[Document]:
         # Use joinedload to eagerly fetch the filing relationship
         document = session.query(Document).options(joinedload(Document.filing)).filter(Document.id == document_id).first()
         if document:
-            logger.info("retrieved_document", document=document.document_name)
+            logger.info("retrieved_document", document=document.title)
         else:
             logger.warning("document_not_found", document_id=str(document_id))
         return document
@@ -126,7 +134,7 @@ def create_document(document_data: Dict[str, Any]) -> Document:
         logger.info(
             "created_document",
             document_id=str(document.id),
-            document_name=document.document_name,
+            document_name=document.title,
             company_id=str(document.company_id)
         )
         return document
@@ -163,7 +171,7 @@ def update_document(document_id: Union[UUID, str], document_data: Dict[str, Any]
         logger.info(
             "updated_document",
             document_id=str(document.id),
-            document_name=document.document_name
+            document_name=document.title
         )
         return document
     except Exception as e:
@@ -217,7 +225,7 @@ def find_or_create_document(company_id: UUID, document_name: str, document_type:
         # Build query
         query = session.query(Document).filter(
             Document.company_id == company_id,
-            Document.document_name == document_name
+            Document.title == document_name
         )
 
         if filing_id:
@@ -248,6 +256,7 @@ def find_or_create_document(company_id: UUID, document_name: str, document_type:
                 document_data['filing_id'] = filing_id
 
             document = Document(**document_data)
+            document.update_content_hash()
             session.add(document)
             session.commit()
             logger.info("created_new_document",

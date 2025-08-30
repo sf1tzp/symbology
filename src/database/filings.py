@@ -35,13 +35,13 @@ class Filing(Base):
 
     # Filing details
     accession_number: Mapped[str] = mapped_column(String(20), unique=True, index=True)
-    filing_type: Mapped[str] = mapped_column(String(20), index=True)
+    form: Mapped[str] = mapped_column(String(20), index=True)
     filing_date: Mapped[date] = mapped_column(Date, index=True)
-    filing_url: Mapped[Optional[str]] = mapped_column(String(255))
     period_of_report: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    url: Mapped[Optional[str]] = mapped_column(String(255))
 
     def __repr__(self) -> str:
-        return f"{self.company.ticker} {self.period_of_report.year} {self.filing_type}"
+        return f"{self.company.ticker} {self.period_of_report.year} {self.form}"
 
     @property
     def fiscal_year(self) -> str:

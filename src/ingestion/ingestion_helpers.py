@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 from uuid import UUID
 
 from edgar import EntityData, Company, Filing
@@ -86,12 +86,12 @@ def ingest_company(ticker: str) -> Tuple[Company, UUID]:
                 except (ValueError, TypeError):
                     logger.warning("invalid_fiscal_year_end_format",
                                   value=edgar_company.fiscal_year_end,
-                                  cik=edgar_company.cik)
+                                  ticker=edgar_company.get_ticker())
                     company_data['fiscal_year_end'] = None
             else:
                 logger.warning("invalid_fiscal_year_end_format",
                               value=edgar_company.fiscal_year_end,
-                              cik=edgar_company.cik)
+                              ticker=edgar_company.get_ticker())
                 company_data['fiscal_year_end'] = None
         else:
             company_data['fiscal_year_end'] = None
@@ -113,7 +113,7 @@ def ingest_company(ticker: str) -> Tuple[Company, UUID]:
         logger.error("ingest_company_failed", ticker=ticker, error=str(e), exc_info=True)
         raise
 
-def ingest_filing(company_id: UUID, edgar_company: EntityData, year: int) -> Tuple[Optional[Filing], Optional[UUID]]:
+def ingest_filings(db_id: str, ticker: str, form: str, count: int) -> List[Tuple]:
     """Fetch 10-K filing from EDGAR and store in database.
 
     Args:
@@ -125,34 +125,49 @@ def ingest_filing(company_id: UUID, edgar_company: EntityData, year: int) -> Tup
         Tuple of (EDGAR filing data, filing UUID in database) or (None, None) if not found
     """
     try:
-        # Get filing from EDGAR
-        filing = get_10k_filing(edgar_company, year)
-        if not filing:
-            logger.warning("no_filing_found", company_id=str(company_id), year=year)
-            return None, None
+        company = Company(ticker)
+        if company is None:
+            #  some error
+            return (None, None)
 
-        # Prepare data for database
-        filing_data = {
-            'company_id': company_id,
-            'accession_number': filing.accession_number,
-            'filing_type': filing.form,
-            'filing_date': filing.filing_date,
-            'filing_url': filing.filing_url if hasattr(filing, 'filing_url') else None,
-            'period_of_report': filing.period_of_report
-        }
+        logger.info("filings", ticker=ticker, form=form, count=count)
+        # Get filings from EDGAR
+        filings = company.get_filings(form=form).latest(count)
 
-        # Store in database
-        db_filing = upsert_filing_by_accession_number(filing_data)
+        if count == 1:
+            filings = [filings]
+        else:
+            filings = [filings[i] for i in range(count)]
 
-        logger.info("filing_ingested",
-                   company_id=str(company_id),
-                   accession_number=filing.accession_number,
-                   filing_id=str(db_filing.id),
-                   year=_year_from_period_of_report(filing))
+        filing_info = []
 
-        return filing, db_filing.id
+
+        for i in range(count):
+            filing = filings[i]
+
+            # Prepare data for database
+            filing_data = {
+                'company_id': db_id,
+                'accession_number': filing.accession_number,
+                'form': filing.form,
+                'filing_date': filing.filing_date,
+                'period_of_report': filing.period_of_report,
+                'url': filing.url,
+            }
+
+            # Store in database
+            db_filing = upsert_filing_by_accession_number(filing_data)
+
+            logger.info("filing_ingested",
+                       company_id=str(db_id),
+                       accession_number=filing.accession_number,
+                       filing_id=str(db_filing.id))
+
+            filing_info.append((ticker, form, filing.period_of_report, db_filing.id))
+
+        return filing_info
     except Exception as e:
-        logger.error("ingest_filing_failed", company_id=str(company_id), year=year, error=str(e), exc_info=True)
+        logger.error("ingest_filing_failed", company_id=str(db_id), error=str(e), exc_info=True)
         raise
 
 def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, company_name: str = None) -> Dict[DocumentType, UUID]:

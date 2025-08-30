@@ -37,9 +37,9 @@ async def get_company_filings(company_id: UUID) -> List[FilingResponse]:
                 id=filing.id,
                 company_id=filing.company_id,
                 accession_number=filing.accession_number,
-                filing_type=filing.filing_type,
+                form=filing.form,
                 filing_date=filing.filing_date,
-                filing_url=filing.filing_url,
+                url=filing.url,
                 period_of_report=filing.period_of_report
             ))
 
@@ -86,9 +86,9 @@ async def get_filings_by_ticker(ticker: str) -> List[FilingResponse]:
                 id=filing.id,
                 company_id=filing.company_id,
                 accession_number=filing.accession_number,
-                filing_type=filing.filing_type,
+                form=filing.form,
                 filing_date=filing.filing_date,
-                filing_url=filing.filing_url,
+                url=filing.url,
                 period_of_report=filing.period_of_report
             ))
 
@@ -133,9 +133,9 @@ async def get_filing_by_accession(accession_number: str) -> FilingResponse:
             id=filing.id,
             company_id=filing.company_id,
             accession_number=filing.accession_number,
-            filing_type=filing.filing_type,
+            form=filing.form,
             filing_date=filing.filing_date,
-            filing_url=filing.filing_url,
+            url=filing.url,
             period_of_report=filing.period_of_report
         )
 
@@ -197,9 +197,9 @@ async def get_filing_documents_by_accession(accession_number: str) -> List[Docum
                 "id": filing.id,
                 "company_id": filing.company_id,
                 "accession_number": filing.accession_number,
-                "filing_type": filing.filing_type,
+                "filing_type": filing.form,
                 "filing_date": filing.filing_date,
-                "filing_url": filing.filing_url,
+                "filing_url": filing.url,
                 "period_of_report": filing.period_of_report
             }
 
@@ -250,7 +250,6 @@ async def get_filing_company_by_accession(accession_number: str) -> CompanyRespo
 
         company_response = CompanyResponse(
             id=company.id,
-            cik=company.cik,
             name=company.name,
             display_name=company.display_name,
             is_company=company.is_company,

@@ -78,9 +78,9 @@ class FilingResponse(BaseModel):
     id: UUID = Field(..., description="Unique identifier for the filing")
     company_id: UUID = Field(..., description="ID of the company this filing belongs to")
     accession_number: str = Field(..., description="SEC accession number")
-    filing_type: str = Field(..., description="SEC filing type (e.g., 10-K, 10-Q)")
+    form: str = Field(..., description="SEC filing type (e.g., 10-K, 10-Q)")
     filing_date: date = Field(..., description="Date the filing was submitted")
-    filing_url: Optional[str] = Field(None, description="URL to the filing on SEC website")
+    url: Optional[str] = Field(None, description="URL to the filing on SEC website")
     period_of_report: Optional[date] = Field(None, description="Period covered by the report")
 
     class Config:

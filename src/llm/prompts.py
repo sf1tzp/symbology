@@ -8,11 +8,11 @@ This module provides:
 """
 
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
-from src.database.completions import Completion
 from src.database.documents import Document, DocumentType
+from src.database.generated_content import GeneratedContent
 from src.database.prompts import Prompt
 from src.llm.client import remove_thinking_tags
 from src.utils.logging import get_logger
@@ -24,42 +24,6 @@ class PromptRole(str, Enum):
     SYSTEM = "system"
     ASSISTANT = "assistant"
     USER = "user"
-
-
-class PromptType(str, Enum):
-    """Types of prompts supported by the system."""
-
-    RISK_ANALYSIS = "risk_analysis"
-    MANAGEMENT_ASSESSMENT = "management_assessment"
-    FINANCIAL_POSITION = "financial_position"
-    BUSINESS_SUMMARY = "business_summary"
-    CUSTOM = "custom"
-
-
-class PromptTemplate(BaseModel):
-    """Template for a structured prompt."""
-
-    name: str
-    type: PromptType
-    system_prompt: str
-    user_prompt_template: str
-    description: str = ""
-
-    def format_user_prompt(self, **kwargs) -> str:
-        """
-        Format the user prompt template with provided values.
-
-        Args:
-            **kwargs: Values to format into the user prompt template
-
-        Returns:
-            The formatted user prompt
-        """
-        try:
-            return self.user_prompt_template.format(**kwargs)
-        except KeyError as e:
-            logger.error(f"Missing required parameter in prompt template: {e}")
-            raise ValueError(f"Missing required parameter: {e}") from e
 
 
 # System prompt templates for different analysis types
@@ -121,57 +85,72 @@ Consider these historical reports. Write 100 words providing an overview of the 
 """
 
 
-def format_document_messages(prompt: Prompt, document: Document):
+def format_user_prompt_content(
+    source_documents: Optional[List[Document]] = None,
+    source_content: Optional[List[GeneratedContent]] = None,
+    additional_text: Optional[str] = None
+) -> str:
+    """
+    Format user prompt content from various source materials.
 
-    filing = document.filing
-    company = document.company
+    This function assembles content from multiple sources into a single user prompt:
+    - Source documents (SEC filings, etc.)
+    - Generated content (previous AI outputs)
+    - Additional text content
 
-    formatted_contents = f"""
+    Args:
+        source_documents: List of Document objects to include
+        source_content: List of GeneratedContent objects to include
+        additional_text: Additional text content to include
+
+    Returns:
+        Formatted user prompt content as a string
+    """
+    formatted_parts = []
+
+    # Format source documents
+    if source_documents:
+        for document in source_documents:
+            filing = document.filing
+            company = document.company
+
+            formatted_parts.append(f"""
 <document>
-<meta company_name="{company.name}" filing_type="{filing.filing_type} fiscal_year="{filing.fiscal_year} document_type="{document.document_type.value}/>
+<meta company_name="{company.name}" filing_type="{filing.form}" period_of_report="{filing.period_of_report}" document_type="{document.document_type.value}"/>
 <content>
 {remove_thinking_tags(document.content)}
 </content>
 </document>
-"""
+""")
 
-    messages = [{
-        'role': PromptRole.SYSTEM.value,
-        'content': prompt.content
-    },
-    {
-        'role': PromptRole.USER.value,
-        'content': formatted_contents
-    }]
-    return messages
+    # Format source content (generated content)
+    if source_content:
+        for content in source_content:
+            company = content.company
+            document_type = content.document_type
 
+            # Try to get filing info from source documents if available
+            filing_info = ""
+            if content.source_documents:
+                document = content.source_documents[0]
+                filing = document.filing
+                filing_info = f'filing_type="{filing.filing_type}" fiscal_year="{filing.fiscal_year}"'
 
-
-def format_aggregate_messages(prompt: Prompt, completions: List[Completion]):
-    formatted_contents = []
-    for completion in completions:
-        if len(completion.source_documents) > 1:
-            logger.warning("completion_has_many_source_documents", length=len(completion.source_documents), completion_id=completion.id)
-
-        document = completion.source_documents[0]
-        filing = document.filing
-        company = document.company
-
-        formatted_contents.append(f"""
+            formatted_parts.append(f"""
 <document>
-<meta company_name="{company.name}" filing_type="{filing.filing_type} fiscal_year="{filing.fiscal_year} document_type="{document.document_type.value}/>
+<meta company_name="{company.name if company else 'Unknown'}" {filing_info} document_type="{document_type.value if document_type else 'Unknown'}" source_type="generated_content"/>
 <content>
-{remove_thinking_tags(completion.content)}
+{remove_thinking_tags(content.content) if content.content else ''}
 </content>
 </document>
 """)
 
-    messages = [{
-        'role': PromptRole.SYSTEM.value,
-        'content': prompt.content
-    },
-    {
-        'role': PromptRole.USER.value,
-        'content': ("").join(formatted_contents)
-    }]
-    return messages
+    # Add additional text content if provided
+    if additional_text:
+        formatted_parts.append(f"""
+<additional_content>
+{additional_text.strip()}
+</additional_content>
+""")
+
+    return ("").join(formatted_parts)

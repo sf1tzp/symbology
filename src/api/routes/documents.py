@@ -52,9 +52,9 @@ async def get_document_by_id(document_id: UUID):
                 "id": filing.id,
                 "company_id": filing.company_id,
                 "accession_number": filing.accession_number,
-                "filing_type": filing.filing_type,
+                "form": filing.form,
                 "filing_date": filing.filing_date,
-                "filing_url": filing.filing_url,
+                "url": filing.url,
                 "period_of_report": filing.period_of_report
             }
 

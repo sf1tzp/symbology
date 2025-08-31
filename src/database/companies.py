@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import any_, Boolean, Date, String, Text
+from sqlalchemy import Date, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
 from src.database.base import Base, get_db_session
@@ -206,7 +206,6 @@ def get_company_by_ticker(ticker: str) -> Optional[Company]:
     """
     try:
         session = get_db_session()
-        # Since tickers is an array field, we need to use the 'any' operator
         company = session.query(Company).filter(ticker.upper() == Company.ticker).first()
         if company:
             logger.info("retrieved_company_by_ticker", company=company.name, ticker=company.ticker)
@@ -228,18 +227,16 @@ def search_companies_by_query(query: str, limit: int = 10) -> List[Company]:
         List of matching Company objects
     """
     try:
-        from sqlalchemy import func
 
         session = get_db_session()
         upper_query = query.upper()
 
-        # Use array_to_string function to convert the tickers array to a searchable string
-        # The second parameter ' ' is the delimiter between array elements
+        # Search in name (case-insensitive) or ticker (exact match or case-insensitive)
         companies = session.query(Company).filter(
             # Search in name (case-insensitive)
             (Company.name.ilike(f'%{query}%')) |
-            # Search in tickers array using PostgreSQL array_to_string function
-            (func.array_to_string(Company.tickers, ' ').ilike(f'%{upper_query}%'))
+            # Search in ticker (case-insensitive)
+            (Company.ticker.ilike(f'%{upper_query}%'))
         ).limit(limit).all()
 
         logger.info("search_companies_by_query", query=query, result_count=len(companies))
@@ -282,7 +279,7 @@ def list_all_companies(offset: int = 0, limit: int = 50) -> List[Company]:
     """
     try:
         session = get_db_session()
-        companies = session.query(Company).filter(Company.summary.isnot(None)).order_by(Company.name).offset(offset).limit(limit).all()
+        companies = session.query(Company).filter().order_by(Company.name).offset(offset).limit(limit).all()
 
         logger.info("list_all_companies", offset=offset, limit=limit, result_count=len(companies))
         return companies

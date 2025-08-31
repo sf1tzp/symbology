@@ -4,11 +4,10 @@ import sys
 
 import click
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-
-from src.database.base import init_db, get_db_session
-from src.database.companies import Company, create_company, get_company_by_ticker
+from rich.table import Table
+from src.database.base import get_db_session, init_db
+from src.database.companies import Company, get_company_by_ticker
 from src.ingestion.edgar_db.accessors import edgar_login
 from src.ingestion.ingestion_helpers import ingest_company
 from src.utils.config import settings
@@ -134,8 +133,8 @@ def list_companies(limit: int, sector: str, industry: str):
             table.add_row(
                 company.ticker,
                 company.name[:40] + "..." if len(company.name) > 40 else company.name,
-                company.sector or "Unknown",
-                company.industry[:30] + "..." if company.industry and len(company.industry) > 30 else (company.industry or "Unknown"),
+                company.sic or "Unknown",
+                company.sic_description[:30] + "..." if company.sic_description and len(company.sic_description) > 30 else (company.sic_description or "Unknown"),
             )
 
         console.print(table)

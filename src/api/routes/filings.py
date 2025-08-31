@@ -252,14 +252,11 @@ async def get_filing_company_by_accession(accession_number: str) -> CompanyRespo
             id=company.id,
             name=company.name,
             display_name=company.display_name,
-            is_company=company.is_company,
-            tickers=company.tickers,
+            ticker=company.ticker,
             exchanges=company.exchanges,
             sic=company.sic,
             sic_description=company.sic_description,
             fiscal_year_end=company.fiscal_year_end,
-            entity_type=company.entity_type,
-            ein=company.ein,
             former_names=company.former_names,
             summary=company.summary
         )

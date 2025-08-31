@@ -1,22 +1,17 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, List, Tuple
 from uuid import UUID
 
-from edgar import EntityData, Company, Filing
+from edgar import Company, Filing
 import pandas as pd
-from src.database.companies import get_company_by_ticker, create_company, update_company, get_company
+from src.database.companies import create_company, get_company, get_company_by_ticker, update_company
 from src.database.documents import DocumentType, find_or_create_document
 from src.database.filings import upsert_filing_by_accession_number
 from src.database.financial_concepts import find_or_create_financial_concept
 from src.database.financial_values import upsert_financial_value
 from src.ingestion.edgar_db.accessors import (
-    get_business_description,
-    get_management_discussion,
-    get_risk_factors,
     get_sections_for_document_types,
-    FormSection,
-    SECTION_TO_DOCUMENT_TYPE,
 )
 from src.utils.logging import get_logger
 
@@ -130,17 +125,37 @@ def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_docum
 
         logger.info("filings", ticker=ticker, form=form, count=count)
         # Get filings from EDGAR
-        filings = company.get_filings(form=form).latest(count)
+        edgar_filings = company.get_filings(form=form).latest(count)
 
+        # Handle case where fewer filings are available than requested
         if count == 1:
-            filings = [filings]
+            filings = [edgar_filings] if edgar_filings is not None else []
         else:
-            filings = [filings[i] for i in range(count)]
+            # Check how many filings are actually available
+            try:
+                # Try to get the filings up to the requested count
+                filings = []
+                for i in range(count):
+                    try:
+                        filing = edgar_filings[i]
+                        filings.append(filing)
+                    except IndexError:
+                        # No more filings available
+                        break
+            except Exception:
+                filings = []
+
+        actual_count = len(filings)
+        if actual_count < count:
+            logger.warning("fewer_filings_available",
+                          ticker=ticker,
+                          form=form,
+                          requested=count,
+                          available=actual_count)
 
         filing_info = []
 
-
-        for i in range(count):
+        for i in range(actual_count):
             filing = filings[i]
 
             # Prepare data for database

@@ -10,7 +10,6 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database.base import Base, get_db_session
 from src.database.companies import Company
-from src.database.documents import DocumentType
 from src.utils.logging import get_logger
 from uuid_extensions import uuid7
 
@@ -71,10 +70,8 @@ class GeneratedContent(Base):
         backref="generated_content"
     )
 
-    # Document type (optional, for document-type-specific aggregations)
-    document_type: Mapped[Optional[DocumentType]] = mapped_column(
-        SQLEnum(DocumentType, name="document_type_enum"), nullable=True
-    )
+    # description (optional, string description of the content)
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Source type - what kind of sources this content was generated from
     source_type: Mapped[ContentSourceType] = mapped_column(
@@ -219,7 +216,7 @@ class GeneratedContent(Base):
             "content_hash": self.content_hash,
             "short_hash": self.get_short_hash(),
             "company_id": str(self.company_id) if self.company_id else None,
-            "document_type": self.document_type.value if self.document_type else None,
+            "document_type": self.description,
             "source_type": self.source_type.value,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "total_duration": self.total_duration,
@@ -320,7 +317,7 @@ def get_generated_content_by_company_and_ticker(ticker: str, content_hash: str) 
         query = (
             session.query(GeneratedContent)
             .join(Company, GeneratedContent.company_id == Company.id)
-            .filter(Company.tickers.any(ticker.upper()))
+            .filter(Company.ticker == ticker.upper())
         )
 
         # Try exact hash match first
@@ -342,27 +339,27 @@ def get_generated_content_by_company_and_ticker(ticker: str, content_hash: str) 
 
 
 def get_recent_generated_content_by_ticker(ticker: str, limit: int = 10) -> List[GeneratedContent]:
-    """Get the most recent generated content for each document type by ticker.
+    """Get the most recent generated content for each description type by ticker.
 
     Args:
         ticker: Company ticker symbol
         limit: Maximum number of results to return
 
     Returns:
-        List of GeneratedContent objects - the most recent content for each document type
+        List of GeneratedContent objects - the most recent content for each description type
     """
     try:
         session = get_db_session()
 
-        # Subquery to get the most recent content for each document type
+        # Subquery to get the most recent content for each description type
         subquery = (
             session.query(
-                GeneratedContent.document_type,
+                GeneratedContent.description,
                 func.max(GeneratedContent.created_at).label('latest_date')
             )
             .join(Company, GeneratedContent.company_id == Company.id)
-            .filter(Company.tickers.any(ticker.upper()))
-            .group_by(GeneratedContent.document_type)
+            .filter(Company.ticker == ticker.upper())
+            .group_by(GeneratedContent.description)
             .subquery()
         )
 
@@ -371,9 +368,9 @@ def get_recent_generated_content_by_ticker(ticker: str, limit: int = 10) -> List
             session.query(GeneratedContent)
             .join(Company, GeneratedContent.company_id == Company.id)
             .join(subquery,
-                  (GeneratedContent.document_type == subquery.c.document_type) &
+                  (GeneratedContent.description == subquery.c.description) &
                   (GeneratedContent.created_at == subquery.c.latest_date))
-            .filter(Company.tickers.any(ticker.upper()))
+            .filter(Company.ticker == ticker.upper())
             .limit(limit)
             .all()
         )

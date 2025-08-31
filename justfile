@@ -159,14 +159,13 @@ five-year-10-k-business-description-reporting TICKER:
   accession_numbers=$(just run cli filings list {{TICKER}} --form 10-K -o json | jq -r '.[] | .accession_number')
 
   # build list of document hashes from business descriptions
-  set -ex
   initial_summaries="[]"
 
   for accession in $accession_numbers; do
     document=$(just run cli documents list "$accession" --document-type DESCRIPTION -o json | jq -r '.[0].content_hash')
     single_summary=$(just run cli generated-content create \
       --company {{TICKER}} \
-      --document-type DESCRIPTION \
+      --description 'business_description_single_summary' \
       --prompt $prompt1 \
       --model-config $model_config1 \
       --source-documents $document -o json | jq -r '.content_hash')
@@ -184,11 +183,13 @@ five-year-10-k-business-description-reporting TICKER:
   aggregate_summary=$(just run cli generated-content create \
     --company {{TICKER}} \
     --prompt $prompt2 \
+    --description 'business_description_aggregate_summary' \
     --model-config $model_config2 \
     $source_content_args -o json  | jq -r '.content_hash')
 
   just run cli generated-content create \
     --company {{TICKER}} \
     --prompt $prompt3 \
+    --description 'business_description_frontpage_summary' \
     --model-config $model_config3 \
     --source-content $aggregate_summary

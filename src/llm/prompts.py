@@ -10,10 +10,8 @@ This module provides:
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel
 from src.database.documents import Document, DocumentType
 from src.database.generated_content import GeneratedContent
-from src.database.prompts import Prompt
 from src.llm.client import remove_thinking_tags
 from src.utils.logging import get_logger
 
@@ -127,18 +125,17 @@ def format_user_prompt_content(
     if source_content:
         for content in source_content:
             company = content.company
-            document_type = content.document_type
 
             # Try to get filing info from source documents if available
             filing_info = ""
             if content.source_documents:
                 document = content.source_documents[0]
                 filing = document.filing
-                filing_info = f'filing_type="{filing.filing_type}" fiscal_year="{filing.fiscal_year}"'
+                filing_info = f'generated_from_form="{filing.form}" generated_from_period_of_report="{filing.period_of_report}"'
 
             formatted_parts.append(f"""
 <document>
-<meta company_name="{company.name if company else 'Unknown'}" {filing_info} document_type="{document_type.value if document_type else 'Unknown'}" source_type="generated_content"/>
+<meta company_name="{company.name if company else 'Unknown'}" {filing_info}" source_type="generated_content"/>
 <content>
 {remove_thinking_tags(content.content) if content.content else ''}
 </content>

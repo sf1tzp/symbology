@@ -11,7 +11,7 @@ from rich.panel import Panel
 from rich.table import Table
 from src.database.base import get_db_session
 from src.database.companies import get_company_by_ticker
-from src.database.documents import Document, DocumentType, get_document_by_content_hash
+from src.database.documents import Document, get_document_by_content_hash
 import src.database.generated_content as db
 from src.database.model_configs import get_model_config_by_content_hash
 from src.database.prompts import create_prompt, get_prompt_by_content_hash, PromptRole
@@ -44,13 +44,11 @@ def generated_content():
 @click.option('--source-content', multiple=True, help='Content hashes of other generated content to use as source')
 @click.option('--additional-content', help='Additional text content to include (or "-" to read from stdin)')
 @click.option('--company', help='Company ticker (optional)')
-@click.option('--document-type',
-              type=click.Choice([dt.name for dt in DocumentType]),
-              help='Document type for the generated content')
+@click.option('--description', help='Optional description of the generated content')
 @click.option('-o', '--output', type=click.Choice(['table', 'json']), default='table', help='Output format')
 def create_generated_content(prompt: str, model_config: str, source_documents: Tuple[str],
                            source_content: Tuple[str], additional_content: Optional[str],
-                           company: Optional[str], document_type: Optional[str], output: str):
+                           company: Optional[str], description: Optional[str], output: str):
     """
     Generate AI content from prompt, model config, and source materials.
     """
@@ -210,9 +208,7 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
             else:
                 source_type = db.ContentSourceType.DOCUMENTS
 
-            doc_type_enum = None
-            if document_type:
-                doc_type_enum = DocumentType[document_type]
+            # No enum conversion needed anymore - description is just a string
 
             # Create GeneratedContent record
             if output != 'json':
@@ -220,7 +216,7 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
             generated_content_data = {
                 'content': response.response,
                 'company_id': company_obj.id if company_obj else None,
-                'document_type': doc_type_enum,
+                'description': description,
                 'source_type': source_type,
                 'total_duration': response.total_duration / 1e9 if hasattr(response, 'total_duration') else None,
                 'model_config_id': model_config_obj.id,
@@ -245,7 +241,7 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
                     "content_hash": generated_content_obj.content_hash,
                     "short_hash": generated_content_obj.get_short_hash(),
                     "company": company_obj.ticker if company_obj else None,
-                    "document_type": doc_type_enum.value if doc_type_enum else None,
+                    "description": description,
                     "source_type": source_type.value,
                     "created_at": generated_content_obj.created_at.isoformat() if generated_content_obj.created_at else None,
                     "content_size": len(response.response),
@@ -283,8 +279,8 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
                 console.print(f"  Additional Content: {len(additional_text)} characters")
             if company:
                 console.print(f"  Company: {company}")
-            if document_type:
-                console.print(f"  Document Type: {document_type}")
+            if description:
+                console.print(f"  Description: {description}")
 
     except Exception as e:
         if output == 'json':
@@ -336,7 +332,7 @@ def get_generated_content(hash: str, show_full: bool, output: str):
                 "content_hash": content_obj.content_hash,
                 "short_hash": content_obj.get_short_hash(),
                 "company": content_obj.company.ticker if content_obj.company else None,
-                "document_type": content_obj.document_type.value if content_obj.document_type else None,
+                "description": content_obj.description,
                 "source_type": content_obj.source_type.value,
                 "created_at": content_obj.created_at.isoformat() if content_obj.created_at else None,
                 "content_size": len(content_obj.content) if content_obj.content else 0,
@@ -355,7 +351,7 @@ def get_generated_content(hash: str, show_full: bool, output: str):
             table.add_row("[bold blue]ID:[/bold blue]", str(content_obj.id))
             table.add_row("[bold blue]Hash:[/bold blue]", content_obj.get_short_hash())
             table.add_row("[bold blue]Company:[/bold blue]", content_obj.company.ticker if content_obj.company else "None")
-            table.add_row("[bold blue]Document Type:[/bold blue]", content_obj.document_type.value if content_obj.document_type else "None")
+            table.add_row("[bold blue]Description:[/bold blue]", content_obj.description or "None")
             table.add_row("[bold blue]Source Type:[/bold blue]", content_obj.source_type.value)
             table.add_row("[bold blue]Created:[/bold blue]", content_obj.created_at.isoformat() if content_obj.created_at else "Unknown")
 
@@ -390,12 +386,10 @@ def get_generated_content(hash: str, show_full: bool, output: str):
 
 @generated_content.command('list')
 @click.option('--company', help='Filter by company ticker')
-@click.option('--document-type',
-              type=click.Choice([dt.name for dt in DocumentType]),
-              help='Filter by document type')
+@click.option('--description', help='Filter by description (partial match)')
 @click.option('--limit', default=10, help='Maximum number of items to show')
 @click.option('-o', '--output', type=click.Choice(['table', 'json']), default='table', help='Output format')
-def list_generated_content(company: str, document_type: str, limit: int, output: str):
+def list_generated_content(company: str, description: str, limit: int, output: str):
     """List generated content in the database."""
 
     # For JSON output, temporarily suppress INFO level logs to avoid interference with JSON parsing
@@ -419,9 +413,8 @@ def list_generated_content(company: str, document_type: str, limit: int, output:
                 db.GeneratedContent.company.has(ticker=company_upper)
             )
 
-        if document_type:
-            doc_type_enum = DocumentType[document_type]
-            query = query.filter(db.GeneratedContent.document_type == doc_type_enum)
+        if description:
+            query = query.filter(db.GeneratedContent.description.ilike(f"%{description}%"))
 
         content_list = query.limit(limit).all()
 

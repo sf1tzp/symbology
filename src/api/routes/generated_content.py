@@ -255,7 +255,7 @@ async def get_generated_content_sources(content_id: UUID):
                 {
                     "id": str(source.id),
                     "short_hash": source.get_short_hash(),
-                    "document_type": source.document_type.value if source.document_type else None,
+                    "description": source.description,
                     "type": "generated_content"
                 } for source in content.source_content
             ]

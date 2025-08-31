@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
 from sqlalchemy import Enum, String, Text
-from sqlalchemy.orm import attributes, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 from src.database.base import Base, get_db_session
 from src.utils.logging import get_logger
 from uuid_extensions import uuid7

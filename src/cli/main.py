@@ -22,16 +22,8 @@ Examples:
     symbology ratings create <content-hash> 5 "Excellent analysis"
 """
 
-import sys
-from pathlib import Path
 
 import click
-
-# Add project root to path for imports
-# sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from src.utils.config import settings
-from src.utils.logging import configure_logging, get_logger
 
 # Import command modules
 from src.cli.companies import companies
@@ -42,6 +34,11 @@ from src.cli.generated_content import generated_content
 from src.cli.model_configs import model_configs
 from src.cli.prompts import prompts
 from src.cli.ratings import ratings
+
+# Add project root to path for imports
+# sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.utils.config import settings
+from src.utils.logging import configure_logging, get_logger
 
 # Configure logging
 configure_logging(

@@ -4,12 +4,11 @@ import sys
 
 import click
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-
+from rich.table import Table
 from src.database.base import get_db_session
 from src.database.generated_content import get_generated_content_by_hash
-from src.database.ratings import Rating, create_rating
+from src.database.ratings import create_rating, Rating
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -177,7 +176,7 @@ def get_rating(rating_id: str):
             sys.exit(1)
 
         # Display rating info
-        panel_title = f"Rating Details"
+        panel_title = "Rating Details"
 
         table = Table(show_header=False, box=None, padding=(0, 1))
         table.add_row("[bold blue]ID:[/bold blue]", str(rating.id))
@@ -258,7 +257,7 @@ def rating_stats(content_hash: str):
 
         # Show distribution
         if content_scores:
-            console.print(f"\n[bold]Content Score Distribution:[/bold]")
+            console.print("\n[bold]Content Score Distribution:[/bold]")
             distribution = {}
             for score in content_scores:
                 distribution[score] = distribution.get(score, 0) + 1

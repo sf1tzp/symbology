@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import List, Optional, Dict, Callable
 from enum import Enum
+from typing import Callable, Dict, List, Optional
 
-from edgar import Company, EntityData, Filing, get_filings, set_identity
+from edgar import Filing, set_identity
 from src.database.documents import DocumentType
+
 # from edgar.xbrl import XBRL
 # import pandas as pd
 

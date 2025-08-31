@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 # Import the database ModelConfig - this is now the single source of truth
 from src.database.model_configs import ModelConfig
 
+
 def retry_backoff(timeout, func, *args, **kwargs):
     backoff = 1
     logger.debug("retry_backoff", backoff=backoff, timeout=timeout, func=func, args=args, kwargs=kwargs)

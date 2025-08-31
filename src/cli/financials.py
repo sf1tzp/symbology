@@ -4,14 +4,13 @@ import sys
 
 import click
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-
+from rich.table import Table
 from src.database.base import get_db_session
 from src.database.companies import get_company_by_ticker
+from src.database.filings import Filing
 from src.database.financial_concepts import FinancialConcept
 from src.database.financial_values import FinancialValue
-from src.database.filings import Filing
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)

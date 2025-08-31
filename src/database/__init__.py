@@ -82,7 +82,7 @@ from src.database.model_configs import (
 )
 
 # Prompts
-from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole, update_prompt
+from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole
 
 # Ratings
 from src.database.ratings import (

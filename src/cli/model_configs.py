@@ -97,7 +97,7 @@ def create_model_config(model_name: str, temperature: Optional[float], num_ctx: 
             'model': model_name,
             'options_json': json.dumps(config_options, sort_keys=True)
         }
-        model_config_obj = db.create_model_config(model_config_data)
+        model_config_obj = db.get_or_create_model_config(model_config_data)
 
         if output == 'json':
             # Prepare data for JSON output

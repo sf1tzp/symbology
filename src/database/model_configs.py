@@ -1,7 +1,7 @@
 """Database models for model configurations."""
 from datetime import datetime
-import json
 import hashlib
+import json
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
@@ -41,7 +41,7 @@ class ModelConfig(Base):
         """Convert ModelConfig to dictionary for API responses."""
         return {
             "id": str(self.id),
-            "name": self.model,
+            "model": self.model,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "options": json.loads(self.options_json),
         }
@@ -205,6 +205,49 @@ def create_model_config(model_config_data: Dict[str, Any]) -> ModelConfig:
     except Exception as e:
         session.rollback()
         logger.error("create_model_config_failed", error=str(e), exc_info=True)
+        raise
+
+
+def get_or_create_model_config(model_config_data: Dict[str, Any]) -> ModelConfig:
+    """Get existing model config by content hash or create a new one if it doesn't exist.
+
+    Args:
+        model_config_data: Dictionary containing model config data
+
+    Returns:
+        Existing or newly created ModelConfig object
+    """
+    try:
+        session = get_db_session()
+
+        # Create a temporary model config to generate the content hash
+        temp_model_config = ModelConfig(**model_config_data)
+        temp_model_config.update_content_hash()
+
+        # Check if a model config with this content hash already exists
+        existing_config = session.query(ModelConfig).filter(
+            ModelConfig.content_hash == temp_model_config.content_hash
+        ).first()
+
+        if existing_config:
+            logger.info("found_existing_model_config",
+                       model_config_id=str(existing_config.id),
+                       name=existing_config.model,
+                       content_hash=existing_config.content_hash)
+            return existing_config
+
+        # No existing config found, create a new one
+        session.add(temp_model_config)
+        session.commit()
+        logger.info("created_new_model_config",
+                   model_config_id=str(temp_model_config.id),
+                   name=temp_model_config.model,
+                   content_hash=temp_model_config.content_hash)
+        return temp_model_config
+
+    except Exception as e:
+        session.rollback()
+        logger.error("get_or_create_model_config_failed", error=str(e), exc_info=True)
         raise
 
 

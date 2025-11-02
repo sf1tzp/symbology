@@ -167,7 +167,7 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
         if output != 'json':
             console.print(f"[blue]Generating content using model {model_config_obj.model}...[/blue]")
         try:
-            response = get_generate_response(
+            response, warning = get_generate_response(
                 model_config=model_config_obj,
                 system_prompt=prompt_obj.content,
                 user_prompt=user_prompt
@@ -219,6 +219,7 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
                 'description': description,
                 'source_type': source_type,
                 'total_duration': response.total_duration / 1e9 if hasattr(response, 'total_duration') else None,
+                'warning': warning,
                 'model_config_id': model_config_obj.id,
                 'system_prompt_id': prompt_obj.id,
                 'user_prompt_id': user_prompt_obj.id
@@ -246,6 +247,7 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
                     "created_at": generated_content_obj.created_at.isoformat() if generated_content_obj.created_at else None,
                     "content_size": len(response.response),
                     "total_duration": response.total_duration / 1e9 if hasattr(response, 'total_duration') else None,
+                    "warning": warning,
                     "model_config_hash": model_config_obj.get_short_hash(),
                     "system_prompt_hash": prompt_obj.get_short_hash(),
                     "user_prompt_hash": user_prompt_obj.get_short_hash(),

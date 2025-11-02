@@ -322,6 +322,7 @@ class GeneratedContentResponse(BaseModel):
     source_type: str = Field(..., description="Type of sources used (documents, generated_content, both)")
     created_at: datetime = Field(..., description="Timestamp when the content was created")
     total_duration: Optional[float] = Field(None, description="Total duration of content generation in seconds")
+    warning: Optional[str] = Field(None, description="Warning message if any issues occurred during generation")
     content: Optional[str] = Field(None, description="The actual AI-generated content")
     summary: Optional[str] = Field(None, description="Generated summary of the content")
     model_config_id: Optional[UUID] = Field(None, description="ID of the model configuration used")

@@ -49,7 +49,7 @@ def get_chat_response(
         model_config: ModelConfig,
         messages: List[Dict],
         client: Optional[Client] = None,
-    ) -> ChatResponse:
+    ) -> tuple[ChatResponse, Optional[str]]:
 
     if not client:
         client = init_client(settings.openai_api.url)
@@ -64,8 +64,10 @@ def get_chat_response(
     options = Options(**options_dict)
     num_ctx = options_dict.get('num_ctx', 4096)
 
+    warning = None
     if input_tokens > num_ctx:
-        logger.warn("oversized_input", input_tokens=input_tokens, num_ctx=num_ctx)
+        warning = f"oversized_input: {input_tokens} tokens exceeds num_ctx {num_ctx}"
+        logger.info("oversized_input", input_tokens=input_tokens, num_ctx=num_ctx)
 
     response = retry_backoff(3600, client.chat, model_config.model, options=options, messages=messages)
 
@@ -82,7 +84,7 @@ def get_chat_response(
         tokens_per_second=f"{tokens_per_second:0.2f} tokens/s",
     )
 
-    return response
+    return response, warning
 
 
 
@@ -111,7 +113,7 @@ def remove_thinking_tags(content: str):
 
 
 
-def get_generate_response(model_config: ModelConfig, system_prompt: str, user_prompt: str, client: Optional[Client] = None) -> GenerateResponse:
+def get_generate_response(model_config: ModelConfig, system_prompt: str, user_prompt: str, client: Optional[Client] = None) -> tuple[GenerateResponse, Optional[str]]:
     if not client:
         client = init_client(settings.openai_api.url)
 
@@ -124,8 +126,10 @@ def get_generate_response(model_config: ModelConfig, system_prompt: str, user_pr
     options = Options(**options_dict)
     num_ctx = options_dict.get('num_ctx', 4096)
 
+    warning = None
     if input_tokens > num_ctx:
-        logger.warn("oversized_input", tokens=input_tokens, num_ctx=num_ctx)
+        warning = f"oversized_input: {input_tokens} tokens exceeds num_ctx {num_ctx}"
+        logger.warning("oversized_input", tokens=input_tokens, num_ctx=num_ctx)
 
     response = retry_backoff(
         timeout=3600,
@@ -148,4 +152,4 @@ def get_generate_response(model_config: ModelConfig, system_prompt: str, user_pr
         tokens_per_second=tokens_per_second,
     )
 
-    return response
+    return response, warning

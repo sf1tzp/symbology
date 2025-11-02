@@ -131,9 +131,9 @@ def create_prompt(prompt_data: Dict[str, Any]) -> tuple[Prompt, bool]:
                 raise ValueError(f"Invalid role '{prompt_data['role']}'. Valid roles: {valid_roles}") from None
 
         # Create a temporary prompt to generate content hash
-        temp_prompt = Prompt(**prompt_data)
-        temp_prompt.update_content_hash()
-        content_hash = temp_prompt.content_hash
+        prompt = Prompt(**prompt_data)
+        prompt.update_content_hash()
+        content_hash = prompt.content_hash
 
         # Check if a prompt with the same content hash already exists
         existing_prompt = session.query(Prompt).filter(Prompt.content_hash == content_hash).first()
@@ -145,8 +145,6 @@ def create_prompt(prompt_data: Dict[str, Any]) -> tuple[Prompt, bool]:
             return existing_prompt, False
 
         # Create new prompt if no duplicate found
-        prompt = Prompt(**prompt_data)
-        prompt.update_content_hash()
         session.add(prompt)
         session.commit()
         logger.info("created_prompt", prompt_id=str(prompt.id), name=prompt.name, content_hash=content_hash)

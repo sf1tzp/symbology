@@ -1,1 +1,0 @@
-Consider these historical reports. Write 100 words providing an overview of the company.

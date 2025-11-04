@@ -89,9 +89,9 @@ class FilingResponse(BaseModel):
                 "id": "123e4567-e89b-12d3-a456-426614174001",
                 "company_id": "123e4567-e89b-12d3-a456-426614174000",
                 "accession_number": "0000320193-23-000077",
-                "filing_type": "10-K",
+                "form": "10-K",
                 "filing_date": "2023-11-03",
-                "filing_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019323000077/aapl-20230930.htm",
+                "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019323000077/aapl-20230930.htm",
                 "period_of_report": "2023-09-30"
             }
         }
@@ -122,9 +122,9 @@ class DocumentResponse(BaseModel):
                     "id": "123e4567-e89b-12d3-a456-426614174001",
                     "company_id": "123e4567-e89b-12d3-a456-426614174000",
                     "accession_number": "0000320193-23-000077",
-                    "filing_type": "10-K",
+                    "form": "10-K",
                     "filing_date": "2023-11-03",
-                    "filing_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019323000077/aapl-20230930.htm",
+                    "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019323000077/aapl-20230930.htm",
                     "period_of_report": "2023-09-30"
                 }
             }

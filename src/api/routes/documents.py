@@ -15,6 +15,44 @@ logger = get_logger(__name__)
 # Create router
 router = APIRouter()
 
+
+def _document_to_response(document, include_content: bool = True) -> DocumentResponse:
+    """Convert a Document model to DocumentResponse.
+
+    Args:
+        document: The document object to convert
+        include_content: Whether to include the document content in the response (default: True)
+
+    Returns:
+        DocumentResponse object with document details and filing information
+    """
+    response_data = {
+        "id": document.id,
+        "filing_id": document.filing_id,
+        "company_ticker": document.company.ticker,
+        "title": document.title,
+        "document_type": document.document_type,
+        "content": document.content if include_content else None,
+        "content_hash": getattr(document, 'content_hash', None),
+        "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
+        "filing": None
+    }
+
+    # Include filing information if available
+    if document.filing_id and hasattr(document, 'filing') and document.filing:
+        filing = document.filing
+        response_data["filing"] = {
+            "id": filing.id,
+            "company_id": filing.company_id,
+            "accession_number": filing.accession_number,
+            "form": filing.form,
+            "filing_date": filing.filing_date,
+            "url": filing.url,
+            "period_of_report": filing.period_of_report
+        }
+
+    return DocumentResponse(**response_data)
+
 @router.get(
     "/{document_id}",
     response_model=DocumentResponse,
@@ -32,33 +70,7 @@ async def get_document_by_id(document_id: UUID):
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Convert document to response format
-        response_data = {
-            "id": document.id,
-            "filing_id": document.filing_id,
-            "company_ticker": document.company.ticker,
-            "title": document.title,
-            "document_type": document.document_type,
-            "content": document.content,
-            "content_hash": getattr(document, 'content_hash', None),
-            "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
-            "filing": None
-        }
-
-        # Include filing information if available
-        if document.filing_id and hasattr(document, 'filing') and document.filing:
-            filing = document.filing
-            response_data["filing"] = {
-                "id": filing.id,
-                "company_id": filing.company_id,
-                "accession_number": filing.accession_number,
-                "form": filing.form,
-                "filing_date": filing.filing_date,
-                "url": filing.url,
-                "period_of_report": filing.period_of_report
-            }
-
-        return response_data
+        return _document_to_response(document, include_content=True)
     except ValueError as e:
         logger.error("invalid_uuid_format", document_id=str(document_id), error=str(e))
         raise HTTPException(
@@ -133,34 +145,7 @@ async def get_documents_by_filing_id(filing_id: UUID):
             raise HTTPException(status_code=404, detail="No documents found for this filing")
 
         # Convert to response format
-        response_data = []
-        for document in documents:
-            doc_data = {
-                "id": document.id,
-                "filing_id": document.filing_id,
-                "company_ticker": document.company.ticker,
-                "title": document.title,
-                "document_type": document.document_type,
-                "content": document.content,
-                "content_hash": getattr(document, 'content_hash', None),
-                "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
-                "filing": None
-            }
-
-            # Include filing information if available
-            if hasattr(document, 'filing') and document.filing:
-                filing = document.filing
-                doc_data["filing"] = {
-                    "id": filing.id,
-                    "company_id": filing.company_id,
-                    "accession_number": filing.accession_number,
-                    "filing_type": filing.filing_type,
-                    "filing_date": filing.filing_date,
-                    "filing_url": filing.filing_url,
-                    "period_of_report": filing.period_of_report
-                }
-
-            response_data.append(doc_data)
+        response_data = [_document_to_response(document, include_content=False) for document in documents]
 
         logger.info("api_get_documents_by_filing_success",
                    filing_id=str(filing_id),
@@ -176,11 +161,12 @@ async def get_documents_by_filing_id(filing_id: UUID):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("error_getting_documents_by_filing", filing_id=str(filing_id), error=str(e))
+        logger.error("api_get_documents_by_filing_failed", filing_id=str(filing_id), error=str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get documents for filing: {str(e)}"
+            detail=f"Failed to get documents by filing ID: {str(e)}"
         ) from e
+
 
 @router.post(
     "/by-ids",
@@ -205,34 +191,7 @@ async def get_documents_by_ids(document_ids: List[UUID]):
             return []
 
         # Convert to response format
-        response_data = []
-        for document in documents:
-            doc_data = {
-                "id": document.id,
-                "filing_id": document.filing_id,
-                "company_ticker": document.company.ticker,
-                "document_type": document.document_type,
-                "title": document.title,
-                "content": document.content,
-                "content_hash": getattr(document, 'content_hash', None),
-                "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
-                "filing": None
-            }
-
-            # Include filing information if available
-            if hasattr(document, 'filing') and document.filing:
-                filing = document.filing
-                doc_data["filing"] = {
-                    "id": filing.id,
-                    "company_id": filing.company_id,
-                    "accession_number": filing.accession_number,
-                    "filing_type": filing.filing_type,
-                    "filing_date": filing.filing_date,
-                    "filing_url": filing.filing_url,
-                    "period_of_report": filing.period_of_report
-                }
-
-            response_data.append(doc_data)
+        response_data = [_document_to_response(document, include_content=True) for document in documents]
 
         logger.info("api_get_documents_by_ids_success",
                    document_count=len(response_data),
@@ -291,36 +250,10 @@ async def get_document_by_accession_and_hash(accession_number: str, content_hash
                 detail=f"Document not found with accession number {accession_number} and content hash {content_hash}"
             )
 
-        # Convert document to response format
-        response_data = {
-            "id": document.id,
-            "filing_id": document.filing_id,
-            "company_ticker": document.company.ticker,
-            "document_type": document.document_type,
-            "title": document.title,
-            "content": document.content,
-            "content_hash": getattr(document, 'content_hash', None),
-            "short_hash": document.get_short_hash() if hasattr(document, 'get_short_hash') and document.content_hash else None,
-            "filing": None
-        }
-
-        # Include filing information if available
-        if document.filing_id and hasattr(document, 'filing') and document.filing:
-            filing = document.filing
-            response_data["filing"] = {
-                "id": filing.id,
-                "company_id": filing.company_id,
-                "accession_number": filing.accession_number,
-                "filing_type": filing.filing_type,
-                "filing_date": filing.filing_date,
-                "filing_url": filing.filing_url,
-                "period_of_report": filing.period_of_report
-            }
-
         logger.info("api_get_document_by_accession_and_hash_success",
                    accession_number=accession_number, content_hash=content_hash,
                    document_id=str(document.id))
-        return DocumentResponse(**response_data)
+        return _document_to_response(document, include_content=True)
 
     except HTTPException:
         raise
@@ -331,4 +264,4 @@ async def get_document_by_accession_and_hash(accession_number: str, content_hash
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving document"
-        )
+        ) from e

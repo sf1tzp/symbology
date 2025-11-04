@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import Date, String, Text
+from sqlalchemy import Date, String
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
 from src.database.base import Base, get_db_session
@@ -41,9 +41,6 @@ class Company(Base):
     fiscal_year_end: Mapped[Optional[date]] = mapped_column(Date)
     former_names: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
 
-    # Generated Content
-    summary: Mapped[Optional[str]] = mapped_column(Text)
-
     def __repr__(self) -> str:
         return f"<Company(id={self.id}, name='{self.name}', ticker='{self.ticker}')>"
 
@@ -77,7 +74,7 @@ def get_all_company_tickers() -> List[str]:
         # Extract all tickers from all companies and flatten the list
         all_tickers = []
         for company in companies:
-            if company.tickers:
+            if company.ticker:
                 all_tickers.append(company.ticker)
 
         # Remove duplicates and sort

@@ -202,7 +202,7 @@ def test_create_prompt_function(db_session, sample_user_prompt_data):
         # Create a prompt using the helper function
         prompt, created = create_prompt(sample_user_prompt_data)
 
-        assert created == True
+        assert created == True # noqa: E712
 
         # Verify it was created correctly
         assert prompt.id is not None
@@ -355,7 +355,7 @@ def test_create_generated_content_with_prompts(db_session, create_test_system_pr
         # Create the generated content
         generated_content, created = create_generated_content(content_data)
 
-        assert created == True
+        assert created == True # noqa: E712
 
         # Verify prompt relationships
         assert generated_content.system_prompt_id == create_test_system_prompt.id

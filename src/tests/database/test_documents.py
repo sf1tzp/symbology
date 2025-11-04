@@ -17,16 +17,12 @@ def sample_company_data() -> Dict[str, Any]:
     """Sample company data for testing."""
     return {
         "name": "Test Company, Inc.",
-        "cik": "0000123456",
         "display_name": "Test Co",
-        "is_company": True,
-        "tickers": ["TEST"],
+        "ticker": "TEST",
         "exchanges": ["NYSE"],
         "sic": "7370",
         "sic_description": "Services-Computer Programming, Data Processing, Etc.",
         "fiscal_year_end": date(2023, 12, 31),
-        "entity_type": "Corporation",
-        "ein": "12-3456789"
     }
 
 @pytest.fixture
@@ -44,9 +40,9 @@ def sample_filing_data(create_test_company) -> Dict[str, Any]:
     return {
         "company_id": create_test_company.id,
         "accession_number": "0000123456-23-000123",
-        "filing_type": "10-K",
+        "form": "10-K",
         "filing_date": date(2023, 12, 31),
-        "filing_url": "https://www.sec.gov/Archives/edgar/data/123456/000012345623000123/test-10k.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/123456/000012345623000123/test-10k.htm",
         "period_of_report": date(2023, 12, 31)
     }
 
@@ -65,7 +61,7 @@ def sample_document_data(create_test_company, create_test_filing) -> Dict[str, A
     return {
         "company_id": create_test_company.id,
         "filing_id": create_test_filing.id,
-        "document_name": "10-K Annual Report",
+        "title": "10-K Annual Report",
         "content": "This is the annual report content for fiscal year 2023."
     }
 
@@ -74,7 +70,7 @@ def sample_document_data_minimal(create_test_company) -> Dict[str, Any]:
     """Minimal document data with only required fields."""
     return {
         "company_id": create_test_company.id,
-        "document_name": "Press Release",
+        "title": "Press Release",
         "content": "Company announces new product launch."
     }
 
@@ -87,19 +83,19 @@ def multiple_document_data(create_test_company, create_test_filing) -> List[Dict
         {
             "company_id": company_id,
             "filing_id": filing_id,
-            "document_name": "10-K",
+            "title": "10-K",
             "content": "Main 10-K document content."
         },
         {
             "company_id": company_id,
             "filing_id": filing_id,
-            "document_name": "EX-101.INS",
+            "title": "EX-101.INS",
             "content": "XBRL Instance Document."
         },
         {
             "company_id": company_id,
             "filing_id": filing_id,
-            "document_name": "EX-10.1",
+            "title": "EX-10.1",
             "content": "Material contract exhibit content."
         }
     ]
@@ -120,7 +116,7 @@ def test_create_document(db_session, sample_document_data):
     # Verify it can be retrieved from the database
     retrieved = db_session.query(Document).filter_by(id=document.id).first()
     assert retrieved is not None
-    assert retrieved.document_name == document.title
+    assert retrieved.title == document.title
     assert retrieved.content == document.content
 
 def test_create_minimal_document(db_session, sample_document_data_minimal):
@@ -147,7 +143,7 @@ def test_document_relationships(db_session, create_test_company, create_test_fil
 
     # Verify the filing relationship
     assert document.filing_id == create_test_filing.id
-    assert document.filing.filing_type == create_test_filing.filing_type
+    assert document.filing.form == create_test_filing.form
 
     # Check from the company side
     company = db_session.query(Company).filter_by(id=create_test_company.id).first()
@@ -204,7 +200,7 @@ def test_create_document_function(db_session, sample_document_data):
         # Verify it exists in the database
         retrieved = db_session.query(Document).filter_by(id=document.id).first()
         assert retrieved is not None
-        assert retrieved.document_name == document.title
+        assert retrieved.title == document.title
     finally:
         # Restore the original function
         documents_module.get_db_session = original_get_db_session
@@ -224,7 +220,7 @@ def test_update_document(db_session, sample_document_data):
     try:
         # Update the document
         updates = {
-            "document_name": "Updated 10-K Report",
+            "title": "Updated 10-K Report",
             "content": "Updated content for the annual report."
         }
 
@@ -240,7 +236,7 @@ def test_update_document(db_session, sample_document_data):
         assert updated.filing_id == document.filing_id
 
         # Test updating non-existent document
-        non_existent = update_document(uuid.uuid4(), {"document_name": "Test"})
+        non_existent = update_document(uuid.uuid4(), {"title": "Test"})
         assert non_existent is None
     finally:
         # Restore the original function
@@ -318,7 +314,7 @@ def test_update_with_invalid_attributes(db_session, sample_document_data):
     try:
         # Update with invalid attribute
         updates = {
-            "document_name": "Valid Update",
+            "title": "Valid Update",
             "invalid_field": "This field doesn't exist"
         }
 
@@ -389,7 +385,7 @@ def test_document_without_filing(db_session, create_test_company):
     # Create document data without filing_id
     document_data = {
         "company_id": create_test_company.id,
-        "document_name": "Standalone Document",
+        "title": "Standalone Document",
         "content": "This document is not associated with any filing."
     }
 
@@ -467,7 +463,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
         document = documents_module.find_or_create_document(
             company_id=create_test_company.id,
             filing_id=create_test_filing.id,
-            document_name="Risk Factors",
+            title="Risk Factors",
             document_type=documents_module.DocumentType.RISK_FACTORS,
             content="This is the risk factors content."
         )
@@ -481,7 +477,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
         document2 = documents_module.find_or_create_document(
             company_id=create_test_company.id,
             filing_id=create_test_filing.id,
-            document_name="Risk Factors",
+            title="Risk Factors",
             document_type=documents_module.DocumentType.RISK_FACTORS,
             content="This is updated risk factors content."
         )
@@ -494,7 +490,7 @@ def test_find_or_create_document(db_session, create_test_company, create_test_fi
         # Now test creating a document without a filing ID
         standalone_doc = documents_module.find_or_create_document(
             company_id=create_test_company.id,
-            document_name="Standalone Document",
+            title="Standalone Document",
             document_type=documents_module.DocumentType.DESCRIPTION,
             content="This is a document not associated with a filing.",
             filing_id=None
@@ -516,7 +512,7 @@ def test_find_or_create_document_update_existing(db_session, create_test_company
     document_data = {
         "company_id": create_test_company.id,
         "filing_id": create_test_filing.id,
-        "document_name": "MD&A",
+        "title": "MD&A",
         "document_type": documents_module.DocumentType.MDA,
         "content": "Original management discussion content."
     }
@@ -534,7 +530,7 @@ def test_find_or_create_document_update_existing(db_session, create_test_company
         updated_doc = documents_module.find_or_create_document(
             company_id=create_test_company.id,
             filing_id=create_test_filing.id,
-            document_name="MD&A",
+            title="MD&A",
             document_type=documents_module.DocumentType.MDA,
             content="Updated management discussion content."
         )
@@ -569,7 +565,7 @@ def test_get_documents_by_filing(db_session, create_test_company, create_test_fi
         # Check that the document names match what we created
         doc_names = [doc.title for doc in documents]
         for data in multiple_document_data:
-            assert data["document_name"] in doc_names
+            assert data["title"] in doc_names
 
         # Test with a filing ID that has no documents
         no_docs = documents_module.get_documents_by_filing(uuid.uuid4())

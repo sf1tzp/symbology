@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from src.api.schemas import CompanyResponse, DocumentResponse, FilingResponse
 from src.database.documents import get_documents_by_filing
 from src.database.filings import get_filing_by_accession_number, get_filings_by_company
+from src.database.generated_content import get_frontpage_summary_by_ticker
 from src.utils.logging import get_logger
 
 # Create logger for this module
@@ -13,6 +14,26 @@ logger = get_logger(__name__)
 
 # Create router
 router = APIRouter()
+
+
+def _filing_to_response(filing) -> FilingResponse:
+    """Convert a Filing model to FilingResponse.
+
+    Args:
+        filing: The filing object to convert
+
+    Returns:
+        FilingResponse object with filing details
+    """
+    return FilingResponse(
+        id=filing.id,
+        company_id=filing.company_id,
+        accession_number=filing.accession_number,
+        form=filing.form,
+        filing_date=filing.filing_date,
+        url=filing.url,
+        period_of_report=filing.period_of_report
+    )
 
 
 @router.get("/by-company/{company_id}", response_model=List[FilingResponse])
@@ -31,17 +52,7 @@ async def get_company_filings(company_id: UUID) -> List[FilingResponse]:
         filings = get_filings_by_company(company_id)
 
         # Convert to response models
-        filing_responses = []
-        for filing in filings:
-            filing_responses.append(FilingResponse(
-                id=filing.id,
-                company_id=filing.company_id,
-                accession_number=filing.accession_number,
-                form=filing.form,
-                filing_date=filing.filing_date,
-                url=filing.url,
-                period_of_report=filing.period_of_report
-            ))
+        filing_responses = [_filing_to_response(filing) for filing in filings]
 
         logger.info("company_filings_retrieved",
                    company_id=str(company_id),
@@ -80,17 +91,7 @@ async def get_filings_by_ticker(ticker: str) -> List[FilingResponse]:
         filings = get_filings_by_company(company.id)
 
         # Convert to response models
-        filing_responses = []
-        for filing in filings:
-            filing_responses.append(FilingResponse(
-                id=filing.id,
-                company_id=filing.company_id,
-                accession_number=filing.accession_number,
-                form=filing.form,
-                filing_date=filing.filing_date,
-                url=filing.url,
-                period_of_report=filing.period_of_report
-            ))
+        filing_responses = [_filing_to_response(filing) for filing in filings]
 
         logger.info("ticker_filings_retrieved",
                    ticker=ticker,
@@ -129,15 +130,7 @@ async def get_filing_by_accession(accession_number: str) -> FilingResponse:
                 detail=f"Filing with accession number '{accession_number}' not found"
             )
 
-        filing_response = FilingResponse(
-            id=filing.id,
-            company_id=filing.company_id,
-            accession_number=filing.accession_number,
-            form=filing.form,
-            filing_date=filing.filing_date,
-            url=filing.url,
-            period_of_report=filing.period_of_report
-        )
+        filing_response = _filing_to_response(filing)
 
         logger.info("filing_retrieved_by_accession",
                    accession_number=accession_number,
@@ -197,9 +190,9 @@ async def get_filing_documents_by_accession(accession_number: str) -> List[Docum
                 "id": filing.id,
                 "company_id": filing.company_id,
                 "accession_number": filing.accession_number,
-                "filing_type": filing.form,
+                "form": filing.form,
                 "filing_date": filing.filing_date,
-                "filing_url": filing.url,
+                "url": filing.url,
                 "period_of_report": filing.period_of_report
             }
 
@@ -248,6 +241,14 @@ async def get_filing_company_by_accession(accession_number: str) -> CompanyRespo
                 detail=f"Company not found for filing '{accession_number}'"
             )
 
+        # Get the frontpage summary from generated content
+        summary = None
+        if company.ticker:
+            try:
+                summary = get_frontpage_summary_by_ticker(company.ticker)
+            except Exception as e:
+                logger.warning("failed_to_get_frontpage_summary", ticker=company.ticker, error=str(e))
+
         company_response = CompanyResponse(
             id=company.id,
             name=company.name,
@@ -258,7 +259,7 @@ async def get_filing_company_by_accession(accession_number: str) -> CompanyRespo
             sic_description=company.sic_description,
             fiscal_year_end=company.fiscal_year_end,
             former_names=company.former_names,
-            summary=company.summary
+            summary=summary
         )
 
         logger.info("filing_company_retrieved_by_accession",

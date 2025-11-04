@@ -58,7 +58,7 @@ async def list_all_model_configs():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving model configurations"
-        )
+        ) from e
 
 
 @router.get(
@@ -114,7 +114,7 @@ async def get_model_config_by_id(config_id: UUID):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving model configuration"
-        )
+        ) from e
 
 
 @router.get(
@@ -170,4 +170,4 @@ async def get_model_config_by_model_name(model_name: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving model configuration"
-        )
+        ) from e

@@ -10,6 +10,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database.base import Base, get_db_session
 from src.database.companies import Company
+from src.database.documents import DocumentType
 from src.utils.logging import get_logger
 from uuid_extensions import uuid7
 
@@ -73,6 +74,16 @@ class GeneratedContent(Base):
     # description (optional, string description of the content)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
+    # Document type for disambiguation when content is generated from documents
+    document_type: Mapped[Optional[DocumentType]] = mapped_column(
+        SQLEnum(DocumentType, name="document_type_enum"),
+        nullable=True,
+        index=True
+    )
+
+    # Form type (10-K, 10-Q, etc.) associated with source documents
+    form_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, index=True)
+
     # Source type - what kind of sources this content was generated from
     source_type: Mapped[ContentSourceType] = mapped_column(
         SQLEnum(ContentSourceType, name="content_source_type_enum"),
@@ -83,6 +94,9 @@ class GeneratedContent(Base):
     # Timestamp fields
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     total_duration: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Warning field for storing warnings like oversized input
+    warning: Mapped[Optional[str]] = mapped_column(Text)
 
     # The actual content of the generated content
     content: Mapped[Optional[str]] = mapped_column(Text, deferred=True)
@@ -143,7 +157,10 @@ class GeneratedContent(Base):
     ratings: Mapped[Optional[List["Rating"]]] = relationship("Rating", back_populates="generated_content", lazy="noload")
 
     def __repr__(self) -> str:
-        return f"<GeneratedContent(id={self.id}, source_type='{self.source_type.value}', hash='{self.content_hash[:12] if self.content_hash else None}')>"
+        doc_type = f", doc_type='{self.document_type.value}'" if self.document_type else ""
+        form_type = f", form_type='{self.form_type}'" if self.form_type else ""
+        return f"<GeneratedContent(id={self.id}, source_type='{self.source_type.value}'{doc_type}{form_type}, hash='{self.content_hash[:12] if self.content_hash else None}')>" # noqa: E501
+
 
     def generate_content_hash(self) -> str:
         """Generate SHA256 hash of the content for URL identification."""
@@ -339,27 +356,28 @@ def get_generated_content_by_company_and_ticker(ticker: str, content_hash: str) 
 
 
 def get_recent_generated_content_by_ticker(ticker: str, limit: int = 10) -> List[GeneratedContent]:
-    """Get the most recent generated content for each description type by ticker.
+    """Get the most recent generated content for each document type by ticker.
 
     Args:
         ticker: Company ticker symbol
         limit: Maximum number of results to return
 
     Returns:
-        List of GeneratedContent objects - the most recent content for each description type
+        List of GeneratedContent objects - the most recent content for each document type
     """
     try:
         session = get_db_session()
 
-        # Subquery to get the most recent content for each description type
+        # Subquery to get the most recent content for each document type
         subquery = (
             session.query(
-                GeneratedContent.description,
+                GeneratedContent.document_type,
                 func.max(GeneratedContent.created_at).label('latest_date')
             )
             .join(Company, GeneratedContent.company_id == Company.id)
             .filter(Company.ticker == ticker.upper())
-            .group_by(GeneratedContent.description)
+            .filter(GeneratedContent.document_type.is_not(None))
+            .group_by(GeneratedContent.document_type)
             .subquery()
         )
 
@@ -368,7 +386,7 @@ def get_recent_generated_content_by_ticker(ticker: str, limit: int = 10) -> List
             session.query(GeneratedContent)
             .join(Company, GeneratedContent.company_id == Company.id)
             .join(subquery,
-                  (GeneratedContent.description == subquery.c.description) &
+                  (GeneratedContent.document_type == subquery.c.document_type) &
                   (GeneratedContent.created_at == subquery.c.latest_date))
             .filter(Company.ticker == ticker.upper())
             .limit(limit)
@@ -382,27 +400,93 @@ def get_recent_generated_content_by_ticker(ticker: str, limit: int = 10) -> List
         raise
 
 
-def create_generated_content(content_data: Dict[str, Any]) -> GeneratedContent:
+def get_aggregate_summaries_by_ticker(ticker: str, limit: int = 10) -> List[GeneratedContent]:
+    """Get the most recent aggregate summary content for a company by ticker.
+
+    Filters to only include generated content whose description contains "aggregate_summary".
+    Returns only the most recent content for each description type to avoid duplicates.
+
+    Args:
+        ticker: Company ticker symbol
+        limit: Maximum number of results to return (default: 10)
+
+    Returns:
+        List of GeneratedContent objects - the most recent aggregate summaries
+    """
+    try:
+        session = get_db_session()
+
+        # Subquery to get the most recent content for each aggregate summary description type
+        subquery = (
+            session.query(
+                GeneratedContent.description,
+                func.max(GeneratedContent.created_at).label('latest_date')
+            )
+            .join(Company, GeneratedContent.company_id == Company.id)
+            .filter(Company.ticker == ticker.upper())
+            .filter(GeneratedContent.description.contains('aggregate_summary'))
+            .group_by(GeneratedContent.description)
+            .subquery()
+        )
+
+        # Main query to get the actual content records
+        content_list = (
+            session.query(GeneratedContent)
+            .join(Company, GeneratedContent.company_id == Company.id)
+            .join(subquery,
+                  (GeneratedContent.description == subquery.c.description) &
+                  (GeneratedContent.created_at == subquery.c.latest_date))
+            .filter(Company.ticker == ticker.upper())
+            .filter(GeneratedContent.description.contains('aggregate_summary'))
+            .limit(limit)
+            .all()
+        )
+
+        logger.info("retrieved_aggregate_summaries_by_ticker", ticker=ticker, count=len(content_list))
+        return content_list
+    except Exception as e:
+        logger.error("get_aggregate_summaries_by_ticker_failed", ticker=ticker, error=str(e), exc_info=True)
+        raise
+
+
+def create_generated_content(content_data: Dict[str, Any]) -> tuple[GeneratedContent, bool]:
     """Create new generated content.
 
     Args:
         content_data: Dictionary containing generated content data
 
     Returns:
-        Created GeneratedContent object
+        Tuple of (GeneratedContent object, was_created: bool).
+        was_created is True if a new content was created, False if existing was returned.
     """
     try:
         session = get_db_session()
-        content = GeneratedContent(**content_data)
 
-        # Generate content hash if content is provided
+        # Create a temporary content object to generate content hash
+        temp_content = GeneratedContent(**content_data)
+        if temp_content.content and not temp_content.content_hash:
+            temp_content.update_content_hash()
+        content_hash = temp_content.content_hash
+
+        # Check if content with the same content hash already exists
+        if content_hash:
+            existing_content = session.query(GeneratedContent).filter(GeneratedContent.content_hash == content_hash).first()
+            if existing_content:
+                logger.info("found_existing_generated_content_with_same_content",
+                           content_id=str(existing_content.id),
+                           description=existing_content.description,
+                           content_hash=content_hash)
+                return existing_content, False
+
+        # Create new content if no duplicate found
+        content = GeneratedContent(**content_data)
         if content.content and not content.content_hash:
             content.update_content_hash()
 
         session.add(content)
         session.commit()
         logger.info("created_generated_content", content_id=str(content.id), hash=content.get_short_hash())
-        return content
+        return content, True
     except Exception as e:
         session.rollback()
         logger.error("create_generated_content_failed", error=str(e), exc_info=True)
@@ -559,4 +643,38 @@ def get_content_with_sources_loaded(content_id: Union[UUID, str]) -> Optional[Ge
         return content
     except Exception as e:
         logger.error("get_content_with_sources_loaded_failed", content_id=str(content_id), error=str(e), exc_info=True)
+        raise
+
+
+def get_frontpage_summary_by_ticker(ticker: str) -> Optional[str]:
+    """Get the most recent frontpage summary content for a company by ticker.
+
+    Args:
+        ticker: Company ticker symbol
+
+    Returns:
+        Content string of the frontpage summary if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+
+        # Query for the most recent frontpage summary for the company
+        content = (
+            session.query(GeneratedContent)
+            .join(Company, GeneratedContent.company_id == Company.id)
+            .filter(Company.ticker == ticker.upper())
+            .filter(GeneratedContent.description == 'business_description_frontpage_summary')
+            .order_by(GeneratedContent.created_at.desc())
+            .first()
+        )
+
+        if content and content.content:
+            logger.info("retrieved_frontpage_summary_by_ticker", ticker=ticker, content_id=str(content.id))
+            return content.content
+        else:
+            logger.warning("frontpage_summary_not_found_by_ticker", ticker=ticker)
+            return None
+
+    except Exception as e:
+        logger.error("get_frontpage_summary_by_ticker_failed", ticker=ticker, error=str(e), exc_info=True)
         raise

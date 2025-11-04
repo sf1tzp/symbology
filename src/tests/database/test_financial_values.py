@@ -25,16 +25,12 @@ def sample_company_data() -> Dict[str, Any]:
     """Sample company data for testing."""
     return {
         "name": "Test Company, Inc.",
-        "cik": "0000123456",
         "display_name": "Test Co",
-        "is_company": True,
-        "tickers": ["TEST"],
+        "ticker": "TEST",
         "exchanges": ["NYSE"],
         "sic": "7370",
         "sic_description": "Services-Computer Programming, Data Processing, Etc.",
         "fiscal_year_end": date(2023, 12, 31),
-        "entity_type": "Corporation",
-        "ein": "12-3456789"
     }
 
 @pytest.fixture
@@ -70,9 +66,9 @@ def sample_filing_data(create_test_company) -> Dict[str, Any]:
     return {
         "company_id": create_test_company.id,
         "accession_number": "0000123456-23-000123",
-        "filing_type": "10-K",
+        "form": "10-K",
         "filing_date": date(2023, 12, 31),
-        "filing_url": "https://www.sec.gov/Archives/edgar/data/123456/000012345623000123/test-10k.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/123456/000012345623000123/test-10k.htm",
         "period_of_report": date(2023, 12, 31)
     }
 
@@ -184,7 +180,7 @@ def test_financial_value_relationships(db_session, create_test_company, create_t
 
     # Check from the company side
     # Since Company.financial_values uses lazy="noload", query manually
-    company = db_session.query(Company).filter_by(id=create_test_company.id).first()
+    db_session.query(Company).filter_by(id=create_test_company.id).first()
     company_financial_values = db_session.query(FinancialValue).filter_by(company_id=create_test_company.id).all()
     assert len(company_financial_values) > 0
     assert company_financial_values[0].id == financial_value.id
@@ -196,7 +192,7 @@ def test_financial_value_relationships(db_session, create_test_company, create_t
 
     # Check from the filing side
     # Since Filing.financial_values uses lazy="noload", query manually
-    filing = db_session.query(Filing).filter_by(id=create_test_filing.id).first()
+    db_session.query(Filing).filter_by(id=create_test_filing.id).first()
     filing_financial_values = db_session.query(FinancialValue).filter_by(filing_id=create_test_filing.id).all()
     assert len(filing_financial_values) > 0
     assert filing_financial_values[0].id == financial_value.id

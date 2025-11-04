@@ -102,10 +102,6 @@ __all__ = [
     "Company", "Filing", "Document", "FinancialConcept", "FinancialValue",
     "Completion", "Aggregate", "Rating", "Prompt", "PromptRole",
 
-    # Aggregate functions
-    "get_aggregate_ids", "get_aggregate", "create_aggregate", "update_aggregate", "delete_aggregate",
-    "get_aggregates_by_completion",
-
     # Company functions
     "get_company_ids", "get_company", "create_company", "update_company", "delete_company",
 
@@ -122,9 +118,6 @@ __all__ = [
     # Financial Value functions
     "get_financial_value_ids", "get_financial_value", "create_financial_value",
     "update_financial_value", "delete_financial_value",
-
-    # Completion functions
-    "get_completion_ids", "get_completion", "create_completion", "update_completion", "delete_completion",
 
     # Rating functions
     "get_rating_ids", "get_rating", "create_rating", "update_rating", "delete_rating",

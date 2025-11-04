@@ -1,39 +1,43 @@
 """Tests for the document API endpoints."""
-from unittest.mock import MagicMock, patch
-from uuid import uuid4
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from src.api.main import create_app
+from src.database.companies import Company
+from src.database.documents import Document, DocumentType
+from uuid_extensions import uuid7
 
 client = TestClient(create_app())
 
 # Sample data for tests
-SAMPLE_COMPANY_ID = uuid4()
-SAMPLE_FILING_ID = uuid4()
-SAMPLE_DOCUMENT_ID = uuid4()
+SAMPLE_COMPANY_ID = uuid7()
+SAMPLE_FILING_ID = uuid7()
+SAMPLE_DOCUMENT_ID = uuid7()
 
+SAMPLE_COMPANY = Company(
+    id=SAMPLE_COMPANY_ID,
+    name="Apple Inc.",
+    display_name="Apple",
+    ticker="AAPL",
+    exchanges=["NASDAQ"],
+    sic="3571",
+    sic_description="Electronic Computers",
+    fiscal_year_end="2023-09-30",
+    former_names=[]
+)
 
-def create_mock_document():
-    """Create a mock document object for testing."""
-    mock_document = MagicMock()
-    mock_document.id = SAMPLE_DOCUMENT_ID
-    mock_document.filing_id = SAMPLE_FILING_ID
-    mock_document.company_id = SAMPLE_COMPANY_ID
-    mock_document.document_name = "test_10k.htm"
-    mock_document.document_type = "10-K"
-    mock_document.content = "This is a sample 10-K document content"
-    mock_document.content_hash = "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
-    mock_document.filing = None  # No filing relationship for basic test
+SAMPLE_DOCUMENT = Document(
+    id=SAMPLE_DOCUMENT_ID,
+    filing_id=SAMPLE_FILING_ID,
+    company_id=SAMPLE_COMPANY_ID,
+    title="Management Discussion and Analysis",
+    document_type=DocumentType.MDA,
+    content="This is a sample 10-K document content",
+    content_hash="a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
+)
 
-    # Mock the company relationship
-    mock_company = MagicMock()
-    mock_company.ticker = "AAPL"
-    mock_document.company = mock_company
-
-    # Mock the get_short_hash method
-    mock_document.get_short_hash.return_value = "a1b2c3d4"
-
-    return mock_document
+# Attach the company relationship
+SAMPLE_DOCUMENT.company = SAMPLE_COMPANY
 
 
 class TestDocumentApi:
@@ -43,7 +47,7 @@ class TestDocumentApi:
     def test_get_document_by_id_found(self, mock_get_document):
         """Test retrieving a document by ID when it exists."""
         # Setup the mock to return our sample document
-        mock_get_document.return_value = create_mock_document()
+        mock_get_document.return_value = SAMPLE_DOCUMENT
 
         # Make the API call
         response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}")
@@ -54,11 +58,11 @@ class TestDocumentApi:
         assert data["id"] == str(SAMPLE_DOCUMENT_ID)
         assert data["filing_id"] == str(SAMPLE_FILING_ID)
         assert data["company_ticker"] == "AAPL"
-        assert data["document_name"] == "test_10k.htm"
-        assert data["document_type"] == "10-K"
+        assert data["title"] == "Management Discussion and Analysis"
+        assert data["document_type"] == "management_discussion"
         assert data["content"] == "This is a sample 10-K document content"
         assert data["content_hash"] == "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
-        assert data["short_hash"] == "a1b2c3d4"
+        assert data["short_hash"] == "a1b2c3d4e5f6"
         assert data["filing"] is None
 
         # Verify the mock was called with the correct arguments
@@ -94,7 +98,7 @@ class TestDocumentApi:
     def test_get_document_content_found(self, mock_get_document):
         """Test retrieving document content when document exists."""
         # Setup the mock to return our sample document
-        mock_get_document.return_value = create_mock_document()
+        mock_get_document.return_value = SAMPLE_DOCUMENT
 
         # Make the API call
         response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}/content")
@@ -126,10 +130,18 @@ class TestDocumentApi:
     @patch("src.api.routes.documents.get_document")
     def test_get_document_content_no_content(self, mock_get_document):
         """Test retrieving document content when document has no content."""
-        # Setup document mock without content
-        mock_document = create_mock_document()
-        mock_document.content = None
-        mock_get_document.return_value = mock_document
+        # Setup document without content
+        doc_no_content = Document(
+            id=SAMPLE_DOCUMENT_ID,
+            filing_id=SAMPLE_FILING_ID,
+            company_id=SAMPLE_COMPANY_ID,
+            title="Management Discussion and Analysis",
+            document_type=DocumentType.MDA,
+            content=None,
+            content_hash="a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
+        )
+        doc_no_content.company = SAMPLE_COMPANY
+        mock_get_document.return_value = doc_no_content
 
         # Make the API call
         response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}/content")
@@ -144,10 +156,18 @@ class TestDocumentApi:
     @patch("src.api.routes.documents.get_document")
     def test_get_document_content_empty_string(self, mock_get_document):
         """Test retrieving document content when content is empty string."""
-        # Setup document mock with empty content
-        mock_document = create_mock_document()
-        mock_document.content = ""
-        mock_get_document.return_value = mock_document
+        # Setup document with empty content
+        doc_empty = Document(
+            id=SAMPLE_DOCUMENT_ID,
+            filing_id=SAMPLE_FILING_ID,
+            company_id=SAMPLE_COMPANY_ID,
+            title="Management Discussion and Analysis",
+            document_type=DocumentType.MDA,
+            content="",
+            content_hash="a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
+        )
+        doc_empty.company = SAMPLE_COMPANY
+        mock_get_document.return_value = doc_empty
 
         # Make the API call
         response = client.get(f"/documents/{SAMPLE_DOCUMENT_ID}/content")

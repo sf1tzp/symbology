@@ -77,16 +77,21 @@
 
 	// Helper function to get analysis type display name
 	function getAnalysisTypeDisplay(documentType: string): string {
-		switch (documentType?.toUpperCase()) {
-			case 'MANAGEMENT_DISCUSSION':
-				return 'Management Discussion';
-			case 'RISK_FACTORS':
-				return 'Risk Factors';
-			case 'BUSINESS_DESCRIPTION':
-				return 'Business Description';
-			default:
-				return documentType;
-		}
+		const type = documentType?.toLowerCase() ?? '';
+
+		// Core document types
+		if (type.includes('management_discussion')) return 'Management Discussion';
+		if (type.includes('risk_factors')) return 'Risk Factors';
+		if (type.includes('business_description')) return 'Business Description';
+
+		// Additional document sections
+		if (type.includes('controls_procedures')) return 'Controls & Procedures';
+		if (type.includes('legal_proceedings')) return 'Legal Proceedings';
+		if (type.includes('market_risk')) return 'Market Risk';
+		if (type.includes('executive_compensation')) return 'Executive Compensation';
+		if (type.includes('directors_officers')) return 'Directors & Officers';
+
+		return documentType;
 	}
 </script>
 
@@ -155,13 +160,13 @@
 				<CardHeader>
 					<CardTitle class="text-lg">Generated Content</CardTitle>
 					{#if data.content?.content}
-						<div class="flex items-center text-sm text-muted-foreground">
+						<div class="text-muted-foreground flex items-center text-sm">
 							<HandCoins class="mr-2 h-4 w-4" />
 							~{estimateTokens(data.content.content || '')} tokens
 						</div>
 					{/if}
 
-					<div class="flex flex-col space-y-2 text-sm text-muted-foreground sm:text-right">
+					<div class="text-muted-foreground flex flex-col space-y-2 text-sm sm:text-right">
 						{#if data.content?.content}
 							<div class="flex items-center">
 								<Calendar class="mr-2 h-4 w-4" />

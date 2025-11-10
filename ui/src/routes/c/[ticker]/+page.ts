@@ -4,7 +4,7 @@ import type {
 	GeneratedContentResponse,
 	FilingResponse
 } from '$lib/generated-api-types';
-import { getCompanyByTicker, getGeneratedContentByTicker, getFilingsByTicker } from '$lib/api';
+import { getCompanyByTicker, getAggregateSummariesByTicker, getFilingsByTicker } from '$lib/api';
 
 export const load: PageLoad = async ({ params }) => {
 	const { ticker } = params;
@@ -14,7 +14,7 @@ export const load: PageLoad = async ({ params }) => {
 		// Load company data, generated content, and filings in parallel
 		const [company, generatedContent, filings] = await Promise.all([
 			getCompanyByTicker(upperTicker),
-			getGeneratedContentByTicker(upperTicker, 5),
+			getAggregateSummariesByTicker(upperTicker, 5),
 			getFilingsByTicker(upperTicker, 5)
 		]);
 

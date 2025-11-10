@@ -68,16 +68,21 @@
 
 	// Helper function to get analysis type display name
 	function getAnalysisTypeDisplay(documentType: string): string {
-		switch (documentType?.toUpperCase()) {
-			case 'MANAGEMENT_DISCUSSION':
-				return 'Management Discussion';
-			case 'RISK_FACTORS':
-				return 'Risk Factors';
-			case 'BUSINESS_DESCRIPTION':
-				return 'Business Description';
-			default:
-				return documentType;
-		}
+		const type = documentType?.toLowerCase() ?? '';
+
+		// Core document types
+		if (type.includes('management_discussion')) return 'Management Discussion';
+		if (type.includes('risk_factors')) return 'Risk Factors';
+		if (type.includes('business_description')) return 'Business Description';
+
+		// Additional document sections
+		if (type.includes('controls_procedures')) return 'Controls & Procedures';
+		if (type.includes('legal_proceedings')) return 'Legal Proceedings';
+		if (type.includes('market_risk')) return 'Market Risk';
+		if (type.includes('executive_compensation')) return 'Executive Compensation';
+		if (type.includes('directors_officers')) return 'Directors & Officers';
+
+		return documentType;
 	}
 
 	function handleBrowseAllAnalysis() {
@@ -89,8 +94,7 @@
 	}
 
 	function format_filing_in_list(filing: FilingResponse) {
-		const year = new Date(filing.period_of_report).getFullYear();
-		return `${year} ${filing.filing_type}`;
+		return `${ticker} ${filing.form} for period ending ${filing.period_of_report}`;
 	}
 
 	/**
@@ -139,11 +143,11 @@
 		<div class="space-y-2">
 			<div class="flex items-center space-x-3">
 				<h1 class="text-4xl font-bold">{displayCompany.display_name || displayCompany.name}</h1>
-				<span class="rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
+				<span class="bg-primary text-primary-foreground rounded-full px-3 py-1 text-sm font-medium">
 					{ticker}
 				</span>
 			</div>
-			<div class="flex items-center space-x-4 text-sm text-muted-foreground">
+			<div class="text-muted-foreground flex items-center space-x-4 text-sm">
 				{#if displayCompany.sic_description}
 					<span>{displayCompany.sic_description}</span>
 				{/if}
@@ -166,7 +170,7 @@
 			{#if displayCompany.summary && displayCompany.summary.trim()}
 				<MarkdownContent content={cleanContent(displayCompany.summary) || 'what'} />
 			{:else}
-				<p class="leading-relaxed text-muted-foreground">No description available.</p>
+				<p class="text-muted-foreground leading-relaxed">No description available.</p>
 			{/if}
 		</CardContent>
 	</Card>
@@ -195,15 +199,15 @@
 
 	<!-- Section 3: Links to Filings / Analysis -->
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-		<!-- AI Analysis -->
+		<!-- LLM Analysis -->
 		<Card>
 			<CardHeader>
 				<CardTitle class="flex items-center space-x-2">
 					<span>🤖</span>
-					<span>LLM Analysis</span>
+					<span>AI Analysis Summaries</span>
 				</CardTitle>
 				<CardDescription>
-					LLM-generated insights and analysis for {displayCompany.display_name ||
+					High-level LLM-generated summaries and insights for {displayCompany.display_name ||
 						displayCompany.name}
 				</CardDescription>
 			</CardHeader>
@@ -212,14 +216,14 @@
 					<div class="space-y-3">
 						{#each generatedContent as content}
 							<div
-								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
+								class="hover:bg-muted flex items-center justify-between rounded-lg border p-3 transition-colors"
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
-										{getAnalysisTypeDisplay(content.document_type)} Analysis
+										{getAnalysisTypeDisplay(content.document_type)} Summary
 									</div>
-									<div class="flex items-center space-x-2 text-xs text-muted-foreground">
-										<span class="rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground">
+									<div class="text-muted-foreground flex items-center space-x-2 text-xs">
+										<span class="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs">
 											Content Generated on {formatDate(content.created_at)}
 										</span>
 									</div>
@@ -236,9 +240,9 @@
 					</div>
 				{:else}
 					<div class="py-8 text-center">
-						<div class="mb-4 text-muted-foreground">No analysis available yet</div>
-						<p class="text-sm text-muted-foreground">
-							Analysis will be generated from company filings and documents.
+						<div class="text-muted-foreground mb-4">No analysis summaries available yet</div>
+						<p class="text-muted-foreground text-sm">
+							Analysis summaries will be generated from company filings and documents.
 						</p>
 					</div>
 				{/if}
@@ -259,7 +263,7 @@
 					<div class="space-y-3">
 						{#each filings as filing}
 							<div
-								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
+								class="hover:bg-muted flex items-center justify-between rounded-lg border p-3 transition-colors"
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
@@ -278,8 +282,8 @@
 					</div>
 				{:else}
 					<div class="py-8 text-center">
-						<div class="mb-4 text-muted-foreground">No filings available</div>
-						<p class="text-sm text-muted-foreground">
+						<div class="text-muted-foreground mb-4">No filings available</div>
+						<p class="text-muted-foreground text-sm">
 							SEC filings will appear here when available for this company.
 						</p>
 					</div>

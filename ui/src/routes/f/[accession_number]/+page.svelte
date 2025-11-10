@@ -36,7 +36,7 @@
 
 <svelte:head>
 	<title
-		>Filing {data.filing?.filing_type || 'Unknown'} - {data.company?.name || 'Unknown'} - Symbology</title
+		>Filing {data.filing?.form || 'Unknown'} - {data.company?.name || 'Unknown'} - Symbology</title
 	>
 	<meta
 		name="description"

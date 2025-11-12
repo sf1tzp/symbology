@@ -37,7 +37,7 @@
 				<Cpu class="h-4 w-4 text-muted-foreground" />
 				<span class="font-medium">Model</span>
 				<Badge variant="secondary" class="font-mono text-sm">
-					{getModelDisplayName(config.name)}
+					{getModelDisplayName(config.model)}
 				</Badge>
 			</div>
 		</div>

@@ -4,7 +4,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from src.api.schemas import CompanyResponse
-from src.database.companies import get_company, get_company_by_cik, get_company_by_ticker, list_all_companies, search_companies_by_query
+from src.database.companies import Company, get_company, get_company_by_ticker, list_all_companies, search_companies_by_query
+from src.database.generated_content import get_frontpage_summary_by_ticker
 from src.utils.logging import get_logger
 
 # Create logger for this module
@@ -12,6 +13,30 @@ logger = get_logger(__name__)
 
 # Create router
 router = APIRouter()
+
+
+def _company_to_response(company: Company) -> CompanyResponse:
+    """Convert a Company model to CompanyResponse with frontpage summary."""
+    # Get the frontpage summary from generated content
+    summary = None
+    if company.ticker:
+        try:
+            summary = get_frontpage_summary_by_ticker(company.ticker)
+        except Exception as e:
+            logger.warning("failed_to_get_frontpage_summary", ticker=company.ticker, error=str(e))
+
+    return CompanyResponse(
+        id=company.id,
+        name=company.name,
+        display_name=company.display_name,
+        ticker=company.ticker,
+        exchanges=company.exchanges,
+        sic=company.sic,
+        sic_description=company.sic_description,
+        fiscal_year_end=company.fiscal_year_end,
+        former_names=company.former_names,
+        summary=summary
+    )
 
 @router.get(
     "/search",
@@ -36,7 +61,7 @@ async def search_companies_partial(
 
     logger.info("api_search_companies_partial", query=query, limit=limit)
     companies = search_companies_by_query(query, limit)
-    return companies
+    return [_company_to_response(company) for company in companies]
 
 @router.get(
     "/id/{company_id}",
@@ -47,13 +72,13 @@ async def search_companies_partial(
         500: {"description": "Internal server error"}
     }
 )
-async def get_company_by_id(company_id: UUID):
+async def get_company_by_id_route(company_id: UUID):
     """Get a company by its ID."""
     logger.info("api_get_company_by_id", company_id=str(company_id))
     company = get_company(company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
-    return company
+    return _company_to_response(company)
 
 @router.get(
     "/by-ticker/{ticker}",
@@ -70,7 +95,7 @@ async def get_company_by_ticker_route(ticker: str):
     company = get_company_by_ticker(ticker)
     if not company:
         raise HTTPException(status_code=404, detail=f"Company with ticker {ticker} not found")
-    return company
+    return _company_to_response(company)
 
 @router.get(
     "",
@@ -86,38 +111,31 @@ async def get_companies_route(
     skip: int = Query(0, description="Number of companies to skip", ge=0),
     limit: int = Query(50, description="Maximum number of companies to return", ge=1, le=100),
     ticker: Optional[str] = Query(None, description="Company ticker symbol"),
-    cik: Optional[str] = Query(None, description="Company CIK")
 ):
     """Get companies with various filtering options.
 
     Can be used for:
     - Searching companies by name/ticker with 'search' parameter
     - Getting paginated list with 'skip' and 'limit' parameters
-    - Finding specific company by 'ticker' or 'cik' parameters
+    - Finding specific company by 'ticker'
     """
-    # Handle specific ticker/CIK lookup
+    # Handle specific ticker lookup
     if ticker:
         logger.info("api_get_companies_by_ticker", ticker=ticker)
         company = get_company_by_ticker(ticker)
         if not company:
             raise HTTPException(status_code=404, detail=f"Company with ticker {ticker} not found")
-        return [company]
-    elif cik:
-        logger.info("api_get_companies_by_cik", cik=cik)
-        company = get_company_by_cik(cik)
-        if not company:
-            raise HTTPException(status_code=404, detail=f"Company with CIK {cik} not found")
-        return [company]
+        return [_company_to_response(company)]
 
     # Handle search functionality
     if search:
         logger.info("api_get_companies_search", search=search, limit=limit)
         companies = search_companies_by_query(search, limit)
-        return companies
+        return [_company_to_response(company) for company in companies]
 
     # Handle paginated list
     logger.info("api_get_companies_list", skip=skip, limit=limit)
     companies = list_all_companies(offset=skip, limit=limit)
-    return companies
+    return [_company_to_response(company) for company in companies]
 
 

@@ -16,16 +16,12 @@ def sample_company_data() -> Dict[str, Any]:
     """Sample company data for testing."""
     return {
         "name": "Test Company, Inc.",
-        "cik": "0000123456",
         "display_name": "Test Co",
-        "is_company": True,
-        "tickers": ["TEST"],
+        "ticker": "TEST",
         "exchanges": ["NYSE"],
         "sic": "7370",
         "sic_description": "Services-Computer Programming, Data Processing, Etc.",
         "fiscal_year_end": date(2023, 12, 31),
-        "entity_type": "Corporation",
-        "ein": "12-3456789"
     }
 
 @pytest.fixture
@@ -43,9 +39,9 @@ def sample_filing_data(create_test_company) -> Dict[str, Any]:
     return {
         "company_id": create_test_company.id,
         "accession_number": "0000123456-23-000123",
-        "filing_type": "10-K",
+        "form": "10-K",
         "filing_date": date(2023, 12, 31),
-        "filing_url": "https://www.sec.gov/Archives/edgar/data/123456/000012345623000123/test-10k.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/123456/000012345623000123/test-10k.htm",
         "period_of_report": date(2023, 12, 31)
     }
 
@@ -55,7 +51,7 @@ def sample_filing_data_minimal(create_test_company) -> Dict[str, Any]:
     return {
         "company_id": create_test_company.id,
         "accession_number": "0000123456-23-000456",
-        "filing_type": "8-K",
+        "form": "8-K",
         "filing_date": date(2023, 11, 15)
     }
 
@@ -67,21 +63,21 @@ def multiple_filing_data(create_test_company) -> List[Dict[str, Any]]:
         {
             "company_id": company_id,
             "accession_number": "0000123456-23-000789",
-            "filing_type": "10-Q",
+            "form": "10-Q",
             "filing_date": date(2023, 9, 30),
             "period_of_report": date(2023, 9, 30)
         },
         {
             "company_id": company_id,
             "accession_number": "0000123456-23-000790",
-            "filing_type": "10-Q",
+            "form": "10-Q",
             "filing_date": date(2023, 6, 30),
             "period_of_report": date(2023, 6, 30)
         },
         {
             "company_id": company_id,
             "accession_number": "0000123456-23-000791",
-            "filing_type": "10-Q",
+            "form": "10-Q",
             "filing_date": date(2023, 3, 31),
             "period_of_report": date(2023, 3, 31)
         }
@@ -98,13 +94,13 @@ def test_create_filing(db_session, sample_filing_data):
     # Verify it was created
     assert filing.id is not None
     assert filing.accession_number == "0000123456-23-000123"
-    assert filing.filing_type == "10-K"
+    assert filing.form == "10-K"
 
     # Verify it can be retrieved from the database
     retrieved = db_session.query(Filing).filter_by(id=filing.id).first()
     assert retrieved is not None
     assert retrieved.accession_number == filing.accession_number
-    assert retrieved.filing_type == filing.filing_type
+    assert retrieved.form == filing.form
     assert retrieved.filing_date == filing.filing_date
 
 def test_create_minimal_filing(db_session, sample_filing_data_minimal):
@@ -116,8 +112,8 @@ def test_create_minimal_filing(db_session, sample_filing_data_minimal):
     # Verify it was created with defaults
     assert filing.id is not None
     assert filing.accession_number == "0000123456-23-000456"
-    assert filing.filing_type == "8-K"
-    assert filing.filing_url is None
+    assert filing.form == "8-K"
+    assert filing.url is None
     assert filing.period_of_report is None
 
 def test_filing_company_relationship(db_session, create_test_company, sample_filing_data):
@@ -176,7 +172,7 @@ def test_create_filing_function(db_session, sample_filing_data):
         # Verify it was created correctly
         assert filing.id is not None
         assert filing.accession_number == "0000123456-23-000123"
-        assert filing.filing_type == "10-K"
+        assert filing.form == "10-K"
 
         # Verify it exists in the database
         retrieved = db_session.query(Filing).filter_by(id=filing.id).first()
@@ -209,7 +205,7 @@ def test_update_filing(db_session, sample_filing_data):
     try:
         # Update the filing
         updates = {
-            "filing_url": "https://updated-url.com/file.html",
+            "url": "https://updated-url.com/file.html",
             "period_of_report": date(2023, 12, 15)
         }
 
@@ -217,12 +213,12 @@ def test_update_filing(db_session, sample_filing_data):
 
         # Verify updates were applied
         assert updated is not None
-        assert updated.filing_url == "https://updated-url.com/file.html"
+        assert updated.url == "https://updated-url.com/file.html"
         assert updated.period_of_report == date(2023, 12, 15)
 
         # Check that other fields weren't changed
         assert updated.accession_number == "0000123456-23-000123"
-        assert updated.filing_type == "10-K"
+        assert updated.form == "10-K"
 
         # Test updating non-existent filing
         non_existent = update_filing(uuid.uuid4(), {"filing_type": "Test"})
@@ -322,7 +318,7 @@ def test_duplicate_accession_number(db_session, sample_filing_data, create_test_
 
     # Try to create second filing with same accession number
     filing2_data = sample_filing_data.copy()
-    filing2_data["filing_type"] = "8-K"  # Different filing type
+    filing2_data["form"] = "8-K"  # Different filing type
     filing2 = Filing(**filing2_data)
     db_session.add(filing2)
 
@@ -366,14 +362,14 @@ def test_update_with_invalid_attributes(db_session, sample_filing_data):
     try:
         # Update with invalid attribute
         updates = {
-            "filing_type": "10-Q",
+            "form": "10-Q",
             "invalid_field": "This field doesn't exist"
         }
 
         # Should still update valid fields but ignore invalid ones
         updated = update_filing(filing.id, updates)
         assert updated is not None
-        assert updated.filing_type == "10-Q"
+        assert updated.form == "10-Q"
 
         # The invalid field should not be added to the object
         assert not hasattr(updated, "invalid_field")
@@ -408,21 +404,21 @@ def test_upsert_filing_by_accession_number(db_session, create_test_company, samp
         result = filings_module.upsert_filing_by_accession_number(sample_filing_data)
         assert result is not None
         assert result.accession_number == "0000123456-23-000123"
-        assert result.filing_type == "10-K"
+        assert result.form == "10-K"
 
         # Now test updating the existing filing via upsert
         updated_data = {
             "accession_number": "0000123456-23-000123",  # Same accession number
-            "filing_type": "10-K/A",  # Amended filing
-            "filing_url": "https://updated-url.com/filing.html"
+            "form": "10-K/A",  # Amended filing
+            "url": "https://updated-url.com/filing.html"
         }
 
         updated_result = filings_module.upsert_filing_by_accession_number(updated_data)
 
         # Verify the filing was updated, not created new
         assert updated_result.id == result.id  # Same ID as before
-        assert updated_result.filing_type == "10-K/A"
-        assert updated_result.filing_url == "https://updated-url.com/filing.html"
+        assert updated_result.form == "10-K/A"
+        assert updated_result.url == "https://updated-url.com/filing.html"
 
         # Original fields not in update remain unchanged
         assert updated_result.accession_number == "0000123456-23-000123"
@@ -493,7 +489,7 @@ def test_get_filing_by_accession_number(db_session, sample_filing_data):
         retrieved = filings_module.get_filing_by_accession_number("0000123456-23-000123")
         assert retrieved is not None
         assert retrieved.id == filing.id
-        assert retrieved.filing_type == "10-K"
+        assert retrieved.form == "10-K"
 
         # Test with non-existent accession number
         non_existent = filings_module.get_filing_by_accession_number("9999999999-99-999999")

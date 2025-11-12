@@ -68,16 +68,21 @@
 
 	// Helper function to get analysis type display name
 	function getAnalysisTypeDisplay(documentType: string): string {
-		switch (documentType?.toUpperCase()) {
-			case 'MANAGEMENT_DISCUSSION':
-				return 'Management Discussion';
-			case 'RISK_FACTORS':
-				return 'Risk Factors';
-			case 'BUSINESS_DESCRIPTION':
-				return 'Business Description';
-			default:
-				return documentType;
-		}
+		const type = documentType?.toLowerCase() ?? '';
+
+		// Core document types
+		if (type.includes('management_discussion')) return 'Management Discussion';
+		if (type.includes('risk_factors')) return 'Risk Factors';
+		if (type.includes('business_description')) return 'Business Description';
+
+		// Additional document sections
+		if (type.includes('controls_procedures')) return 'Controls & Procedures';
+		if (type.includes('legal_proceedings')) return 'Legal Proceedings';
+		if (type.includes('market_risk')) return 'Market Risk';
+		if (type.includes('executive_compensation')) return 'Executive Compensation';
+		if (type.includes('directors_officers')) return 'Directors & Officers';
+
+		return documentType;
 	}
 
 	function handleBrowseAllAnalysis() {
@@ -89,8 +94,7 @@
 	}
 
 	function format_filing_in_list(filing: FilingResponse) {
-		const year = new Date(filing.period_of_report).getFullYear();
-		return `${year} ${filing.filing_type}`;
+		return `${ticker} ${filing.form} for period ending ${filing.period_of_report}`;
 	}
 
 	/**
@@ -195,15 +199,15 @@
 
 	<!-- Section 3: Links to Filings / Analysis -->
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-		<!-- AI Analysis -->
+		<!-- LLM Analysis -->
 		<Card>
 			<CardHeader>
 				<CardTitle class="flex items-center space-x-2">
 					<span>🤖</span>
-					<span>LLM Analysis</span>
+					<span>AI Analysis Summaries</span>
 				</CardTitle>
 				<CardDescription>
-					LLM-generated insights and analysis for {displayCompany.display_name ||
+					High-level LLM-generated summaries and insights for {displayCompany.display_name ||
 						displayCompany.name}
 				</CardDescription>
 			</CardHeader>
@@ -216,7 +220,7 @@
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
-										{getAnalysisTypeDisplay(content.document_type)} Analysis
+										{getAnalysisTypeDisplay(content.document_type)} Summary
 									</div>
 									<div class="flex items-center space-x-2 text-xs text-muted-foreground">
 										<span class="rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground">
@@ -236,9 +240,9 @@
 					</div>
 				{:else}
 					<div class="py-8 text-center">
-						<div class="mb-4 text-muted-foreground">No analysis available yet</div>
+						<div class="mb-4 text-muted-foreground">No analysis summaries available yet</div>
 						<p class="text-sm text-muted-foreground">
-							Analysis will be generated from company filings and documents.
+							Analysis summaries will be generated from company filings and documents.
 						</p>
 					</div>
 				{/if}

@@ -13,7 +13,7 @@
 
 	function handleSourceClick(source: DocumentResponse | GeneratedContentResponse) {
 		// Check if this is a document or generated content based on the presence of certain fields
-		if ('document_name' in source) {
+		if ('title' in source) {
 			// This is a document
 			const docSource = source as DocumentResponse;
 			dispatch('sourceSelected', {
@@ -22,7 +22,7 @@
 				filing_id: docSource.filing_id,
 				content_hash: docSource.content_hash,
 				short_hash: docSource.short_hash,
-				name: docSource.document_name,
+				name: docSource.title,
 				// Include filing accession number if available for URL construction
 				accession_number: docSource.filing?.accession_number
 			});
@@ -41,10 +41,10 @@
 	}
 
 	function getSourceTypeDisplay(source: DocumentResponse | GeneratedContentResponse): string {
-		if ('document_name' in source) {
+		if ('title' in source) {
 			// This is a document
 			const docSource = source as DocumentResponse;
-			const name = docSource.document_name.toLowerCase();
+			const name = docSource.title.toLowerCase();
 			if (name.includes('10-k')) return '10-K';
 			if (name.includes('10-q')) return '10-Q';
 			if (name.includes('8-k')) return '8-K';
@@ -69,8 +69,8 @@
 	}
 
 	function getSourceName(source: DocumentResponse | GeneratedContentResponse): string {
-		if ('document_name' in source) {
-			return (source as DocumentResponse).document_name;
+		if ('title' in source) {
+			return (source as DocumentResponse).title;
 		} else {
 			const contentSource = source as GeneratedContentResponse;
 			return contentSource.document_type
@@ -80,7 +80,7 @@
 	}
 
 	function getSourceIcon(source: DocumentResponse | GeneratedContentResponse) {
-		if ('document_name' in source) {
+		if ('title' in source) {
 			return FileText;
 		} else {
 			return Bot;

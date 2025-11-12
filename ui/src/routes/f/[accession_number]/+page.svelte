@@ -18,8 +18,8 @@
 	let { data }: { data: PageData } = $props();
 
 	function handleBackToCompany() {
-		if (data.company && data.company.tickers && data.company.tickers.length > 0) {
-			goto(`/c/${data.company.tickers[0]}`);
+		if (data.company && data.company.ticker) {
+			goto(`/c/${data.company.ticker}`);
 		} else {
 			goto('/');
 		}
@@ -36,7 +36,7 @@
 
 <svelte:head>
 	<title
-		>Filing {data.filing?.filing_type || 'Unknown'} - {data.company?.name || 'Unknown'} - Symbology</title
+		>Filing {data.filing?.form || 'Unknown'} - {data.company?.name || 'Unknown'} - Symbology</title
 	>
 	<meta
 		name="description"

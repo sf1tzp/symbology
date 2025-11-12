@@ -4,46 +4,15 @@
  * Run generate-api-types.js to regenerate.
  */
 
-export interface AggregateResponse {
-	/** Unique identifier for the aggregate */
-	id: string;
-	/** ID of the company this aggregate belongs to */
-	company_id?: any;
-	/** Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION) */
-	document_type?: any;
-	/** Timestamp when the aggregate was created */
-	created_at: string;
-	/** Total duration of the aggregate generation in seconds */
-	total_duration?: any;
-	/** Content of the aggregate */
-	content?: any;
-	/** Generated summary of the aggregate content */
-	summary?: any;
-	/** LLM model identifier used for the aggregate */
-	model: string;
-	/** Temperature parameter for the LLM */
-	temperature?: any;
-	/** Top-p parameter for the LLM */
-	top_p?: any;
-	/** Context window size for the LLM */
-	num_ctx?: any;
-	/** ID of the system prompt used */
-	system_prompt_id?: any;
-}
-
 export interface CompanyResponse {
 	/** Unique identifier for the company */
 	id: string;
-	/** Company CIK (Central Index Key) */
-	cik?: any;
 	/** Company name */
 	name: string;
 	/** Display name for the company */
 	display_name?: any;
-	/** Whether this is a company or not */
-	is_company?: boolean;
-	/** List of ticker symbols */
-	tickers?: string[];
+	/** Company tikcer symbol */
+	ticker: string;
 	/** List of exchanges where company is listed */
 	exchanges?: string[];
 	/** Standard Industrial Classification code */
@@ -52,37 +21,10 @@ export interface CompanyResponse {
 	sic_description?: any;
 	/** Date of fiscal year end */
 	fiscal_year_end?: any;
-	/** Type of entity */
-	entity_type?: any;
-	/** Employer Identification Number */
-	ein?: any;
 	/** List of former company names */
 	former_names?: object[];
 	/** Generated company summary based on aggregated analysis */
 	summary?: any;
-}
-
-export interface CompletionResponse {
-	/** Unique identifier for the completion */
-	id: string;
-	/** ID of the system prompt */
-	system_prompt_id?: any;
-	/** LLM model identifier used for completion */
-	model: string;
-	/** Temperature parameter for the LLM */
-	temperature?: any;
-	/** Top-p parameter for the LLM */
-	top_p?: any;
-	/** Context window size for the LLM */
-	num_ctx?: any;
-	/** List of document IDs used as sources */
-	source_documents?: string[];
-	/** Timestamp when the completion was created */
-	created_at: string;
-	/** Total duration of the completion in seconds */
-	total_duration?: any;
-	/** The actual AI-generated content of the completion */
-	content?: any;
 }
 
 export interface DocumentResponse {
@@ -93,7 +35,7 @@ export interface DocumentResponse {
 	/** ID of the company this document belongs to */
 	company_ticker: string;
 	/** Name of the document */
-	document_name: string;
+	title: string;
 	/** Type of the document */
 	document_type: string;
 	/** Text content of the document */
@@ -114,38 +56,13 @@ export interface FilingResponse {
 	/** SEC accession number */
 	accession_number: string;
 	/** SEC filing type (e.g., 10-K, 10-Q) */
-	filing_type: string;
+	form: string;
 	/** Date the filing was submitted */
 	filing_date: string;
 	/** URL to the filing on SEC website */
-	filing_url?: any;
+	url?: any;
 	/** Period covered by the report */
 	period_of_report?: any;
-}
-
-export interface GeneratedContentCreateRequest {
-	/** ID of the company */
-	company_id?: any;
-	/** Type of document */
-	document_type?: any;
-	/** Type of sources (documents, generated_content, both) */
-	source_type: string;
-	/** The generated content */
-	content?: any;
-	/** Summary of the content */
-	summary?: any;
-	/** ID of the model configuration */
-	model_config_id?: any;
-	/** ID of the system prompt */
-	system_prompt_id?: any;
-	/** ID of the user prompt */
-	user_prompt_id?: any;
-	/** List of source document IDs */
-	source_document_ids?: any;
-	/** List of source content IDs */
-	source_content_ids?: any;
-	/** Generation duration in seconds */
-	total_duration?: any;
 }
 
 export interface GeneratedContentResponse {
@@ -165,6 +82,8 @@ export interface GeneratedContentResponse {
 	created_at: string;
 	/** Total duration of content generation in seconds */
 	total_duration?: any;
+	/** Warning message if any issues occurred during generation */
+	warning?: any;
 	/** The actual AI-generated content */
 	content?: any;
 	/** Generated summary of the content */
@@ -185,19 +104,11 @@ export interface HTTPValidationError {
 	detail?: ValidationError[];
 }
 
-export interface LogRequest {
-	timestamp: string;
-	level: string;
-	component: string;
-	event: string;
-	user_agent: string;
-}
-
 export interface ModelConfigResponse {
 	/** Unique identifier for the model config */
 	id: string;
 	/** Model name */
-	name: string;
+	model: string;
 	/** Timestamp when the config was created */
 	created_at: string;
 	/** Ollama options as JSON */

@@ -1,7 +1,7 @@
 """Database models for model configurations."""
 from datetime import datetime
-import json
 import hashlib
+import json
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
@@ -24,8 +24,8 @@ class ModelConfig(Base):
     # Primary identifier
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
 
-    # Model name
-    name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    # Model information
+    model: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Timestamp fields
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
@@ -33,21 +33,23 @@ class ModelConfig(Base):
     # All ollama Options stored as JSON - single source of truth
     options_json: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+
     def __repr__(self) -> str:
-        return f"<ModelConfig(id={self.id}, name='{self.name}')>"
+        return f"<ModelConfig(id={self.id}, name='{self.model}')>"
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert ModelConfig to dictionary for API responses."""
         return {
             "id": str(self.id),
-            "name": self.name,
+            "model": self.model,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "options": json.loads(self.options_json),
         }
 
     def generate_content_hash(self) -> str:
         """Generate SHA256 hash of the content for URL identification."""
-        return hashlib.sha256(self.to_dict().encode('utf-8')).hexdigest()
+        content = f"{self.model}:{self.options_json}"
+        return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
     def get_short_hash(self, length: int = 12) -> str:
         """Get shortened version of content hash for URLs."""
@@ -60,30 +62,24 @@ class ModelConfig(Base):
         self.content_hash = self.generate_content_hash()
 
     @classmethod
-    def from_llm_model_config(cls, model_config) -> 'ModelConfig':
-        """Create a database ModelConfig from an LLM ModelConfig."""
-        # Convert Options to dict, preserving all fields
-        options_dict = {}
-        for field_name in dir(model_config.options):
-            if not field_name.startswith('_'):  # Skip private attributes
-                value = getattr(model_config.options, field_name, None)
-                if value is not None and not callable(value):
-                    options_dict[field_name] = value
+    def create_default(cls, name: str) -> 'ModelConfig':
+        """Create a ModelConfig with default ollama options."""
+        default_options = {
+            'num_ctx': 4096,
+            'temperature': 0.8,
+            'top_k': 40,
+            'top_p': 0.9,
+            'seed': 0b111001111110011101101110001011011111101100110111111001111111001,  # symbology
+            'num_predict': -1,
+            'num_gpu': None
+        }
 
-        return cls(
-            name=model_config.name,
-            options_json=json.dumps(options_dict, sort_keys=True)
+        model_config = cls(
+            model=name,
+            options_json=json.dumps(default_options, sort_keys=True)
         )
-
-    def to_llm_model_config(self):
-        """Convert database ModelConfig to LLM ModelConfig."""
-        from ollama import Options
-        from src.llm.client import ModelConfig as LLMModelConfig
-
-        options_dict = json.loads(self.options_json)
-        options = Options(**options_dict)
-
-        return LLMModelConfig(name=self.name, options=options)
+        model_config.update_content_hash()
+        return model_config
 
     # Helper properties for common access patterns
     @property
@@ -178,7 +174,7 @@ def get_model_config_by_name(name: str) -> Optional[ModelConfig]:
     """
     try:
         session = get_db_session()
-        model_config = session.query(ModelConfig).filter(ModelConfig.name == name).first()
+        model_config = session.query(ModelConfig).filter(ModelConfig.model == name).first()
         if model_config:
             logger.info("retrieved_model_config_by_name", name=name)
         else:
@@ -201,13 +197,57 @@ def create_model_config(model_config_data: Dict[str, Any]) -> ModelConfig:
     try:
         session = get_db_session()
         model_config = ModelConfig(**model_config_data)
+        model_config.update_content_hash()  # Generate content hash
         session.add(model_config)
         session.commit()
-        logger.info("created_model_config", model_config_id=str(model_config.id), name=model_config.name)
+        logger.info("created_model_config", model_config_id=str(model_config.id), name=model_config.model)
         return model_config
     except Exception as e:
         session.rollback()
         logger.error("create_model_config_failed", error=str(e), exc_info=True)
+        raise
+
+
+def get_or_create_model_config(model_config_data: Dict[str, Any]) -> ModelConfig:
+    """Get existing model config by content hash or create a new one if it doesn't exist.
+
+    Args:
+        model_config_data: Dictionary containing model config data
+
+    Returns:
+        Existing or newly created ModelConfig object
+    """
+    try:
+        session = get_db_session()
+
+        # Create a temporary model config to generate the content hash
+        temp_model_config = ModelConfig(**model_config_data)
+        temp_model_config.update_content_hash()
+
+        # Check if a model config with this content hash already exists
+        existing_config = session.query(ModelConfig).filter(
+            ModelConfig.content_hash == temp_model_config.content_hash
+        ).first()
+
+        if existing_config:
+            logger.info("found_existing_model_config",
+                       model_config_id=str(existing_config.id),
+                       name=existing_config.model,
+                       content_hash=existing_config.content_hash)
+            return existing_config
+
+        # No existing config found, create a new one
+        session.add(temp_model_config)
+        session.commit()
+        logger.info("created_new_model_config",
+                   model_config_id=str(temp_model_config.id),
+                   name=temp_model_config.model,
+                   content_hash=temp_model_config.content_hash)
+        return temp_model_config
+
+    except Exception as e:
+        session.rollback()
+        logger.error("get_or_create_model_config_failed", error=str(e), exc_info=True)
         raise
 
 
@@ -230,6 +270,7 @@ def update_model_config(model_config_id: Union[UUID, str], model_config_data: Di
                 if hasattr(model_config, key):
                     setattr(model_config, key, value)
 
+            model_config.update_content_hash()  # Recalculate content hash
             session.commit()
             logger.info("updated_model_config", model_config_id=str(model_config_id))
             return model_config

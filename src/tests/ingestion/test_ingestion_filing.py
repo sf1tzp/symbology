@@ -2,7 +2,7 @@ from datetime import date
 from unittest import mock
 
 import pytest
-from src.ingestion.ingestion_helpers import ingest_filing
+from src.ingestion.ingestion_helpers import ingest_filings
 from uuid_extensions import uuid7
 
 
@@ -30,7 +30,7 @@ def test_ingest_filing_happy_path():
          mock.patch('src.ingestion.ingestion_helpers._year_from_period_of_report', return_value=2022) as _mock_get_year:
 
         # Call the function
-        filing, filing_id = ingest_filing(company_id, mock_edgar_company, 2022)
+        filing, filing_id = ingest_filings(company_id, mock_edgar_company, 2022)
 
         # Verify the filing was fetched from EDGAR
         mock_get_filing.assert_called_once_with(mock_edgar_company, 2022)
@@ -68,7 +68,7 @@ def test_ingest_filing_not_found():
          mock.patch('src.ingestion.ingestion_helpers.logger') as mock_logger:
 
         # Call the function
-        filing, filing_id = ingest_filing(company_id, mock_edgar_company, 2022)
+        filing, filing_id = ingest_filings(company_id, mock_edgar_company, 2022)
 
         # Verify the result when filing is not found
         assert filing is None
@@ -92,7 +92,7 @@ def test_ingest_filing_error_handling():
          mock.patch('src.ingestion.ingestion_helpers.logger') as mock_logger:
 
         with pytest.raises(Exception) as excinfo:
-            ingest_filing(company_id, mock_edgar_company, 2022)
+            ingest_filings(company_id, mock_edgar_company, 2022)
 
         assert "Filing retrieval error" in str(excinfo.value)
         mock_logger.error.assert_called_with(

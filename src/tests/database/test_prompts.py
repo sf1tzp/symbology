@@ -8,7 +8,7 @@ from src.database.generated_content import ContentSourceType, create_generated_c
 from src.database.model_configs import ModelConfig
 
 # Import the Prompt model and functions
-from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole, update_prompt
+from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole
 
 
 # Sample prompt data fixtures
@@ -130,19 +130,11 @@ def create_test_prompts(db_session, sample_system_prompt_data, sample_user_promp
     db_session.commit()
     return prompts
 
-# Sample model config data fixture
-@pytest.fixture
-def sample_model_config_data() -> Dict[str, Any]:
-    """Sample model config data for testing."""
-    return {
-        "name": "gpt-4",
-        "options_json": '{"temperature": 0.7, "top_p": 1.0, "num_ctx": 4096}'
-    }
 
 @pytest.fixture
-def create_test_model_config(db_session, sample_model_config_data):
+def create_test_model_config(db_session):
     """Create and return a test model config."""
-    model_config = ModelConfig(**sample_model_config_data)
+    model_config = ModelConfig().create_default("gpt4")
     db_session.add(model_config)
     db_session.commit()
     return model_config
@@ -208,7 +200,9 @@ def test_create_prompt_function(db_session, sample_user_prompt_data):
 
     try:
         # Create a prompt using the helper function
-        prompt = create_prompt(sample_user_prompt_data)
+        prompt, created = create_prompt(sample_user_prompt_data)
+
+        assert created == True # noqa: E712
 
         # Verify it was created correctly
         assert prompt.id is not None
@@ -220,21 +214,6 @@ def test_create_prompt_function(db_session, sample_user_prompt_data):
         assert retrieved is not None
         assert retrieved.name == prompt.name
         assert retrieved.role == PromptRole.USER
-    finally:
-        # Restore the original function
-        prompts_module.get_db_session = original_get_db_session
-
-def test_create_prompt_duplicate_name(db_session, create_test_system_prompt, sample_system_prompt_data):
-    """Test that creating a prompt with a duplicate name raises an error."""
-    # Mock the db_session global
-    import src.database.prompts as prompts_module
-    original_get_db_session = prompts_module.get_db_session
-    prompts_module.get_db_session = lambda: db_session
-
-    try:
-        # Attempt to create a prompt with the same name
-        with pytest.raises(ValueError, match="Prompt with name .* already exists"):
-            create_prompt(sample_system_prompt_data)
     finally:
         # Restore the original function
         prompts_module.get_db_session = original_get_db_session
@@ -284,142 +263,6 @@ def test_get_prompt_by_id(db_session, create_test_system_prompt):
         retrieved_str = get_prompt(str(create_test_system_prompt.id))
         assert retrieved_str is not None
         assert retrieved_str.id == create_test_system_prompt.id
-    finally:
-        # Restore the original function
-        prompts_module.get_db_session = original_get_db_session
-
-def test_update_prompt(db_session, create_test_user_prompt):
-    """Test updating a prompt using the update_prompt function."""
-    # Mock the db_session global
-    import src.database.prompts as prompts_module
-    original_get_db_session = prompts_module.get_db_session
-    prompts_module.get_db_session = lambda: db_session
-
-    try:
-        # Update the prompt
-        updates = {
-            "name": "Updated User Prompt",
-            "description": "This prompt has been updated",
-            "content": "Updated template to analyze the company"
-        }
-
-        updated = update_prompt(create_test_user_prompt.id, updates)
-
-        # Verify updates were applied
-        assert updated is not None
-        assert updated.name == "Updated User Prompt"
-        assert updated.description == "This prompt has been updated"
-        assert updated.content == "Updated template to analyze the company"
-
-        # Check that role wasn't changed
-        assert updated.role == PromptRole.USER
-
-        # Test updating non-existent prompt
-        non_existent = update_prompt(uuid.uuid4(), {"name": "Non-existent Prompt"})
-        assert non_existent is None
-    finally:
-        # Restore the original function
-        prompts_module.get_db_session = original_get_db_session
-
-def test_update_prompt_role(db_session, create_test_user_prompt):
-    """Test updating a prompt's role."""
-    # Mock the db_session global
-    import src.database.prompts as prompts_module
-    original_get_db_session = prompts_module.get_db_session
-    prompts_module.get_db_session = lambda: db_session
-
-    try:
-        # Update the prompt's role
-        updates = {
-            "role": "assistant"  # Using string that will be converted to enum
-        }
-
-        updated = update_prompt(create_test_user_prompt.id, updates)
-
-        # Verify role was updated
-        assert updated is not None
-        assert updated.role == PromptRole.ASSISTANT
-
-        # Update using direct enum value
-        updates = {
-            "role": PromptRole.SYSTEM
-        }
-
-        updated = update_prompt(create_test_user_prompt.id, updates)
-        assert updated.role == PromptRole.SYSTEM
-
-        # Test with invalid role
-        with pytest.raises(ValueError, match="Invalid role"):
-            update_prompt(create_test_user_prompt.id, {"role": "invalid_role"})
-    finally:
-        # Restore the original function
-        prompts_module.get_db_session = original_get_db_session
-
-def test_update_prompt_name_duplicate(db_session, create_test_prompts):
-    """Test that updating a prompt with a duplicate name raises an error."""
-    # Mock the db_session global
-    import src.database.prompts as prompts_module
-    original_get_db_session = prompts_module.get_db_session
-    prompts_module.get_db_session = lambda: db_session
-
-    try:
-        # Get the first two prompts
-        system_prompt, user_prompt, _ = create_test_prompts
-
-        # Try to update user prompt with system prompt's name
-        with pytest.raises(ValueError, match="Prompt with name .* already exists"):
-            update_prompt(user_prompt.id, {"name": system_prompt.name})
-    finally:
-        # Restore the original function
-        prompts_module.get_db_session = original_get_db_session
-
-def test_update_prompt_json_fields(db_session, create_test_system_prompt):
-    """Test updating JSON fields in a prompt."""
-    # Mock the db_session global
-    import src.database.prompts as prompts_module
-    original_get_db_session = prompts_module.get_db_session
-    prompts_module.get_db_session = lambda: db_session
-
-    try:
-        # Update content
-        updates = {
-                "content": "Updated content for testing"
-        }
-
-        updated = update_prompt(create_test_system_prompt.id, updates)
-
-        # Verify updates were applied
-        assert updated is not None
-        assert updated.content == "Updated content for testing"
-
-        # Verify persistence by retrieving again
-        retrieved = get_prompt(create_test_system_prompt.id)
-        assert retrieved.content == "Updated content for testing"
-    finally:
-        # Restore the original function
-        prompts_module.get_db_session = original_get_db_session
-
-def test_update_with_invalid_attributes(db_session, create_test_system_prompt):
-    """Test updating a prompt with invalid attributes."""
-    # Mock the db_session global
-    import src.database.prompts as prompts_module
-    original_get_db_session = prompts_module.get_db_session
-    prompts_module.get_db_session = lambda: db_session
-
-    try:
-        # Update with invalid attribute
-        updates = {
-            "name": "Still Valid Name",
-            "invalid_field": "This field doesn't exist"
-        }
-
-        # Should still update valid fields but ignore invalid ones
-        updated = update_prompt(create_test_system_prompt.id, updates)
-        assert updated is not None
-        assert updated.name == "Still Valid Name"
-
-        # The invalid field should not be added to the object
-        assert not hasattr(updated, "invalid_field")
     finally:
         # Restore the original function
         prompts_module.get_db_session = original_get_db_session
@@ -492,21 +335,6 @@ def test_get_prompt_ids(db_session, multiple_prompt_data):
         # Restore the original function
         prompts_module.get_db_session = original_get_db_session
 
-def test_prompt_generated_content_relationship(db_session, create_test_system_prompt, create_test_user_prompt, sample_generated_content_data):
-    """Test the relationship between prompts and generated content."""
-    # Create generated content associated with both system and user prompts
-    generated_content = GeneratedContent(**sample_generated_content_data)
-    db_session.add(generated_content)
-    db_session.commit()
-
-    # Verify the relationship from generated content side
-    assert generated_content.system_prompt_id == create_test_system_prompt.id
-    assert generated_content.user_prompt_id == create_test_user_prompt.id
-
-    # Verify the prompt relationships from generated content side
-    assert generated_content.system_prompt.name == create_test_system_prompt.name
-    assert generated_content.user_prompt.name == create_test_user_prompt.name
-
 def test_create_generated_content_with_prompts(db_session, create_test_system_prompt, create_test_user_prompt, create_test_model_config):
     """Test creating generated content with prompt references using the create_generated_content function."""
     # Mock the db_session global
@@ -525,7 +353,9 @@ def test_create_generated_content_with_prompts(db_session, create_test_system_pr
         }
 
         # Create the generated content
-        generated_content = create_generated_content(content_data)
+        generated_content, created = create_generated_content(content_data)
+
+        assert created == True # noqa: E712
 
         # Verify prompt relationships
         assert generated_content.system_prompt_id == create_test_system_prompt.id

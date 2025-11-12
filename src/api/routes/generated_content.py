@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from src.api.schemas import GeneratedContentResponse
 from src.database.generated_content import (
+    get_aggregate_summaries_by_ticker,
     get_generated_content,
     get_generated_content_by_company_and_ticker,
     get_generated_content_by_hash,
@@ -67,7 +68,61 @@ async def get_company_generated_content_by_ticker(ticker: str, limit: int = 10):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving generated content"
-        )
+        ) from e
+
+
+@router.get(
+    "/aggregate-summaries/by-ticker/{ticker}",
+    response_model=List[GeneratedContentResponse],
+    status_code=status.HTTP_200_OK,
+    responses={
+        404: {"description": "Company not found or has no aggregate summaries"},
+        500: {"description": "Internal server error"}
+    }
+)
+async def get_aggregate_summaries_by_ticker_route(ticker: str, limit: int = 10):
+    """Get the most recent aggregate summary content for a company by ticker.
+
+    Returns only aggregate summaries (content with descriptions containing "aggregate_summary")
+    to show high-level insights and summaries for each document type.
+
+    Args:
+        ticker: Company ticker symbol (e.g., 'AAPL', 'GOOGL')
+        limit: Maximum number of results to return (default: 10)
+
+    Returns:
+        List of GeneratedContentResponse objects - the most recent aggregate summaries
+    """
+    logger.info("api_get_aggregate_summaries_by_ticker", ticker=ticker)
+
+    try:
+        content_list = get_aggregate_summaries_by_ticker(ticker, limit)
+
+        if not content_list:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No aggregate summaries found for company with ticker '{ticker}'"
+            )
+
+        # Convert database models to response schemas
+        response_data = []
+        for content in content_list:
+            content_dict = content.to_dict()
+            response_data.append(GeneratedContentResponse(**content_dict))
+
+        logger.info("api_get_aggregate_summaries_by_ticker_success",
+                   ticker=ticker, count=len(response_data))
+        return response_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("api_get_aggregate_summaries_by_ticker_failed",
+                    ticker=ticker, error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while retrieving aggregate summaries"
+        ) from e
 
 
 @router.get(
@@ -118,7 +173,7 @@ async def get_generated_content_by_ticker_and_hash(ticker: str, content_hash: st
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving generated content"
-        )
+        ) from e
 
 
 @router.get(
@@ -164,7 +219,7 @@ async def get_generated_content_by_id(content_id: UUID):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving generated content"
-        )
+        ) from e
 
 
 @router.get(
@@ -211,7 +266,7 @@ async def get_generated_content_by_hash_only(content_hash: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving generated content"
-        )
+        ) from e
 
 
 @router.get(
@@ -247,7 +302,7 @@ async def get_generated_content_sources(content_id: UUID):
             "source_documents": [
                 {
                     "id": str(doc.id),
-                    "name": doc.document_name,
+                    "name": doc.title,
                     "type": "document"
                 } for doc in content.source_documents
             ],
@@ -255,7 +310,7 @@ async def get_generated_content_sources(content_id: UUID):
                 {
                     "id": str(source.id),
                     "short_hash": source.get_short_hash(),
-                    "document_type": source.document_type.value if source.document_type else None,
+                    "description": source.description,
                     "type": "generated_content"
                 } for source in content.source_content
             ]
@@ -275,4 +330,4 @@ async def get_generated_content_sources(content_id: UUID):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving content sources"
-        )
+        ) from e

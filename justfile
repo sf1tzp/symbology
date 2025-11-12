@@ -4,15 +4,6 @@
 
 set dotenv-load
 
-up:
-  nerdctl compose -f docker-compose.yaml --env-file .env up -d
-
-down:
-  nerdctl compose -f docker-compose.yaml down
-
-logs *ARGS:
-  nerdctl compose -f docker-compose.yaml logs {{ARGS}}
-
 deploy environment="staging": _generate-api-types
   ansible-playbook -i infra/inventories/{{environment}} infra/deploy-symbology.yml
 
@@ -20,13 +11,10 @@ deploy environment="staging": _generate-api-types
 run component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
-    just -d . -f src/justfile run
+    uv run -m src.api.main {{ARGS}}
 
-  elif [[ "{{component}}" == "ingest" ]]; then
-    just -d . -f src/justfile ingest {{ARGS}}
-
-  elif [[ "{{component}}" == "generate" ]]; then
-    just -d . -f src/justfile generate {{ARGS}}
+  elif [[ "{{component}}" == "cli" ]]; then
+    uv run -m src.cli.main {{ARGS}}
 
   elif [[ "{{component}}" == "ui" ]]; then
     just -d ui -f ui/justfile up {{ARGS}}
@@ -67,22 +55,14 @@ lint component *ARGS:
     exit 1
   fi
 
-build component *ARGS: _generate-api-types
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    just -d src -f src/justfile build
-  elif [[ "{{component}}" == "ui" ]]; then
-    ENV="{{ ARGS }}"
-    just -d ui -f ui/justfile build-for-deploy "$ENV"
-  elif [[ "{{component}}" == "images" ]]; then
-    ENV="{{ ARGS }}"
-    echo "Building all images for $ENV environment..."
-    ./build-images.sh "$ENV"
-  else
-    echo "Error: Unknown component '{{component}}'"
-    echo "Usage: just build [api|ui|images] [staging|production]"
-    exit 1
-  fi
+images ENV: _generate-api-types
+  just -f src/justfile build
+  nerdctl save symbology-api:latest -o /tmp/symbology-api-latest.tar
+  just -f ui/justfile build-for-deploy {{ ENV }}
+  nerdctl save symbology-ui:latest -o /tmp/symbology-ui-latest.tar
+  nerdctl pull postgres:17.4 # fixme: version pin
+  nerdctl save postgres:17.4 -o /tmp/postgres-17.4.tar
+
 
 deps component *ARGS:
   #!/usr/bin/env bash
@@ -104,44 +84,82 @@ _untag version:
   git tag -d {{version}}
   git push --delete origin {{version}}
 
-# Database migration commands
-db-current: # Show current migration version
-  just -d src -f src/justfile _create_venv
-  uv run alembic current
-
-db-history: # Show migration history
-  just -d src -f src/justfile _create_venv
-  uv run alembic history --verbose
-
-db-upgrade TARGET="head": # Apply migrations
-  just -d src -f src/justfile _create_venv
-  uv run alembic upgrade {{TARGET}}
-
-db-downgrade TARGET: # Rollback to specific migration
-  just -d src -f src/justfile _create_venv
-  uv run alembic downgrade {{TARGET}}
-
-db-revision MESSAGE: # Create new migration
-  just -d src -f src/justfile _create_venv
-  uv run alembic revision -m "{{MESSAGE}}"
-
-db-auto-revision MESSAGE: # Auto-generate migration from model changes
-  just -d src -f src/justfile _create_venv
-  uv run alembic revision --autogenerate -m "{{MESSAGE}}"
-
-db-show-sql TARGET="head": # Show SQL without executing
-  just -d src -f src/justfile _create_venv
-  uv run alembic upgrade {{TARGET}} --sql
-
-db-stamp VERSION: # Mark migration as applied without running
-  just -d src -f src/justfile _create_venv
-  uv run alembic stamp {{VERSION}}
-
-db-reset: # Reset to base (WARNING: destructive)
-  just -d src -f src/justfile _create_venv
-  @echo "⚠️  This will reset the database to base state!"
-  @read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
-  uv run alembic downgrade base
-
 _generate-api-types:
   just -d ui -f ui/justfile generate-api-types
+
+ingest-pipeline TICKER FORM COUNT DOCUMENT_TYPE:
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  set -x
+  just run cli companies ingest {{TICKER}}
+  just run cli filings ingest {{TICKER}} {{FORM}} {{COUNT}} # todo: make idempotent
+
+  model_config1=$(just run cli model-configs create qwen3:4b --num-ctx 28567 -o json | jq -r '.short_hash')
+  model_config2=$(just run cli model-configs create qwen3:14b --num-ctx 8000 -o json | jq -r '.short_hash')
+  model_config3=$(just run cli model-configs create gemma3:12b --num-ctx 10000 -o json | jq -r '.short_hash')
+
+  prompt1=$(just run cli prompts create {{DOCUMENT_TYPE}} -o json | jq -r '.short_hash')
+  prompt2=$(just run cli prompts create aggregate-summary -o json | jq -r '.short_hash')
+  prompt3=$(just run cli prompts create general-summary -o json | jq -r '.short_hash')
+
+  accession_numbers=$(just run cli filings list {{TICKER}} --form {{FORM}} -o json | jq -r '.[] | .accession_number')
+
+  initial_summaries="[]"
+
+  # Check if we have any accession numbers to process
+  if [[ -z "$accession_numbers" || "$accession_numbers" == "" ]]; then
+    echo "No accession numbers found for {{TICKER}} {{FORM}}, exiting normally"
+    exit 0
+  fi
+
+  for accession in $accession_numbers; do
+    document=$(just run cli documents list "$accession" --document-type {{DOCUMENT_TYPE}} -o json | jq -r '.[0].short_hash')
+    single_summary=$(just run cli generated-content create \
+      --company {{TICKER}} \
+      --description '{{DOCUMENT_TYPE}}_single_summary' \
+      --prompt $prompt1 \
+      --model-config $model_config1 \
+      --source-documents $document -o json | jq -r '.short_hash')
+
+    # Append the single_summary to the initial_summaries array using jq
+    initial_summaries=$(echo "$initial_summaries" | jq --arg item "$single_summary" '. += [$item]')
+  done
+
+  # Convert JSON array to individual --source-content arguments
+  source_content_args=""
+  for hash in $(echo "$initial_summaries" | jq -r '.[]'); do
+    source_content_args="$source_content_args --source-content $hash"
+  done
+
+  aggregate_summary=$(just run cli generated-content create \
+    --company {{TICKER}} \
+    --prompt $prompt2 \
+    --description '{{DOCUMENT_TYPE}}_aggregate_summary' \
+    --model-config $model_config2 \
+    $source_content_args -o json  | jq -r '.short_hash')
+
+  just run cli generated-content create \
+    --company {{TICKER}} \
+    --prompt $prompt3 \
+    --description '{{DOCUMENT_TYPE}}_frontpage_summary' \
+    --model-config $model_config3 \
+    --source-content $aggregate_summary
+
+ingest-10k TICKER:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for document_type in "business_description" "risk_factors" "management_discussion" "controls_procedures"; do
+    just ingest-pipeline {{TICKER}} 10-K 5 "$document_type"
+  done
+
+ingest-10q TICKER:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for document_type in "risk_factors" "management_discussion" "controls_procedures" "market_risk"; do
+    just ingest-pipeline {{TICKER}} 10-Q 6 "$document_type"
+  done
+
+ingest TICKER:
+  just ingest-10k {{TICKER}}
+  just ingest-10q {{TICKER}}

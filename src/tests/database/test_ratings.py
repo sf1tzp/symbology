@@ -20,16 +20,12 @@ def sample_company_data() -> Dict[str, Any]:
     """Sample company data for testing."""
     return {
         "name": "Test Company, Inc.",
-        "cik": "0000123456",
         "display_name": "Test Co",
-        "is_company": True,
-        "tickers": ["TEST"],
+        "ticker": "TEST",
         "exchanges": ["NYSE"],
         "sic": "7370",
         "sic_description": "Services-Computer Programming, Data Processing, Etc.",
         "fiscal_year_end": date(2023, 12, 31),  # Use a proper date object
-        "entity_type": "Corporation",
-        "ein": "12-3456789"
     }
 
 @pytest.fixture
@@ -47,9 +43,9 @@ def sample_filing_data(create_test_company) -> Dict[str, Any]:
     return {
         "company_id": create_test_company.id,
         "accession_number": "0000123456-23-000123",
-        "filing_type": "10-K",
+        "form": "10-K",
         "filing_date": date(2023, 12, 31),  # Use a proper date object
-        "filing_url": "https://www.sec.gov/Archives/edgar/data/123456/000012345623000123/test-10k.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/123456/000012345623000123/test-10k.htm",
         "period_of_report": date(2023, 12, 31)  # Use a proper date object
     }
 
@@ -69,7 +65,7 @@ def sample_document_data(create_test_filing) -> Dict[str, Any]:
     return {
         "filing_id": create_test_filing.id,
         "company_id": create_test_filing.company_id,
-        "document_name": "test_10k.htm",
+        "title": "test_10k.htm",
         "content": "This is the text content of the test 10-K document."
     }
 
@@ -118,7 +114,7 @@ def create_test_prompts(db_session, sample_system_prompt_data, sample_user_promp
 def sample_model_config_data() -> Dict[str, Any]:
     """Sample model config data for testing."""
     return {
-        "name": "gpt-4",
+        "model": "gpt-4",
         "options_json": '{"temperature": 0.7, "top_p": 1.0, "num_ctx": 4096}'
     }
 
@@ -126,6 +122,7 @@ def sample_model_config_data() -> Dict[str, Any]:
 def create_test_model_config(db_session, sample_model_config_data):
     """Create and return a test model config."""
     model_config = ModelConfig(**sample_model_config_data)
+    model_config.update_content_hash()  # Generate content hash
     db_session.add(model_config)
     db_session.commit()
     return model_config

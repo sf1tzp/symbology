@@ -108,15 +108,13 @@
 
 	// Handle company selection
 	function selectCompany(company: CompanyResponse) {
-		const primaryTicker = company.tickers?.[0] || 'N/A';
+		const primaryTicker = company.ticker || 'N/A';
 		searchTerm = `${company.name} (${primaryTicker})`;
 		showDropdown = false;
 		dispatch('companySelected', company);
 
 		// Navigate to company page if ticker is available
-		if (company.tickers?.[0]) {
-			goto(`/c/${company.tickers[0]}`);
-		}
+		goto(`/c/${company.ticker}`);
 	}
 
 	// Handle search button click
@@ -240,7 +238,7 @@
 									>
 										<div class="font-medium text-foreground">{company.name}</div>
 										<div class="text-sm text-muted-foreground">
-											{company.tickers?.join(', ') || 'No tickers'}
+											{company.ticker}
 											{#if company.sic_description}
 												• {company.sic_description}
 											{/if}
@@ -298,7 +296,7 @@
 								<div class="flex-1">
 									<div class="text-sm font-medium">{company.name}</div>
 									<div class="text-xs text-muted-foreground">
-										{company.tickers?.[0] || 'N/A'}
+										{company.ticker || 'N/A'}
 										{#if company.sic_description}
 											• {company.sic_description}
 										{/if}

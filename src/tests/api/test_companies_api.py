@@ -3,59 +3,48 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from src.api.main import create_app
+from src.database.companies import Company
 from uuid_extensions import uuid7
 
 client = TestClient(create_app())
 
 # Sample company data for tests
 SAMPLE_COMPANY_ID = uuid7()
-SAMPLE_COMPANY_DATA = {
-    "id": SAMPLE_COMPANY_ID,
-    "name": "Test Company",
-    "display_name": "TESTCO",
-    "cik": "0001234567",
-    "tickers": ["TEST", "TSTC"],
-    "exchanges": ["NYSE"],
-    "sic": "7370",
-    "sic_description": "Services-Computer Programming, Data Processing, Etc.",
-    "fiscal_year_end": "2023-12-31",
-    "entity_type": "CORP",
-    "ein": "12-3456789",
-    "is_company": True,
-    "former_names": [{"name": "Old Test Inc.", "date": "2020-01-01"}]
-}
+SAMPLE_COMPANY_DATA = Company(
+    id=SAMPLE_COMPANY_ID,
+    name="Test Company",
+    display_name="TESTCO",
+    ticker="TEST",
+    exchanges=["NYSE"],
+    sic="7370",
+    sic_description="Services-Computer Programming, Data Processing, Etc.",
+    fiscal_year_end="2023-12-31",
+    former_names=[{"name": "Old Test Inc.", "date": "2020-01-01"}]
+)
 
 SAMPLE_SEARCH_RESULTS = [
-    {
-        "id": SAMPLE_COMPANY_ID,
-        "name": "Test Company",
-        "display_name": "TESTCO",
-        "cik": "0001234567",
-        "tickers": ["TEST", "TSTC"],
-        "exchanges": ["NYSE"],
-        "sic": "7370",
-        "sic_description": "Services-Computer Programming, Data Processing, Etc.",
-        "fiscal_year_end": "2023-12-31",
-        "entity_type": "CORP",
-        "ein": "12-3456789",
-        "is_company": True,
-        "former_names": [{"name": "Old Test Inc.", "date": "2020-01-01"}]
-    },
-    {
-        "id": uuid7(),
-        "name": "Another Test Corp",
-        "display_name": "ANTEST",
-        "cik": "0001234568",
-        "tickers": ["ANTEST"],
-        "exchanges": ["NASDAQ"],
-        "sic": "7371",
-        "sic_description": "Services-Computer Programming Services",
-        "fiscal_year_end": "2023-12-31",
-        "entity_type": "CORP",
-        "ein": "12-3456790",
-        "is_company": True,
-        "former_names": []
-    }
+    Company(
+        id=SAMPLE_COMPANY_ID,
+        name="Test Company",
+        display_name="TESTCO",
+        ticker="TEST",
+        exchanges=["NYSE"],
+        sic="7370",
+        sic_description="Services-Computer Programming, Data Processing, Etc.",
+        fiscal_year_end="2023-12-31",
+        former_names=[{"name": "Old Test Inc.", "date": "2020-01-01"}]
+    ),
+    Company(
+        id=uuid7(),
+        name="Another Test Corp",
+        display_name="ANTEST",
+        ticker="ANTEST",
+        exchanges=["NASDAQ"],
+        sic="7371",
+        sic_description="Services-Computer Programming Services",
+        fiscal_year_end="2023-12-31",
+        former_names=[]
+    )
 ]
 
 
@@ -150,8 +139,7 @@ class TestCompanyApi:
         data = response.json()
         assert data["id"] == str(SAMPLE_COMPANY_ID)
         assert data["name"] == "Test Company"
-        assert data["cik"] == "0001234567"
-        assert "TEST" in data["tickers"]
+        assert data["ticker"] == "TEST"
 
         # Verify the mock was called with the correct arguments
         mock_get_company.assert_called_once_with(SAMPLE_COMPANY_ID)
@@ -182,11 +170,14 @@ class TestCompanyApi:
         assert response.status_code == 422
         assert "uuid_parsing" in str(response.json())
 
+    @patch("src.api.routes.companies.get_frontpage_summary_by_ticker")
     @patch("src.api.routes.companies.get_company_by_ticker")
-    def test_search_companies_by_ticker_found(self, mock_get_company_by_ticker):
+    def test_search_companies_by_ticker_found(self, mock_get_company_by_ticker, mock_get_frontpage_summary):
         """Test searching for a company by ticker when it exists."""
         # Setup the mock to return our sample company as a dictionary
         mock_get_company_by_ticker.return_value = SAMPLE_COMPANY_DATA
+        # Mock the frontpage summary retrieval
+        mock_get_frontpage_summary.return_value = "Test company frontpage summary"
 
         # Make the API call
         response = client.get("/companies/?ticker=TEST")
@@ -200,16 +191,18 @@ class TestCompanyApi:
         company = data[0]
         assert company["id"] == str(SAMPLE_COMPANY_ID)
         assert company["name"] == "Test Company"
-        assert "TEST" in company["tickers"]
+        assert company["ticker"] == "TEST"
 
         # Verify the mock was called with the correct arguments
         mock_get_company_by_ticker.assert_called_once_with("TEST")
 
+    @patch("src.api.routes.companies.get_frontpage_summary_by_ticker")
     @patch("src.api.routes.companies.get_company_by_ticker")
-    def test_search_companies_by_ticker_not_found(self, mock_get_company_by_ticker):
+    def test_search_companies_by_ticker_not_found(self, mock_get_company_by_ticker, mock_get_frontpage_summary):
         """Test searching for a company by ticker when it doesn't exist."""
         # Setup the mock to return None (company not found)
         mock_get_company_by_ticker.return_value = None
+        mock_get_frontpage_summary.return_value = None
 
         # Make the API call
         response = client.get("/companies/?ticker=NONEXISTENT")
@@ -221,41 +214,3 @@ class TestCompanyApi:
         # Verify the mock was called with the correct arguments
         mock_get_company_by_ticker.assert_called_once_with("NONEXISTENT")
 
-    @patch("src.api.routes.companies.get_company_by_cik")
-    def test_search_companies_by_cik_found(self, mock_get_company_by_cik):
-        """Test searching for a company by CIK when it exists."""
-        # Setup the mock to return our sample company as a dictionary
-        mock_get_company_by_cik.return_value = SAMPLE_COMPANY_DATA
-
-        # Make the API call
-        response = client.get("/companies/?cik=0001234567")
-
-        # Assertions
-        assert response.status_code == 200
-        data = response.json()
-        # API now returns a list when searching by CIK
-        assert isinstance(data, list)
-        assert len(data) == 1
-        company = data[0]
-        assert company["id"] == str(SAMPLE_COMPANY_ID)
-        assert company["name"] == "Test Company"
-        assert company["cik"] == "0001234567"
-
-        # Verify the mock was called with the correct arguments
-        mock_get_company_by_cik.assert_called_once_with("0001234567")
-
-    @patch("src.api.routes.companies.get_company_by_cik")
-    def test_search_companies_by_cik_not_found(self, mock_get_company_by_cik):
-        """Test searching for a company by CIK when it doesn't exist."""
-        # Setup the mock to return None (company not found)
-        mock_get_company_by_cik.return_value = None
-
-        # Make the API call
-        response = client.get("/companies/?cik=9999999999")
-
-        # Assertions
-        assert response.status_code == 404
-        assert response.json()["detail"] == "Company with CIK 9999999999 not found"
-
-        # Verify the mock was called with the correct arguments
-        mock_get_company_by_cik.assert_called_once_with("9999999999")

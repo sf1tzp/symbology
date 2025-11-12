@@ -3,7 +3,6 @@ from typing import Any, Dict
 import uuid
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 
 # Import the Company model and functions
 from src.database.companies import Company, create_company, delete_company, get_company, get_company_ids, update_company
@@ -15,23 +14,20 @@ def sample_company_data() -> Dict[str, Any]:
     """Sample company data for testing."""
     return {
         "name": "Apple Inc.",
-        "cik": "0000320193",
         "display_name": "Apple",
-        "is_company": True,
-        "tickers": ["AAPL"],
+        "ticker": "AAPL",
         "exchanges": ["NASDAQ"],
         "sic": "3571",
         "sic_description": "Electronic Computers",
         "fiscal_year_end": date(2023, 9, 30),
-        "entity_type": "Corporation",
-        "ein": "94-2404110"
     }
 
 @pytest.fixture
 def sample_company_data_minimal() -> Dict[str, Any]:
     """Minimal company data with only required fields."""
     return {
-        "name": "Minimal Test Company"
+        "name": "Minimal Test Company",
+        "ticker": "MTC"
     }
 
 @pytest.fixture
@@ -39,8 +35,7 @@ def sample_company_with_former_names() -> Dict[str, Any]:
     """Company data with former names included."""
     return {
         "name": "Meta Platforms, Inc.",
-        "cik": "0001326801",
-        "tickers": ["META"],
+        "ticker": "META",
         "exchanges": ["NASDAQ"],
         "former_names": [
             {"name": "Facebook, Inc.", "date_changed": "2021-10-28"},
@@ -54,20 +49,17 @@ def multiple_company_data() -> list:
     return [
         {
             "name": "Microsoft Corporation",
-            "cik": "0000789019",
-            "tickers": ["MSFT"],
+            "ticker": "MSFT",
             "exchanges": ["NASDAQ"]
         },
         {
             "name": "Alphabet Inc.",
-            "cik": "0001652044",
-            "tickers": ["GOOGL", "GOOG"],
+            "ticker": "GOOGL",
             "exchanges": ["NASDAQ"]
         },
         {
             "name": "Tesla, Inc.",
-            "cik": "0001318605",
-            "tickers": ["TSLA"],
+            "ticker": "TSLA",
             "exchanges": ["NASDAQ"]
         }
     ]
@@ -83,13 +75,11 @@ def test_create_company(db_session, sample_company_data):
     # Verify it was created
     assert company.id is not None
     assert company.name == "Apple Inc."
-    assert company.cik == "0000320193"
 
     # Verify it can be retrieved from the database
     retrieved = db_session.query(Company).filter_by(id=company.id).first()
     assert retrieved is not None
     assert retrieved.name == company.name
-    assert retrieved.cik == company.cik
 
 def test_create_minimal_company(db_session, sample_company_data_minimal):
     """Test creating a company with only required fields."""
@@ -100,8 +90,7 @@ def test_create_minimal_company(db_session, sample_company_data_minimal):
     # Verify it was created with defaults
     assert company.id is not None
     assert company.name == "Minimal Test Company"
-    assert company.is_company is True
-    assert company.tickers == []
+    assert company.ticker == "MTC"
     assert company.exchanges == []
     assert company.former_names == []
 
@@ -156,7 +145,6 @@ def test_create_company_function(db_session, sample_company_data):
         # Verify it was created correctly
         assert company.id is not None
         assert company.name == "Apple Inc."
-        assert company.cik == "0000320193"
 
         # Verify it exists in the database
         retrieved = db_session.query(Company).filter_by(id=company.id).first()
@@ -183,7 +171,6 @@ def test_update_company(db_session, sample_company_data):
         updates = {
             "name": "Apple Corporation",
             "display_name": "Apple Corp",
-            "tickers": ["AAPL", "APPL"]
         }
 
         updated = update_company(company.id, updates)
@@ -192,11 +179,8 @@ def test_update_company(db_session, sample_company_data):
         assert updated is not None
         assert updated.name == "Apple Corporation"
         assert updated.display_name == "Apple Corp"
-        assert len(updated.tickers) == 2
-        assert "APPL" in updated.tickers
 
         # Check that other fields weren't changed
-        assert updated.cik == "0000320193"
         assert updated.sic == "3571"
 
         # Test updating non-existent company
@@ -263,41 +247,6 @@ def test_get_company_ids(db_session, multiple_company_data):
         # Restore the original function
         companies_module.get_db_session = original_get_db_session
 
-def test_duplicate_cik(db_session, sample_company_data):
-    """Test that creating companies with duplicate CIK fails."""
-    # Create first company
-    company1 = Company(**sample_company_data)
-    db_session.add(company1)
-    db_session.commit()
-
-    # Try to create second company with same CIK
-    company2_data = sample_company_data.copy()
-    company2_data["name"] = "Duplicate CIK Company"
-    company2 = Company(**company2_data)
-    db_session.add(company2)
-
-    # Should raise IntegrityError due to unique constraint
-    with pytest.raises(IntegrityError):
-        db_session.commit()
-
-def test_duplicate_ein(db_session, sample_company_data):
-    """Test that creating companies with duplicate EIN fails."""
-    # Create first company
-    company1 = Company(**sample_company_data)
-    db_session.add(company1)
-    db_session.commit()
-
-    # Try to create second company with same EIN but different CIK
-    company2_data = sample_company_data.copy()
-    company2_data["name"] = "Duplicate EIN Company"
-    company2_data["cik"] = "0000999999"  # Different CIK
-    company2 = Company(**company2_data)
-    db_session.add(company2)
-
-    # Should raise IntegrityError due to unique constraint on EIN
-    with pytest.raises(IntegrityError):
-        db_session.commit()
-
 def test_update_with_invalid_attributes(db_session, sample_company_data):
     """Test updating a company with invalid attributes."""
     # First create a company
@@ -345,90 +294,6 @@ def test_get_company_with_string_uuid(db_session, sample_company_data):
         retrieved = get_company(str(company.id))
         assert retrieved is not None
         assert retrieved.id == company.id
-    finally:
-        # Restore the original function
-        companies_module.get_db_session = original_get_db_session
-
-def test_upsert_company_by_cik(db_session, sample_company_data):
-    """Test the upsert_company_by_cik helper function for creating and updating companies."""
-    # Mock the db_session global
-    import src.database.companies as companies_module
-    original_get_db_session = companies_module.get_db_session
-    companies_module.get_db_session = lambda: db_session
-
-    try:
-        # Create a new company using upsert
-        result = companies_module.upsert_company_by_cik(sample_company_data)
-        assert result is not None
-        assert result.name == "Apple Inc."
-        assert result.cik == "0000320193"
-
-        # Now test updating the existing company via upsert
-        updated_data = {
-            "cik": "0000320193",  # Same CIK
-            "name": "Apple Corporation",
-            "display_name": "Apple Corp",
-            "tickers": ["AAPL", "APPL"]
-        }
-
-        updated_result = companies_module.upsert_company_by_cik(updated_data)
-
-        # Verify the company was updated, not created new
-        assert updated_result.id == result.id  # Same ID as before
-        assert updated_result.name == "Apple Corporation"
-        assert updated_result.display_name == "Apple Corp"
-        assert len(updated_result.tickers) == 2
-        assert "APPL" in updated_result.tickers
-
-        # Original fields not in update remain unchanged
-        assert updated_result.cik == "0000320193"
-        assert updated_result.sic == "3571"
-    finally:
-        # Restore the original function
-        companies_module.get_db_session = original_get_db_session
-
-def test_upsert_company_without_cik(db_session):
-    """Test that upsert_company_by_cik function raises ValueError when CIK is missing."""
-    # Mock the db_session global
-    import src.database.companies as companies_module
-    original_get_db_session = companies_module.get_db_session
-    companies_module.get_db_session = lambda: db_session
-
-    try:
-        # Try to upsert without cik
-        invalid_data = {
-            "name": "Invalid Company",
-        }
-
-        # Should raise ValueError
-        with pytest.raises(ValueError, match="CIK is required"):
-            companies_module.upsert_company_by_cik(invalid_data)
-    finally:
-        # Restore the original function
-        companies_module.get_db_session = original_get_db_session
-
-def test_get_company_by_cik(db_session, sample_company_data):
-    """Test the get_company_by_cik helper function."""
-    # First create a company
-    company = Company(**sample_company_data)
-    db_session.add(company)
-    db_session.commit()
-
-    # Mock the db_session global
-    import src.database.companies as companies_module
-    original_get_db_session = companies_module.get_db_session
-    companies_module.get_db_session = lambda: db_session
-
-    try:
-        # Test retrieving by CIK
-        retrieved = companies_module.get_company_by_cik("0000320193")
-        assert retrieved is not None
-        assert retrieved.id == company.id
-        assert retrieved.name == "Apple Inc."
-
-        # Test with non-existent CIK
-        non_existent = companies_module.get_company_by_cik("9999999999")
-        assert non_existent is None
     finally:
         # Restore the original function
         companies_module.get_db_session = original_get_db_session

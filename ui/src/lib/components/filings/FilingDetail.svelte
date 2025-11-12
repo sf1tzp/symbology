@@ -45,11 +45,11 @@
 	// Prepare header display text
 	const headerTitle = $derived(() => {
 		const companyName = company?.display_name || company?.name || 'Company';
-		const filingType = filing.filing_type;
-		const periodEnd = filing.period_of_report ? formatYear(filing.period_of_report) : null;
+		const filingType = filing.form;
+		const periodOfReport = filing.period_of_report;
 
-		if (periodEnd) {
-			return `${periodEnd} ${filingType}`;
+		if (periodOfReport) {
+			return `${periodOfReport} ${filingType}`;
 		} else {
 			return `${companyName} ${filingType}`;
 		}
@@ -62,15 +62,13 @@
 			<div>
 				<CardTitle class="text-xl">{headerTitle()}</CardTitle>
 				<div class="mt-2 flex flex-wrap items-center gap-2">
-					<Badge variant="secondary" class="bg-gray-500 text-white"
-						>{company?.tickers?.[0] ?? 'N/A'}</Badge
-					>
-					<Badge variant="default">{getFilingTypeLabel(filing.filing_type)}</Badge>
+					<Badge variant="secondary" class="bg-gray-500 text-white">{company?.ticker}</Badge>
+					<Badge variant="default">{getFilingTypeLabel(filing.form)}</Badge>
 					<Badge variant="outline">Filed on {formatDate(filing.filing_date)}</Badge>
 				</div>
 			</div>
-			{#if filing.filing_url}
-				<Button variant="outline" size="sm" href={filing.filing_url} target="_blank">
+			{#if filing.url}
+				<Button variant="outline" size="sm" href={filing.url} target="_blank">
 					<ExternalLink class="mr-2 h-4 w-4" />
 					View on sec.gov
 				</Button>

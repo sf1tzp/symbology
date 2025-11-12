@@ -5,9 +5,7 @@
 
 import type {
 	CompanyResponse,
-	AggregateResponse,
 	FilingResponse,
-	CompletionResponse,
 	DocumentResponse,
 	GeneratedContentResponse,
 	ModelConfigResponse
@@ -105,6 +103,31 @@ export async function getGeneratedContentByTicker(
 }
 
 /**
+ * Get aggregate summaries for a company by ticker
+ */
+export async function getAggregateSummariesByTicker(
+	ticker: string,
+	limit: number = 10
+): Promise<GeneratedContentResponse[]> {
+	try {
+		const url = buildApiUrl(
+			`/generated-content/aggregate-summaries/by-ticker/${encodeURIComponent(ticker)}`,
+			{
+				limit: limit.toString()
+			}
+		);
+
+		logApiCall('GET', url);
+
+		const aggregateSummaries = await fetchApi<GeneratedContentResponse[]>(url);
+		return aggregateSummaries;
+	} catch (error) {
+		console.error(`Error fetching aggregate summaries for ticker ${ticker}:`, error);
+		return []; // Return empty array rather than throwing for missing data
+	}
+}
+
+/**
  * Get a specific generated content by ticker and hash
  */
 export async function getGeneratedContentByTickerAndHash(
@@ -171,28 +194,6 @@ export async function getDocumentById(id: string): Promise<DocumentResponse | nu
 }
 
 /**
- * Get aggregates (AI analysis) for a company by ticker
- */
-export async function getAggregatesByTicker(
-	ticker: string,
-	limit: number = 10
-): Promise<AggregateResponse[]> {
-	try {
-		const url = buildApiUrl(`/aggregates/by-ticker/${encodeURIComponent(ticker)}`, {
-			limit: limit.toString()
-		});
-
-		logApiCall('GET', url);
-
-		const aggregates = await fetchApi<AggregateResponse[]>(url);
-		return aggregates;
-	} catch (error) {
-		console.error(`Error fetching aggregates for ticker ${ticker}:`, error);
-		return []; // Return empty array rather than throwing for missing data
-	}
-}
-
-/**
  * Get filings for a company by ticker
  */
 export async function getFilingsByTicker(
@@ -237,26 +238,6 @@ export async function getGeneratedContentById(
 }
 
 /**
- * Get a specific aggregate by ID
- */
-export async function getAggregateById(id: string): Promise<AggregateResponse | null> {
-	try {
-		const url = buildApiUrl(`/aggregates/${encodeURIComponent(id)}`);
-
-		logApiCall('GET', url);
-
-		const aggregate = await fetchApi<AggregateResponse>(url);
-		return aggregate;
-	} catch (error) {
-		console.error(`Error fetching aggregate ${id}:`, error);
-		if (error instanceof Error && error.message.includes('404')) {
-			return null;
-		}
-		throw error;
-	}
-}
-
-/**
  * Get a specific filing by ID
  */
 export async function getFilingById(id: string): Promise<FilingResponse | null> {
@@ -273,27 +254,6 @@ export async function getFilingById(id: string): Promise<FilingResponse | null> 
 			return null;
 		}
 		throw error;
-	}
-}
-
-/**
- * Get completions (AI generated content) by source documents
- */
-export async function getCompletionsByDocuments(
-	documentIds: string[]
-): Promise<CompletionResponse[]> {
-	try {
-		const url = buildApiUrl('/completions', {
-			document_ids: documentIds.join(',')
-		});
-
-		logApiCall('GET', url);
-
-		const completions = await fetchApi<CompletionResponse[]>(url);
-		return completions;
-	} catch (error) {
-		console.error('Error fetching completions:', error);
-		return [];
 	}
 }
 

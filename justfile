@@ -4,15 +4,6 @@
 
 set dotenv-load
 
-up:
-  nerdctl compose -f docker-compose.yaml --env-file .env up -d
-
-down:
-  nerdctl compose -f docker-compose.yaml down
-
-logs *ARGS:
-  nerdctl compose -f docker-compose.yaml logs {{ARGS}}
-
 deploy environment="staging": _generate-api-types
   ansible-playbook -i infra/inventories/{{environment}} infra/deploy-symbology.yml
 
@@ -64,22 +55,14 @@ lint component *ARGS:
     exit 1
   fi
 
-build component *ARGS: _generate-api-types
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    just -d src -f src/justfile build
-  elif [[ "{{component}}" == "ui" ]]; then
-    ENV="{{ ARGS }}"
-    just -d ui -f ui/justfile build-for-deploy "$ENV"
-  elif [[ "{{component}}" == "images" ]]; then
-    ENV="{{ ARGS }}"
-    echo "Building all images for $ENV environment..."
-    ./build-images.sh "$ENV"
-  else
-    echo "Error: Unknown component '{{component}}'"
-    echo "Usage: just build [api|ui|images] [staging|production]"
-    exit 1
-  fi
+images ENV: _generate-api-types
+  just -f src/justfile build
+  nerdctl save symbology-api:latest -o /tmp/symbology-api-latest.tar
+  just -f ui/justfile build-for-deploy {{ ENV }}
+  nerdctl save symbology-ui:latest -o /tmp/symbology-ui-latest.tar
+  nerdctl pull postgres:17.4 # fixme: version pin
+  nerdctl save postgres:17.4 -o /tmp/postgres-17.4.tar
+
 
 deps component *ARGS:
   #!/usr/bin/env bash
@@ -100,45 +83,6 @@ _tag version:
 _untag version:
   git tag -d {{version}}
   git push --delete origin {{version}}
-
-# Database migration commands
-db-current: # Show current migration version
-  just -d src -f src/justfile _create_venv
-  uv run alembic current
-
-db-history: # Show migration history
-  just -d src -f src/justfile _create_venv
-  uv run alembic history --verbose
-
-db-upgrade TARGET="head": # Apply migrations
-  just -d src -f src/justfile _create_venv
-  uv run alembic upgrade {{TARGET}}
-
-db-downgrade TARGET: # Rollback to specific migration
-  just -d src -f src/justfile _create_venv
-  uv run alembic downgrade {{TARGET}}
-
-db-revision MESSAGE: # Create new migration
-  just -d src -f src/justfile _create_venv
-  uv run alembic revision -m "{{MESSAGE}}"
-
-db-auto-revision MESSAGE: # Auto-generate migration from model changes
-  just -d src -f src/justfile _create_venv
-  uv run alembic revision --autogenerate -m "{{MESSAGE}}"
-
-db-show-sql TARGET="head": # Show SQL without executing
-  just -d src -f src/justfile _create_venv
-  uv run alembic upgrade {{TARGET}} --sql
-
-db-stamp VERSION: # Mark migration as applied without running
-  just -d src -f src/justfile _create_venv
-  uv run alembic stamp {{VERSION}}
-
-db-reset: # Reset to base (WARNING: destructive)
-  just -d src -f src/justfile _create_venv
-  @echo "⚠️  This will reset the database to base state!"
-  @read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
-  uv run alembic downgrade base
 
 _generate-api-types:
   just -d ui -f ui/justfile generate-api-types
@@ -219,9 +163,3 @@ ingest-10q TICKER:
 ingest TICKER:
   just ingest-10k {{TICKER}}
   just ingest-10q {{TICKER}}
-
-# for ticker in "GWW" ; do
-#     echo "Running for $ticker"
-#     date
-#     just ingest $ticker
-# done

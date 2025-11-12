@@ -73,7 +73,7 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
         for logger_name in logger_names:
             db_logger = logging.getLogger(logger_name)
             original_levels[logger_name] = db_logger.level
-            db_logger.setLevel(logging.WARNING)
+            db_logger.setLevel(logging.ERROR)
 
     try:
         init_session()
@@ -110,7 +110,12 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
 
         # Validate source documents exist
         source_docs: List[Document] = []
+        seen_doc_hashes = set()
         for doc_hash in source_documents:
+            if doc_hash in seen_doc_hashes:
+                continue  # Skip duplicates
+            seen_doc_hashes.add(doc_hash)
+
             doc = get_document_by_content_hash(doc_hash)
             if not doc:
                 if output == 'json':
@@ -123,7 +128,12 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
 
         # Validate source content exists (similar to documents, but for generated content)
         source_contents: List[db.GeneratedContent] = []
+        seen_content_hashes = set()
         for content_hash in source_content:
+            if content_hash in seen_content_hashes:
+                continue  # Skip duplicates
+            seen_content_hashes.add(content_hash)
+
             content_obj = db.get_generated_content_by_hash(content_hash)
             if not content_obj:
                 if output == 'json':
@@ -225,15 +235,22 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
                 'user_prompt_id': user_prompt_obj.id
             }
 
-            generated_content_obj = db.create_generated_content(generated_content_data)
+            generated_content_obj, was_created = db.create_generated_content(generated_content_data)
 
-            # Associate source documents and content with the generated content
-            session = get_db_session()
-            if source_docs:
-                generated_content_obj.source_documents.extend(source_docs)
-            if source_contents:
-                generated_content_obj.source_content.extend(source_contents)
-            session.commit()
+            if output != 'json':
+                if was_created:
+                    console.print(f"[green]✓ Generated content saved with hash {generated_content_obj.get_short_hash()}[/green]")
+                else:
+                    console.print(f"[yellow]Generated content already exists with hash {generated_content_obj.get_short_hash()}[/yellow]")
+
+            # Associate source documents and content with the generated content (only if newly created)
+            if was_created:
+                session = get_db_session()
+                if source_docs:
+                    generated_content_obj.source_documents.extend(source_docs)
+                if source_contents:
+                    generated_content_obj.source_content.extend(source_contents)
+                session.commit()
 
             if output == 'json':
                 # Prepare data for JSON output

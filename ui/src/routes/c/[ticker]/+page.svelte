@@ -143,11 +143,11 @@
 		<div class="space-y-2">
 			<div class="flex items-center space-x-3">
 				<h1 class="text-4xl font-bold">{displayCompany.display_name || displayCompany.name}</h1>
-				<span class="bg-primary text-primary-foreground rounded-full px-3 py-1 text-sm font-medium">
+				<span class="rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
 					{ticker}
 				</span>
 			</div>
-			<div class="text-muted-foreground flex items-center space-x-4 text-sm">
+			<div class="flex items-center space-x-4 text-sm text-muted-foreground">
 				{#if displayCompany.sic_description}
 					<span>{displayCompany.sic_description}</span>
 				{/if}
@@ -170,7 +170,7 @@
 			{#if displayCompany.summary && displayCompany.summary.trim()}
 				<MarkdownContent content={cleanContent(displayCompany.summary) || 'what'} />
 			{:else}
-				<p class="text-muted-foreground leading-relaxed">No description available.</p>
+				<p class="leading-relaxed text-muted-foreground">No description available.</p>
 			{/if}
 		</CardContent>
 	</Card>
@@ -216,14 +216,14 @@
 					<div class="space-y-3">
 						{#each generatedContent as content}
 							<div
-								class="hover:bg-muted flex items-center justify-between rounded-lg border p-3 transition-colors"
+								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
 										{getAnalysisTypeDisplay(content.document_type)} Summary
 									</div>
-									<div class="text-muted-foreground flex items-center space-x-2 text-xs">
-										<span class="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs">
+									<div class="flex items-center space-x-2 text-xs text-muted-foreground">
+										<span class="rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground">
 											Content Generated on {formatDate(content.created_at)}
 										</span>
 									</div>
@@ -240,8 +240,8 @@
 					</div>
 				{:else}
 					<div class="py-8 text-center">
-						<div class="text-muted-foreground mb-4">No analysis summaries available yet</div>
-						<p class="text-muted-foreground text-sm">
+						<div class="mb-4 text-muted-foreground">No analysis summaries available yet</div>
+						<p class="text-sm text-muted-foreground">
 							Analysis summaries will be generated from company filings and documents.
 						</p>
 					</div>
@@ -263,7 +263,7 @@
 					<div class="space-y-3">
 						{#each filings as filing}
 							<div
-								class="hover:bg-muted flex items-center justify-between rounded-lg border p-3 transition-colors"
+								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
@@ -282,8 +282,8 @@
 					</div>
 				{:else}
 					<div class="py-8 text-center">
-						<div class="text-muted-foreground mb-4">No filings available</div>
-						<p class="text-muted-foreground text-sm">
+						<div class="mb-4 text-muted-foreground">No filings available</div>
+						<p class="text-sm text-muted-foreground">
 							SEC filings will appear here when available for this company.
 						</p>
 					</div>

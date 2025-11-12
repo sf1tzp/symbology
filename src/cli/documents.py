@@ -30,10 +30,13 @@ def documents():
     """Document management commands."""
     pass
 
+# Generate document type choices from the enum
+document_type_choices = [doc_type.value for doc_type in DocumentType]
 
 @documents.command('list')
 @click.argument('accession_number')
-@click.option('--document-type', type=click.Choice(['MDA', 'RISK_FACTORS', 'DESCRIPTION', 'CONTROLS_PROCEDURES', 'LEGAL_PROCEEDINGS', 'MARKET_RISK', 'EXECUTIVE_COMPENSATION', 'DIRECTORS_OFFICERS']),
+# @click.option('--ticker', prompt="Filter by company ticker")
+@click.option('--document-type', type=click.Choice(document_type_choices),
               help='Filter by document type')
 @click.option('--limit', default=20, help='Maximum number of documents to show')
 @click.option('-o', '--output', type=click.Choice(['table', 'json']), default='table', help='Output format')
@@ -67,20 +70,9 @@ def list_documents(accession_number: str, document_type: str, limit: int, output
 
         # Filter by document type if specified
         if document_type:
-            # Map CLI option to DocumentType enum
-            doc_type_mapping = {
-                'MDA': DocumentType.MDA,
-                'RISK_FACTORS': DocumentType.RISK_FACTORS,
-                'DESCRIPTION': DocumentType.DESCRIPTION,
-                'CONTROLS_PROCEDURES': DocumentType.CONTROLS_PROCEDURES,
-                'LEGAL_PROCEEDINGS': DocumentType.LEGAL_PROCEEDINGS,
-                'MARKET_RISK': DocumentType.MARKET_RISK,
-                'EXECUTIVE_COMPENSATION': DocumentType.EXECUTIVE_COMPENSATION,
-                'DIRECTORS_OFFICERS': DocumentType.DIRECTORS_OFFICERS
-            }
-            doc_type_enum = doc_type_mapping.get(document_type)
-            if doc_type_enum:
-                documents_list = [doc for doc in documents_list if doc.document_type == doc_type_enum]
+            dt = DocumentType(document_type)
+            if dt:
+                documents_list = [doc for doc in documents_list if doc.document_type == dt]
 
         # Apply limit
         documents_list = documents_list[:limit]

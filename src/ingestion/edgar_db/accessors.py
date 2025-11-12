@@ -7,7 +7,9 @@ from src.database.documents import DocumentType
 
 # from edgar.xbrl import XBRL
 # import pandas as pd
+from src.utils.logging import get_logger
 
+logger = get_logger(__name__)
 
 def edgar_login(edgar_contact: str) -> None:
     """
@@ -56,30 +58,31 @@ class SectionAccessor:
         """Extract content using the defined access method."""
         filing_obj = filing.obj()
 
+        logger.debug("start_extract_section")
         # Try direct property access first
         if self.property_name and hasattr(filing_obj, self.property_name):
             content = getattr(filing_obj, self.property_name)
             if content:
                 return content
 
+        logger.debug("attempt_section_lookup_by_item")
         # Try item/part access if available
         if self.item_key:
             try:
                 if self.part:
+                    logger.debug("attempt_section_lookup_by_part")
                     content = filing_obj.get_item_with_part(self.part, self.item_key)
                 else:
                     content = filing_obj[self.item_key]
+
                 if content:
                     return content
             except (AttributeError, KeyError):
+                logger.error("section_extraction_error")
                 pass
 
         # Try fallback function
-        if self.fallback_fn:
-            try:
-                return self.fallback_fn(filing)
-            except Exception:
-                pass
+        logger.warn("no_section_found")
 
         return None
 
@@ -236,14 +239,18 @@ def get_form_section(filing: Filing, section: FormSection) -> Optional[str]:
     """
     form_type = filing.form
 
+    logger.debug("get_form_section", section=section)
+
     # Get the mapping for this form type
     form_mapping = FORM_SECTION_MAPPINGS.get(form_type)
     if not form_mapping:
+        logger.warn("no_section_found")
         return None
 
     # Get the accessor for this section
     accessor = form_mapping.get(section)
     if not accessor:
+        logger.warn("no_accessor_found")
         return None
 
     return accessor.extract(filing)

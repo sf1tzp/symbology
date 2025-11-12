@@ -226,6 +226,7 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
 
         # Use the new mapping system to get all available sections for this document type
         sections_content = get_sections_for_document_types(filing)
+        logger.debug("sections_content_length", length=sections_content.__len__())
 
         for doc_type, content in sections_content.items():
             if content and content.strip():

@@ -26,3 +26,5 @@ ui/dist
 
 **/*.egg-info/
 **/node_modules/
+
+old/

@@ -9,7 +9,6 @@
 	import { RefreshCcw } from '@lucide/svelte';
 	import { titleCase } from 'title-case';
 
-
 	// Props
 	interface Props {
 		placeholder?: string;

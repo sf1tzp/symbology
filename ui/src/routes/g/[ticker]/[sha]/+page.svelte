@@ -39,7 +39,7 @@
 		return `${minutes}m ${seconds}s`;
 	}
 
-    // FIXME: Let's move away from event passing here
+	// FIXME: Let's move away from event passing here
 	// We should pass all the necessary url parts to the SourcesList component
 	// Then call goto(...) within that component
 	function handleSourceSelected(event: CustomEvent) {

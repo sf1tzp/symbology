@@ -49,14 +49,6 @@
 		goto(`/f/${accessionNumber}`);
 	}
 
-	function handleBrowseAnalysis() {
-		goto('/analysis');
-	}
-
-	function handleBrowseFilings() {
-		goto('/filings');
-	}
-
 	// Helper function to format dates
 	function formatDate(dateString: string): string {
 		try {

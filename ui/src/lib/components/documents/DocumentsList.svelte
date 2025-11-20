@@ -13,7 +13,6 @@
 
 	let { documents, filing }: Props = $props();
 
-
 	// Helper function to truncate content for preview
 	function getContentPreview(content: string | null): string {
 		if (!content) return 'No content available';
@@ -59,7 +58,10 @@
 {:else}
 	<div class="space-y-4">
 		{#each documents as document (document.id)}
-			<Card class="transition-colors hover:bg-muted/50" onclick={() => handleDocumentClick(filing, document)}>
+			<Card
+				class="transition-colors hover:bg-muted/50"
+				onclick={() => handleDocumentClick(filing, document)}
+			>
 				<CardHeader class="pb-3">
 					<div class="flex items-start justify-between">
 						<div class="space-y-2">

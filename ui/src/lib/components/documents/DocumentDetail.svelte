@@ -1,11 +1,5 @@
 <script lang="ts">
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/components/ui/card';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { HandCoins } from '@lucide/svelte';
 	import MarkdownContent from '../ui/MarkdownContent.svelte';
 	import Separator from '../ui/separator/separator.svelte';

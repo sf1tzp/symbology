@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from src.api.schemas import CompanyResponse, DocumentResponse, FilingResponse
 from src.database.documents import get_documents_by_filing
-from src.database.filings import get_filing_by_accession_number, get_filings_by_company
+from src.database.filings import Filing, get_filing_by_accession_number, get_filings_by_company
 from src.database.generated_content import get_frontpage_summary_by_ticker
 from src.utils.logging import get_logger
 
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def _filing_to_response(filing) -> FilingResponse:
+def _filing_to_response(filing: Filing) -> FilingResponse:
     """Convert a Filing model to FilingResponse.
 
     Args:

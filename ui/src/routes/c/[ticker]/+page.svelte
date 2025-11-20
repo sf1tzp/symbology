@@ -77,16 +77,91 @@
 		return documentType;
 	}
 
-	function handleBrowseAllAnalysis() {
-		goto('/analysis');
-	}
+	function format_filing_period(filing: FilingResponse) {
+		let fye = new Date(company?.fiscal_year_end);
+		let reportDate = new Date(filing.period_of_report);
 
-	function handleBrowseAllFilings() {
-		goto('/filings');
-	}
+		try {
+			const reportMonth = reportDate.getMonth() + 1; // getMonth returns 0-11
+			const reportYear = reportDate.getFullYear();
 
-	function format_filing_in_list(filing: FilingResponse) {
-		return `${ticker} ${filing.form} for period ending ${filing.period_of_report}`;
+			if (filing.form.includes('10-Q')) {
+				// Determine quarter based on fiscal year end
+				let quarter: number;
+				let fiscalYear: number;
+
+				if (fye) {
+					// Parse fiscal year end (format like "1231" for Dec 31)
+					const fyeMonth = fye.getMonth() + 1;
+					const fyeDay = fye.getDay() + 1;
+
+					// Calculate which fiscal year this report belongs to
+					// If report date is after fiscal year end, it's the next fiscal year
+					const fyeThisYear = new Date(reportYear, fyeMonth - 1, fyeDay);
+					const fyeLastYear = new Date(reportYear - 1, fyeMonth - 1, fyeDay);
+
+					if (reportDate > fyeThisYear) {
+						fiscalYear = reportYear + 1;
+					} else if (reportDate > fyeLastYear) {
+						fiscalYear = reportYear;
+					} else {
+						fiscalYear = reportYear - 1;
+					}
+
+					// Calculate quarter based on months from fiscal year end
+					const monthsFromFYE = (reportMonth - fyeMonth + 12) % 12;
+					if (monthsFromFYE >= 0 && monthsFromFYE < 3) {
+						quarter = 1;
+					} else if (monthsFromFYE < 6) {
+						quarter = 2;
+					} else if (monthsFromFYE < 9) {
+						quarter = 3;
+					} else {
+						quarter = 4;
+					}
+				} else {
+					// Fall back to calendar year quarters
+					fiscalYear = reportYear;
+					if (reportMonth <= 3) {
+						quarter = 1;
+					} else if (reportMonth <= 6) {
+						quarter = 2;
+					} else if (reportMonth <= 9) {
+						quarter = 3;
+					} else {
+						quarter = 4;
+					}
+				}
+
+				return `Fiscal Year ${fiscalYear} Q${quarter}`;
+			}
+
+			if (filing.form.includes('10-K')) {
+				let fiscalYear = reportYear;
+
+				// For 10-K, determine the fiscal year based on fiscal year end
+				if (fye) {
+					const fyeMonth = fye.getMonth() + 1;
+					const fyeDay = fye.getDay();
+					const fyeThisYear = new Date(reportYear, fyeMonth - 1, fyeDay);
+
+					// If report date is close to fiscal year end, it's likely that fiscal year
+					// Otherwise, it might be the previous fiscal year
+					if (reportDate >= fyeThisYear) {
+						fiscalYear = reportYear;
+					} else {
+						fiscalYear = reportYear;
+					}
+				}
+
+				return `Fiscal Year ${fiscalYear}`;
+			}
+		} catch (error) {
+			// If date parsing fails, fall back to original date string
+			console.warn('Failed to parse filing date:', reportDate, error);
+		}
+
+		return reportDate;
 	}
 
 	/**
@@ -254,27 +329,28 @@
 				{#if filings.length > 0}
 					<div class="space-y-3">
 						{#each filings as filing}
-							<Card class="transition-shadow hover:shadow-md"
-									onclick={() => handleFilingClick(filing.accession_number)}
+							<Card
+								class="transition-shadow hover:shadow-md"
+								onclick={() => handleFilingClick(filing.accession_number)}
 							>
 								<CardContent>
-							<div
-								class="flex justify-between"
-							>
-								<div class="flex-1">
-									<div class="text-sm font-medium">
-										{company?.display_name}'s {filing.form}
-
+									<div class="flex justify-between">
+										<div class="flex-1">
+											<div class="text-sm font-medium">
+												{company?.display_name}'s {filing.form}
+											</div>
+											<div class="text-xs text-muted-foreground">
+												{format_filing_period(filing)}
+											</div>
+										</div>
+										<Button
+											variant="outline"
+											size="sm"
+											onclick={() => handleFilingClick(filing.accession_number)}
+										>
+											View
+										</Button>
 									</div>
-								</div>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => handleFilingClick(filing.accession_number)}
-								>
-									View
-								</Button>
-							</div>
 								</CardContent>
 							</Card>
 						{/each}

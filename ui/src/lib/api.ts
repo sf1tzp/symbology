@@ -208,6 +208,13 @@ export async function getFilingsByTicker(
 		logApiCall('GET', url);
 
 		const filings = await fetchApi<FilingResponse[]>(url);
+		// Sort by filing.period_of_report (most recent first)
+		return filings.sort((a, b) => {
+			const dateA = new Date(a.period_of_report).getTime();
+			const dateB = new Date(b.period_of_report).getTime();
+			return dateB - dateA;
+		});
+
 		return filings;
 	} catch (error) {
 		console.error(`Error fetching filings for ticker ${ticker}:`, error);

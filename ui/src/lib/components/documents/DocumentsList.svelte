@@ -5,6 +5,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { FileText, Eye } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
+	import { titleCase } from 'title-case';
 
 	interface Props {
 		documents: DocumentResponse[];
@@ -35,16 +36,21 @@
 
 	// Helper function to get analysis type display name
 	function getAnalysisTypeDisplay(documentType: string): string {
-		switch (documentType?.toUpperCase()) {
-			case 'MANAGEMENT_DISCUSSION':
-				return 'Management Discussion';
-			case 'RISK_FACTORS':
-				return 'Risk Factors';
-			case 'BUSINESS_DESCRIPTION':
-				return 'Business Description';
-			default:
-				return documentType;
-		}
+		const type = documentType?.toLowerCase() ?? '';
+
+		// Core document types
+		if (type.includes('management_discussion')) return 'Management Discussion';
+		if (type.includes('risk_factors')) return 'Risk Factors';
+		if (type.includes('business_description')) return 'Business Description';
+
+		// Additional document sections
+		if (type.includes('controls_procedures')) return 'Controls & Procedures';
+		if (type.includes('legal_proceedings')) return 'Legal Proceedings';
+		if (type.includes('market_risk')) return 'Market Risk';
+		if (type.includes('executive_compensation')) return 'Executive Compensation';
+		if (type.includes('directors_officers')) return 'Directors & Officers';
+
+		return titleCase(type);
 	}
 </script>
 

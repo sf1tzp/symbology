@@ -262,12 +262,17 @@
 				{#if filings.length > 0}
 					<div class="space-y-3">
 						{#each filings as filing}
+							<Card class="transition-shadow hover:shadow-md"
+									onclick={() => handleFilingClick(filing.accession_number)}
+							>
+								<CardContent>
 							<div
-								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
+								class="flex justify-between"
 							>
 								<div class="flex-1">
 									<div class="text-sm font-medium">
-										{format_filing_in_list(filing)}
+										{company?.display_name}'s {filing.form}
+
 									</div>
 								</div>
 								<Button
@@ -278,6 +283,8 @@
 									View
 								</Button>
 							</div>
+								</CardContent>
+							</Card>
 						{/each}
 					</div>
 				{:else}

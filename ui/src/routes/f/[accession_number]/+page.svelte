@@ -75,7 +75,7 @@
 			<CardDescription>Documents contained within this SEC filing</CardDescription>
 		</CardHeader>
 		<CardContent>
-			<DocumentsList documents={data.documents} on:documentSelected={handleDocumentSelected} />
+			<DocumentsList documents={data.documents} filing={data.filing} />
 		</CardContent>
 	</Card>
 </div>

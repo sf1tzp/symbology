@@ -11,6 +11,9 @@
 
 	const dispatch = createEventDispatcher();
 
+	// FIXME: Let's move away from event passing here
+	// We should pass all the necessary url parts to the SourcesList component
+	// Then call goto(...) within that component
 	function handleSourceClick(source: DocumentResponse | GeneratedContentResponse) {
 		// Check if this is a document or generated content based on the presence of certain fields
 		if ('title' in source) {
@@ -139,9 +142,9 @@
 							<!-- Document Name -->
 							<div class="flex items-start space-x-2">
 								{#if getSourceIcon(source) === FileText}
-									<FileText class="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+									<FileText class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
 								{:else}
-									<Bot class="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+									<Bot class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
 								{/if}
 								<div class="min-w-0 flex-1">
 									<p class="text-sm leading-tight font-medium">

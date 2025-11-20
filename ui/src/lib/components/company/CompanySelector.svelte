@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
@@ -10,11 +9,6 @@
 	import { RefreshCcw } from '@lucide/svelte';
 	import { titleCase } from 'title-case';
 
-	// Event dispatcher for parent components
-	const dispatch = createEventDispatcher<{
-		companySelected: CompanyResponse;
-		companyCleared: void;
-	}>();
 
 	// Props
 	interface Props {
@@ -109,12 +103,6 @@
 
 	// Handle company selection
 	function selectCompany(company: CompanyResponse) {
-		const primaryTicker = company.ticker || 'N/A';
-		searchTerm = `${company.name} (${primaryTicker})`;
-		showDropdown = false;
-		dispatch('companySelected', company);
-
-		// Navigate to company page if ticker is available
 		goto(`/c/${company.ticker}`);
 	}
 
@@ -267,9 +255,9 @@
 		</div>
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 			{#each featuredCompanies.slice(0, 8) as company}
-				<Card class="transition-shadow hover:shadow-md">
+				<Card class="transition-shadow hover:shadow-md" onclick={() => selectCompany(company)}>
 					<CardContent class="">
-						<div class="flex justify-around">
+						<div class="flex justify-between">
 							<div class="">
 								<div class="font-medium">{titleCase(company.name.toLowerCase())}</div>
 								<div class="text-xs text-muted-foreground">

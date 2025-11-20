@@ -76,28 +76,24 @@
 	<meta name="description" content="SEC document details and content" />
 </svelte:head>
 
-<div class="space-y-6">
+<div class="space-y-8">
 	<!-- Header with navigation -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center space-x-2">
+		<div class="flex space-x-2">
 			<Button variant="ghost" onclick={handleBackToFiling}>← Back to Filing</Button>
 			<Button variant="ghost" onclick={handleBackToCompany}>← Back to Company</Button>
 		</div>
-		<!-- <div class="flex items-center space-x-2"> -->
-		<!-- 	<Button variant="outline" size="sm" href={data.document.filing.filing_url} target="_blank"> -->
-		<!-- 		<ExternalLink class="mr-2 h-4 w-4" /> -->
-		<!-- 		View on sec.gov -->
-		<!-- 	</Button> -->
-		<!-- </div> -->
 	</div>
 
 	<!-- Document Title -->
-	<div>
-		<h1 class="text-2xl font-bold">{formatTitle(data.document)}</h1>
-		<Badge variant="secondary" class="bg-gray-500 text-white">{data.document.company_ticker}</Badge>
+	<h1 class="text-2xl font-bold">{formatTitle(data.document)}</h1>
+	<div class="flex space-x-4">
+		<Badge variant="secondary" class="bg-muted-foreground p-2 text-white"
+			>{data.document.company_ticker}</Badge
+		>
 		<a
 			href="/d/{data.accession_number}/{shortHash}"
-			class={badgeVariants({ variant: 'secondary' })}
+			class={badgeVariants({ variant: 'secondary', class: 'rounded-md p-2' })}
 		>
 			<span class="font-mono">{shortHash}</span>
 		</a>

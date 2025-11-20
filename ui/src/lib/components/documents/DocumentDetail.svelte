@@ -21,7 +21,7 @@
 	<CardHeader>
 		<CardTitle class="text-lg">Document Content</CardTitle>
 		{#if document.content}
-			<div class="flex items-center text-sm text-muted-foreground">
+			<div class="flex text-sm text-muted-foreground">
 				<HandCoins class="mr-2 h-4 w-4" />
 				~{estimateTokens(document.content || '')} tokens
 			</div>
@@ -31,12 +31,7 @@
 	<CardContent>
 		<div class="space-y-4">
 			<Separator />
-			<div
-				class="mt-3 max-h-96 overflow-y-auto rounded-md bg-muted/30 p-4 text-sm whitespace-pre-wrap"
-			>
-				<MarkdownContent content={document.content} />
-			</div>
-			<Separator />
+			<MarkdownContent content={document.content} />
 		</div>
 	</CardContent>
 </Card>

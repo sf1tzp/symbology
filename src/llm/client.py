@@ -1,21 +1,16 @@
 import json
 import re
 import time
-from typing import Dict, List, Optional
 
+from typing import Dict, List, Optional
 from ollama import ChatResponse, Client, GenerateResponse, Options
-from src.utils.config import settings
-from src.utils.logging import get_logger
 from transformers import AutoTokenizer
 
-logger = get_logger(__name__)
-
-# get_logger("httpx").setLevel(DEBUG)
-# get_logger("httpcore").setLevel(DEBUG)
-
-# Import the database ModelConfig - this is now the single source of truth
 from src.database.model_configs import ModelConfig
+from src.utils.config import settings
+from src.utils.logging import get_logger
 
+logger = get_logger(__name__)
 
 def retry_backoff(timeout, func, *args, **kwargs):
     backoff = 1

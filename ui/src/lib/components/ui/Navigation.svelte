@@ -30,7 +30,6 @@
 		return currentPath.startsWith(href);
 	}
 
-
 	let mobileMenuOpen = $state(false);
 </script>
 

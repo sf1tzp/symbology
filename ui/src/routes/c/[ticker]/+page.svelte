@@ -280,31 +280,33 @@
 			</CardHeader>
 			<CardContent class="space-y-4">
 				{#if generatedContent.length > 0}
-					<div class="space-y-3">
-						{#each generatedContent as content}
-							<div
-								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
-							>
-								<div class="flex-1">
-									<div class="text-sm font-medium">
-										{getAnalysisTypeDisplay(content.document_type)} Summary
-									</div>
-									<div class="flex items-center space-x-2 text-xs text-muted-foreground">
-										<span class="rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground">
+					{#each generatedContent as content}
+						<Card
+							class="transition-shadow hover:shadow-md"
+							onclick={() => handleAnalysisClick(content.id, content.short_hash)}
+						>
+							<CardContent>
+								<div class="flex justify-between">
+									<div class="">
+										<div class="text-sm font-medium">
+											{getAnalysisTypeDisplay(content.document_type)} Summary
+										</div>
+										<div class="text-xs text-muted-foreground">
 											Content Generated on {formatDate(content.created_at)}
-										</span>
+										</div>
 									</div>
+
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={() => handleAnalysisClick(content.id, content.short_hash)}
+									>
+										View
+									</Button>
 								</div>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => handleAnalysisClick(content.id, content.short_hash)}
-								>
-									View
-								</Button>
-							</div>
-						{/each}
-					</div>
+							</CardContent>
+						</Card>
+					{/each}
 				{:else}
 					<div class="py-8 text-center">
 						<div class="mb-4 text-muted-foreground">No analysis summaries available yet</div>
@@ -327,7 +329,7 @@
 			</CardHeader>
 			<CardContent class="space-y-4">
 				{#if filings.length > 0}
-					<div class="space-y-3">
+					<div class="space-y-4">
 						{#each filings as filing}
 							<Card
 								class="transition-shadow hover:shadow-md"
@@ -335,7 +337,7 @@
 							>
 								<CardContent>
 									<div class="flex justify-between">
-										<div class="flex-1">
+										<div class="">
 											<div class="text-sm font-medium">
 												{company?.display_name}'s {filing.form}
 											</div>

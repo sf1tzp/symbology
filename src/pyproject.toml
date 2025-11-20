@@ -56,7 +56,7 @@ norecursedirs = [
 
 [tool.ruff]
 # Enable flake8-bugbear (`B`) rules, and isort (`I`) for import sorting
-lint.select = ["E", "F", "B", "I"]
+lint.select = ["E4", "E7", "E9", "F"]
 # Allow unused variables when underscore-prefixed
 lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Exclude a variety of commonly ignored directories

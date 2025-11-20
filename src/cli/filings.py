@@ -207,7 +207,7 @@ def get_filing(accession_number: str, output: str):
             db_logger.setLevel(logging.WARNING)
 
     try:
-        session = init_session()
+        _ = init_session()
         filing = get_filing_by_accession_number(accession_number)
 
         if not filing:

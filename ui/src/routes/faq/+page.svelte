@@ -2,7 +2,7 @@
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 
-	let content=`
+	let content = `
 ## What's symbology?
 
 Symbology is the study of symbols.
@@ -30,7 +30,7 @@ S.E.C. Filings are a great dataset to practice with:
 
 
 #### _Questions unanswered?_ Start a discussion [on github](https://github.com/sf1tzp/symbology/discussions)
-`
+`;
 </script>
 
 <svelte:head>
@@ -54,7 +54,7 @@ S.E.C. Filings are a great dataset to practice with:
 	<section class="mx-auto max-w-4xl">
 		<Card>
 			<CardContent>
-				<MarkdownContent content={content}/>
+				<MarkdownContent {content} />
 			</CardContent>
 		</Card>
 	</section>

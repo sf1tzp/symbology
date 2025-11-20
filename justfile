@@ -75,15 +75,6 @@ deps component *ARGS:
     exit 1
   fi
 
-# Release management (TODO)
-_tag version:
-  git tag {{version}}
-  git push origin tag {{version}}
-
-_untag version:
-  git tag -d {{version}}
-  git push --delete origin {{version}}
-
 _generate-api-types:
   just -d ui -f ui/justfile generate-api-types
 

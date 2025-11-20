@@ -41,7 +41,8 @@
 		"tw-animate-css": "^1.3.6",
 		"typescript": "^5.0.0",
 		"vaul-svelte": "^1.0.0-next.7",
-		"vite": "^7.0.4"
+		"vite": "^7.0.4",
+		"title-case": "^4.3.2"
 	},
 	"dependencies": {
 		"marked": "^16.1.2",

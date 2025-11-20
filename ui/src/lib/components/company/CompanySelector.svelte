@@ -8,6 +8,7 @@
 	import type { CompanyResponse } from '$lib/generated-api-types';
 	import { searchCompanies, getCompanies, handleApiError } from '$lib/api';
 	import { RefreshCcw } from '@lucide/svelte';
+	import { titleCase } from 'title-case';
 
 	// Event dispatcher for parent components
 	const dispatch = createEventDispatcher<{
@@ -134,7 +135,6 @@
 	function handleKeydown(event: KeyboardEvent) {
 		if (!showDropdown || searchResults.length === 0) {
 			if (event.key === 'Enter') {
-				event.preventDefault();
 				handleSearch();
 			}
 			return;
@@ -142,17 +142,14 @@
 
 		switch (event.key) {
 			case 'ArrowDown':
-				event.preventDefault();
 				currentFocusIndex =
 					currentFocusIndex >= searchResults.length - 1 ? 0 : currentFocusIndex + 1;
 				break;
 			case 'ArrowUp':
-				event.preventDefault();
 				currentFocusIndex =
 					currentFocusIndex <= 0 ? searchResults.length - 1 : currentFocusIndex - 1;
 				break;
 			case 'Enter':
-				event.preventDefault();
 				if (currentFocusIndex >= 0) {
 					selectCompany(searchResults[currentFocusIndex]);
 				} else {
@@ -182,145 +179,113 @@
 		}
 	}
 
-	// Clear search
-	function clearSearch() {
-		searchTerm = '';
-		searchResults = [];
-		showDropdown = false;
-		dispatch('companyCleared');
-	}
-
 	// Initialize component
 	onMount(() => {
 		loadFeaturedCompanies();
 	});
 </script>
 
-<div class="company-selector relative" class:compact={variant === 'compact'}>
-	<!-- Search Input -->
-	<div class="flex space-x-2">
-		<div class="relative flex-1">
-			<Input
-				bind:value={searchTerm}
-				{placeholder}
-				{disabled}
-				oninput={handleInput}
-				onkeydown={handleKeydown}
-				onblur={handleBlur}
-				onfocus={handleFocus}
-				class="w-full"
-			/>
-
-			<!-- Clear button -->
-			{#if searchTerm}
-				<Button
-					variant="ghost"
-					size="sm"
-					onclick={clearSearch}
-					class="absolute top-1/2 right-2 h-6 w-6 -translate-y-1/2 p-0"
-				>
-					×
-				</Button>
-			{/if}
-
-			<!-- Search Results Dropdown -->
-			{#if showDropdown && searchResults.length > 0}
-				<div class="absolute top-full right-0 left-0 z-50 mt-1">
-					<Card class="border bg-popover shadow-lg">
-						<CardContent class="p-0">
-							<div class="max-h-60 overflow-y-auto">
-								{#each searchResults as company, index}
-									<button
-										class="w-full border-b p-3 text-left transition-colors last:border-b-0 hover:bg-muted"
-										class:bg-muted={currentFocusIndex === index}
-										onclick={() => selectCompany(company)}
-										type="button"
-									>
-										<div class="font-medium text-foreground">{company.name}</div>
-										<div class="text-sm text-muted-foreground">
-											{company.ticker}
-											{#if company.sic_description}
-												• {company.sic_description}
-											{/if}
-										</div>
-									</button>
-								{/each}
-							</div>
-						</CardContent>
-					</Card>
-				</div>
-			{/if}
-		</div>
-
-		<Button onclick={handleSearch} disabled={disabled || isSearching || !searchTerm.trim()}>
-			{#if isSearching}
-				Searching...
-			{:else}
-				Search
-			{/if}
-		</Button>
+<!-- Search Input -->
+<div class="flex space-x-4">
+	<div class="relative flex-1">
+		<Input
+			bind:value={searchTerm}
+			{placeholder}
+			{disabled}
+			oninput={handleInput}
+			onkeydown={handleKeydown}
+			onblur={handleBlur}
+			onfocus={handleFocus}
+			class=""
+		/>
+		<!-- Search Results Dropdown -->
+		{#if showDropdown && searchResults.length > 0}
+			<Card class="absolute top-full z-50 border border-white bg-popover shadow-lg">
+				<CardContent class="p-0">
+					<div class="max-h-60 overflow-y-auto">
+						{#each searchResults as company, index}
+							<button
+								class="w-full border-b p-2 text-left transition-colors last:border-b-0 hover:bg-muted"
+								class:bg-muted={currentFocusIndex === index}
+								onclick={() => selectCompany(company)}
+								type="button"
+							>
+								<div class="font-medium text-foreground">
+									{titleCase(company.name.toLowerCase())}
+								</div>
+								<div class="text-sm text-muted-foreground">
+									{company.ticker}
+									{#if company.sic_description}
+										• {company.sic_description}
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+				</CardContent>
+			</Card>
+		{/if}
 	</div>
 
-	<!-- Error Message -->
-	{#if searchError}
-		<div class="mt-2 text-sm text-red-500">
-			Error: {searchError}
-		</div>
-	{/if}
-
-	<!-- Featured Companies List (only shown when showCompanyList is true) -->
-	{#if showCompanyList && variant === 'default'}
-		<div class="mt-6">
-			<div class="mb-4 flex items-center justify-between">
-				<h3 class="text-lg font-semibold">Popular Companies</h3>
-				<Button
-					variant="outline"
-					size="sm"
-					onclick={shuffleFeaturedCompanies}
-					disabled={disabled || isShuffling}
-					class="flex items-center gap-2"
-				>
-					<RefreshCcw class={isShuffling ? 'animate-spin' : ''} size={16} />
-					{#if isShuffling}
-						Shuffling...
-					{:else}
-						Shuffle
-					{/if}
-				</Button>
-			</div>
-			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-				{#each featuredCompanies.slice(0, 8) as company}
-					<Card class="cursor-pointer transition-shadow hover:shadow-md">
-						<CardContent class="p-4">
-							<div class="flex items-center justify-between">
-								<div class="flex-1">
-									<div class="text-sm font-medium">{company.name}</div>
-									<div class="text-xs text-muted-foreground">
-										{company.ticker || 'N/A'}
-										{#if company.sic_description}
-											• {company.sic_description}
-										{/if}
-									</div>
-								</div>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => selectCompany(company)}
-									{disabled}
-								>
-									Select
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				{/each}
-			</div>
-		</div>
-	{/if}
+	<Button
+		onclick={handleSearch}
+		hidden={showDropdown}
+		disabled={disabled || isSearching || !searchTerm.trim()}
+	>
+		{#if isSearching}
+			Searching...
+		{:else}
+			Search
+		{/if}
+	</Button>
 </div>
 
-<style>
-	.company-selector.compact .grid {
-		display: none;
-	}
-</style>
+{#if searchError}
+	<div class="mt-4 text-sm text-red-500">
+		Error: {searchError}
+	</div>
+{/if}
+
+{#if showCompanyList}
+	<div class="mt-8">
+		<div class="mb-4 flex items-center justify-between">
+			<h3 class="text-lg font-semibold">Popular Companies</h3>
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={shuffleFeaturedCompanies}
+				disabled={disabled || isShuffling}
+				class="flex items-center gap-2"
+			>
+				<RefreshCcw class={isShuffling ? 'animate-spin' : ''} size={16} />
+				{#if isShuffling}
+					Shuffling...
+				{:else}
+					Shuffle
+				{/if}
+			</Button>
+		</div>
+		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+			{#each featuredCompanies.slice(0, 8) as company}
+				<Card class="transition-shadow hover:shadow-md">
+					<CardContent class="">
+						<div class="flex justify-around">
+							<div class="">
+								<div class="font-medium">{titleCase(company.name.toLowerCase())}</div>
+								<div class="text-xs text-muted-foreground">
+									{company.ticker}
+									{#if company.sic_description}
+										• {company.sic_description}
+									{/if}
+								</div>
+							</div>
+							<Button variant="outline" size="sm" onclick={() => selectCompany(company)} {disabled}>
+								Select
+							</Button>
+						</div>
+					</CardContent>
+				</Card>
+			{/each}
+		</div>
+	</div>
+{/if}

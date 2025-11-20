@@ -49,30 +49,112 @@
 		const periodOfReport = filing.period_of_report;
 
 		if (periodOfReport) {
-			return `${periodOfReport} ${filingType}`;
+			return `${format_filing_period(filing)}`;
 		} else {
 			return `${companyName} ${filingType}`;
 		}
 	});
+
+	function format_filing_period(filing: FilingResponse) {
+		let fye = new Date(company?.fiscal_year_end);
+		let reportDate = new Date(filing.period_of_report);
+
+		try {
+			const reportMonth = reportDate.getMonth() + 1; // getMonth returns 0-11
+			const reportYear = reportDate.getFullYear();
+
+			if (filing.form.includes('10-Q')) {
+				// Determine quarter based on fiscal year end
+				let quarter: number;
+				let fiscalYear: number;
+
+				if (fye) {
+					// Parse fiscal year end (format like "1231" for Dec 31)
+					const fyeMonth = fye.getMonth() + 1;
+					const fyeDay = fye.getDay() + 1;
+
+					// Calculate which fiscal year this report belongs to
+					// If report date is after fiscal year end, it's the next fiscal year
+					const fyeThisYear = new Date(reportYear, fyeMonth - 1, fyeDay);
+					const fyeLastYear = new Date(reportYear - 1, fyeMonth - 1, fyeDay);
+
+					if (reportDate > fyeThisYear) {
+						fiscalYear = reportYear + 1;
+					} else if (reportDate > fyeLastYear) {
+						fiscalYear = reportYear;
+					} else {
+						fiscalYear = reportYear - 1;
+					}
+
+					// Calculate quarter based on months from fiscal year end
+					const monthsFromFYE = (reportMonth - fyeMonth + 12) % 12;
+					if (monthsFromFYE >= 0 && monthsFromFYE < 3) {
+						quarter = 1;
+					} else if (monthsFromFYE < 6) {
+						quarter = 2;
+					} else if (monthsFromFYE < 9) {
+						quarter = 3;
+					} else {
+						quarter = 4;
+					}
+				} else {
+					// Fall back to calendar year quarters
+					fiscalYear = reportYear;
+					if (reportMonth <= 3) {
+						quarter = 1;
+					} else if (reportMonth <= 6) {
+						quarter = 2;
+					} else if (reportMonth <= 9) {
+						quarter = 3;
+					} else {
+						quarter = 4;
+					}
+				}
+
+				return `Fiscal Year ${fiscalYear} Q${quarter}`;
+			}
+
+			if (filing.form.includes('10-K')) {
+				let fiscalYear = reportYear;
+
+				// For 10-K, determine the fiscal year based on fiscal year end
+				if (fye) {
+					const fyeMonth = fye.getMonth() + 1;
+					const fyeDay = fye.getDay();
+					const fyeThisYear = new Date(reportYear, fyeMonth - 1, fyeDay);
+
+					// If report date is close to fiscal year end, it's likely that fiscal year
+					// Otherwise, it might be the previous fiscal year
+					if (reportDate >= fyeThisYear) {
+						fiscalYear = reportYear;
+					} else {
+						fiscalYear = reportYear;
+					}
+				}
+
+				return `Fiscal Year ${fiscalYear}`;
+			}
+		} catch (error) {
+			// If date parsing fails, fall back to original date string
+			console.warn('Failed to parse filing date:', reportDate, error);
+		}
+
+		return reportDate;
+	}
 </script>
 
-<Card>
-	<CardHeader>
-		<div class="flex items-start justify-between">
-			<div>
-				<CardTitle class="text-xl">{headerTitle()}</CardTitle>
-				<div class="mt-2 flex flex-wrap items-center gap-2">
-					<Badge variant="secondary" class="bg-gray-500 text-white">{company?.ticker}</Badge>
-					<Badge variant="default">{getFilingTypeLabel(filing.form)}</Badge>
-					<Badge variant="outline">Filed on {formatDate(filing.filing_date)}</Badge>
-				</div>
-			</div>
-			{#if filing.url}
-				<Button variant="outline" size="sm" href={filing.url} target="_blank">
-					<ExternalLink class="mr-2 h-4 w-4" />
-					View on sec.gov
-				</Button>
-			{/if}
+<div class="flex items-start justify-between">
+	<div>
+		<h1 class="text-xl font-bold">{headerTitle()}</h1>
+		<div class="mt-2 flex flex-wrap items-center gap-2">
+			<Badge variant="default">{company?.ticker}</Badge>
+			<Badge variant="secondary">{filing.form}</Badge>
 		</div>
-	</CardHeader>
-</Card>
+	</div>
+	{#if filing.url}
+		<Button variant="outline" size="sm" href={filing.url} target="_blank">
+			<ExternalLink class="mr-2 h-4 w-4" />
+			View on sec.gov
+		</Button>
+	{/if}
+</div>

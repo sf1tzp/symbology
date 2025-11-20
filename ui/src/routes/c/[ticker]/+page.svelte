@@ -49,14 +49,6 @@
 		goto(`/f/${accessionNumber}`);
 	}
 
-	function handleBrowseAnalysis() {
-		goto('/analysis');
-	}
-
-	function handleBrowseFilings() {
-		goto('/filings');
-	}
-
 	// Helper function to format dates
 	function formatDate(dateString: string): string {
 		try {
@@ -85,16 +77,91 @@
 		return documentType;
 	}
 
-	function handleBrowseAllAnalysis() {
-		goto('/analysis');
-	}
+	function format_filing_period(filing: FilingResponse) {
+		let fye = new Date(company?.fiscal_year_end);
+		let reportDate = new Date(filing.period_of_report);
 
-	function handleBrowseAllFilings() {
-		goto('/filings');
-	}
+		try {
+			const reportMonth = reportDate.getMonth() + 1; // getMonth returns 0-11
+			const reportYear = reportDate.getFullYear();
 
-	function format_filing_in_list(filing: FilingResponse) {
-		return `${ticker} ${filing.form} for period ending ${filing.period_of_report}`;
+			if (filing.form.includes('10-Q')) {
+				// Determine quarter based on fiscal year end
+				let quarter: number;
+				let fiscalYear: number;
+
+				if (fye) {
+					// Parse fiscal year end (format like "1231" for Dec 31)
+					const fyeMonth = fye.getMonth() + 1;
+					const fyeDay = fye.getDay() + 1;
+
+					// Calculate which fiscal year this report belongs to
+					// If report date is after fiscal year end, it's the next fiscal year
+					const fyeThisYear = new Date(reportYear, fyeMonth - 1, fyeDay);
+					const fyeLastYear = new Date(reportYear - 1, fyeMonth - 1, fyeDay);
+
+					if (reportDate > fyeThisYear) {
+						fiscalYear = reportYear + 1;
+					} else if (reportDate > fyeLastYear) {
+						fiscalYear = reportYear;
+					} else {
+						fiscalYear = reportYear - 1;
+					}
+
+					// Calculate quarter based on months from fiscal year end
+					const monthsFromFYE = (reportMonth - fyeMonth + 12) % 12;
+					if (monthsFromFYE >= 0 && monthsFromFYE < 3) {
+						quarter = 1;
+					} else if (monthsFromFYE < 6) {
+						quarter = 2;
+					} else if (monthsFromFYE < 9) {
+						quarter = 3;
+					} else {
+						quarter = 4;
+					}
+				} else {
+					// Fall back to calendar year quarters
+					fiscalYear = reportYear;
+					if (reportMonth <= 3) {
+						quarter = 1;
+					} else if (reportMonth <= 6) {
+						quarter = 2;
+					} else if (reportMonth <= 9) {
+						quarter = 3;
+					} else {
+						quarter = 4;
+					}
+				}
+
+				return `Fiscal Year ${fiscalYear} Q${quarter}`;
+			}
+
+			if (filing.form.includes('10-K')) {
+				let fiscalYear = reportYear;
+
+				// For 10-K, determine the fiscal year based on fiscal year end
+				if (fye) {
+					const fyeMonth = fye.getMonth() + 1;
+					const fyeDay = fye.getDay();
+					const fyeThisYear = new Date(reportYear, fyeMonth - 1, fyeDay);
+
+					// If report date is close to fiscal year end, it's likely that fiscal year
+					// Otherwise, it might be the previous fiscal year
+					if (reportDate >= fyeThisYear) {
+						fiscalYear = reportYear;
+					} else {
+						fiscalYear = reportYear;
+					}
+				}
+
+				return `Fiscal Year ${fiscalYear}`;
+			}
+		} catch (error) {
+			// If date parsing fails, fall back to original date string
+			console.warn('Failed to parse filing date:', reportDate, error);
+		}
+
+		return reportDate;
 	}
 
 	/**
@@ -198,7 +265,7 @@
 	</Card>
 
 	<!-- Section 3: Links to Filings / Analysis -->
-	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+	<div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
 		<!-- LLM Analysis -->
 		<Card>
 			<CardHeader>
@@ -213,31 +280,33 @@
 			</CardHeader>
 			<CardContent class="space-y-4">
 				{#if generatedContent.length > 0}
-					<div class="space-y-3">
-						{#each generatedContent as content}
-							<div
-								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
-							>
-								<div class="flex-1">
-									<div class="text-sm font-medium">
-										{getAnalysisTypeDisplay(content.document_type)} Summary
-									</div>
-									<div class="flex items-center space-x-2 text-xs text-muted-foreground">
-										<span class="rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground">
+					{#each generatedContent as content}
+						<Card
+							class="transition-shadow hover:bg-muted/50 hover:shadow-md"
+							onclick={() => handleAnalysisClick(content.id, content.short_hash)}
+						>
+							<CardContent>
+								<div class="flex justify-between">
+									<div class="">
+										<div class="text-sm font-medium">
+											{getAnalysisTypeDisplay(content.document_type)} Summary
+										</div>
+										<div class="text-xs text-muted-foreground">
 											Content Generated on {formatDate(content.created_at)}
-										</span>
+										</div>
 									</div>
+
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={() => handleAnalysisClick(content.id, content.short_hash)}
+									>
+										View
+									</Button>
 								</div>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => handleAnalysisClick(content.id, content.short_hash)}
-								>
-									View
-								</Button>
-							</div>
-						{/each}
-					</div>
+							</CardContent>
+						</Card>
+					{/each}
 				{:else}
 					<div class="py-8 text-center">
 						<div class="mb-4 text-muted-foreground">No analysis summaries available yet</div>
@@ -260,24 +329,32 @@
 			</CardHeader>
 			<CardContent class="space-y-4">
 				{#if filings.length > 0}
-					<div class="space-y-3">
+					<div class="space-y-4">
 						{#each filings as filing}
-							<div
-								class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
+							<Card
+								class="transition-shadow hover:bg-muted/50 hover:shadow-md"
+								onclick={() => handleFilingClick(filing.accession_number)}
 							>
-								<div class="flex-1">
-									<div class="text-sm font-medium">
-										{format_filing_in_list(filing)}
+								<CardContent>
+									<div class="flex justify-between">
+										<div class="">
+											<div class="text-sm font-medium">
+												{company?.display_name}'s {filing.form}
+											</div>
+											<div class="text-xs text-muted-foreground">
+												{format_filing_period(filing)}
+											</div>
+										</div>
+										<Button
+											variant="outline"
+											size="sm"
+											onclick={() => handleFilingClick(filing.accession_number)}
+										>
+											View
+										</Button>
 									</div>
-								</div>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => handleFilingClick(filing.accession_number)}
-								>
-									View
-								</Button>
-							</div>
+								</CardContent>
+							</Card>
 						{/each}
 					</div>
 				{:else}

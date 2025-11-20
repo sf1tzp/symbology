@@ -74,6 +74,8 @@ export interface GeneratedContentResponse {
 	short_hash?: any;
 	/** ID of the company this content belongs to */
 	company_id?: any;
+	/** Content description */
+	description?: any;
 	/** Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION) */
 	document_type?: any;
 	/** Type of sources used (documents, generated_content, both) */

@@ -318,6 +318,7 @@ class GeneratedContentResponse(BaseModel):
     content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
     short_hash: Optional[str] = Field(None, description="Shortened hash for URLs (first 12 characters)")
     company_id: Optional[UUID] = Field(None, description="ID of the company this content belongs to")
+    description: Optional[str] = Field(None, description="Content description")
     document_type: Optional[str] = Field(None, description="Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION)")
     source_type: str = Field(..., description="Type of sources used (documents, generated_content, both)")
     created_at: datetime = Field(..., description="Timestamp when the content was created")
@@ -338,6 +339,7 @@ class GeneratedContentResponse(BaseModel):
                 "content_hash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2",
                 "short_hash": "a1b2c3d4e5f6",
                 "company_id": "123e4567-e89b-12d3-a456-426614174000",
+                "description": "foo",
                 "document_type": "MDA",
                 "source_type": "documents",
                 "created_at": "2023-12-25T12:30:45.123456",

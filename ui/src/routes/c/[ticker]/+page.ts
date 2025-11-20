@@ -1,9 +1,4 @@
 import type { PageLoad } from './$types';
-import type {
-	CompanyResponse,
-	GeneratedContentResponse,
-	FilingResponse
-} from '$lib/generated-api-types';
 import { getCompanyByTicker, getAggregateSummariesByTicker, getFilingsByTicker } from '$lib/api';
 
 export const load: PageLoad = async ({ params }) => {

@@ -234,6 +234,7 @@ class GeneratedContent(Base):
             "short_hash": self.get_short_hash(),
             "company_id": str(self.company_id) if self.company_id else None,
             "document_type": self.description,
+            "description": self.description,
             "source_type": self.source_type.value,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "total_duration": self.total_duration,

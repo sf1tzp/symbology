@@ -29,19 +29,13 @@
 	}
 </script>
 
-<div class="space-y-6">
-	<Separator />
-	<!-- Content Section -->
-	{#if content?.content}
-		<div class="space-y-4">
-			<MarkdownContent content={cleanContent(content.content) || ''} />
+{#if content?.content}
+	<MarkdownContent content={cleanContent(content.content) || ''} />
+{:else}
+	<div class="flex justify-center rounded-lg border border-dashed p-8">
+		<div class="text-center">
+			<Eye class="mx-auto h-8 w-8 text-muted-foreground" />
+			<p class="text-sm text-muted-foreground">No content available</p>
 		</div>
-	{:else}
-		<div class="flex items-center justify-center rounded-lg border border-dashed p-8">
-			<div class="text-center">
-				<Eye class="mx-auto h-8 w-8 text-muted-foreground" />
-				<p class="mt-2 text-sm text-muted-foreground">No content available</p>
-			</div>
-		</div>
-	{/if}
-</div>
+	</div>
+{/if}

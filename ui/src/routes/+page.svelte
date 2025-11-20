@@ -4,16 +4,13 @@
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 
 	let introContent = `
-# Investment Research Made Easy
+## [Investment Research](https://www.investor.gov/introduction-investing/getting-started/researching-investments) for the modern era.
 
-We use LLMs at what they're good at: Summarizing text.
+Leverage LLMs to read the forms so you don't have to. With thoughtful prompt techniques, compare years of filing, identify changes and get _trustworthy*_ read-outs on Company status.
 
-Utilizing simple prompting techniques and primary sources, we aim to provide clear and consistent analysis of:
-- Strategy and Market Position
-- Risk Exposure and Management
-- Financial Standing and Accounting Principles
+_*LLMs still generate gibberish despite our best efforts. Please [report](https://github.com/sf1tzp/symbology/issues) low quality content [here](https://github.com/sf1tzp/symbology/issues)._
 
-Our analysis are collated and displayed here. Find out more on [github](github.com/sf1tzp/symbology).
+This site is a work in progress. Please check out the [F.A.Q.](https://symbology.online/faq) and [code](https://github.com/sf1tzp/symbology/) for more details.
 `;
 </script>
 

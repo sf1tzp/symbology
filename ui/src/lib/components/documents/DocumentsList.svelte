@@ -68,20 +68,18 @@
 				class="transition-colors hover:bg-muted/50"
 				onclick={() => handleDocumentClick(filing, document)}
 			>
-				<CardHeader class="pb-3">
+				<CardHeader class="">
 					<div class="flex items-start justify-between">
 						<div class="space-y-2">
-							<div class="flex items-center space-x-2">
-								<FileText class="h-4 w-4 text-muted-foreground" />
+							<div class="flex items-center">
+								<FileText class="mr-2 h-4 w-4 text-muted-foreground" />
 								<CardTitle class="text-base">
 									{getAnalysisTypeDisplay(document.document_type)}
 								</CardTitle>
 							</div>
-							<div class="flex flex-wrap items-center gap-2">
-								<Badge variant="outline" class="font-mono text-xs">
-									{document.short_hash || formatDocumentId(document.content_hash)}
-								</Badge>
-							</div>
+							<Badge variant="outline" class="font-mono text-xs">
+								{document.short_hash || formatDocumentId(document.content_hash)}
+							</Badge>
 						</div>
 						<Button
 							variant="outline"
@@ -89,14 +87,13 @@
 							onclick={() => handleDocumentClick(filing, document)}
 							class="ml-4"
 						>
-							<Eye class="mr-2 h-4 w-4" />
 							View
 						</Button>
 					</div>
 				</CardHeader>
 
 				{#if document.content}
-					<CardContent class="pt-0">
+					<CardContent class="">
 						<div class="text-sm text-muted-foreground">
 							<p class="leading-relaxed">
 								{getContentPreview(document.content)}
@@ -107,10 +104,8 @@
 			</Card>
 		{/each}
 
-		<div class="mt-6 text-center">
-			<p class="text-sm text-muted-foreground">
-				We processed {documents.length} document{documents.length === 1 ? '' : 's'} from this filing
-			</p>
-		</div>
+		<p class="text-center text-sm text-muted-foreground">
+			We processed {documents.length} document{documents.length === 1 ? '' : 's'} from this filing
+		</p>
 	</div>
 {/if}

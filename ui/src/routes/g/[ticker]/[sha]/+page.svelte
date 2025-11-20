@@ -77,7 +77,7 @@
 	<meta name="description" content="LLM-generated analysis for {data.company.name}" />
 </svelte:head>
 
-<div class="space-y-4">
+<div class="space-y-8">
 	<!-- Header with navigation -->
 	<div class="flex items-center justify-between">
 		<Button variant="ghost" onclick={handleBackToCompany}>

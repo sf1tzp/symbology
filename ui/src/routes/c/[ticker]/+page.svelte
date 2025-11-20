@@ -265,7 +265,7 @@
 	</Card>
 
 	<!-- Section 3: Links to Filings / Analysis -->
-	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+	<div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
 		<!-- LLM Analysis -->
 		<Card>
 			<CardHeader>
@@ -282,7 +282,7 @@
 				{#if generatedContent.length > 0}
 					{#each generatedContent as content}
 						<Card
-							class="transition-shadow hover:shadow-md"
+							class="transition-shadow hover:bg-muted/50 hover:shadow-md"
 							onclick={() => handleAnalysisClick(content.id, content.short_hash)}
 						>
 							<CardContent>
@@ -332,7 +332,7 @@
 					<div class="space-y-4">
 						{#each filings as filing}
 							<Card
-								class="transition-shadow hover:shadow-md"
+								class="transition-shadow hover:bg-muted/50 hover:shadow-md"
 								onclick={() => handleFilingClick(filing.accession_number)}
 							>
 								<CardContent>

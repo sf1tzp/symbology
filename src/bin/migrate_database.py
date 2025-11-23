@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""
-Database Migration Tool for Symbology
 
-This script migrates data from a source database (typically development)
+# FIXME: rename script
+"""
+Database Copy Tool for Symbology
+
+This script copys data from a source database (typically development)
 to a target database (typically staging or production).
 
 Usage:
-    python -m src.bin.migrate_database --help
-    python -m src.bin.migrate_database --source dev --target staging
-    python -m src.bin.migrate_database --dry-run
+    python -m src.bin.copy_database --help
+    python -m src.bin.copy_database --source dev --target staging
+    python -m src.bin.copy_database --dry-run
 """
 
 import argparse
@@ -183,7 +185,7 @@ class DatabaseMigrator:
             target_count = target_counts.get(table, 0)
 
             if source_count > 0 and target_count == 0:
-                status = "📤 Will migrate"
+                status = "📤 Will copy"
             elif source_count > 0 and target_count > 0:
                 status = "🔄 Will replace"
             elif source_count == 0:
@@ -562,7 +564,7 @@ class DatabaseMigrator:
             logger.error("schema_application_failed", error=str(e))
             return False
 
-    def _migrate_completions_data(self) -> bool:
+    def _copy_completions_data(self) -> bool:
         """Migrate completions data with schema compatibility."""
         if self.dry_run:
             logger.info("dry_run_skipping_completions_migration")
@@ -856,7 +858,7 @@ class DatabaseMigrator:
                 return False
 
             # 6. Migrate completions separately to handle schema differences
-            if not self._migrate_completions_data():
+            if not self._copy_completions_data():
                 logger.error("completions_migration_failed")
                 return False
 
@@ -878,25 +880,6 @@ class DatabaseMigrator:
                 logger.info("temporary_dump_file_cleaned_up")
 
 
-def get_database_url(environment: str) -> str:
-    """Get database URL for the specified environment."""
-    base_url = settings.database.url
-
-    if environment == 'dev':
-        return base_url
-    elif environment == 'staging':
-        # Replace host with staging host
-        return base_url.replace(settings.database.host, "10.0.0.21")
-    elif environment.startswith('staging-') or environment.replace('.', '').replace('-', '').isdigit():
-        # Handle specific staging hosts or IP addresses
-        if '.' in environment:  # IP address
-            target_host = environment
-        else:  # staging-1g, staging-2g, etc. - use default staging IP
-            target_host = "10.0.0.21"
-        return base_url.replace(settings.database.host, target_host)
-    else:
-        raise ValueError(f"Unknown environment: {environment}")
-
 
 def main():
     """Main entry point for the database migration tool."""
@@ -906,22 +889,22 @@ def main():
         epilog="""
 Examples:
   # Migrate from dev to staging
-  python -m src.bin.migrate_database --source dev --target staging
+  python -m src.bin.copy_database --source dev --target staging
 
   # Migrate to specific staging host
-  python -m src.bin.migrate_database --source dev --target staging-1g
+  python -m src.bin.copy_database --source dev --target staging-1g
 
   # Migrate to specific IP address
-  python -m src.bin.migrate_database --source dev --target 10.0.0.21
+  python -m src.bin.copy_database --source dev --target 10.0.0.21
 
   # Migrate with auto-confirmation (for automation)
-  python -m src.bin.migrate_database --source dev --target staging -y
+  python -m src.bin.copy_database --source dev --target staging -y
 
   # Dry run to see what would happen
-  python -m src.bin.migrate_database --source dev --target staging --dry-run
+  python -m src.bin.copy_database --source dev --target staging --dry-run
 
   # Check status of both databases
-  python -m src.bin.migrate_database --status-only
+  python -m src.bin.copy_database --status-only
         """
     )
 
@@ -941,7 +924,7 @@ Examples:
     parser.add_argument(
         '--dry-run',
         action='store_true',
-        help='Show what would be migrated without making changes'
+        help='Show what would be copyd without making changes'
     )
 
     parser.add_argument(
@@ -959,9 +942,8 @@ Examples:
     args = parser.parse_args()
 
     try:
-        # Get database URLs
-        source_url = get_database_url(args.source)
-        target_url = get_database_url(args.target)
+        source_url = args.source
+        target_url = args.target
 
         # Create migrator
         migrator = DatabaseMigrator(source_url, target_url, args.dry_run, auto_confirm=args.yes)

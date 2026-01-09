@@ -1,69 +1,14 @@
 up:
   npm run dev -- --open --host 0.0.0.0
 
+
+lint *ARGS:
+        npm run lint {{ARGS}} | tee ui-lint.log
+
 generate-api-types:
   node scripts/generate-api-types.js
 
+
 build:
-  npm run build
-
-preview: build
-  npm run preview
-
-# Local development Docker build
-docker-build: build
-  nerdctl build . -t symbology-ui:latest
-
-# Build UI Docker image for specific environment (staging/production)
-docker-build-env ENV="staging":
-  #!/usr/bin/env bash
-  set -euo pipefail
-
-  # Set environment-specific build args based on ENV parameter
-  # Necessary for now as we're not using server side js
-  if [ "{{ENV}}" = "staging" ]; then
-    API_HOST="api.symbology.lofi"
-    ENVIRONMENT="staging"
-    LOG_LEVEL="INFO"
-  elif [ "{{ENV}}" = "production" ]; then
-    API_HOST="api.symbology.online"
-    ENVIRONMENT="production"
-    LOG_LEVEL="WARN"
-  else
-    echo "Unknown environment: {{ENV}}"
-    echo "Use 'staging' or 'production'"
-    exit 1
-  fi
-
-  echo "Building UI for {{ENV}} environment..."
-  echo "API Host: $API_HOST"
-
-  set -x
-  nerdctl build . \
-    --build-arg ENVIRONMENT="$ENVIRONMENT" \
-    --build-arg SYMBOLOGY_API_HOST="$API_HOST" \
-    --build-arg SYMBOLOGY_API_PORT="443" \
-    --build-arg LOG_LEVEL="$LOG_LEVEL" \
-    -t symbology-ui:latest
-
-# Export UI image as tar for deployment
-docker-export:
-  nerdctl save symbology-ui:latest -o /tmp/symbology-ui-latest.tar
-  echo "UI image exported to /tmp/symbology-ui-latest.tar"
-
-# Build and export for specific environment
-build-for-deploy ENV="staging": (docker-build-env ENV) docker-export
-
-# Local development run
-run: docker-build
-  nerdctl run -p 8080:8081 symbology-ui
-
-lint *ARGS: format
-        npm run lint {{ARGS}} | tee ui-lint.log
-
-# Add these commands once we set up the npm scripts
-format:
-    npm run format
-
-check *ARGS: format
-    npm run check {{ARGS}} | tee npm-check.log
+  ~/.local/bin/nerdctl build . -t symbology-ui:latest
+  ~/.local/bin/nerdctl save symbology-ui:latest -o symbology-ui-latest.tar

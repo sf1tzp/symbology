@@ -5,17 +5,13 @@
 .pytest_cache
 .ruff_cache
 
+*.tar
+
 __pycache__
 
 uv.lock
 
 *.log
-
-infra/database-data/
-infra/pgadmin/
-
-infra/group_vars/production.yml
-infra/inventories/production
 
 certificates/
 notebooks/

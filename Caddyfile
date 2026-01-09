@@ -1,0 +1,90 @@
+{
+    email tech@stev.lol
+}
+
+# Main domain
+symbology.online {
+    header {
+        # Prevent clickjacking
+        X-Frame-Options "SAMEORIGIN"
+        # XSS protection
+        X-Content-Type-Options "nosniff"
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Remove server header for security
+        -Server
+    }
+    encode gzip zstd
+
+    log {
+        output file /var/log/caddy/symbology-ui.log {
+            roll_size 100mb
+            roll_keep 5
+            roll_keep_for 720h
+        }
+        format json
+    }
+
+    reverse_proxy symbology-ui:3000 {
+        # Timeouts
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 10s
+        }
+
+        # Pass real client IP
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+api.symbology.online {
+    @cors_preflight method OPTIONS
+    @cors_origin header Origin https://symbology.online
+
+    handle @cors_preflight {
+        header Access-Control-Allow-Origin "https://symbology.online"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Authorization, Content-Type, Origin, Accept"
+        header Access-Control-Max-Age "1728000"
+        respond "" 204
+    }
+
+    header @cors_origin Access-Control-Allow-Origin "https://symbology.online"
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+    encode gzip zstd
+
+    log {
+        output file /var/log/caddy/symbology-api.log {
+            roll_size 100mb
+            roll_keep 5
+            roll_keep_for 720h
+        }
+        format json
+    }
+
+    reverse_proxy symbology-api:3001 {
+        # Timeouts
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 10s
+        }
+
+        # Pass real client IP
+        header_up X-Real-IP {remote_host}
+
+        # Remove CORS headers from upstream to prevent duplicates
+        header_down -Access-Control-Allow-Origin
+        header_down -Access-Control-Allow-Methods
+        header_down -Access-Control-Allow-Headers
+        header_down -Access-Control-Allow-Credentials
+    }
+}
+
+# Redirect www to non-www
+www.symbology.online {
+    redir https://symbology.online{uri} permanent
+}

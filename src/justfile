@@ -40,3 +40,4 @@ lint *FLAGS: # lint --fix
 
 build:
     nerdctl build -t symbology-api:latest .
+    ~/.local/bin/nerdctl save symbology-api:latest -o symbology-api-latest.tar

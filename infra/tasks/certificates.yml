@@ -81,38 +81,38 @@
     - ["fullchain.pem", "privkey.pem"]
   when: environment_name == "production" and ssl_enabled | default(false)
 
-- name: Create certificate renewal script (production only)
-  copy:
-    content: |
-      #!/bin/bash
-      # Renew certificates
-      certbot renew --quiet
+# - name: Create certificate renewal script (production only)
+#   copy:
+#     content: |
+#       #!/bin/bash
+#       # Renew certificates
+#       certbot renew --quiet
 
-      # Copy renewed certificates to deployment directory
-      {% for domain in certbot_domains %}
-      if [ -f "/etc/letsencrypt/live/{{ domain }}/fullchain.pem" ]; then
-        cp -L "/etc/letsencrypt/live/{{ domain }}/fullchain.pem" "{{ deployment_path }}/certificates/live/{{ domain }}/fullchain.pem"
-        cp -L "/etc/letsencrypt/live/{{ domain }}/privkey.pem" "{{ deployment_path }}/certificates/live/{{ domain }}/privkey.pem"
-        chown {{ deployment_user }}:{{ deployment_user }} "{{ deployment_path }}/certificates/live/{{ domain }}/fullchain.pem"
-        chown {{ deployment_user }}:{{ deployment_user }} "{{ deployment_path }}/certificates/live/{{ domain }}/privkey.pem"
-        chmod 400 "{{ deployment_path }}/certificates/live/{{ domain }}/fullchain.pem"
-        chmod 400 "{{ deployment_path }}/certificates/live/{{ domain }}/privkey.pem"
-      fi
-      {% endfor %}
+#       # Copy renewed certificates to deployment directory
+#       {% for domain in certbot_domains %}
+#       if [ -f "/etc/letsencrypt/live/{{ domain }}/fullchain.pem" ]; then
+#         cp -L "/etc/letsencrypt/live/{{ domain }}/fullchain.pem" "{{ deployment_path }}/certificates/live/{{ domain }}/fullchain.pem"
+#         cp -L "/etc/letsencrypt/live/{{ domain }}/privkey.pem" "{{ deployment_path }}/certificates/live/{{ domain }}/privkey.pem"
+#         chown {{ deployment_user }}:{{ deployment_user }} "{{ deployment_path }}/certificates/live/{{ domain }}/fullchain.pem"
+#         chown {{ deployment_user }}:{{ deployment_user }} "{{ deployment_path }}/certificates/live/{{ domain }}/privkey.pem"
+#         chmod 400 "{{ deployment_path }}/certificates/live/{{ domain }}/fullchain.pem"
+#         chmod 400 "{{ deployment_path }}/certificates/live/{{ domain }}/privkey.pem"
+#       fi
+#       {% endfor %}
 
-      # Reload nginx
-      ~/.local/bin/nerdctl exec symbology-ui nginx -s reload
-    dest: /usr/local/bin/renew-certificates.sh
-    mode: "0755"
-  become: true
-  when: environment_name == "production" and ssl_enabled | default(false)
+#       # Reload nginx
+#       ~/.local/bin/nerdctl exec symbology-ui nginx -s reload
+#     dest: /usr/local/bin/renew-certificates.sh
+#     mode: "0755"
+#   become: true
+#   when: environment_name == "production" and ssl_enabled | default(false)
 
-- name: Set up automatic certificate renewal (production only)
-  cron:
-    name: "Renew SSL certificates"
-    minute: "0"
-    hour: "2"
-    job: "/usr/local/bin/renew-certificates.sh"
-    state: present
-  become: true
-  when: environment_name == "production" and ssl_enabled | default(false)
+# - name: Set up automatic certificate renewal (production only)
+#   cron:
+#     name: "Renew SSL certificates"
+#     minute: "0"
+#     hour: "2"
+#     job: "/usr/local/bin/renew-certificates.sh"
+#     state: present
+#   become: true
+#   when: environment_name == "production" and ssl_enabled | default(false)

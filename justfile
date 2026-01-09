@@ -72,12 +72,20 @@ build:
   just -f src/justfile build
 
 deploy HOST:
-    scp Caddyfile {{HOST}}:~/Caddyfile
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ssh {{HOST}} -C "mkdir -p ~/images"
+    ssh {{HOST}} -C "mkdir -p ~/caddyfiles"
+    scp Caddyfile {{HOST}}:~/caddyfiles/symbology.caddy
     scp symbology-compose.yaml {{HOST}}:~/symbology-compose.yaml
-    scp ui/symbology-ui-latest.tar {{HOST}}:~/symbology-ui-latest.tar
-    scp src/symbology-api-latest.tar {{HOST}}:~/symbology-api-latest.tar
-    ssh {{HOST}} -C "~/.local/bin/nerdctl load -i symbology-ui-latest.tar"
-    ssh {{HOST}} -C "~/.local/bin/nerdctl load -i symbology-api-latest.tar"
+    scp ui/symbology-ui-latest.tar {{HOST}}:~/images/symbology-ui-latest.tar
+    scp src/symbology-api-latest.tar {{HOST}}:~/images/symbology-api-latest.tar
+    ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-ui-latest.tar"
+    ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-api-latest.tar"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
-    ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/.env"
+    ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/symbology/.env"
+
+bounce HOST:
+    ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
+    ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/symbology/.env"
 

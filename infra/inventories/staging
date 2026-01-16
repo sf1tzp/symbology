@@ -1,5 +1,0 @@
-[staging]
-staging-v2 ansible_host=10.0.0.22 ansible_user=steven
-
-[staging:vars]
-environment_name=staging

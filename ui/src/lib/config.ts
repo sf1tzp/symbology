@@ -3,10 +3,12 @@
  * Manages API endpoints and environment-specific settings
  */
 
+import { env } from '$env/dynamic/public';
+
 // Environment variables with defaults
-const ENV = import.meta.env.ENVIRONMENT || 'development';
-const API_HOST = import.meta.env.SYMBOLOGY_API_HOST || 'localhost';
-const API_PORT = Number(import.meta.env.SYMBOLOGY_API_PORT) || 8000;
+const ENV = env.PUBLIC_ENVIRONMENT || 'development';
+const API_HOST = env.PUBLIC_SYMBOLOGY_API_HOST || 'localhost';
+const API_PORT = Number(env.PUBLIC_SYMBOLOGY_API_PORT) || 8000;
 
 /**
  * Build API base URL based on environment

@@ -12,11 +12,7 @@ symbology.online {
     encode gzip zstd
 
     log {
-        output file /var/log/caddy/symbology-ui.log {
-            roll_size 100mb
-            roll_keep 5
-            roll_keep_for 720h
-        }
+        output stdout
         format json
     }
 
@@ -53,11 +49,7 @@ api.symbology.online {
     encode gzip zstd
 
     log {
-        output file /var/log/caddy/symbology-api.log {
-            roll_size 100mb
-            roll_keep 5
-            roll_keep_for 720h
-        }
+        output stdout
         format json
     }
 

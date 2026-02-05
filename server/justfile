@@ -30,6 +30,16 @@ test *ARGS: _create_venv
       --cov=symbology.llm \
       tests/ {{ARGS}} | tee test.log
 
+# Database migrations (alembic)
+migrate *ARGS: _create_venv
+    uv run alembic upgrade head {{ARGS}}
+
+migration-create message: _create_venv
+    uv run alembic revision --autogenerate -m "{{message}}"
+
+migration-status: _create_venv
+    uv run alembic current
+
 lint *FLAGS: # lint --fix
     ruff check {{FLAGS}} | tee lint.log
 

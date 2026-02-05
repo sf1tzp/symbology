@@ -34,9 +34,6 @@ def init_db(database_url: str) -> Tuple[object, object]:
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         db_session = scoped_session(SessionLocal)
 
-        # Create all tables
-        Base.metadata.create_all(bind=engine)
-
         logger.debug("database_initialized")
 
         return engine, db_session

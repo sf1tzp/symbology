@@ -5,15 +5,15 @@ from uuid import UUID
 
 from edgar import Company, Filing
 import pandas as pd
-from src.database.companies import create_company, get_company, get_company_by_ticker, update_company
-from src.database.documents import DocumentType, find_or_create_document
-from src.database.filings import upsert_filing_by_accession_number
-from src.database.financial_concepts import find_or_create_financial_concept
-from src.database.financial_values import upsert_financial_value
-from src.ingestion.edgar_db.accessors import (
+from collector.database.companies import create_company, get_company, get_company_by_ticker, update_company
+from collector.database.documents import DocumentType, find_or_create_document
+from collector.database.filings import upsert_filing_by_accession_number
+from collector.database.financial_concepts import find_or_create_financial_concept
+from collector.database.financial_values import upsert_financial_value
+from collector.ingestion.edgar_db.accessors import (
     get_sections_for_document_types,
 )
-from src.utils.logging import get_logger
+from collector.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

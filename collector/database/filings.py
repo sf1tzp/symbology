@@ -4,15 +4,15 @@ from uuid import UUID
 
 from sqlalchemy import Date, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.database.base import Base, get_db_session
-from src.database.companies import Company
-from src.utils.logging import get_logger
+from collector.database.base import Base, get_db_session
+from collector.database.companies import Company
+from collector.utils.logging import get_logger
 from uuid_extensions import uuid7
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from src.database.documents import Document
-    from src.database.financial_values import FinancialValue
+    from collector.database.documents import Document
+    from collector.database.financial_values import FinancialValue
 
 # Initialize structlog
 logger = get_logger(__name__)

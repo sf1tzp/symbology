@@ -14,30 +14,30 @@ deps:
     uv pip install -e .[dev,test]
 
 run *ARGS: _create_venv
-    uv run -m src.api.main
+    uv run -m collector.api.main
 
 ingest *ARGS: # Run with defaults (AAPL, 2022)
-    uv run -m src.bin.edgar_ingestion {{ARGS}}
+    uv run -m collector.bin.edgar_ingestion {{ARGS}}
 
 generate *ARGS: # Run with defaults (AAPL, 2022)
-    uv run -m src.bin.llm_generate {{ARGS}}
+    uv run -m collector.bin.llm_generate {{ARGS}}
 
 logging *ARGS: # Run with defaults (AAPL, 2022)
-    uv run -m src.bin.logging {{ARGS}}
+    uv run -m collector.bin.logging {{ARGS}}
 
 # test and lint outputs are logged to make it easy to include as llm context
 test *ARGS: _create_venv
     uv run -m pytest \
-      --cov=src.api \
-      --cov=src.database \
-      --cov=src.ingestion \
-      --cov=src.llm \
-      src/tests/ {{ARGS}} | tee test.log
+      --cov=collector.api \
+      --cov=collector.database \
+      --cov=collector.ingestion \
+      --cov=collector.llm \
+      collector/tests/ {{ARGS}} | tee test.log
 
 lint *FLAGS: # lint --fix
     ~/.local/share/nvim/mason/bin/ruff check {{FLAGS}} | tee lint.log
 
 
 build:
-    nerdctl build -t symbology-api:latest .
-    ~/.local/bin/nerdctl save symbology-api:latest -o symbology-api-latest.tar
+    nerdctl build -t symbology-collector:latest .
+    ~/.local/bin/nerdctl save symbology-collector:latest -o symbology-collector-latest.tar

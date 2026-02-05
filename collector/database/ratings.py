@@ -4,12 +4,12 @@ from uuid import UUID
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.database.base import Base, get_db_session
-from src.utils.logging import get_logger
+from collector.database.base import Base, get_db_session
+from collector.utils.logging import get_logger
 from uuid_extensions import uuid7
 
 if TYPE_CHECKING:
-    from src.database.generated_content import GeneratedContent
+    from collector.database.generated_content import GeneratedContent
 
 # Initialize structlog
 logger = get_logger(__name__)
@@ -95,7 +95,7 @@ def create_rating(rating_data: Dict[str, Any]) -> Rating:
             raise ValueError("Rating must be associated with generated content")
 
         # Verify the generated content exists
-        from src.database.generated_content import GeneratedContent
+        from collector.database.generated_content import GeneratedContent
         generated_content = session.query(GeneratedContent).filter(GeneratedContent.id == generated_content_id).first()
         if not generated_content:
             logger.error("create_rating_failed", error=f"Generated content with ID {generated_content_id} not found")
@@ -141,7 +141,7 @@ def update_rating(rating_id: Union[UUID, str], rating_data: Dict[str, Any]) -> O
 
         # If generated_content_id is being updated, check if new generated content exists
         if 'generated_content_id' in rating_data and rating_data['generated_content_id']:
-            from src.database.generated_content import GeneratedContent
+            from collector.database.generated_content import GeneratedContent
             generated_content = session.query(GeneratedContent).filter(GeneratedContent.id == rating_data['generated_content_id']).first()
             if not generated_content:
                 logger.error("update_rating_failed", error=f"Generated content with ID {rating_data['generated_content_id']} not found")

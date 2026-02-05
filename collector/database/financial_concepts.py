@@ -4,13 +4,13 @@ from uuid import UUID
 from sqlalchemy import String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.database.base import Base, get_db_session
-from src.utils.logging import get_logger
+from collector.database.base import Base, get_db_session
+from collector.utils.logging import get_logger
 from uuid_extensions import uuid7
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from src.database.financial_values import FinancialValue
+    from collector.database.financial_values import FinancialValue
 
 # Initialize structlog
 logger = get_logger(__name__)

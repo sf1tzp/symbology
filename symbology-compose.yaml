@@ -15,7 +15,7 @@ services:
       - caddy_network
 
   symbology-api:
-    image: symbology-api
+    image: symbology-collector
     container_name: symbology-api
     restart: always
     environment:
@@ -24,6 +24,12 @@ services:
       DATABASE_HOST: ${DATABASE_HOST:-localhost}
     networks:
       - caddy_network
+
+  # go-api:
+  #   image: symbology-api:latest
+  #   container_name: symbology-go-api
+  #   env_file: .env
+  #   restart: unless-stopped
 
 networks:
   caddy_network:

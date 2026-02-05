@@ -12,7 +12,7 @@ import pandas as pd
 import seaborn as sns
 from sqlalchemy import create_engine
 
-from utils.config import settings
+from collector.utils.config import settings
 
 # Global engine for database queries
 pd_engine = None

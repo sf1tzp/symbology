@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 # Import the FinancialConcept model and functions
-from src.database.financial_concepts import (
+from collector.database.financial_concepts import (
     create_financial_concept,
     delete_financial_concept,
     FinancialConcept,
@@ -120,7 +120,7 @@ def test_get_financial_concept_by_id(db_session, sample_gaap_net_income_concept)
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -142,7 +142,7 @@ def test_get_financial_concept_by_id(db_session, sample_gaap_net_income_concept)
 def test_create_financial_concept_function(db_session, sample_gaap_assets_concept):
     """Test the create_financial_concept helper function."""
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -171,7 +171,7 @@ def test_update_financial_concept(db_session, sample_gaap_liabilities_concept):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -209,7 +209,7 @@ def test_delete_financial_concept(db_session, sample_gaap_revenue_concept):
     concept_id = concept.id
 
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -239,7 +239,7 @@ def test_get_financial_concept_ids(db_session, multiple_gaap_concepts):
         concept_ids.append(concept.id)
 
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -282,7 +282,7 @@ def test_update_with_invalid_attributes(db_session, sample_gaap_assets_concept):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -307,7 +307,7 @@ def test_update_with_invalid_attributes(db_session, sample_gaap_assets_concept):
 def test_create_duplicate_name_via_function(db_session, sample_gaap_net_income_concept):
     """Test that the create_financial_concept function handles duplicate names correctly."""
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -333,7 +333,7 @@ def test_update_with_existing_name(db_session, sample_gaap_revenue_concept, samp
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -356,7 +356,7 @@ def test_get_financial_concept_with_string_uuid(db_session, sample_gaap_assets_c
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -373,7 +373,7 @@ def test_get_financial_concept_with_string_uuid(db_session, sample_gaap_assets_c
 def test_find_or_create_financial_concept(db_session):
     """Test the find_or_create_financial_concept helper function."""
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -432,7 +432,7 @@ def test_find_or_create_financial_concept_merges_labels(db_session):
     concept_id = concept.id
 
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 
@@ -466,7 +466,7 @@ def test_get_financial_concept_by_name(db_session, sample_gaap_net_income_concep
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.financial_concepts as concepts_module
+    import collector.database.financial_concepts as concepts_module
     original_get_db_session = concepts_module.get_db_session
     concepts_module.get_db_session = lambda: db_session
 

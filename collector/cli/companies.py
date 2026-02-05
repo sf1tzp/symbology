@@ -6,12 +6,12 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from src.database.base import get_db_session, init_db
-from src.database.companies import Company, get_company_by_ticker
-from src.ingestion.edgar_db.accessors import edgar_login
-from src.ingestion.ingestion_helpers import ingest_company
-from src.utils.config import settings
-from src.utils.logging import get_logger
+from collector.database.base import get_db_session, init_db
+from collector.database.companies import Company, get_company_by_ticker
+from collector.ingestion.edgar_db.accessors import edgar_login
+from collector.ingestion.ingestion_helpers import ingest_company
+from collector.utils.config import settings
+from collector.utils.logging import get_logger
 
 logger = get_logger(__name__)
 console = Console()

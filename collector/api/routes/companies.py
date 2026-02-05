@@ -3,10 +3,10 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
-from src.api.schemas import CompanyResponse
-from src.database.companies import Company, get_company, get_company_by_ticker, list_all_companies, search_companies_by_query
-from src.database.generated_content import get_frontpage_summary_by_ticker
-from src.utils.logging import get_logger
+from collector.api.schemas import CompanyResponse
+from collector.database.companies import Company, get_company, get_company_by_ticker, list_all_companies, search_companies_by_query
+from collector.database.generated_content import get_frontpage_summary_by_ticker
+from collector.utils.logging import get_logger
 
 # Create logger for this module
 logger = get_logger(__name__)

@@ -4,9 +4,9 @@ import uuid
 
 import pytest
 from sqlalchemy.exc import IntegrityError
-from src.database.companies import Company
-from src.database.documents import Document, DocumentType
-from src.database.generated_content import (
+from collector.database.companies import Company
+from collector.database.documents import Document, DocumentType
+from collector.database.generated_content import (
     ContentSourceType,
     create_generated_content,
     delete_generated_content,
@@ -21,8 +21,8 @@ from src.database.generated_content import (
     get_recent_generated_content_by_ticker,
     update_generated_content,
 )
-from src.database.model_configs import ModelConfig
-from src.database.prompts import Prompt, PromptRole
+from collector.database.model_configs import ModelConfig
+from collector.database.prompts import Prompt, PromptRole
 
 
 # Sample data fixtures
@@ -44,7 +44,7 @@ def sample_document(db_session, sample_company) -> Document:
     """Create a test document."""
     from datetime import date
 
-    from src.database.filings import Filing
+    from collector.database.filings import Filing
 
     # Create a filing first
     filing = Filing(
@@ -222,7 +222,7 @@ class TestGeneratedContentCRUD:
     def test_create_generated_content(self, db_session, sample_generated_content_data):
         """Test creating generated content."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -247,7 +247,7 @@ class TestGeneratedContentCRUD:
     def test_create_minimal_content(self, db_session, sample_generated_content_minimal):
         """Test creating content with minimal required fields."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -266,7 +266,7 @@ class TestGeneratedContentCRUD:
     def test_get_generated_content(self, db_session, sample_generated_content_data):
         """Test retrieving generated content by ID."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -291,7 +291,7 @@ class TestGeneratedContentCRUD:
     def test_get_generated_content_by_hash(self, db_session, sample_generated_content_data):
         """Test retrieving content by hash."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -321,7 +321,7 @@ class TestGeneratedContentCRUD:
     def test_get_generated_content_by_company_and_ticker(self, db_session, sample_generated_content_data, sample_company):
         """Test retrieving content by ticker and hash."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -352,7 +352,7 @@ class TestGeneratedContentCRUD:
     def test_get_recent_generated_content_by_ticker(self, db_session, sample_company):
         """Test retrieving recent content by ticker."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -393,7 +393,7 @@ class TestGeneratedContentCRUD:
     def test_update_generated_content(self, db_session, sample_generated_content_data):
         """Test updating generated content."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -424,7 +424,7 @@ class TestGeneratedContentCRUD:
     def test_delete_generated_content(self, db_session, sample_generated_content_data):
         """Test deleting generated content."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -451,7 +451,7 @@ class TestGeneratedContentCRUD:
     def test_get_generated_content_by_source_document(self, db_session, sample_generated_content_data, sample_document):
         """Test retrieving content by source document."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -473,7 +473,7 @@ class TestGeneratedContentCRUD:
     def test_get_generated_content_by_source_content(self, db_session, sample_generated_content_data):
         """Test retrieving content by source content."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -500,7 +500,7 @@ class TestGeneratedContentCRUD:
     def test_get_content_with_sources_loaded(self, db_session, sample_generated_content_data, sample_document):
         """Test efficient source loading."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -523,7 +523,7 @@ class TestGeneratedContentCRUD:
     def test_get_generated_content_ids(self, db_session, sample_generated_content_data):
         """Test retrieving all content IDs."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -550,7 +550,7 @@ class TestGeneratedContentAdvanced:
     def test_content_source_chain_depth(self, db_session, sample_generated_content_data):
         """Test source chain depth calculation."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -568,7 +568,7 @@ class TestGeneratedContentAdvanced:
     def test_content_hash_uniqueness(self, db_session):
         """Test content hash uniqueness constraint."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 
@@ -594,7 +594,7 @@ class TestGeneratedContentAdvanced:
     def test_circular_reference_prevention(self, db_session, sample_generated_content_data):
         """Test that circular references are handled properly."""
         # Mock the db_session global
-        import src.database.generated_content as generated_content_module
+        import collector.database.generated_content as generated_content_module
         original_get_db_session = generated_content_module.get_db_session
         generated_content_module.get_db_session = lambda: db_session
 

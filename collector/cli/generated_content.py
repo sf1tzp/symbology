@@ -9,15 +9,15 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from src.database.base import get_db_session
-from src.database.companies import get_company_by_ticker
-from src.database.documents import Document, get_document_by_content_hash
-import src.database.generated_content as db
-from src.database.model_configs import get_model_config_by_content_hash
-from src.database.prompts import create_prompt, get_prompt_by_content_hash, PromptRole
-from src.llm.client import get_generate_response, remove_thinking_tags
-from src.llm.prompts import format_user_prompt_content
-from src.utils.logging import get_logger
+from collector.database.base import get_db_session
+from collector.database.companies import get_company_by_ticker
+from collector.database.documents import Document, get_document_by_content_hash
+import collector.database.generated_content as db
+from collector.database.model_configs import get_model_config_by_content_hash
+from collector.database.prompts import create_prompt, get_prompt_by_content_hash, PromptRole
+from collector.llm.client import get_generate_response, remove_thinking_tags
+from collector.llm.prompts import format_user_prompt_content
+from collector.utils.logging import get_logger
 
 logger = get_logger(__name__)
 console = Console()
@@ -25,8 +25,8 @@ console = Console()
 
 def init_session():
     """Initialize database session."""
-    from src.database.base import init_db
-    from src.utils.config import settings
+    from collector.database.base import init_db
+    from collector.utils.config import settings
     init_db(settings.database.url)
     return get_db_session()
 

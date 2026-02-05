@@ -26,19 +26,19 @@ Examples:
 import click
 
 # Import command modules
-from src.cli.companies import companies
-from src.cli.documents import documents
-from src.cli.filings import filings
-from src.cli.financials import financials
-from src.cli.generated_content import generated_content
-from src.cli.model_configs import model_configs
-from src.cli.prompts import prompts
-from src.cli.ratings import ratings
+from collector.cli.companies import companies
+from collector.cli.documents import documents
+from collector.cli.filings import filings
+from collector.cli.financials import financials
+from collector.cli.generated_content import generated_content
+from collector.cli.model_configs import model_configs
+from collector.cli.prompts import prompts
+from collector.cli.ratings import ratings
 
 # Add project root to path for imports
 # sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from src.utils.config import settings
-from src.utils.logging import configure_logging, get_logger
+from collector.utils.config import settings
+from collector.utils.logging import configure_logging, get_logger
 
 # Configure logging
 configure_logging(

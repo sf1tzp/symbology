@@ -1,5 +1,5 @@
 [project]
-name = "symbology"
+name = "symbology-collector"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -49,9 +49,9 @@ filterwarnings = [
   "ignore::DeprecationWarning:pydantic.*:",
   "ignore::UserWarning:pydantic.*:",
 ]
-testpaths = ["src/tests"]
+testpaths = ["collector/tests"]
 norecursedirs = [
-  "src/tests/ingestion",
+  "collector/tests/ingestion",
 ] # FIXME: Uncomment after ingestion is updated
 
 [tool.ruff]
@@ -81,7 +81,7 @@ target-version = "py313"
 "conftest.py" = ["F401"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["symbology"]
+known-first-party = ["collector"]
 # Enable automatic import sorting when running Ruff
 # automatically-sort-imports = true
 # Ensure imports are properly organized

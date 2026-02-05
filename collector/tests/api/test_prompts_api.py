@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from src.api.main import create_app
+from collector.api.main import create_app
 
 client = TestClient(create_app())
 

@@ -3,10 +3,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 # Import the models and settings
-from src.database.base import Base
-from src.utils.logging import configure_logging, get_logger
+from collector.database.base import Base
+from collector.utils.logging import configure_logging, get_logger
 
-from utils.config import settings
+from collector.utils.config import settings
 
 # Configure logging for tests
 configure_logging(log_level="INFO")

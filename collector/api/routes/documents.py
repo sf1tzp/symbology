@@ -4,10 +4,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import PlainTextResponse
-from src.api.schemas import DocumentResponse
-from src.database.documents import get_document, get_documents_by_filing
-from src.database.documents import get_documents_by_ids as db_get_documents_by_ids
-from src.utils.logging import get_logger
+from collector.api.schemas import DocumentResponse
+from collector.database.documents import get_document, get_documents_by_filing
+from collector.database.documents import get_documents_by_ids as db_get_documents_by_ids
+from collector.utils.logging import get_logger
 
 # Create logger for this module
 logger = get_logger(__name__)
@@ -239,7 +239,7 @@ async def get_document_by_accession_and_hash(accession_number: str, content_hash
         logger.info("api_get_document_by_accession_and_hash",
                    accession_number=accession_number, content_hash=content_hash)
 
-        from src.database.documents import get_document_by_accession_and_hash
+        from collector.database.documents import get_document_by_accession_and_hash
         document = get_document_by_accession_and_hash(accession_number, content_hash)
 
         if not document:

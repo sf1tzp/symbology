@@ -8,10 +8,10 @@ set dotenv-load
 run component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
-    uv run -m src.api.main {{ARGS}}
+    uv run -m collector.api.main {{ARGS}}
 
   elif [[ "{{component}}" == "cli" ]]; then
-    uv run -m src.cli.main {{ARGS}}
+    uv run -m collector.cli.main {{ARGS}}
 
   elif [[ "{{component}}" == "ui" ]]; then
     just -d ui -f ui/justfile up {{ARGS}}
@@ -26,7 +26,7 @@ run component *ARGS:
 test component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
-    just -d . -f src/justfile test {{ARGS}}
+    just -d . -f collector/justfile test {{ARGS}}
 
   elif [[ "{{component}}" == "ui" ]]; then
     echo "no testing for ui yet"
@@ -44,7 +44,7 @@ benchmark environment TARGET *ARGS:
 lint component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
-    just -d src -f src/justfile lint {{ARGS}}
+    just -d collector -f collector/justfile lint {{ARGS}}
   elif [[ "{{component}}" == "ui" ]]; then
     just -d ui -f ui/justfile lint {{ARGS}}
   else
@@ -56,7 +56,7 @@ lint component *ARGS:
 deps component *ARGS:
   #!/usr/bin/env bash
   if [[ "{{component}}" == "api" ]]; then
-    just -d src -f src/justfile deps
+    just -d collector -f collector/justfile deps
   elif [[ "{{component}}" == "ui" ]]; then
     just -d ui -f ui/justfile deps
   else
@@ -69,7 +69,8 @@ _generate-api-types:
 
 build:
   just -f ui/justfile build
-  just -f src/justfile build
+  just -f collector/justfile build
+  # just -f api/justfile build
 
 deploy HOST:
     #!/usr/bin/env bash
@@ -79,9 +80,9 @@ deploy HOST:
     scp Caddyfile {{HOST}}:~/caddyfiles/symbology.caddy
     scp symbology-compose.yaml {{HOST}}:~/symbology-compose.yaml
     scp ui/symbology-ui-latest.tar {{HOST}}:~/images/symbology-ui-latest.tar
-    scp src/symbology-api-latest.tar {{HOST}}:~/images/symbology-api-latest.tar
+    scp collector/symbology-collector-latest.tar {{HOST}}:~/images/symbology-collector-latest.tar
     ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-ui-latest.tar"
-    ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-api-latest.tar"
+    ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-collector-latest.tar"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/symbology/.env"
 

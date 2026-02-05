@@ -2,8 +2,8 @@ from datetime import date
 from unittest import mock
 
 import pytest
-from src.database.documents import DocumentType
-from src.ingestion.ingestion_helpers import ingest_filing_documents
+from collector.database.documents import DocumentType
+from collector.ingestion.ingestion_helpers import ingest_filing_documents
 from uuid_extensions import uuid7
 
 
@@ -89,7 +89,7 @@ def test_ingest_filing_documents_missing_sections():
 
         # Verify returned UUIDs only include business description
         # Use DocumentType.DESCRIPTION instead of string key
-        from src.database.documents import DocumentType
+        from collector.database.documents import DocumentType
         assert DocumentType.DESCRIPTION in document_uuids
         assert DocumentType.RISK_FACTORS not in document_uuids
         assert DocumentType.MDA not in document_uuids

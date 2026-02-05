@@ -3,7 +3,7 @@ from unittest import mock
 
 import pandas as pd
 import pytest
-from src.ingestion.ingestion_helpers import ingest_financial_data
+from collector.ingestion.ingestion_helpers import ingest_financial_data
 from uuid_extensions import uuid7
 
 

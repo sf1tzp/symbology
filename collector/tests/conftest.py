@@ -1,8 +1,8 @@
 import os
 import sys
 
-from src.tests.database.fixtures import create_test_database, db_engine, db_session, TEST_DATABASE_NAME, TEST_DATABASE_URL
-from src.utils.logging import get_logger
+from collector.tests.database.fixtures import create_test_database, db_engine, db_session, TEST_DATABASE_NAME, TEST_DATABASE_URL
+from collector.utils.logging import get_logger
 
 # Add the project root directory to the Python path for imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))

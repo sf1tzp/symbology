@@ -3,15 +3,15 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from src.api.schemas import GeneratedContentResponse
-from src.database.generated_content import (
+from collector.api.schemas import GeneratedContentResponse
+from collector.database.generated_content import (
     get_aggregate_summaries_by_ticker,
     get_generated_content,
     get_generated_content_by_company_and_ticker,
     get_generated_content_by_hash,
     get_recent_generated_content_by_ticker,
 )
-from src.utils.logging import get_logger
+from collector.utils.logging import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

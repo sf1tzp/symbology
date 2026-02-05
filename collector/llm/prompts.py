@@ -10,10 +10,10 @@ This module provides:
 from enum import Enum
 from typing import List, Optional
 
-from src.database.documents import Document, DocumentType
-from src.database.generated_content import GeneratedContent
-from src.llm.client import remove_thinking_tags
-from src.utils.logging import get_logger
+from collector.database.documents import Document, DocumentType
+from collector.database.generated_content import GeneratedContent
+from collector.llm.client import remove_thinking_tags
+from collector.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

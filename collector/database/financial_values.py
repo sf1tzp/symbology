@@ -5,8 +5,8 @@ from uuid import UUID
 
 from sqlalchemy import Date, ForeignKey, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.database.base import Base, get_db_session
-from src.utils.logging import get_logger
+from collector.database.base import Base, get_db_session
+from collector.utils.logging import get_logger
 from uuid_extensions import uuid7
 
 # Initialize structlog

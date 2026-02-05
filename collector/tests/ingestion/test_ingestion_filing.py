@@ -2,7 +2,7 @@ from datetime import date
 from unittest import mock
 
 import pytest
-from src.ingestion.ingestion_helpers import ingest_filings
+from collector.ingestion.ingestion_helpers import ingest_filings
 from uuid_extensions import uuid7
 
 

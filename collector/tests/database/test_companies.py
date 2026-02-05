@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 # Import the Company model and functions
-from src.database.companies import Company, create_company, delete_company, get_company, get_company_ids, update_company
+from collector.database.companies import Company, create_company, delete_company, get_company, get_company_ids, update_company
 
 
 # Sample company data fixtures
@@ -113,7 +113,7 @@ def test_get_company_by_id(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.database.companies as companies_module
+    import collector.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -134,7 +134,7 @@ def test_get_company_by_id(db_session, sample_company_data):
 def test_create_company_function(db_session, sample_company_data):
     """Test the create_company helper function."""
     # Mock the db_session global
-    import src.database.companies as companies_module
+    import collector.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -162,7 +162,7 @@ def test_update_company(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.companies as companies_module
+    import collector.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -199,7 +199,7 @@ def test_delete_company(db_session, sample_company_data):
     company_id = company.id
 
     # Mock the db_session global
-    import src.database.companies as companies_module
+    import collector.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -229,7 +229,7 @@ def test_get_company_ids(db_session, multiple_company_data):
         company_ids.append(company.id)
 
     # Mock the db_session global
-    import src.database.companies as companies_module
+    import collector.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -255,7 +255,7 @@ def test_update_with_invalid_attributes(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.companies as companies_module
+    import collector.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -285,7 +285,7 @@ def test_get_company_with_string_uuid(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.companies as companies_module
+    import collector.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 
@@ -306,7 +306,7 @@ def test_get_company_by_ticker(db_session, sample_company_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.companies as companies_module
+    import collector.database.companies as companies_module
     original_get_db_session = companies_module.get_db_session
     companies_module.get_db_session = lambda: db_session
 

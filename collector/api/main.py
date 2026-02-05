@@ -5,15 +5,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
-from src.database.base import init_db
-from src.utils.config import settings
-from src.utils.logging import configure_logging, get_logger, get_uvicorn_log_config
+from collector.database.base import init_db
+from collector.utils.config import settings
+from collector.utils.logging import configure_logging, get_logger, get_uvicorn_log_config
 import uvicorn
 
 
 def create_app() -> FastAPI:
     # Import routes after logging is configured
-    from src.api.routes import api_router
+    from collector.api.routes import api_router
     app = FastAPI(
         title="Symbology API",
         description="REST API for accessing financial data and AI-generated insights",

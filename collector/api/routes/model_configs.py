@@ -3,13 +3,13 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from src.api.schemas import ModelConfigResponse
-from src.database.model_configs import (
+from collector.api.schemas import ModelConfigResponse
+from collector.database.model_configs import (
     get_all_model_configs,
     get_model_config,
     get_model_config_by_name,
 )
-from src.utils.logging import get_logger
+from collector.utils.logging import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

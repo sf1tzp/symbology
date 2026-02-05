@@ -3,11 +3,11 @@ from enum import Enum
 from typing import Callable, Dict, List, Optional
 
 from edgar import Filing, set_identity
-from src.database.documents import DocumentType
+from collector.database.documents import DocumentType
 
 # from edgar.xbrl import XBRL
 # import pandas as pd
-from src.utils.logging import get_logger
+from collector.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

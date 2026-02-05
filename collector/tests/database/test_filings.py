@@ -4,10 +4,10 @@ import uuid
 
 import pytest
 from sqlalchemy.exc import IntegrityError
-from src.database.companies import Company
+from collector.database.companies import Company
 
 # Import the Filing model and functions
-from src.database.filings import create_filing, delete_filing, Filing, get_filing, get_filing_ids, update_filing
+from collector.database.filings import create_filing, delete_filing, Filing, get_filing, get_filing_ids, update_filing
 
 
 # Sample company data fixture
@@ -140,7 +140,7 @@ def test_get_filing_by_id(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -161,7 +161,7 @@ def test_get_filing_by_id(db_session, sample_filing_data):
 def test_create_filing_function(db_session, sample_filing_data):
     """Test the create_filing helper function."""
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -198,7 +198,7 @@ def test_update_filing(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -235,7 +235,7 @@ def test_update_filing_with_invalid_company(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -261,7 +261,7 @@ def test_delete_filing(db_session, sample_filing_data):
     filing_id = filing.id
 
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -291,7 +291,7 @@ def test_get_filing_ids(db_session, multiple_filing_data):
         filing_ids.append(filing.id)
 
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -334,7 +334,7 @@ def test_get_filing_with_string_uuid(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -355,7 +355,7 @@ def test_update_with_invalid_attributes(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -395,7 +395,7 @@ def test_cascade_delete_company(db_session, create_test_company, sample_filing_d
 def test_upsert_filing_by_accession_number(db_session, create_test_company, sample_filing_data):
     """Test the upsert_filing_by_accession_number helper function for creating and updating filings."""
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -430,7 +430,7 @@ def test_upsert_filing_by_accession_number(db_session, create_test_company, samp
 def test_upsert_filing_without_accession_number(db_session, create_test_company):
     """Test that upsert_filing_by_accession_number function raises ValueError when accession number is missing."""
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -452,7 +452,7 @@ def test_upsert_filing_without_accession_number(db_session, create_test_company)
 def test_upsert_filing_invalid_company(db_session):
     """Test that upsert_filing_by_accession_number raises ValueError with non-existent company ID."""
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -480,7 +480,7 @@ def test_get_filing_by_accession_number(db_session, sample_filing_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 
@@ -509,7 +509,7 @@ def test_get_filings_by_company(db_session, create_test_company, multiple_filing
         filing_ids.append(filing.id)
 
     # Mock the db_session global
-    import src.database.filings as filings_module
+    import collector.database.filings as filings_module
     original_get_db_session = filings_module.get_db_session
     filings_module.get_db_session = lambda: db_session
 

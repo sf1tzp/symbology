@@ -4,11 +4,11 @@ import uuid
 import pytest
 
 # Import GeneratedContent for testing relationships
-from src.database.generated_content import ContentSourceType, create_generated_content, GeneratedContent
-from src.database.model_configs import ModelConfig
+from collector.database.generated_content import ContentSourceType, create_generated_content, GeneratedContent
+from collector.database.model_configs import ModelConfig
 
 # Import the Prompt model and functions
-from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole
+from collector.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole
 
 
 # Sample prompt data fixtures
@@ -194,7 +194,7 @@ def test_create_prompt_with_enum(db_session):
 def test_create_prompt_function(db_session, sample_user_prompt_data):
     """Test the create_prompt helper function."""
     # Mock the db_session global
-    import src.database.prompts as prompts_module
+    import collector.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -221,7 +221,7 @@ def test_create_prompt_function(db_session, sample_user_prompt_data):
 def test_create_prompt_invalid_role(db_session):
     """Test that creating a prompt with an invalid role raises an error."""
     # Mock the db_session global
-    import src.database.prompts as prompts_module
+    import collector.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -243,7 +243,7 @@ def test_create_prompt_invalid_role(db_session):
 def test_get_prompt_by_id(db_session, create_test_system_prompt):
     """Test retrieving a prompt by ID using the get_prompt function."""
     # Mock the db_session global with our test session
-    import src.database.prompts as prompts_module
+    import collector.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -270,7 +270,7 @@ def test_get_prompt_by_id(db_session, create_test_system_prompt):
 def test_delete_prompt(db_session, create_test_assistant_prompt):
     """Test deleting a prompt using the delete_prompt function."""
     # Mock the db_session global
-    import src.database.prompts as prompts_module
+    import collector.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -317,7 +317,7 @@ def test_get_prompt_ids(db_session, multiple_prompt_data):
         prompt_ids.append(prompt.id)
 
     # Mock the db_session global
-    import src.database.prompts as prompts_module
+    import collector.database.prompts as prompts_module
     original_get_db_session = prompts_module.get_db_session
     prompts_module.get_db_session = lambda: db_session
 
@@ -338,7 +338,7 @@ def test_get_prompt_ids(db_session, multiple_prompt_data):
 def test_create_generated_content_with_prompts(db_session, create_test_system_prompt, create_test_user_prompt, create_test_model_config):
     """Test creating generated content with prompt references using the create_generated_content function."""
     # Mock the db_session global
-    import src.database.generated_content as generated_content_module
+    import collector.database.generated_content as generated_content_module
     original_get_db_session = generated_content_module.get_db_session
     generated_content_module.get_db_session = lambda: db_session
 

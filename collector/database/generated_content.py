@@ -8,18 +8,18 @@ from uuid import UUID
 from sqlalchemy import Column, DateTime, Float, ForeignKey, func, String, Table, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.database.base import Base, get_db_session
-from src.database.companies import Company
-from src.database.documents import DocumentType
-from src.utils.logging import get_logger
+from collector.database.base import Base, get_db_session
+from collector.database.companies import Company
+from collector.database.documents import DocumentType
+from collector.utils.logging import get_logger
 from uuid_extensions import uuid7
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from src.database.documents import Document
-    from src.database.model_configs import ModelConfig
-    from src.database.prompts import Prompt
-    from src.database.ratings import Rating
+    from collector.database.documents import Document
+    from collector.database.model_configs import ModelConfig
+    from collector.database.prompts import Prompt
+    from collector.database.ratings import Rating
 
 # Initialize structlog
 logger = get_logger(__name__)

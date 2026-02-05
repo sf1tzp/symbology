@@ -28,8 +28,8 @@ from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.utils.config import settings
-from src.utils.logging import configure_logging, get_logger
+from collector.utils.config import settings
+from collector.utils.logging import configure_logging, get_logger
 
 # Configure logging
 configure_logging()

@@ -6,9 +6,9 @@ from typing import Dict, List, Optional
 from ollama import ChatResponse, Client, GenerateResponse, Options
 from transformers import AutoTokenizer
 
-from src.database.model_configs import ModelConfig
-from src.utils.config import settings
-from src.utils.logging import get_logger
+from collector.database.model_configs import ModelConfig
+from collector.utils.config import settings
+from collector.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

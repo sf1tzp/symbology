@@ -4,10 +4,10 @@ This package contains database models and CRUD functions for all entities
 used in the symbology system.
 """
 
-from src.database.base import Base, close_session, get_db, get_db_session, init_db
+from collector.database.base import Base, close_session, get_db, get_db_session, init_db
 
 # Companies
-from src.database.companies import (
+from collector.database.companies import (
     Company,
     create_company,
     delete_company,
@@ -17,7 +17,7 @@ from src.database.companies import (
 )
 
 # Documents
-from src.database.documents import (
+from collector.database.documents import (
     create_document,
     delete_document,
     Document,
@@ -27,7 +27,7 @@ from src.database.documents import (
 )
 
 # Filings
-from src.database.filings import (
+from collector.database.filings import (
     create_filing,
     delete_filing,
     Filing,
@@ -37,7 +37,7 @@ from src.database.filings import (
 )
 
 # Financial Concepts
-from src.database.financial_concepts import (
+from collector.database.financial_concepts import (
     create_financial_concept,
     delete_financial_concept,
     FinancialConcept,
@@ -47,7 +47,7 @@ from src.database.financial_concepts import (
 )
 
 # Financial Values
-from src.database.financial_values import (
+from collector.database.financial_values import (
     create_financial_value,
     delete_financial_value,
     FinancialValue,
@@ -55,7 +55,7 @@ from src.database.financial_values import (
     get_financial_value_ids,
     update_financial_value,
 )
-from src.database.generated_content import (
+from collector.database.generated_content import (
     ContentSourceType,
     create_generated_content,
     delete_generated_content,
@@ -70,7 +70,7 @@ from src.database.generated_content import (
 )
 
 # New consolidated models
-from src.database.model_configs import (
+from collector.database.model_configs import (
     create_model_config,
     delete_model_config,
     get_all_model_configs,
@@ -82,10 +82,10 @@ from src.database.model_configs import (
 )
 
 # Prompts
-from src.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole
+from collector.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole
 
 # Ratings
-from src.database.ratings import (
+from collector.database.ratings import (
     create_rating,
     delete_rating,
     get_rating,

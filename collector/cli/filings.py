@@ -8,13 +8,13 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from src.database.base import get_db_session
-from src.database.companies import get_company_by_ticker
-from src.database.filings import get_filing_by_accession_number, get_filings_by_company
-from src.ingestion.edgar_db.accessors import edgar_login
-import src.ingestion.ingestion_helpers as ih
-from src.utils.config import settings
-from src.utils.logging import get_logger
+from collector.database.base import get_db_session
+from collector.database.companies import get_company_by_ticker
+from collector.database.filings import get_filing_by_accession_number, get_filings_by_company
+from collector.ingestion.edgar_db.accessors import edgar_login
+import collector.ingestion.ingestion_helpers as ih
+from collector.utils.config import settings
+from collector.utils.logging import get_logger
 
 logger = get_logger(__name__)
 console = Console()
@@ -22,8 +22,8 @@ console = Console()
 
 def init_session():
     """Initialize database session."""
-    from src.database.base import init_db
-    from src.utils.config import settings
+    from collector.database.base import init_db
+    from collector.utils.config import settings
     init_db(settings.database.url)
     return get_db_session()
 

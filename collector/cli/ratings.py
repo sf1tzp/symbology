@@ -6,10 +6,10 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from src.database.base import get_db_session
-from src.database.generated_content import get_generated_content_by_hash
-from src.database.ratings import create_rating, Rating
-from src.utils.logging import get_logger
+from collector.database.base import get_db_session
+from collector.database.generated_content import get_generated_content_by_hash
+from collector.database.ratings import create_rating, Rating
+from collector.utils.logging import get_logger
 
 logger = get_logger(__name__)
 console = Console()
@@ -17,8 +17,8 @@ console = Console()
 
 def init_session():
     """Initialize database session."""
-    from src.database.base import init_db
-    from src.utils.config import settings
+    from collector.database.base import init_db
+    from collector.utils.config import settings
     init_db(settings.database.url)
     return get_db_session()
 

@@ -2,7 +2,7 @@ from typing import Generator, Tuple
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, scoped_session, Session, sessionmaker
-from src.utils.logging import get_logger
+from collector.utils.logging import get_logger
 
 # Initialize structlog
 logger = get_logger(__name__)

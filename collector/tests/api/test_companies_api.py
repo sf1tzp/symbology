@@ -2,8 +2,8 @@
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from src.api.main import create_app
-from src.database.companies import Company
+from collector.api.main import create_app
+from collector.database.companies import Company
 from uuid_extensions import uuid7
 
 client = TestClient(create_app())

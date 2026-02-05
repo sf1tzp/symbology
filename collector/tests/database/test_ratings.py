@@ -3,15 +3,15 @@ from typing import Any, Dict, List
 import uuid
 
 import pytest
-from src.database.companies import Company
-from src.database.documents import Document
-from src.database.filings import Filing
-from src.database.generated_content import ContentSourceType, GeneratedContent
-from src.database.model_configs import ModelConfig
-from src.database.prompts import Prompt, PromptRole
+from collector.database.companies import Company
+from collector.database.documents import Document
+from collector.database.filings import Filing
+from collector.database.generated_content import ContentSourceType, GeneratedContent
+from collector.database.model_configs import ModelConfig
+from collector.database.prompts import Prompt, PromptRole
 
 # Import the Rating model and functions
-from src.database.ratings import create_rating, delete_rating, get_rating, get_rating_ids, get_ratings_by_generated_content, Rating, update_rating
+from collector.database.ratings import create_rating, delete_rating, get_rating, get_rating_ids, get_ratings_by_generated_content, Rating, update_rating
 
 
 # Sample company and filing data fixtures
@@ -267,7 +267,7 @@ def test_get_rating_by_id(db_session, sample_rating_data):
     db_session.commit()
 
     # Mock the db_session global with our test session
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -289,12 +289,12 @@ def test_get_rating_by_id(db_session, sample_rating_data):
 def test_create_rating_function(db_session, sample_rating_data):
     """Test the create_rating helper function."""
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
     # Mock the generated_content module's get_db_session too, since it's imported in ratings.py
-    import src.database.generated_content as generated_content_module
+    import collector.database.generated_content as generated_content_module
     original_generated_content_get_db_session = generated_content_module.get_db_session
     generated_content_module.get_db_session = lambda: db_session
 
@@ -322,12 +322,12 @@ def test_create_rating_function(db_session, sample_rating_data):
 def test_validation_of_content_score(db_session, sample_generated_content_data, create_test_document):
     """Test validation of content score range."""
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
     # Mock the generated_content module's get_db_session too
-    import src.database.generated_content as generated_content_module
+    import collector.database.generated_content as generated_content_module
     original_generated_content_get_db_session = generated_content_module.get_db_session
     generated_content_module.get_db_session = lambda: db_session
 
@@ -358,12 +358,12 @@ def test_validation_of_content_score(db_session, sample_generated_content_data, 
 def test_validation_of_format_score(db_session, sample_generated_content_data, create_test_document):
     """Test validation of format score range."""
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
     # Mock the generated_content module's get_db_session too
-    import src.database.generated_content as generated_content_module
+    import collector.database.generated_content as generated_content_module
     original_generated_content_get_db_session = generated_content_module.get_db_session
     generated_content_module.get_db_session = lambda: db_session
 
@@ -399,7 +399,7 @@ def test_update_rating(db_session, sample_rating_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -438,7 +438,7 @@ def test_delete_rating(db_session, sample_rating_data):
     rating_id = rating.id
 
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -468,7 +468,7 @@ def test_get_rating_ids(db_session, multiple_rating_data):
         rating_ids.append(rating.id)
 
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -494,7 +494,7 @@ def test_update_with_invalid_attributes(db_session, sample_rating_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -524,7 +524,7 @@ def test_get_rating_with_string_uuid(db_session, sample_rating_data):
     db_session.commit()
 
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 
@@ -595,7 +595,7 @@ def test_get_ratings_by_generated_content(db_session, multiple_rating_data):
         rating_ids.append(rating.id)
 
     # Mock the db_session global
-    import src.database.ratings as ratings_module
+    import collector.database.ratings as ratings_module
     original_get_db_session = ratings_module.get_db_session
     ratings_module.get_db_session = lambda: db_session
 

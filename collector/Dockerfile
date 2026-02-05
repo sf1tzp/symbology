@@ -37,7 +37,7 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy source code
-COPY . /app/src/
+COPY . /app/collector/
 
 # Create non-root user
 RUN addgroup -g 1001 -S apiuser && adduser -u 1001 -S apiuser -G apiuser
@@ -52,4 +52,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
-CMD ["python", "-m", "src.api.main"]
+CMD ["python", "-m", "collector.api.main"]

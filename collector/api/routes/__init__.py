@@ -1,12 +1,12 @@
 """API route imports and configuration."""
 from fastapi import APIRouter
-from src.api.routes.companies import router as companies_router
-from src.api.routes.documents import router as documents_router
-from src.api.routes.filings import router as filings_router
-from src.api.routes.generated_content import router as generated_content_router
-from src.api.routes.model_configs import router as model_configs_router
-from src.api.routes.prompts import router as prompts_router
-from src.utils.logging import get_logger
+from collector.api.routes.companies import router as companies_router
+from collector.api.routes.documents import router as documents_router
+from collector.api.routes.filings import router as filings_router
+from collector.api.routes.generated_content import router as generated_content_router
+from collector.api.routes.model_configs import router as model_configs_router
+from collector.api.routes.prompts import router as prompts_router
+from collector.utils.logging import get_logger
 
 # Create logger for this module
 logger = get_logger(__name__)

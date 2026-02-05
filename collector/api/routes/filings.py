@@ -3,11 +3,11 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from src.api.schemas import CompanyResponse, DocumentResponse, FilingResponse
-from src.database.documents import get_documents_by_filing
-from src.database.filings import Filing, get_filing_by_accession_number, get_filings_by_company
-from src.database.generated_content import get_frontpage_summary_by_ticker
-from src.utils.logging import get_logger
+from collector.api.schemas import CompanyResponse, DocumentResponse, FilingResponse
+from collector.database.documents import get_documents_by_filing
+from collector.database.filings import Filing, get_filing_by_accession_number, get_filings_by_company
+from collector.database.generated_content import get_frontpage_summary_by_ticker
+from collector.utils.logging import get_logger
 
 # Create logger for this module
 logger = get_logger(__name__)
@@ -82,7 +82,7 @@ async def get_filings_by_ticker(ticker: str) -> List[FilingResponse]:
         logger.debug("fetching_filings_by_ticker", ticker=ticker)
 
         # Import here to avoid circular imports
-        from src.database.companies import get_company_by_ticker
+        from collector.database.companies import get_company_by_ticker
 
         company = get_company_by_ticker(ticker)
         if not company:

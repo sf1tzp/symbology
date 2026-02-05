@@ -3,7 +3,7 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
-from src.api.main import create_app
+from collector.api.main import create_app
 from uuid_extensions import uuid7
 
 client = TestClient(create_app())

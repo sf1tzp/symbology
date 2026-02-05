@@ -6,8 +6,8 @@ structured logging throughout the application.
 
 Usage:
     # Configure logging using application settings
-    from src.ingestion.config import settings
-    from src.utils.logging import configure_logging
+    from collector.ingestion.config import settings
+    from collector.utils.logging import configure_logging
 
     configure_logging(
         log_level=settings.logging.level,

@@ -1,0 +1,17 @@
+default:
+    @just --list
+
+build:
+    go build -o bin/api ./cmd/api
+
+run: build
+    ./bin/api
+
+test:
+    go test ./...
+
+lint:
+    golangci-lint run
+
+docker-build:
+    docker build -t symbology-api:latest .

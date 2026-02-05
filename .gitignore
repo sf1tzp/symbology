@@ -7,6 +7,9 @@
 
 *.tar
 
+api/api
+api/bin/
+
 __pycache__
 
 uv.lock

@@ -2,15 +2,27 @@ import json
 import re
 import time
 
-from typing import Dict, List, Optional
-from ollama import ChatResponse, Client, GenerateResponse, Options
-from transformers import AutoTokenizer
+from typing import Dict, List
+
+import anthropic
 
 from symbology.database.model_configs import ModelConfig
 from symbology.utils.config import settings
 from symbology.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class AnthropicResponseAdapter:
+    """Adapter that maps Anthropic API responses to the interface callers expect."""
+
+    def __init__(self, message, duration_ns):
+        self.response = message.content[0].text
+        self.content = self.response
+        self.total_duration = duration_ns
+        self.done = True
+        self.done_reason = message.stop_reason
+
 
 def retry_backoff(timeout, func, *args, **kwargs):
     backoff = 1
@@ -28,71 +40,51 @@ def retry_backoff(timeout, func, *args, **kwargs):
     else:
         raise TimeoutError
 
-def init_client(url: str):
-    client = Client(host=url)
-    try:
-        retry_backoff(3600, client.ps)
-    except TimeoutError as err:
-        logger.error("ollama_connection_failed", url=url, err=err)
-        raise TimeoutError from err
 
-    logger.debug('connected_to_ollama', url=url)
+def init_client(api_key: str = None):
+    key = api_key or settings.anthropic.api_key
+    client = anthropic.Anthropic(api_key=key)
+    logger.debug('initialized_anthropic_client')
     return client
 
 
 def get_chat_response(
         model_config: ModelConfig,
         messages: List[Dict],
-        client: Optional[Client] = None,
-    ) -> tuple[ChatResponse, Optional[str]]:
+        client=None,
+    ) -> tuple:
 
     if not client:
-        client = init_client(settings.openai_api.url)
+        client = init_client()
 
-    contents = [msg['content'] for msg in messages]
-    input_tokens = sum(count_tokens(model_config, content) for content in contents)
+    logger.info("sending_chat_request", model=model_config.model)
 
-    logger.info("sending_chat_request", model=model_config.model, input_tokens=input_tokens)
-
-    # Get options from the database model
     options_dict = json.loads(model_config.options_json)
-    options = Options(**options_dict)
-    num_ctx = options_dict.get('num_ctx', 4096)
+    max_tokens = options_dict.get('max_tokens', 4096)
+    temperature = options_dict.get('temperature', 0.8)
 
-    warning = None
-    if input_tokens > num_ctx:
-        warning = f"oversized_input: {input_tokens} tokens exceeds num_ctx {num_ctx}"
-        logger.info("oversized_input", input_tokens=input_tokens, num_ctx=num_ctx)
-
-    response = retry_backoff(3600, client.chat, model_config.model, options=options, messages=messages)
-
-    duration=response.total_duration / 1e9
-    output_tokens=count_tokens(model_config, response.message.content)
-    tokens_per_second = output_tokens / duration
-
-    logger.info("recieved_chat_response",
+    start_ns = time.time_ns()
+    message = retry_backoff(
+        3600,
+        client.messages.create,
         model=model_config.model,
-        done=response.done,
-        done_reason=response.done_reason,
-        duration=f"{duration / 1e9:.2f}s",
-        output_tokens=output_tokens,
-        tokens_per_second=f"{tokens_per_second:0.2f} tokens/s",
+        max_tokens=max_tokens,
+        temperature=temperature,
+        messages=messages,
+    )
+    duration_ns = time.time_ns() - start_ns
+
+    adapter = AnthropicResponseAdapter(message, duration_ns)
+
+    logger.info("received_chat_response",
+        model=model_config.model,
+        done=adapter.done,
+        done_reason=adapter.done_reason,
+        duration=f"{duration_ns / 1e9:.2f}s",
     )
 
-    return response, warning
+    return adapter, None
 
-
-
-def count_tokens(model_config: ModelConfig, content: str):
-    if 'qwen' in model_config.model.lower():
-        encoder = "Qwen/Qwen3-4B"
-    elif 'gemma' in model_config.model.lower():
-        encoder = "google/gemma-3-12b-it"
-
-    tokenizer = AutoTokenizer.from_pretrained(encoder, token=settings.huggingface_api.token)
-    tokens = tokenizer.encode(content)
-
-    return len(tokens)
 
 def remove_thinking_tags(content: str):
     if not content:
@@ -107,44 +99,35 @@ def remove_thinking_tags(content: str):
     return cleaned or None
 
 
-
-def get_generate_response(model_config: ModelConfig, system_prompt: str, user_prompt: str, client: Optional[Client] = None) -> tuple[GenerateResponse, Optional[str]]:
+def get_generate_response(model_config: ModelConfig, system_prompt: str, user_prompt: str, client=None) -> tuple:
     if not client:
-        client = init_client(settings.openai_api.url)
+        client = init_client()
 
-    input_tokens = count_tokens(model_config, system_prompt + user_prompt)
+    logger.info("sending_generate_request", model=model_config.model)
 
-    logger.info("sending_generate_request", model=model_config.model, input_tokens=input_tokens)
-
-    # Get options from the database model
     options_dict = json.loads(model_config.options_json)
-    options = Options(**options_dict)
-    num_ctx = options_dict.get('num_ctx', 4096)
+    max_tokens = options_dict.get('max_tokens', 4096)
+    temperature = options_dict.get('temperature', 0.8)
 
-    warning = None
-    if input_tokens > num_ctx:
-        warning = f"oversized_input: {input_tokens} tokens exceeds num_ctx {num_ctx}"
-        logger.warning("oversized_input", tokens=input_tokens, num_ctx=num_ctx)
-
-    response = retry_backoff(
+    start_ns = time.time_ns()
+    message = retry_backoff(
         timeout=3600,
-        func=client.generate,
-        model = model_config.model,
-        system = system_prompt,
-        prompt = user_prompt,
-        options = options,
-    )
-    duration=response.total_duration / 1e9
-    output_tokens=count_tokens(model_config, response.response)
-    tokens_per_second = output_tokens / duration
-
-    logger.info("recieved_generate_response",
+        func=client.messages.create,
         model=model_config.model,
-        done=response.done,
-        done_reason=response.done_reason,
-        duration=f"{response.total_duration / 1e9:.2f}s",
-        output_tokens=output_tokens,
-        tokens_per_second=tokens_per_second,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    duration_ns = time.time_ns() - start_ns
+
+    adapter = AnthropicResponseAdapter(message, duration_ns)
+
+    logger.info("received_generate_response",
+        model=model_config.model,
+        done=adapter.done,
+        done_reason=adapter.done_reason,
+        duration=f"{duration_ns / 1e9:.2f}s",
     )
 
-    return response, warning
+    return adapter, None

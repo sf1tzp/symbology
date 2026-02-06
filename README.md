@@ -92,6 +92,23 @@ WORKER_STALE_THRESHOLD=600    # seconds before a job is considered stale
 WORKER_STALE_CHECK_INTERVAL=60  # seconds between stale-job sweeps
 ```
 
+### LLM / Anthropic API
+
+Content generation jobs use the Anthropic Claude API. You need an API key from [console.anthropic.com](https://console.anthropic.com/):
+
+```bash
+# Set in .env or export directly
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The pipeline uses a 3-tier model structure:
+
+| Stage | Model | Purpose |
+|-------|-------|---------|
+| Single summary | `claude-haiku-4-5-20251001` | Summarize individual filing documents |
+| Aggregate summary | `claude-sonnet-4-5-20250929` | Combine single summaries |
+| Frontpage summary | `claude-sonnet-4-5-20250929` | Generate final company overview |
+
 ### Priority & Retries
 
 Jobs have a priority (0=critical, 4=backlog; default 2) and retry on failure up to `max_retries` (default 3). Stale jobs (in-progress but not updated within the threshold) are automatically recovered and re-queued.
@@ -107,7 +124,7 @@ Jobs have a priority (0=critical, 4=backlog; default 2) and retry on failure up 
 
   - Backend: Python 3.13, FastAPI, SQLAlchemy 2.0, PostgreSQL
   - Frontend: SvelteKit, TypeScript, Tailwind CSS, Bits UI
-  - LLM: Ollama (local inference)
+  - LLM: Anthropic Claude API (Haiku / Sonnet)
   - Infra: Caddy reverse proxy, Docker, just task runner
   - Data: SEC EDGAR via edgartools, XBRL financial extraction
 
@@ -128,7 +145,7 @@ Jobs have a priority (0=critical, 4=backlog; default 2) and retry on failure up 
   5. No caching layer — no Redis, repeated queries hit the DB every time
   6. No API rate limiting or versioning
   7. Thin test coverage — some DB tests, no E2E or comprehensive API tests
-  8. LLM tightly coupled to Ollama — no support for cloud LLM APIs
+  8. ~~LLM tightly coupled to Ollama~~ — migrated to Anthropic Claude API
   9. No observability — no metrics/Prometheus, just logs
   10. Content is read-only — no way for users to interact with or act on insights
 
@@ -171,7 +188,7 @@ Jobs have a priority (0=critical, 4=backlog; default 2) and retry on failure up 
   ├────────────────────────────┼─────────────────────────────────────────────────────────────────────┤
   │ Tiered Access / API Keys   │ Free tier with limits, paid tier for power users                    │
   ├────────────────────────────┼─────────────────────────────────────────────────────────────────────┤
-  │ Cloud LLM Support          │ Move beyond local Ollama to Claude/GPT for higher quality and scale │
+  │ ~~Cloud LLM Support~~      │ ✅ Migrated to Anthropic Claude API (Haiku + Sonnet)                 │
   ├────────────────────────────┼─────────────────────────────────────────────────────────────────────┤
   │ Sector/Industry Dashboards │ Aggregate insights across an industry                               │
   ├────────────────────────────┼─────────────────────────────────────────────────────────────────────┤

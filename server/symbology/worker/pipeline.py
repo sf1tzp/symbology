@@ -13,11 +13,11 @@ from symbology.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Default model tiers used by the ingestion pipeline (mirrors ingest.just)
+# Default model tiers used by the ingestion pipeline
 PIPELINE_MODEL_CONFIGS = {
-    "single_summary": {"model": "qwen3:4b", "num_ctx": 28567},
-    "aggregate_summary": {"model": "qwen3:14b", "num_ctx": 8000},
-    "frontpage_summary": {"model": "gemma3:12b", "num_ctx": 10000},
+    "single_summary": {"model": "claude-haiku-4-5-20251001", "max_tokens": 4096},
+    "aggregate_summary": {"model": "claude-sonnet-4-5-20250929", "max_tokens": 4096},
+    "frontpage_summary": {"model": "claude-sonnet-4-5-20250929", "max_tokens": 4096},
 }
 
 # Prompt names used at each pipeline stage
@@ -35,20 +35,19 @@ FORM_DOCUMENT_TYPES = {
 
 def ensure_model_config(
     model_name: str,
-    num_ctx: Optional[int] = None,
+    max_tokens: Optional[int] = None,
     **option_overrides,
 ) -> ModelConfig:
     """Get or create a ModelConfig with the given settings.
 
-    Mirrors the CLI ``model-configs create`` command: starts from defaults,
-    applies overrides, then delegates to ``get_or_create_model_config`` for
-    content-hash deduplication.
+    Starts from defaults, applies overrides, then delegates to
+    ``get_or_create_model_config`` for content-hash deduplication.
 
     Args:
-        model_name: Ollama model identifier (e.g. "qwen3:4b").
-        num_ctx: Context window size override.
-        **option_overrides: Any additional Ollama option overrides
-            (temperature, top_k, top_p, num_predict, num_gpu, etc.).
+        model_name: Model identifier (e.g. "claude-haiku-4-5-20251001").
+        max_tokens: Max tokens override.
+        **option_overrides: Any additional option overrides
+            (temperature, top_k, top_p, etc.).
 
     Returns:
         The existing or newly created ModelConfig.
@@ -56,8 +55,8 @@ def ensure_model_config(
     default = ModelConfig.create_default(model_name)
     options = json.loads(default.options_json)
 
-    if num_ctx is not None:
-        options["num_ctx"] = num_ctx
+    if max_tokens is not None:
+        options["max_tokens"] = max_tokens
     for key, value in option_overrides.items():
         if value is not None:
             options[key] = value
@@ -70,7 +69,7 @@ def ensure_model_config(
     logger.info(
         "ensure_model_config",
         model=model_name,
-        num_ctx=options.get("num_ctx"),
+        max_tokens=options.get("max_tokens"),
         content_hash=mc.get_short_hash(),
     )
     return mc

@@ -65,9 +65,7 @@ def create_generated_content(prompt: str, model_config: str, source_documents: T
             'symbology.llm.client',
             'httpcore',
             'httpx',
-            'ollama',
-            'transformers',
-            'huggingface_hub',
+            'anthropic',
             'urllib3.connectionpool'
         ]
         for logger_name in logger_names:

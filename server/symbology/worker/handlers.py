@@ -176,7 +176,7 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
 
     # Save generated content
     content_data = {
-        "content": response.content,
+        "content": response.response,
         "summary": None,
         "company_id": company_id,
         "description": description,

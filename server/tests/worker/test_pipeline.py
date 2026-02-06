@@ -19,35 +19,35 @@ class TestEnsureModelConfig:
         mock_mc.get_short_hash.return_value = "abc123"
 
         with patch("symbology.worker.pipeline.get_or_create_model_config", return_value=mock_mc) as mock_get_or_create:
-            result = ensure_model_config("qwen3:4b")
+            result = ensure_model_config("claude-haiku-4-5-20251001")
 
         assert result is mock_mc
         call_data = mock_get_or_create.call_args[0][0]
-        assert call_data["model"] == "qwen3:4b"
+        assert call_data["model"] == "claude-haiku-4-5-20251001"
         options = json.loads(call_data["options_json"])
-        assert options["num_ctx"] == 4096  # default
+        assert options["max_tokens"] == 4096  # default
 
-    def test_overrides_num_ctx(self):
+    def test_overrides_max_tokens(self):
         mock_mc = MagicMock()
         mock_mc.get_short_hash.return_value = "abc123"
 
         with patch("symbology.worker.pipeline.get_or_create_model_config", return_value=mock_mc) as mock_get_or_create:
-            result = ensure_model_config("qwen3:4b", num_ctx=28567)
+            result = ensure_model_config("claude-haiku-4-5-20251001", max_tokens=8192)
 
         call_data = mock_get_or_create.call_args[0][0]
         options = json.loads(call_data["options_json"])
-        assert options["num_ctx"] == 28567
+        assert options["max_tokens"] == 8192
 
     def test_overrides_multiple_options(self):
         mock_mc = MagicMock()
         mock_mc.get_short_hash.return_value = "abc123"
 
         with patch("symbology.worker.pipeline.get_or_create_model_config", return_value=mock_mc) as mock_get_or_create:
-            result = ensure_model_config("qwen3:14b", num_ctx=8000, temperature=0.5)
+            result = ensure_model_config("claude-sonnet-4-5-20250929", max_tokens=8192, temperature=0.5)
 
         call_data = mock_get_or_create.call_args[0][0]
         options = json.loads(call_data["options_json"])
-        assert options["num_ctx"] == 8000
+        assert options["max_tokens"] == 8192
         assert options["temperature"] == 0.5
 
     def test_none_overrides_ignored(self):
@@ -55,12 +55,12 @@ class TestEnsureModelConfig:
         mock_mc.get_short_hash.return_value = "abc123"
 
         with patch("symbology.worker.pipeline.get_or_create_model_config", return_value=mock_mc) as mock_get_or_create:
-            result = ensure_model_config("qwen3:4b", num_ctx=None, temperature=None)
+            result = ensure_model_config("claude-haiku-4-5-20251001", max_tokens=None, temperature=None)
 
         call_data = mock_get_or_create.call_args[0][0]
         options = json.loads(call_data["options_json"])
         # Should keep defaults since overrides are None
-        assert options["num_ctx"] == 4096
+        assert options["max_tokens"] == 4096
         assert options["temperature"] == 0.8
 
 
@@ -141,7 +141,7 @@ class TestPipelineConstants:
     def test_model_configs_have_required_keys(self):
         for stage, config in PIPELINE_MODEL_CONFIGS.items():
             assert "model" in config, f"{stage} missing 'model'"
-            assert "num_ctx" in config, f"{stage} missing 'num_ctx'"
+            assert "max_tokens" in config, f"{stage} missing 'max_tokens'"
 
     def test_form_document_types_coverage(self):
         assert "10-K" in FORM_DOCUMENT_TYPES

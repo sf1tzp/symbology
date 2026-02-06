@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 
 class ModelConfig(Base):
-    """ModelConfig model representing LLM model configurations with ollama Options."""
+    """ModelConfig model representing LLM model configurations."""
 
     __tablename__ = "model_configs"
 
@@ -30,7 +30,7 @@ class ModelConfig(Base):
     # Timestamp fields
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
-    # All ollama Options stored as JSON - single source of truth
+    # Model options stored as JSON - single source of truth
     options_json: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
 
@@ -63,15 +63,12 @@ class ModelConfig(Base):
 
     @classmethod
     def create_default(cls, name: str) -> 'ModelConfig':
-        """Create a ModelConfig with default ollama options."""
+        """Create a ModelConfig with default options."""
         default_options = {
-            'num_ctx': 4096,
+            'max_tokens': 4096,
             'temperature': 0.8,
             'top_k': 40,
             'top_p': 0.9,
-            'seed': 0b111001111110011101101110001011011111101100110111111001111111001,  # symbology
-            'num_predict': -1,
-            'num_gpu': None
         }
 
         model_config = cls(
@@ -89,10 +86,10 @@ class ModelConfig(Base):
         return options.get('temperature')
 
     @property
-    def num_ctx(self) -> Optional[int]:
-        """Get num_ctx from options."""
+    def max_tokens(self) -> Optional[int]:
+        """Get max_tokens from options."""
         options = json.loads(self.options_json)
-        return options.get('num_ctx')
+        return options.get('max_tokens')
 
     @property
     def top_k(self) -> Optional[int]:
@@ -105,24 +102,6 @@ class ModelConfig(Base):
         """Get top_p from options."""
         options = json.loads(self.options_json)
         return options.get('top_p')
-
-    @property
-    def seed(self) -> Optional[int]:
-        """Get seed from options."""
-        options = json.loads(self.options_json)
-        return options.get('seed')
-
-    @property
-    def num_predict(self) -> Optional[int]:
-        """Get num_predict from options."""
-        options = json.loads(self.options_json)
-        return options.get('num_predict')
-
-    @property
-    def num_gpu(self) -> Optional[int]:
-        """Get num_gpu from options."""
-        options = json.loads(self.options_json)
-        return options.get('num_gpu')
 
 
 def get_model_config_ids() -> List[UUID]:

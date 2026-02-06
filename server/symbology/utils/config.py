@@ -58,22 +58,16 @@ class EdgarApiSettings(BaseSettings):
     )
 
 
-class OpenAISettings(BaseSettings):
-    """OpenAI API settings."""
+class AnthropicSettings(BaseSettings):
+    """Anthropic API settings."""
 
-    host: str = Field(default="localhost")
-    port: str = Field(default="8000")
-    default_model: str = Field(default="hf.co/lmstudio-community/gemma-3-12b-it-GGUF:Q6_K")
+    api_key: str = Field(default="")
+    default_model: str = Field(default="claude-haiku-4-5-20251001")
 
     model_config = SettingsConfigDict(
-        env_prefix="OPENAI_API_",
+        env_prefix="ANTHROPIC_",
         extra="ignore",
     )
-
-    @property
-    def url(self) -> str:
-        """Construct open ai api URL."""
-        return f"http://{self.host}:{self.port}"
 
 
 class LoggingSettings(BaseSettings):
@@ -98,15 +92,6 @@ class LoggingSettings(BaseSettings):
     )
 
 
-class HuggingFaceApiSettings():
-    token: str = Field(default="")
-
-    model_config = SettingsConfigDict(
-        env_prefix="HF_",
-        extra="ignore",
-    )
-
-
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -114,8 +99,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     symbology_api: SymbologyApiSettings = Field(default_factory=SymbologyApiSettings)
     edgar_api: EdgarApiSettings = Field(default_factory=EdgarApiSettings)
-    huggingface_api: HuggingFaceApiSettings = Field(default_factory=HuggingFaceApiSettings)
-    openai_api: OpenAISettings = Field(default_factory=OpenAISettings)
+    anthropic: AnthropicSettings = Field(default_factory=AnthropicSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
     model_config = SettingsConfigDict(

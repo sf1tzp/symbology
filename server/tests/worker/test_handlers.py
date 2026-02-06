@@ -6,6 +6,7 @@ from uuid_extensions import uuid7
 
 from symbology.database.jobs import JobType
 from symbology.worker.handlers import (
+    handle_full_pipeline,
     handle_ingest_pipeline,
     handle_test,
 )
@@ -125,3 +126,221 @@ class TestHandleIngestPipeline:
         filing_params = mock_filing.call_args[0][0]
         assert filing_params["company_id"] == company_id
         assert filing_params["ticker"] == "AAPL"
+
+
+class TestHandleFullPipeline:
+    @patch("symbology.worker.handlers.handle_content_generation")
+    @patch("symbology.worker.handlers.handle_filing_ingestion")
+    @patch("symbology.worker.handlers.handle_company_ingestion")
+    def test_full_pipeline_orchestrates_all_stages(
+        self, mock_company, mock_filing, mock_content_gen, tmp_path
+    ):
+        """Full pipeline calls company, filing, and content generation handlers."""
+        company_id = str(uuid7())
+        filing_id = uuid7()
+        mock_company.return_value = {
+            "ticker": "AAPL",
+            "company_id": company_id,
+            "name": "Apple",
+        }
+        mock_filing.return_value = {
+            "ticker": "AAPL",
+            "form": "10-K",
+            "filing_ids": [str(filing_id)],
+        }
+
+        # Mock content generation to return a hash each time
+        call_count = {"n": 0}
+
+        def fake_content_gen(params):
+            call_count["n"] += 1
+            return {
+                "content_id": str(uuid7()),
+                "content_hash": f"hash_{call_count['n']:03d}",
+                "was_created": True,
+            }
+
+        mock_content_gen.side_effect = fake_content_gen
+
+        # Set up a mock filing with one document
+        mock_doc = MagicMock()
+        mock_doc.document_type = MagicMock()
+        mock_doc.document_type.value = "risk_factors"
+        # Make the enum comparison work: DocumentType("risk_factors") == mock_doc.document_type
+        from symbology.database.documents import DocumentType
+
+        mock_doc.document_type = DocumentType.RISK_FACTORS
+        mock_doc.content_hash = "doc_hash_001"
+
+        mock_filing_obj = MagicMock()
+        mock_filing_obj.id = filing_id
+        mock_filing_obj.documents = [mock_doc]
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.all.return_value = [
+            mock_filing_obj
+        ]
+
+        # Create prompt files
+        for name in ["risk_factors", "aggregate-summary", "general-summary"]:
+            d = tmp_path / name
+            d.mkdir()
+            (d / "prompt.md").write_text(f"Prompt for {name}")
+
+        mock_prompt = MagicMock()
+        mock_prompt.content_hash = "prompt_hash_001"
+        mock_prompt.get_short_hash.return_value = "prompt_hash_0"
+
+        mock_mc = MagicMock()
+        mock_mc.id = uuid7()
+        mock_mc.get_short_hash.return_value = "mc_hash_0001"
+
+        with (
+            patch(
+                "symbology.database.base.get_db_session",
+                return_value=mock_session,
+            ),
+            patch(
+                "symbology.worker.pipeline.ensure_model_config",
+                return_value=mock_mc,
+            ),
+            patch(
+                "symbology.worker.pipeline.ensure_prompt",
+                return_value=mock_prompt,
+            ),
+        ):
+            result = handle_full_pipeline({
+                "ticker": "AAPL",
+                "forms": ["10-K"],
+                "counts": {"10-K": 1},
+                "document_types": {"10-K": ["risk_factors"]},
+                "prompts_dir": str(tmp_path),
+            })
+
+        assert result["ticker"] == "AAPL"
+        assert result["company_id"] == company_id
+        assert result["forms"] == ["10-K"]
+        # 1 single + 1 aggregate + 1 frontpage = 3
+        assert result["content_generated"] == 3
+        assert mock_content_gen.call_count == 3
+
+        # Verify the three stages were called with correct descriptions
+        descriptions = [
+            call[0][0]["description"] for call in mock_content_gen.call_args_list
+        ]
+        assert descriptions[0] == "risk_factors_single_summary"
+        assert descriptions[1] == "risk_factors_aggregate_summary"
+        assert descriptions[2] == "risk_factors_frontpage_summary"
+
+    @patch("symbology.worker.handlers.handle_content_generation")
+    @patch("symbology.worker.handlers.handle_filing_ingestion")
+    @patch("symbology.worker.handlers.handle_company_ingestion")
+    def test_skips_when_no_documents(
+        self, mock_company, mock_filing, mock_content_gen, tmp_path
+    ):
+        """Pipeline skips content gen when filings have no matching documents."""
+        company_id = str(uuid7())
+        mock_company.return_value = {
+            "ticker": "MSFT",
+            "company_id": company_id,
+            "name": "Microsoft",
+        }
+        mock_filing.return_value = {
+            "ticker": "MSFT",
+            "form": "10-K",
+            "filing_ids": [],
+        }
+
+        # Filing with no documents
+        mock_filing_obj = MagicMock()
+        mock_filing_obj.documents = []
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.all.return_value = [
+            mock_filing_obj
+        ]
+
+        for name in ["risk_factors", "aggregate-summary", "general-summary"]:
+            d = tmp_path / name
+            d.mkdir()
+            (d / "prompt.md").write_text(f"Prompt for {name}")
+
+        mock_prompt = MagicMock()
+        mock_prompt.content_hash = "prompt_hash"
+        mock_prompt.get_short_hash.return_value = "prompt_ha"
+        mock_mc = MagicMock()
+        mock_mc.id = uuid7()
+        mock_mc.get_short_hash.return_value = "mc_hash"
+
+        with (
+            patch(
+                "symbology.database.base.get_db_session",
+                return_value=mock_session,
+            ),
+            patch(
+                "symbology.worker.pipeline.ensure_model_config",
+                return_value=mock_mc,
+            ),
+            patch(
+                "symbology.worker.pipeline.ensure_prompt",
+                return_value=mock_prompt,
+            ),
+        ):
+            result = handle_full_pipeline({
+                "ticker": "MSFT",
+                "forms": ["10-K"],
+                "document_types": {"10-K": ["risk_factors"]},
+                "prompts_dir": str(tmp_path),
+            })
+
+        assert result["content_generated"] == 0
+        mock_content_gen.assert_not_called()
+
+    @patch("symbology.worker.handlers.handle_filing_ingestion")
+    @patch("symbology.worker.handlers.handle_company_ingestion")
+    def test_defaults_to_both_forms(self, mock_company, mock_filing):
+        """Without explicit forms, processes both 10-K and 10-Q."""
+        company_id = str(uuid7())
+        mock_company.return_value = {
+            "ticker": "GOOG",
+            "company_id": company_id,
+            "name": "Alphabet",
+        }
+        mock_filing.return_value = {
+            "ticker": "GOOG",
+            "form": "10-K",
+            "filing_ids": [],
+        }
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.all.return_value = []
+
+        mock_prompt = MagicMock()
+        mock_prompt.content_hash = "ph"
+        mock_prompt.get_short_hash.return_value = "ph"
+        mock_mc = MagicMock()
+        mock_mc.id = uuid7()
+        mock_mc.get_short_hash.return_value = "mc"
+
+        with (
+            patch(
+                "symbology.database.base.get_db_session",
+                return_value=mock_session,
+            ),
+            patch(
+                "symbology.worker.pipeline.ensure_model_config",
+                return_value=mock_mc,
+            ),
+            patch(
+                "symbology.worker.pipeline.ensure_prompt",
+                return_value=mock_prompt,
+            ),
+        ):
+            result = handle_full_pipeline({"ticker": "GOOG"})
+
+        assert result["forms"] == ["10-K", "10-Q"]
+        # Should have called filing ingestion twice (once per form)
+        assert mock_filing.call_count == 2
+        forms_called = [call[0][0]["form"] for call in mock_filing.call_args_list]
+        assert "10-K" in forms_called
+        assert "10-Q" in forms_called

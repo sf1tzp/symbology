@@ -30,6 +30,7 @@ class JobType(str, Enum):
     FILING_INGESTION = "filing_ingestion"
     CONTENT_GENERATION = "content_generation"
     INGEST_PIPELINE = "ingest_pipeline"
+    FULL_PIPELINE = "full_pipeline"
     TEST = "test"
 
 

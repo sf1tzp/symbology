@@ -10,6 +10,8 @@ from symbology.database.model_configs import ModelConfig
 # Import the Prompt model and functions
 from symbology.database.prompts import create_prompt, delete_prompt, get_prompt, get_prompt_ids, Prompt, PromptRole
 
+pytestmark = pytest.mark.integration
+
 
 # Sample prompt data fixtures
 @pytest.fixture

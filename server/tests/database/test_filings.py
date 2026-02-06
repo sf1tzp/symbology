@@ -9,6 +9,8 @@ from symbology.database.companies import Company
 # Import the Filing model and functions
 from symbology.database.filings import create_filing, delete_filing, Filing, get_filing, get_filing_ids, update_filing
 
+pytestmark = pytest.mark.integration
+
 
 # Sample company data fixture
 @pytest.fixture

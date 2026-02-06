@@ -7,6 +7,8 @@ import pytest
 # Import the Company model and functions
 from symbology.database.companies import Company, create_company, delete_company, get_company, get_company_ids, update_company
 
+pytestmark = pytest.mark.integration
+
 
 # Sample company data fixtures
 @pytest.fixture

@@ -54,6 +54,10 @@ testpaths = ["tests"]
 norecursedirs = [
   "tests/ingestion",
 ] # FIXME: Uncomment after ingestion is updated
+markers = [
+  "integration: requires a running PostgreSQL database (deselect with '-m not integration')",
+]
+addopts = "-m 'not integration'"
 
 [tool.ruff]
 # Enable flake8-bugbear (`B`) rules, and isort (`I`) for import sorting

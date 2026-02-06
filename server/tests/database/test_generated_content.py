@@ -25,6 +25,8 @@ from symbology.database.model_configs import ModelConfig
 from symbology.database.prompts import Prompt, PromptRole
 
 
+pytestmark = pytest.mark.integration
+
 # Sample data fixtures
 @pytest.fixture
 def sample_company(db_session) -> Company:

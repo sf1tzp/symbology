@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta, timezone
 
 from uuid_extensions import uuid7
+import pytest
 
 from symbology.database.jobs import (
     Job,
@@ -18,6 +19,8 @@ from symbology.database.jobs import (
     mark_stale_jobs_as_failed,
 )
 
+
+pytestmark = pytest.mark.integration
 
 class TestJobModel:
     """Test the Job ORM model."""

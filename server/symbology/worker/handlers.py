@@ -196,7 +196,11 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     session.commit()
 
     logger.info("handler_content_generation_done", content_id=str(generated.id))
-    return {"content_id": str(generated.id), "was_created": was_created}
+    return {
+        "content_id": str(generated.id),
+        "content_hash": generated.content_hash,
+        "was_created": was_created,
+    }
 
 
 @register_handler(JobType.INGEST_PIPELINE)
@@ -234,4 +238,177 @@ def handle_ingest_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "ticker": ticker,
         "company_id": company_id,
         "filings": filing_result["filing_ids"],
+    }
+
+
+@register_handler(JobType.FULL_PIPELINE)
+def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """End-to-end automated pipeline: company -> filings -> content generation.
+
+    Replaces ingest.just by orchestrating the full ingestion and LLM content
+    generation pipeline in Python.  For each form and document type it:
+      1. Ingests the company and filings from EDGAR
+      2. Generates single summaries per filing document
+      3. Generates an aggregate summary from all singles
+      4. Generates a frontpage summary from the aggregate
+
+    params:
+        ticker (str, required): Company ticker symbol.
+        forms (list[str]): Form types to process.
+            Defaults to ["10-K", "10-Q"].
+        counts (dict[str, int]): Number of filings per form.
+            Defaults to {"10-K": 5, "10-Q": 6}.
+        document_types (dict[str, list[str]]): Document types per form.
+            Defaults to FORM_DOCUMENT_TYPES.
+        prompts_dir (str): Path to prompts directory. Defaults to "prompts".
+    """
+    from pathlib import Path
+    from uuid import UUID
+
+    from symbology.database.base import get_db_session
+    from symbology.database.documents import DocumentType
+    from symbology.database.filings import Filing
+    from symbology.worker.pipeline import (
+        FORM_DOCUMENT_TYPES,
+        PIPELINE_MODEL_CONFIGS,
+        PIPELINE_PROMPTS,
+        ensure_model_config,
+        ensure_prompt,
+    )
+
+    ticker = params["ticker"]
+    forms = params.get("forms", ["10-K", "10-Q"])
+    default_counts = {"10-K": 5, "10-Q": 6}
+    counts = params.get("counts", default_counts)
+    doc_types_map = params.get("document_types", FORM_DOCUMENT_TYPES)
+    prompts_dir = Path(params["prompts_dir"]) if "prompts_dir" in params else None
+
+    logger.info("handler_full_pipeline_start", ticker=ticker, forms=forms)
+
+    # Step 1: Company ingestion
+    company_result = handle_company_ingestion({"ticker": ticker})
+    company_id = company_result["company_id"]
+
+    # Step 2: Set up model configs (idempotent via content-hash dedup)
+    mc_single = ensure_model_config(**PIPELINE_MODEL_CONFIGS["single_summary"])
+    mc_aggregate = ensure_model_config(**PIPELINE_MODEL_CONFIGS["aggregate_summary"])
+    mc_frontpage = ensure_model_config(**PIPELINE_MODEL_CONFIGS["frontpage_summary"])
+
+    # Step 3: Set up shared prompts
+    aggregate_prompt = ensure_prompt(PIPELINE_PROMPTS["aggregate_summary"], prompts_dir)
+    frontpage_prompt = ensure_prompt(PIPELINE_PROMPTS["frontpage_summary"], prompts_dir)
+
+    total_content_generated = 0
+
+    # Step 4: Process each form
+    for form in forms:
+        count = counts.get(form, default_counts.get(form, 5))
+        doc_types = doc_types_map.get(form, [])
+
+        if not doc_types:
+            logger.info("full_pipeline_skip_form", form=form, reason="no document types")
+            continue
+
+        # Ingest filings for this form
+        filing_result = handle_filing_ingestion({
+            "company_id": company_id,
+            "ticker": ticker,
+            "form": form,
+            "count": count,
+            "include_documents": True,
+        })
+        logger.info(
+            "full_pipeline_filings_ingested",
+            form=form,
+            filings_count=len(filing_result["filing_ids"]),
+        )
+
+        # Query filings from DB to get their documents
+        session = get_db_session()
+        filings = (
+            session.query(Filing)
+            .filter(
+                Filing.company_id == UUID(company_id),
+                Filing.form == form,
+            )
+            .all()
+        )
+
+        # Step 5: For each document type, run the 3-stage content pipeline
+        for doc_type_str in doc_types:
+            doc_type = DocumentType(doc_type_str)
+            single_prompt = ensure_prompt(doc_type_str, prompts_dir)
+
+            single_summary_hashes = []
+
+            for filing in filings:
+                # Find the document of this type in this filing
+                matching = [
+                    d for d in filing.documents if d.document_type == doc_type
+                ]
+                if not matching:
+                    logger.debug(
+                        "full_pipeline_no_document",
+                        filing_id=str(filing.id),
+                        doc_type=doc_type_str,
+                    )
+                    continue
+                doc = matching[0]
+                if not doc.content_hash:
+                    continue
+
+                # Generate single summary
+                gen_result = handle_content_generation({
+                    "system_prompt_hash": single_prompt.content_hash,
+                    "model_config_hash": str(mc_single.id),
+                    "source_document_hashes": [doc.content_hash],
+                    "company_ticker": ticker,
+                    "description": f"{doc_type_str}_single_summary",
+                })
+                if gen_result and gen_result.get("content_hash"):
+                    single_summary_hashes.append(gen_result["content_hash"])
+                    total_content_generated += 1
+
+            if not single_summary_hashes:
+                logger.info(
+                    "full_pipeline_skip_aggregate",
+                    form=form,
+                    doc_type=doc_type_str,
+                    reason="no single summaries",
+                )
+                continue
+
+            # Generate aggregate summary
+            agg_result = handle_content_generation({
+                "system_prompt_hash": aggregate_prompt.content_hash,
+                "model_config_hash": str(mc_aggregate.id),
+                "source_content_hashes": single_summary_hashes,
+                "company_ticker": ticker,
+                "description": f"{doc_type_str}_aggregate_summary",
+            })
+            if agg_result and agg_result.get("content_hash"):
+                total_content_generated += 1
+
+                # Generate frontpage summary
+                fp_result = handle_content_generation({
+                    "system_prompt_hash": frontpage_prompt.content_hash,
+                    "model_config_hash": str(mc_frontpage.id),
+                    "source_content_hashes": [agg_result["content_hash"]],
+                    "company_ticker": ticker,
+                    "description": f"{doc_type_str}_frontpage_summary",
+                })
+                if fp_result:
+                    total_content_generated += 1
+
+    logger.info(
+        "handler_full_pipeline_done",
+        ticker=ticker,
+        forms=forms,
+        content_generated=total_content_generated,
+    )
+    return {
+        "ticker": ticker,
+        "company_id": company_id,
+        "forms": forms,
+        "content_generated": total_content_generated,
     }

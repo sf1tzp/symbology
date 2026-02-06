@@ -14,6 +14,8 @@ from symbology.database.financial_concepts import (
     update_financial_concept,
 )
 
+pytestmark = pytest.mark.integration
+
 
 # Sample financial concept data fixtures
 @pytest.fixture

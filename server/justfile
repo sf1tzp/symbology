@@ -21,7 +21,7 @@ run *ARGS: _create_venv
 cli *ARGS: _create_venv
     uv run -m symbology.cli.main {{ARGS}}
 
-# test and lint outputs are logged to make it easy to include as llm context
+# Unit tests (no DB required). For integration tests: just test -m integration
 test *ARGS: _create_venv
     uv run -m pytest \
       --cov=symbology.api \

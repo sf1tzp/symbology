@@ -10,6 +10,8 @@ from symbology.database.companies import Company
 from symbology.database.documents import create_document, delete_document, Document, get_document, get_document_ids, update_document
 from symbology.database.filings import Filing
 
+pytestmark = pytest.mark.integration
+
 
 # Sample company data fixture
 @pytest.fixture

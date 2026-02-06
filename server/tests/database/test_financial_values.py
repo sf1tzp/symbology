@@ -19,6 +19,8 @@ from symbology.database.financial_values import (
 )
 
 
+pytestmark = pytest.mark.integration
+
 # Sample company data fixture
 @pytest.fixture
 def sample_company_data() -> Dict[str, Any]:

@@ -13,6 +13,8 @@ from symbology.database.prompts import Prompt, PromptRole
 # Import the Rating model and functions
 from symbology.database.ratings import create_rating, delete_rating, get_rating, get_rating_ids, get_ratings_by_generated_content, Rating, update_rating
 
+pytestmark = pytest.mark.integration
+
 
 # Sample company and filing data fixtures
 @pytest.fixture

@@ -9,12 +9,11 @@ from symbology.api.schemas import (
     PipelineStatusResponse,
     PipelineTriggerRequest,
 )
-from symbology.database.companies import Company, get_company, get_company_by_ticker
+from symbology.database.companies import get_company, get_company_by_ticker
 from symbology.database.jobs import JobType, create_job
 from symbology.database.pipeline_runs import (
     PipelineRun,
     PipelineRunStatus,
-    PipelineTrigger,
     count_consecutive_failures,
     get_latest_run_per_company,
     get_pipeline_run,

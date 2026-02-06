@@ -12,7 +12,6 @@ from symbology.worker.config import worker_settings
 from symbology.worker.handlers import get_handler, list_handlers
 
 # Import handlers module so decorators run and register themselves
-import symbology.worker.handlers  # noqa: F811
 
 logger = get_logger(__name__)
 

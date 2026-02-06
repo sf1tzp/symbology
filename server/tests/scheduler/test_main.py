@@ -1,6 +1,6 @@
 """Tests for the scheduler main loop."""
 import signal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from symbology.scheduler.main import run_scheduler
 

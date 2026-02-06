@@ -1,7 +1,6 @@
 """Tests for scheduler polling logic."""
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
-from uuid import UUID
 
 from uuid_extensions import uuid7
 import pytest

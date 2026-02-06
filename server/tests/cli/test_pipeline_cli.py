@@ -1,6 +1,6 @@
 """Tests for the pipeline CLI commands."""
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from click.testing import CliRunner
 from symbology.cli.pipeline import pipeline

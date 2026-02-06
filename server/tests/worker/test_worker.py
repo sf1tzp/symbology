@@ -1,14 +1,12 @@
 """Tests for the worker process — handlers and loop behaviour."""
 from unittest.mock import MagicMock, patch
 
-from symbology.database.jobs import JobStatus, JobType
+from symbology.database.jobs import JobType
 from symbology.worker.handlers import (
-    HandlerFn,
     _registry,
     get_handler,
     handle_test,
     list_handlers,
-    register_handler,
 )
 
 

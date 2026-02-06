@@ -1,5 +1,5 @@
 """Tests for the jobs database module."""
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 
 from uuid_extensions import uuid7

@@ -116,12 +116,10 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     from symbology.database.companies import get_company_by_ticker
     from symbology.database.documents import Document
     from symbology.database.generated_content import (
-        GeneratedContent,
         create_generated_content,
         get_generated_content_by_hash,
     )
-    from symbology.database.model_configs import get_model_config_by_name
-    from symbology.database.prompts import Prompt, create_prompt
+    from symbology.database.prompts import Prompt
     from symbology.llm.client import get_generate_response
     from symbology.llm.prompts import format_user_prompt_content
 

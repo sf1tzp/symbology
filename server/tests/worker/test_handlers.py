@@ -1,10 +1,8 @@
 """Tests for job handlers with mocked DB/LLM/EDGAR dependencies."""
-import sys
 from unittest.mock import MagicMock, patch
 
 from uuid_extensions import uuid7
 
-from symbology.database.jobs import JobType
 from symbology.worker.handlers import (
     handle_full_pipeline,
     handle_ingest_pipeline,

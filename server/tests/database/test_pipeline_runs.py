@@ -1,6 +1,5 @@
 """Tests for the pipeline_runs database module."""
 from unittest.mock import patch
-from uuid import UUID
 
 from uuid_extensions import uuid7
 import pytest

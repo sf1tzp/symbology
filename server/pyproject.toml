@@ -17,6 +17,7 @@ dependencies = [
   "uuid7==0.1.0",
   "safe-result",
   "alembic>=1.18.3",
+  "ruff>=0.15.0",
 ]
 
 [project.optional-dependencies]

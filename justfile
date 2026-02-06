@@ -26,6 +26,7 @@ run-db:
     just -d infra -f infra/justfile up
 
 # Testing
+# just test -m integration (run database tests, requires db availability)
 test *ARGS:
     just -d server -f server/justfile test {{ARGS}}
 

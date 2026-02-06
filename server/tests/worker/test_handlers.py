@@ -135,11 +135,12 @@ def _mock_pipeline_run():
 
 class TestHandleFullPipeline:
     @patch("symbology.database.pipeline_runs.get_db_session")
+    @patch("symbology.database.generated_content.find_existing_content_for_document", return_value=None)
     @patch("symbology.worker.handlers.handle_content_generation")
     @patch("symbology.worker.handlers.handle_filing_ingestion")
     @patch("symbology.worker.handlers.handle_company_ingestion")
     def test_full_pipeline_orchestrates_all_stages(
-        self, mock_company, mock_filing, mock_content_gen, mock_pr_session, tmp_path
+        self, mock_company, mock_filing, mock_content_gen, mock_find_existing, mock_pr_session, tmp_path
     ):
         """Full pipeline calls company, filing, and content generation handlers."""
         company_id = str(uuid7())
@@ -238,6 +239,95 @@ class TestHandleFullPipeline:
         assert descriptions[0] == "risk_factors_single_summary"
         assert descriptions[1] == "risk_factors_aggregate_summary"
         assert descriptions[2] == "risk_factors_frontpage_summary"
+
+    @patch("symbology.database.pipeline_runs.get_db_session")
+    @patch("symbology.database.generated_content.find_existing_content_for_document")
+    @patch("symbology.worker.handlers.handle_content_generation")
+    @patch("symbology.worker.handlers.handle_filing_ingestion")
+    @patch("symbology.worker.handlers.handle_company_ingestion")
+    def test_skips_llm_for_existing_content(
+        self, mock_company, mock_filing, mock_content_gen, mock_find_existing, mock_pr_session, tmp_path
+    ):
+        """Pipeline skips LLM calls when content already exists for a document."""
+        company_id = str(uuid7())
+        filing_id = uuid7()
+        mock_company.return_value = {
+            "ticker": "AAPL",
+            "company_id": company_id,
+            "name": "Apple",
+        }
+        mock_filing.return_value = {
+            "ticker": "AAPL",
+            "form": "10-K",
+            "filing_ids": [str(filing_id)],
+        }
+
+        # Simulate existing content for the single summary
+        existing_content = MagicMock()
+        existing_content.content_hash = "existing_hash_001"
+        mock_find_existing.return_value = existing_content
+
+        # Content gen only called for aggregate + frontpage (not single)
+        call_count = {"n": 0}
+
+        def fake_content_gen(params):
+            call_count["n"] += 1
+            return {
+                "content_id": str(uuid7()),
+                "content_hash": f"hash_{call_count['n']:03d}",
+                "was_created": True,
+            }
+
+        mock_content_gen.side_effect = fake_content_gen
+
+        from symbology.database.documents import DocumentType
+
+        mock_doc = MagicMock()
+        mock_doc.document_type = DocumentType.RISK_FACTORS
+        mock_doc.content_hash = "doc_hash_001"
+
+        mock_filing_obj = MagicMock()
+        mock_filing_obj.id = filing_id
+        mock_filing_obj.documents = [mock_doc]
+
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.all.return_value = [
+            mock_filing_obj
+        ]
+
+        for name in ["risk_factors", "aggregate-summary", "general-summary"]:
+            d = tmp_path / name
+            d.mkdir()
+            (d / "prompt.md").write_text(f"Prompt for {name}")
+
+        mock_prompt = MagicMock()
+        mock_prompt.content_hash = "prompt_hash_001"
+        mock_prompt.get_short_hash.return_value = "prompt_hash_0"
+        mock_mc = MagicMock()
+        mock_mc.id = uuid7()
+        mock_mc.get_short_hash.return_value = "mc_hash_0001"
+
+        with (
+            patch("symbology.database.base.get_db_session", return_value=mock_session),
+            patch("symbology.worker.pipeline.ensure_model_config", return_value=mock_mc),
+            patch("symbology.worker.pipeline.ensure_prompt", return_value=mock_prompt),
+        ):
+            result = handle_full_pipeline({
+                "ticker": "AAPL",
+                "forms": ["10-K"],
+                "counts": {"10-K": 1},
+                "document_types": {"10-K": ["risk_factors"]},
+                "prompts_dir": str(tmp_path),
+            })
+
+        # Single summary was skipped (reused existing), only aggregate + frontpage called
+        assert mock_content_gen.call_count == 2
+        assert result["content_generated"] == 3  # 1 reused + 2 generated
+        descriptions = [
+            call[0][0]["description"] for call in mock_content_gen.call_args_list
+        ]
+        assert descriptions[0] == "risk_factors_aggregate_summary"
+        assert descriptions[1] == "risk_factors_frontpage_summary"
 
     @patch("symbology.database.pipeline_runs.get_db_session")
     @patch("symbology.worker.handlers.handle_content_generation")

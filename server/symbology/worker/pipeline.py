@@ -15,9 +15,9 @@ logger = get_logger(__name__)
 
 # Default model tiers used by the ingestion pipeline
 PIPELINE_MODEL_CONFIGS = {
-    "single_summary": {"model_name": "claude-sonnet-4-5-20250929", "max_tokens": 4096},
-    "aggregate_summary": {"model_name": "claude-sonnet-4-5-20250929", "max_tokens": 4096},
-    "frontpage_summary": {"model_name": "claude-haiku-4-5-20251001", "max_tokens": 4096},
+    "single_summary": {"model_name": "claude-haiku-4-5-20251001", "max_tokens": 2048, "temperature": 0.2},
+    "aggregate_summary": {"model_name": "claude-sonnet-4-5-20250929", "max_tokens": 4096, "temperature": 0.3},
+    "frontpage_summary": {"model_name": "claude-haiku-4-5-20251001", "max_tokens": 512, "temperature": 0.3},
 }
 
 # Prompt names used at each pipeline stage

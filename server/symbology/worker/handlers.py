@@ -382,6 +382,28 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     if not doc.content_hash:
                         continue
 
+                    # Skip if content already exists for this
+                    # (document, prompt, model_config) triple
+                    from symbology.database.generated_content import (
+                        find_existing_content_for_document,
+                    )
+                    existing = find_existing_content_for_document(
+                        document_id=doc.id,
+                        system_prompt_id=single_prompt.id,
+                        model_config_id=mc_single.id,
+                    )
+                    if existing and existing.content_hash:
+                        logger.info(
+                            "full_pipeline_skip_existing",
+                            filing_id=str(filing.id),
+                            doc_type=doc_type_str,
+                            content_hash=existing.content_hash[:12],
+                        )
+                        single_summary_hashes.append(existing.content_hash)
+                        total_content_generated += 1
+                        jobs_completed += 1
+                        continue
+
                     # Generate single summary
                     jobs_created += 1
                     try:

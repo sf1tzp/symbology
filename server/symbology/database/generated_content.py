@@ -559,6 +559,33 @@ def delete_generated_content(content_id: Union[UUID, str]) -> bool:
         raise
 
 
+def find_existing_content_for_document(
+    document_id: Union[UUID, str],
+    system_prompt_id: Union[UUID, str],
+    model_config_id: Union[UUID, str],
+) -> Optional[GeneratedContent]:
+    """Find existing generated content for a (document, prompt, model_config) triple.
+
+    Used to skip duplicate LLM calls when content has already been generated
+    for the same source document with the same prompt and model configuration.
+
+    Returns:
+        The first matching GeneratedContent, or None.
+    """
+    session = get_db_session()
+    return (
+        session.query(GeneratedContent)
+        .join(generated_content_document_association,
+              GeneratedContent.id == generated_content_document_association.c.generated_content_id)
+        .filter(
+            generated_content_document_association.c.document_id == document_id,
+            GeneratedContent.system_prompt_id == system_prompt_id,
+            GeneratedContent.model_config_id == model_config_id,
+        )
+        .first()
+    )
+
+
 def get_generated_content_by_source_document(document_id: Union[UUID, str]) -> List[GeneratedContent]:
     """Get all generated content that uses a specific document as a source.
 

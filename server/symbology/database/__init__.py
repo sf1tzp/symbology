@@ -70,6 +70,19 @@ from symbology.database.jobs import (
     mark_stale_jobs_as_failed,
 )
 
+# Pipeline Runs
+from symbology.database.pipeline_runs import (
+    complete_pipeline_run,
+    create_pipeline_run,
+    fail_pipeline_run,
+    get_pipeline_run,
+    list_pipeline_runs,
+    PipelineRun,
+    PipelineRunStatus,
+    PipelineTrigger,
+    start_pipeline_run,
+)
+
 from symbology.database.generated_content import (
     ContentSourceType,
     create_generated_content,
@@ -117,6 +130,7 @@ __all__ = [
     "Company", "Filing", "Document", "FinancialConcept", "FinancialValue",
     "Completion", "Aggregate", "Rating", "Prompt", "PromptRole",
     "Job", "JobStatus", "JobType",
+    "PipelineRun", "PipelineRunStatus", "PipelineTrigger",
 
     # Company functions
     "get_company_ids", "get_company", "create_company", "update_company", "delete_company",
@@ -144,4 +158,8 @@ __all__ = [
     # Job functions
     "create_job", "get_job", "list_jobs", "cancel_job",
     "claim_next_job", "complete_job", "fail_job", "mark_stale_jobs_as_failed",
+
+    # Pipeline Run functions
+    "create_pipeline_run", "get_pipeline_run", "list_pipeline_runs",
+    "start_pipeline_run", "complete_pipeline_run", "fail_pipeline_run",
 ]

@@ -140,7 +140,7 @@ class TestEnsurePrompt:
 class TestPipelineConstants:
     def test_model_configs_have_required_keys(self):
         for stage, config in PIPELINE_MODEL_CONFIGS.items():
-            assert "model" in config, f"{stage} missing 'model'"
+            assert "model_name" in config, f"{stage} missing 'model_name'"
             assert "max_tokens" in config, f"{stage} missing 'max_tokens'"
 
     def test_form_document_types_coverage(self):

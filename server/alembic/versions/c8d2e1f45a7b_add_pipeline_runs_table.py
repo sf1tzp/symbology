@@ -20,21 +20,30 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Create pipeline_runs table and enums."""
-    # Create enums first
-    pipeline_trigger_enum = sa.Enum('MANUAL', 'SCHEDULED', name='pipeline_trigger_enum')
-    pipeline_trigger_enum.create(op.get_bind(), checkfirst=True)
+    # Create enums idempotently via raw SQL
+    op.execute(sa.text(
+        "DO $$ BEGIN "
+        "CREATE TYPE pipeline_trigger_enum AS ENUM ('MANUAL', 'SCHEDULED'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$"
+    ))
+    op.execute(sa.text(
+        "DO $$ BEGIN "
+        "CREATE TYPE pipeline_run_status_enum AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'PARTIAL'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$"
+    ))
 
-    pipeline_run_status_enum = sa.Enum(
+    # Use postgresql.ENUM with create_type=False to reference existing enums
+    trigger_col_type = postgresql.ENUM('MANUAL', 'SCHEDULED', name='pipeline_trigger_enum', create_type=False)
+    status_col_type = postgresql.ENUM(
         'PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'PARTIAL',
-        name='pipeline_run_status_enum',
+        name='pipeline_run_status_enum', create_type=False,
     )
-    pipeline_run_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table('pipeline_runs',
         sa.Column('id', sa.Uuid(), nullable=False),
         sa.Column('company_id', sa.Uuid(), nullable=False),
-        sa.Column('trigger', pipeline_trigger_enum, nullable=False),
-        sa.Column('status', pipeline_run_status_enum, nullable=False),
+        sa.Column('trigger', trigger_col_type, nullable=False),
+        sa.Column('status', status_col_type, nullable=False),
         sa.Column('forms', postgresql.ARRAY(sa.String()), nullable=True),
         sa.Column('started_at', sa.DateTime(), nullable=True),
         sa.Column('completed_at', sa.DateTime(), nullable=True),

@@ -22,6 +22,8 @@ class AnthropicResponseAdapter:
         self.total_duration = duration_ns
         self.done = True
         self.done_reason = message.stop_reason
+        self.input_tokens = message.usage.input_tokens
+        self.output_tokens = message.usage.output_tokens
 
 
 def retry_backoff(timeout, func, *args, **kwargs):
@@ -81,6 +83,8 @@ def get_chat_response(
         done=adapter.done,
         done_reason=adapter.done_reason,
         duration=f"{duration_ns / 1e9:.2f}s",
+        input_tokens=adapter.input_tokens,
+        output_tokens=adapter.output_tokens,
     )
 
     return adapter, None
@@ -128,6 +132,8 @@ def get_generate_response(model_config: ModelConfig, system_prompt: str, user_pr
         done=adapter.done,
         done_reason=adapter.done_reason,
         duration=f"{duration_ns / 1e9:.2f}s",
+        input_tokens=adapter.input_tokens,
+        output_tokens=adapter.output_tokens,
     )
 
     return adapter, None

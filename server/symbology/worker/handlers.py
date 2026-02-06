@@ -184,6 +184,8 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
         "model_config_id": model_config.id,
         "system_prompt_id": system_prompt.id,
         "total_duration": response.total_duration,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
         "warning": warning,
     }
     generated, was_created = create_generated_content(content_data)

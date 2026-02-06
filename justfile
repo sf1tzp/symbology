@@ -13,6 +13,12 @@ run-cli *ARGS:
 run-worker *ARGS:
     just -d server -f server/justfile worker {{ARGS}}
 
+run-scheduler *ARGS:
+    just -d server -f server/justfile scheduler {{ARGS}}
+
+run-pipeline-trigger *ARGS:
+    just -d server -f server/justfile cli pipeline trigger {{ARGS}}
+
 run-ui *ARGS:
     just -d ui -f ui/justfile up {{ARGS}}
 

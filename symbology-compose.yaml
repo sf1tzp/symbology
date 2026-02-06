@@ -37,6 +37,18 @@ services:
     networks:
       - caddy_network
 
+  symbology-scheduler:
+    image: symbology-api
+    container_name: symbology-scheduler
+    restart: always
+    command: ["python", "-m", "symbology.scheduler.main"]
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST:-localhost}
+      SCHEDULER_POLL_INTERVAL: ${SCHEDULER_POLL_INTERVAL:-21600}
+      SCHEDULER_ALERT_WEBHOOK_URL: ${SCHEDULER_ALERT_WEBHOOK_URL:-}
+    networks:
+      - caddy_network
+
 networks:
   caddy_network:
     driver: bridge

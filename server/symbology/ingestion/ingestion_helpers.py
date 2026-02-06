@@ -11,6 +11,10 @@ from symbology.database.filings import upsert_filing_by_accession_number
 from symbology.database.financial_concepts import find_or_create_financial_concept
 from symbology.database.financial_values import upsert_financial_value
 from symbology.ingestion.edgar_db.accessors import (
+    get_balance_sheet_values,
+    get_cash_flow_statement_values,
+    get_cover_page_values,
+    get_income_statement_values,
     get_sections_for_document_types,
 )
 from symbology.utils.logging import get_logger
@@ -286,8 +290,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
     try:
         counts = {'balance_sheet': 0, 'income_statement': 0, 'cash_flow': 0, 'cover_page': 0}
 
-        # FIXME: Balance sheet values
-        balance_sheet_df = get_balance_sheet_values(filing) # noqa: F821
+        balance_sheet_df = get_balance_sheet_values(filing)
         for _index, row in balance_sheet_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
@@ -333,8 +336,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                                   concept=concept_name,
                                   value=str(value_str))
 
-        # FIXME: Income statement values
-        income_df = get_income_statement_values(filing) # noqa: F821
+        income_df = get_income_statement_values(filing)
         for _index, row in income_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
@@ -380,8 +382,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                                   concept=concept_name,
                                   value=str(value_str))
 
-        # FIXME: Cash flow statement values
-        cashflow_df = get_cash_flow_statement_values(filing) # noqa: F821
+        cashflow_df = get_cash_flow_statement_values(filing)
         for _index, row in cashflow_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
@@ -427,8 +428,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                                   concept=concept_name,
                                   value=str(value_str))
 
-        # FIXME: Cover page data - only process numeric values
-        cover_df = get_cover_page_values(filing) # noqa: F821
+        cover_df = get_cover_page_values(filing)
         for _index, row in cover_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None

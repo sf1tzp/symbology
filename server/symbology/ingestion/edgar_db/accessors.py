@@ -5,8 +5,8 @@ from typing import Callable, Dict, List, Optional
 from edgar import Filing, set_identity
 from symbology.database.documents import DocumentType
 
-# from edgar.xbrl import XBRL
-# import pandas as pd
+from edgar.xbrl import XBRL
+import pandas as pd
 from symbology.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -271,138 +271,125 @@ def get_available_sections(filing: Filing) -> List[FormSection]:
     return list(form_mapping.keys())
 
 
-# def _process_xbrl_dataframe(df: pd.DataFrame, filing: Filing, columns_to_drop: Optional[List[str]] = None) -> pd.DataFrame:
-#     """
-#     Process XBRL dataframe by filtering rows and columns based on common criteria.
+def _process_xbrl_dataframe(df: pd.DataFrame, filing: Filing, columns_to_drop: Optional[List[str]] = None) -> pd.DataFrame:
+    """
+    Process XBRL dataframe by filtering rows and columns based on common criteria.
 
-#     Args:
-#         df: DataFrame from XBRL statement
-#         filing: Filing object to extract year information
-#         columns_to_drop: List of columns to exclude from the result
+    Args:
+        df: DataFrame from XBRL statement
+        filing: Filing object to extract year information
+        columns_to_drop: List of columns to exclude from the result
 
-#     Returns:
-#         Processed DataFrame
-#     """
-#     if columns_to_drop is None:
-#         columns_to_drop = ['level', 'has_values', 'is_abstract', 'original_label', 'abstract', 'dimension']
+    Returns:
+        Processed DataFrame
+    """
+    if columns_to_drop is None:
+        columns_to_drop = ['balance', 'weight', 'preferred_sign']
 
-#     # Apply filters for existing columns
-#     mask = True  # Start with all rows selected
-#     if 'is_abstract' in df.columns:
-#         mask = mask & (~df['is_abstract'])
-#     if 'has_values' in df.columns:
-#         mask = mask & df['has_values']
+    # Drop specified columns if they exist
+    df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
 
-#     # Apply the filter mask only if we've actually set conditions
-#     if not isinstance(mask, bool):
-#         df = df.loc[mask]
+    # Filter columns based on year
+    fiscal_date = filing.period_of_report
 
-#     # Drop specified columns if they exist
-#     df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
+    # Build a list of columns to keep
+    filtered_columns: List[str] = []
+    for col in df.columns:
+        try:
+            # Try to parse as a date and match by year
+            _ = datetime.strptime(col, '%Y-%m-%d')
+            if col == fiscal_date:
+                filtered_columns.append(col)
+        except ValueError:
+            # Keep non-date columns (metadata)
+            filtered_columns.append(col)
 
-#     # Filter columns based on year
-#     fiscal_date = filing.period_of_report
+    df = df[filtered_columns]
 
-#     # Build a list of columns to keep
-#     filtered_columns: List[str] = []
-#     for col in df.columns:
-#         try:
-#             # Try to parse as a date and match by year
-#             _ = datetime.strptime(col, '%Y-%m-%d')
-#             if col == fiscal_date:
-#                 filtered_columns.append(col)
-#         except ValueError:
-#             # Keep non-date columns (metadata)
-#             filtered_columns.append(col)
+    # Remove rows where 'year' column is blank (NaN or empty string)
+    if fiscal_date in df.columns:
+        df = df[df[fiscal_date].notna() & (df[fiscal_date] != '')]
 
-#     df = df[filtered_columns]
+    return df
 
-#     # Remove rows where 'year' column is blank (NaN or empty string)
-#     if fiscal_date in df.columns:
-#         df = df[df[fiscal_date].notna() & (df[fiscal_date] != '')]
+def get_balance_sheet_values(filing: Filing) -> pd.DataFrame:
+    """
+    Extract balance sheet values from a filing.
 
-#     return df
+    Args:
+        filing: Filing object from edgar package
 
-# def get_balance_sheet_values(filing: Filing) -> pd.DataFrame:
-#     """
-#     Extract balance sheet values from a filing.
+    Returns:
+        DataFrame containing balance sheet data for the filing's year
+    """
+    xbrl = XBRL.from_filing(filing)
+    df = xbrl.statements.balance_sheet().to_dataframe(view="SUMMARY")
+    return _process_xbrl_dataframe(df, filing)
 
-#     Args:
-#         filing: Filing object from edgar package
+def get_income_statement_values(filing: Filing) -> pd.DataFrame:
+    """
+    Extract income statement values from a filing.
 
-#     Returns:
-#         DataFrame containing balance sheet data for the filing's year
-#     """
-#     xbrl = XBRL.from_filing(filing)
-#     df = xbrl.statements.balance_sheet().to_dataframe()
-#     return _process_xbrl_dataframe(df, filing)
+    Args:
+        filing: Filing object from edgar package
 
-# def get_income_statement_values(filing: Filing) -> pd.DataFrame:
-#     """
-#     Extract income statement values from a filing.
+    Returns:
+        DataFrame containing income statement data for the filing's year
+    """
+    xbrl = XBRL.from_filing(filing)
+    df = xbrl.statements.income_statement().to_dataframe(view="SUMMARY")
+    return _process_xbrl_dataframe(df, filing)
 
-#     Args:
-#         filing: Filing object from edgar package
+def get_cash_flow_statement_values(filing: Filing) -> pd.DataFrame:
+    """
+    Extract cash flow statement values from a filing.
 
-#     Returns:
-#         DataFrame containing income statement data for the filing's year
-#     """
-#     xbrl = XBRL.from_filing(filing)
-#     df = xbrl.statements.income_statement().to_dataframe()
-#     # Income statement uses slightly different columns to drop
-#     return _process_xbrl_dataframe(df, filing, columns_to_drop=['level', 'abstract', 'dimension'])
+    The cash flow statement shows how changes in balance sheet accounts and
+    income affect cash and cash equivalents, categorized by operating, investing,
+    and financing activities.
 
-# def get_cash_flow_statement_values(filing: Filing) -> pd.DataFrame:
-#     """
-#     Extract cash flow statement values from a filing.
+    Args:
+        filing: Filing object from edgar package
 
-#     The cash flow statement shows how changes in balance sheet accounts and
-#     income affect cash and cash equivalents, categorized by operating, investing,
-#     and financing activities.
+    Returns:
+        DataFrame containing cash flow data for the filing's year
+    """
+    xbrl = XBRL.from_filing(filing)
+    df = xbrl.statements.cashflow_statement().to_dataframe(view="SUMMARY")
+    return _process_xbrl_dataframe(df, filing)
 
-#     Args:
-#         filing: Filing object from edgar package
+def get_cover_page_values(filing: Filing) -> pd.DataFrame:
+    """
+    Extract cover page information from a filing.
 
-#     Returns:
-#         DataFrame containing cash flow data for the filing's year
-#     """
-#     xbrl = XBRL.from_filing(filing)
-#     df = xbrl.statements.cash_flow_statement().to_dataframe()
-#     # Cash flow statement uses slightly different columns to drop
-#     return _process_xbrl_dataframe(df, filing, columns_to_drop=['level', 'abstract', 'dimension'])
+    The cover page contains summary information about the filing and company,
+    such as the company name, fiscal year end, filing date, and other
+    identifying information.
 
-# def get_cover_page_values(filing: Filing) -> pd.DataFrame:
-#     """
-#     Extract cover page information from a filing.
+    Args:
+        filing: Filing object from edgar package
 
-#     The cover page contains summary information about the filing and company,
-#     such as the company name, fiscal year end, filing date, and other
-#     identifying information.
+    Returns:
+        DataFrame containing cover page data for the filing
+    """
+    xbrl = XBRL.from_filing(filing)
+    df = xbrl.statements.cover_page().to_dataframe()
 
-#     Args:
-#         filing: Filing object from edgar package
+    # Remove metadata columns
+    columns_to_drop = ['balance', 'weight', 'preferred_sign']
+    df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
 
-#     Returns:
-#         DataFrame containing cover page data for the filing
-#     """
-#     xbrl = XBRL.from_filing(filing)
-#     df = xbrl.statements["CoverPage"].to_dataframe()
+    # Identify the date column (typically the last column)
+    date_columns = [col for col in df.columns if col not in ['concept', 'label']]
 
-#     # Remove level, abstract, dimension columns
-#     columns_to_drop = ['level', 'abstract', 'dimension']
-#     df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
+    if date_columns:
+        # Rename the date column to filing.period_of_report
+        df = df.rename(columns={date_columns[0]: filing.period_of_report})
 
-#     # Identify the date column (typically the last column)
-#     date_columns = [col for col in df.columns if col not in ['concept', 'label']]
+        # Remove rows where the date column is empty or NA
+        df = df[df[filing.period_of_report].notna() & (df[filing.period_of_report] != '')]
 
-#     if date_columns:
-#         # Rename the date column to filing.period_of_report
-#         df = df.rename(columns={date_columns[0]: filing.period_of_report})
-
-#         # Remove rows where the date column is empty or NA
-#         df = df[df[filing.period_of_report].notna() & (df[filing.period_of_report] != '')]
-
-#     return df
+    return df
 
 def get_business_description(filing: Filing) -> Optional[str]:
     """

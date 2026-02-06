@@ -1,4 +1,3 @@
-from datetime import date
 from unittest import mock
 
 import pytest
@@ -11,17 +10,26 @@ def test_ingest_filing_documents_happy_path():
     """Test the successful ingestion of filing documents."""
     company_id = uuid7()
     filing_id = uuid7()
-    company_name = "Test Company Inc."
 
     mock_filing = mock.MagicMock()
     mock_filing.form = '10-K'
-    mock_filing.filing_date = date(2023, 3, 31)
+    mock_filing.period_of_report = '2023-12-31'
 
-    # Mock document sections from filing
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_business_description', return_value="Business description text") as mock_get_business, \
-         mock.patch('symbology.ingestion.ingestion_helpers.get_risk_factors', return_value="Risk factors text") as mock_get_risks, \
-         mock.patch('symbology.ingestion.ingestion_helpers.get_management_discussion', return_value="MD&A text") as mock_get_mda, \
-         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as mock_create_document:
+    # Mock get_company returning a company with .name
+    mock_company = mock.MagicMock()
+    mock_company.name = 'Test Company Inc.'
+
+    # Mock get_sections_for_document_types returning section content
+    sections = {
+        DocumentType.DESCRIPTION: "Business description text",
+        DocumentType.RISK_FACTORS: "Risk factors text",
+        DocumentType.MDA: "MD&A text",
+    }
+
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_company', return_value=mock_company), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_sections_for_document_types', return_value=sections), \
+         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as mock_create_document, \
+         mock.patch('symbology.ingestion.ingestion_helpers.logger'):
 
         # Configure document creation mock
         business_doc = mock.MagicMock()
@@ -34,25 +42,23 @@ def test_ingest_filing_documents_happy_path():
         mock_create_document.side_effect = [business_doc, risk_doc, mda_doc]
 
         # Call the function
-        document_uuids = ingest_filing_documents(company_id, filing_id, mock_filing, company_name)
-
-        # Verify document content was extracted
-        mock_get_business.assert_called_once_with(mock_filing)
-        mock_get_risks.assert_called_once_with(mock_filing)
-        mock_get_mda.assert_called_once_with(mock_filing)
+        document_uuids = ingest_filing_documents(company_id, filing_id, mock_filing)
 
         # Verify document creation calls
         assert mock_create_document.call_count == 3
 
-        # Verify document names were formatted correctly
-        assert mock_create_document.call_args_list[0][1]['document_name'] == "Test Company Inc. 10-K 2023-03-31 - Business Description"
-        assert mock_create_document.call_args_list[1][1]['document_name'] == "Test Company Inc. 10-K 2023-03-31 - Risk Factors"
-        assert mock_create_document.call_args_list[2][1]['document_name'] == "Test Company Inc. 10-K 2023-03-31 - Management Discussion"
+        # Verify document names use period_of_report (not filing_date)
+        call_kwargs_list = [call[1] for call in mock_create_document.call_args_list]
+        titles = [kw['title'] for kw in call_kwargs_list]
+        assert "Test Company Inc. 10-K 2023-12-31 - Business Description" in titles
+        assert "Test Company Inc. 10-K 2023-12-31 - Risk Factors" in titles
+        assert "Test Company Inc. 10-K 2023-12-31 - Management Discussion and Analysis" in titles
 
         # Verify document content was stored correctly
-        assert mock_create_document.call_args_list[0][1]['content'] == "Business description text"
-        assert mock_create_document.call_args_list[1][1]['content'] == "Risk factors text"
-        assert mock_create_document.call_args_list[2][1]['content'] == "MD&A text"
+        contents = [kw['content'] for kw in call_kwargs_list]
+        assert "Business description text" in contents
+        assert "Risk factors text" in contents
+        assert "MD&A text" in contents
 
         # Verify document UUIDs were returned correctly
         assert document_uuids == {
@@ -69,51 +75,70 @@ def test_ingest_filing_documents_missing_sections():
 
     mock_filing = mock.MagicMock()
     mock_filing.form = '10-K'
-    mock_filing.filing_date = date(2023, 3, 31)
+    mock_filing.period_of_report = '2023-12-31'
 
-    # Only business description available, other sections missing
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_business_description', return_value="Business description text"), \
-         mock.patch('symbology.ingestion.ingestion_helpers.get_risk_factors', return_value=None), \
-         mock.patch('symbology.ingestion.ingestion_helpers.get_management_discussion', return_value=None), \
-         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as mock_create_document:
+    mock_company = mock.MagicMock()
+    mock_company.name = 'Test Company Inc.'
+
+    # Only business description available
+    sections = {
+        DocumentType.DESCRIPTION: "Business description text",
+    }
+
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_company', return_value=mock_company), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_sections_for_document_types', return_value=sections), \
+         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as mock_create_document, \
+         mock.patch('symbology.ingestion.ingestion_helpers.logger'):
 
         business_doc = mock.MagicMock()
         business_doc.id = uuid7()
         mock_create_document.return_value = business_doc
 
-        # Call the function
         document_uuids = ingest_filing_documents(company_id, filing_id, mock_filing)
 
         # Verify document creation was only called for business description
         assert mock_create_document.call_count == 1
 
         # Verify returned UUIDs only include business description
-        # Use DocumentType.DESCRIPTION instead of string key
-        from symbology.database.documents import DocumentType
         assert DocumentType.DESCRIPTION in document_uuids
         assert DocumentType.RISK_FACTORS not in document_uuids
         assert DocumentType.MDA not in document_uuids
 
 
-def test_ingest_filing_documents_default_company_name():
-    """Test document ingestion with default company name."""
+def test_ingest_filing_documents_uses_company_from_db():
+    """Test that document ingestion uses company name from database, not parameter."""
     company_id = uuid7()
     filing_id = uuid7()
 
     mock_filing = mock.MagicMock()
     mock_filing.form = '10-K'
-    mock_filing.filing_date = date(2023, 3, 31)
+    mock_filing.period_of_report = '2023-12-31'
 
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_business_description', return_value="Business description text"), \
-         mock.patch('symbology.ingestion.ingestion_helpers.get_risk_factors', return_value=None), \
-         mock.patch('symbology.ingestion.ingestion_helpers.get_management_discussion', return_value=None), \
-         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as mock_create_document:
+    # The impl always calls get_company(company_id) and uses company.name
+    mock_company = mock.MagicMock()
+    mock_company.name = 'DB Company Name'
 
-        # No company_name provided - should default to "Company"
-        ingest_filing_documents(company_id, filing_id, mock_filing)
+    sections = {
+        DocumentType.DESCRIPTION: "Business description text",
+    }
 
-        # Verify document name uses default company name
-        assert mock_create_document.call_args[1]['document_name'] == "Company 10-K 2023-03-31 - Business Description"
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_company', return_value=mock_company) as mock_get_company, \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_sections_for_document_types', return_value=sections), \
+         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as mock_create_document, \
+         mock.patch('symbology.ingestion.ingestion_helpers.logger'):
+
+        mock_doc = mock.MagicMock()
+        mock_doc.id = uuid7()
+        mock_create_document.return_value = mock_doc
+
+        # Pass a different company_name param — it should be ignored
+        ingest_filing_documents(company_id, filing_id, mock_filing, company_name="Ignored Name")
+
+        # Verify get_company was called with company_id
+        mock_get_company.assert_called_once_with(company_id)
+
+        # Verify document name uses the DB company name
+        assert mock_create_document.call_args[1]['title'] == "DB Company Name 10-K 2023-12-31 - Business Description"
 
 
 def test_ingest_filing_documents_error_handling():
@@ -123,7 +148,7 @@ def test_ingest_filing_documents_error_handling():
 
     mock_filing = mock.MagicMock()
 
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_business_description',
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_company',
                    side_effect=Exception("Document extraction failed")), \
          mock.patch('symbology.ingestion.ingestion_helpers.logger') as mock_logger:
 

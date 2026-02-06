@@ -45,8 +45,7 @@ def test_ingest_financial_data_happy_path():
          mock.patch('symbology.ingestion.ingestion_helpers.get_cash_flow_statement_values', return_value=cash_flow_df), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cover_page_values', return_value=cover_page_df), \
          mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_financial_concept') as mock_create_concept, \
-         mock.patch('symbology.ingestion.ingestion_helpers.upsert_financial_value') as mock_upsert_value, \
-         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as _mock_create_document:
+         mock.patch('symbology.ingestion.ingestion_helpers.upsert_financial_value') as mock_upsert_value:
 
         # Configure concept creation mock
         mock_concept = mock.MagicMock()

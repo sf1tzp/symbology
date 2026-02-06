@@ -128,12 +128,20 @@ class TestHandleIngestPipeline:
         assert filing_params["ticker"] == "AAPL"
 
 
+def _mock_pipeline_run():
+    """Return a MagicMock that behaves like a PipelineRun."""
+    run = MagicMock()
+    run.id = uuid7()
+    return run
+
+
 class TestHandleFullPipeline:
+    @patch("symbology.database.pipeline_runs.get_db_session")
     @patch("symbology.worker.handlers.handle_content_generation")
     @patch("symbology.worker.handlers.handle_filing_ingestion")
     @patch("symbology.worker.handlers.handle_company_ingestion")
     def test_full_pipeline_orchestrates_all_stages(
-        self, mock_company, mock_filing, mock_content_gen, tmp_path
+        self, mock_company, mock_filing, mock_content_gen, mock_pr_session, tmp_path
     ):
         """Full pipeline calls company, filing, and content generation handlers."""
         company_id = str(uuid7())
@@ -223,6 +231,7 @@ class TestHandleFullPipeline:
         # 1 single + 1 aggregate + 1 frontpage = 3
         assert result["content_generated"] == 3
         assert mock_content_gen.call_count == 3
+        assert result["pipeline_run_id"] is not None
 
         # Verify the three stages were called with correct descriptions
         descriptions = [
@@ -232,11 +241,12 @@ class TestHandleFullPipeline:
         assert descriptions[1] == "risk_factors_aggregate_summary"
         assert descriptions[2] == "risk_factors_frontpage_summary"
 
+    @patch("symbology.database.pipeline_runs.get_db_session")
     @patch("symbology.worker.handlers.handle_content_generation")
     @patch("symbology.worker.handlers.handle_filing_ingestion")
     @patch("symbology.worker.handlers.handle_company_ingestion")
     def test_skips_when_no_documents(
-        self, mock_company, mock_filing, mock_content_gen, tmp_path
+        self, mock_company, mock_filing, mock_content_gen, mock_pr_session, tmp_path
     ):
         """Pipeline skips content gen when filings have no matching documents."""
         company_id = str(uuid7())
@@ -296,9 +306,10 @@ class TestHandleFullPipeline:
         assert result["content_generated"] == 0
         mock_content_gen.assert_not_called()
 
+    @patch("symbology.database.pipeline_runs.get_db_session")
     @patch("symbology.worker.handlers.handle_filing_ingestion")
     @patch("symbology.worker.handlers.handle_company_ingestion")
-    def test_defaults_to_both_forms(self, mock_company, mock_filing):
+    def test_defaults_to_both_forms(self, mock_company, mock_filing, mock_pr_session):
         """Without explicit forms, processes both 10-K and 10-Q."""
         company_id = str(uuid7())
         mock_company.return_value = {

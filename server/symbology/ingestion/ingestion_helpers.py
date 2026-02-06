@@ -18,6 +18,7 @@ from symbology.ingestion.edgar_db.accessors import (
     get_sections_for_document_types,
 )
 from symbology.utils.logging import get_logger
+from symbology.utils.text import normalize_filing_text
 
 logger = get_logger(__name__)
 
@@ -234,6 +235,7 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
 
         for doc_type, content in sections_content.items():
             if content and content.strip():
+                content = normalize_filing_text(content)
                 # Create a readable document name based on the document type
                 doc_type_names = {
                     DocumentType.DESCRIPTION: "Business Description",

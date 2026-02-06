@@ -7,7 +7,7 @@ set dotenv-load
 run-api *ARGS:
     just -d server -f server/justfile run {{ARGS}}
 
-run-cli *ARGS:
+cli *ARGS:
     just -d server -f server/justfile cli {{ARGS}}
 
 run-worker *ARGS:

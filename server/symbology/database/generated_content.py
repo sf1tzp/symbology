@@ -5,7 +5,7 @@ import hashlib
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, func, String, Table, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, func, Integer, String, Table, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from symbology.database.base import Base, get_db_session
@@ -94,6 +94,10 @@ class GeneratedContent(Base):
     # Timestamp fields
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     total_duration: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Token usage tracking
+    input_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Warning field for storing warnings like oversized input
     warning: Mapped[Optional[str]] = mapped_column(Text)
@@ -238,6 +242,8 @@ class GeneratedContent(Base):
             "source_type": self.source_type.value,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "total_duration": self.total_duration,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
             "content": self.content,
             "summary": self.summary,
             "model_config_id": str(self.model_config_id) if self.model_config_id else None,
@@ -557,6 +563,33 @@ def delete_generated_content(content_id: Union[UUID, str]) -> bool:
         session.rollback()
         logger.error("delete_generated_content_failed", content_id=str(content_id), error=str(e), exc_info=True)
         raise
+
+
+def find_existing_content_for_document(
+    document_id: Union[UUID, str],
+    system_prompt_id: Union[UUID, str],
+    model_config_id: Union[UUID, str],
+) -> Optional[GeneratedContent]:
+    """Find existing generated content for a (document, prompt, model_config) triple.
+
+    Used to skip duplicate LLM calls when content has already been generated
+    for the same source document with the same prompt and model configuration.
+
+    Returns:
+        The first matching GeneratedContent, or None.
+    """
+    session = get_db_session()
+    return (
+        session.query(GeneratedContent)
+        .join(generated_content_document_association,
+              GeneratedContent.id == generated_content_document_association.c.generated_content_id)
+        .filter(
+            generated_content_document_association.c.document_id == document_id,
+            GeneratedContent.system_prompt_id == system_prompt_id,
+            GeneratedContent.model_config_id == model_config_id,
+        )
+        .first()
+    )
 
 
 def get_generated_content_by_source_document(document_id: Union[UUID, str]) -> List[GeneratedContent]:

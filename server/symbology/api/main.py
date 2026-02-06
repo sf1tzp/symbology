@@ -37,6 +37,10 @@ def create_app() -> FastAPI:
                 "name": "prompts",
                 "description": "Operations related to prompt templates and management",
             },
+            {
+                "name": "pipeline",
+                "description": "Pipeline monitoring, status, and manual trigger",
+            },
         ],
         contact={
             "name": "Symbology Team",

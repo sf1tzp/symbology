@@ -211,6 +211,43 @@ def complete_pipeline_run(
         raise
 
 
+def get_latest_run_per_company() -> List[PipelineRun]:
+    """Get the most recent pipeline run for each company.
+
+    Uses DISTINCT ON (company_id) ordered by started_at DESC.
+    """
+    try:
+        session = get_db_session()
+        from sqlalchemy import text
+        # Use raw SQL for DISTINCT ON which is PostgreSQL-specific
+        stmt = text(
+            "SELECT DISTINCT ON (company_id) * FROM pipeline_runs "
+            "ORDER BY company_id, started_at DESC NULLS LAST"
+        )
+        runs = session.query(PipelineRun).from_statement(stmt).all()
+        logger.debug("get_latest_run_per_company", count=len(runs))
+        return runs
+    except Exception as e:
+        logger.error("get_latest_run_per_company_failed", error=str(e), exc_info=True)
+        raise
+
+
+def count_consecutive_failures(company_id: Union[UUID, str], limit: int = 10) -> int:
+    """Count leading consecutive FAILED/PARTIAL runs for a company.
+
+    Looks at the most recent `limit` runs ordered by started_at DESC and
+    counts how many leading runs are FAILED or PARTIAL.
+    """
+    runs = list_pipeline_runs(company_id=company_id, limit=limit)
+    count = 0
+    for run in runs:
+        if run.status in (PipelineRunStatus.FAILED, PipelineRunStatus.PARTIAL):
+            count += 1
+        else:
+            break
+    return count
+
+
 def fail_pipeline_run(
     run_id: Union[UUID, str],
     error: str,

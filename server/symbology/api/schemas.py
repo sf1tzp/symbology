@@ -399,3 +399,48 @@ class JobResponse(BaseModel):
     result: Optional[Dict[str, Any]] = Field(None, description="Job result payload")
     error: Optional[str] = Field(None, description="Error message if failed")
     duration: Optional[float] = Field(None, description="Execution duration in seconds")
+
+
+# ---------------------------------------------------------------------------
+# Pipeline schemas
+# ---------------------------------------------------------------------------
+
+class PipelineRunResponse(BaseModel):
+    """Response schema for a pipeline run."""
+    id: UUID = Field(..., description="Pipeline run identifier")
+    company_id: UUID = Field(..., description="Company this run belongs to")
+    trigger: str = Field(..., description="How the run was initiated (manual, scheduled)")
+    status: str = Field(..., description="Run status")
+    forms: Optional[List[str]] = Field(None, description="SEC forms requested")
+    started_at: Optional[datetime] = Field(None, description="When the run started")
+    completed_at: Optional[datetime] = Field(None, description="When the run finished")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    jobs_created: int = Field(0, description="Number of jobs created")
+    jobs_completed: int = Field(0, description="Number of jobs completed")
+    jobs_failed: int = Field(0, description="Number of jobs failed")
+    run_metadata: Optional[Dict[str, Any]] = Field(None, description="Arbitrary metadata")
+
+
+class CompanyPipelineStatus(BaseModel):
+    """Pipeline status for a single company."""
+    company_id: UUID = Field(..., description="Company identifier")
+    ticker: Optional[str] = Field(None, description="Company ticker symbol")
+    company_name: Optional[str] = Field(None, description="Company name")
+    last_run_id: Optional[UUID] = Field(None, description="Most recent run ID")
+    last_run_status: Optional[str] = Field(None, description="Most recent run status")
+    last_run_at: Optional[datetime] = Field(None, description="When the last run started")
+    consecutive_failures: int = Field(0, description="Consecutive FAILED/PARTIAL runs")
+
+
+class PipelineStatusResponse(BaseModel):
+    """Dashboard overview of all pipeline runs."""
+    total_companies: int = Field(..., description="Total tracked companies")
+    companies_with_failures: int = Field(0, description="Companies with consecutive failures")
+    stale_runs: int = Field(0, description="Runs stuck in RUNNING state")
+    next_poll_seconds: Optional[int] = Field(None, description="Estimated seconds until next poll")
+    companies: List[CompanyPipelineStatus] = Field(default_factory=list, description="Per-company status")
+
+
+class PipelineTriggerRequest(BaseModel):
+    """Request to manually trigger a pipeline run."""
+    forms: Optional[List[str]] = Field(None, description="SEC forms to process (defaults to scheduler config)")

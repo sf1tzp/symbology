@@ -3,29 +3,12 @@ import signal
 import time
 
 from symbology.database.base import init_db
-from symbology.database.pipeline_runs import PipelineRunStatus, list_pipeline_runs
 from symbology.scheduler.config import scheduler_settings
 from symbology.scheduler.polling import poll_all_companies
 from symbology.utils.config import settings
 from symbology.utils.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
-
-
-def _detect_stale_runs(threshold_seconds: int = 7200) -> None:
-    """Log warnings for pipeline runs stuck in RUNNING state."""
-    from datetime import datetime, timedelta, timezone
-
-    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=threshold_seconds)
-    running = list_pipeline_runs(status=PipelineRunStatus.RUNNING)
-    for run in running:
-        if run.started_at and run.started_at < cutoff:
-            logger.warning(
-                "stale_pipeline_run_detected",
-                run_id=str(run.id),
-                started_at=str(run.started_at),
-                company_id=str(run.company_id),
-            )
 
 
 def run_scheduler() -> None:
@@ -63,9 +46,10 @@ def run_scheduler() -> None:
             logger.exception("poll_cycle_error")
 
         try:
-            _detect_stale_runs()
+            from symbology.scheduler.alerts import check_alerts
+            check_alerts()
         except Exception:
-            logger.exception("stale_run_detection_error")
+            logger.exception("alert_check_error")
 
         # Sleep in short intervals to respond to signals promptly
         elapsed = 0.0

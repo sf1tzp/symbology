@@ -33,6 +33,7 @@ from symbology.cli.financials import financials
 from symbology.cli.generated_content import generated_content
 from symbology.cli.jobs import jobs
 from symbology.cli.model_configs import model_configs
+from symbology.cli.pipeline import pipeline
 from symbology.cli.prompts import prompts
 from symbology.cli.ratings import ratings
 
@@ -69,6 +70,7 @@ cli.add_command(financials)
 cli.add_command(generated_content)
 cli.add_command(jobs)
 cli.add_command(model_configs)
+cli.add_command(pipeline)
 cli.add_command(prompts)
 cli.add_command(ratings)
 

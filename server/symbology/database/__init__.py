@@ -73,8 +73,10 @@ from symbology.database.jobs import (
 # Pipeline Runs
 from symbology.database.pipeline_runs import (
     complete_pipeline_run,
+    count_consecutive_failures,
     create_pipeline_run,
     fail_pipeline_run,
+    get_latest_run_per_company,
     get_pipeline_run,
     list_pipeline_runs,
     PipelineRun,
@@ -162,4 +164,5 @@ __all__ = [
     # Pipeline Run functions
     "create_pipeline_run", "get_pipeline_run", "list_pipeline_runs",
     "start_pipeline_run", "complete_pipeline_run", "fail_pipeline_run",
+    "get_latest_run_per_company", "count_consecutive_failures",
 ]

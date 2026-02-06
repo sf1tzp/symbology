@@ -55,6 +55,21 @@ from symbology.database.financial_values import (
     get_financial_value_ids,
     update_financial_value,
 )
+# Jobs
+from symbology.database.jobs import (
+    cancel_job,
+    claim_next_job,
+    complete_job,
+    create_job,
+    fail_job,
+    get_job,
+    Job,
+    JobStatus,
+    JobType,
+    list_jobs,
+    mark_stale_jobs_as_failed,
+)
+
 from symbology.database.generated_content import (
     ContentSourceType,
     create_generated_content,
@@ -101,6 +116,7 @@ __all__ = [
     # Models
     "Company", "Filing", "Document", "FinancialConcept", "FinancialValue",
     "Completion", "Aggregate", "Rating", "Prompt", "PromptRole",
+    "Job", "JobStatus", "JobType",
 
     # Company functions
     "get_company_ids", "get_company", "create_company", "update_company", "delete_company",
@@ -124,4 +140,8 @@ __all__ = [
 
     # Prompt functions
     "get_prompt_ids", "get_prompt", "create_prompt", "update_prompt", "delete_prompt",
+
+    # Job functions
+    "create_job", "get_job", "list_jobs", "cancel_job",
+    "claim_next_job", "complete_job", "fail_job", "mark_stale_jobs_as_failed",
 ]

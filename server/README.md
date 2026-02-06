@@ -8,11 +8,12 @@ The Symbology backend follows a modular architecture with clear separation of co
 server/
 ├── symbology/           # Python package
 │   ├── api/             # REST API interface (FastAPI)
-│   ├── bin/             # CLI tools and scripts
+│   ├── cli/             # CLI tools (Click + Rich)
 │   ├── database/        # Database models and access layers
 │   ├── ingestion/       # Data processing pipeline
 │   │   └── edgar_db/    # SEC EDGAR specific code
 │   ├── llm/             # LLM integration and prompt engineering
+│   ├── worker/          # Background job worker process
 │   └── utils/           # Shared utilities
 └── tests/               # Test suite organized by module
 ```
@@ -32,6 +33,7 @@ server/
 - **Ingestion**: SEC EDGAR data retrieval, parsing, and XBRL processing with database integration
 - **LLM**: Language model integration, prompt engineering, and text analysis utilities
 - **CLI Tools**: Command-line utilities for data ingestion, maintenance, and batch processing
+- **Worker**: Background job queue processor using PostgreSQL `SELECT FOR UPDATE SKIP LOCKED` for atomic job claiming, with retry logic and stale detection
 
 ## Testing Strategy
 

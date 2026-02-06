@@ -25,6 +25,18 @@ services:
     networks:
       - caddy_network
 
+  symbology-worker:
+    image: symbology-api
+    container_name: symbology-worker
+    restart: always
+    command: ["python", "-m", "symbology.worker.main"]
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST:-localhost}
+      WORKER_POLL_INTERVAL: ${WORKER_POLL_INTERVAL:-2.0}
+      WORKER_STALE_THRESHOLD: ${WORKER_STALE_THRESHOLD:-600}
+    networks:
+      - caddy_network
+
 networks:
   caddy_network:
     driver: bridge

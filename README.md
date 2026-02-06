@@ -13,8 +13,90 @@ Explore LLM-generated insights on publicly traded companies. Symbology leverages
 - [edgartools](https://github.com/dgunning/edgartools)
 
 
+---
 
-----
+## Background Jobs
+
+Symbology includes a PostgreSQL-native background job queue for async processing of long-running tasks like data ingestion and content generation. No external broker (Redis, RabbitMQ) required — it uses `SELECT FOR UPDATE SKIP LOCKED` for atomic job claiming.
+
+### Architecture
+
+```
+CLI / API  →  INSERT into jobs (status=PENDING)
+                     ↓
+Worker process  ←  SELECT ... FOR UPDATE SKIP LOCKED (poll loop)
+                     ↓
+               Execute handler function
+                     ↓
+               UPDATE status → COMPLETED or FAILED (with retry)
+```
+
+### Job Types
+
+| Type | Description | Required Params |
+|------|-------------|-----------------|
+| `company_ingestion` | Fetch company data from SEC EDGAR | `ticker` |
+| `filing_ingestion` | Ingest filings for a company | `company_id`, `ticker`; optional: `form`, `count`, `include_documents` |
+| `content_generation` | Generate LLM content from sources | `system_prompt_hash`, `model_config_hash`; optional: `source_document_hashes`, `company_ticker` |
+| `ingest_pipeline` | Full pipeline: company + filings | `ticker`; optional: `form`, `count`, `include_documents` |
+| `test` | Echo handler for testing | any |
+
+### Usage
+
+**CLI:**
+
+```bash
+# Submit a job
+just run-cli jobs submit company_ingestion -p '{"ticker": "AAPL"}'
+
+# Full pipeline
+just run-cli jobs submit ingest_pipeline -p '{"ticker": "MSFT", "form": "10-K", "count": 3}'
+
+# Check status
+just run-cli jobs status <job-id>
+
+# List jobs
+just run-cli jobs list --status pending
+just run-cli jobs list --type company_ingestion
+
+# Cancel a pending job
+just run-cli jobs cancel <job-id>
+```
+
+**API:**
+
+```bash
+# Enqueue
+curl -X POST /jobs/ -H 'Content-Type: application/json' \
+  -d '{"job_type": "ingest_pipeline", "params": {"ticker": "AAPL"}, "priority": 1}'
+
+# Get status
+curl /jobs/<job-id>
+
+# List with filters
+curl '/jobs/?status=pending&job_type=company_ingestion'
+
+# Cancel
+curl -X DELETE /jobs/<job-id>
+```
+
+**Worker:**
+
+```bash
+# Start the worker process
+just run-worker
+
+# Configuration (environment variables)
+WORKER_POLL_INTERVAL=2.0      # seconds between queue polls
+WORKER_STALE_THRESHOLD=600    # seconds before a job is considered stale
+WORKER_STALE_CHECK_INTERVAL=60  # seconds between stale-job sweeps
+```
+
+### Priority & Retries
+
+Jobs have a priority (0=critical, 4=backlog; default 2) and retry on failure up to `max_retries` (default 3). Stale jobs (in-progress but not updated within the threshold) are automatically recovered and re-queued.
+
+---
 
 ● Symbology Codebase Review
 

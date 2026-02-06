@@ -368,3 +368,34 @@ class GeneratedContentCreateRequest(BaseModel):
     source_document_ids: Optional[List[UUID]] = Field(None, description="List of source document IDs")
     source_content_ids: Optional[List[UUID]] = Field(None, description="List of source content IDs")
     total_duration: Optional[float] = Field(None, description="Generation duration in seconds")
+
+
+# ---------------------------------------------------------------------------
+# Job schemas
+# ---------------------------------------------------------------------------
+
+class JobCreateRequest(BaseModel):
+    """Request schema for submitting a job."""
+    job_type: str = Field(..., description="Job type (e.g., company_ingestion, test)")
+    params: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Job parameters as JSON")
+    priority: int = Field(default=2, ge=0, le=4, description="Priority (0=critical, 4=backlog)")
+    max_retries: int = Field(default=3, ge=0, le=10, description="Maximum retry attempts")
+
+
+class JobResponse(BaseModel):
+    """Response schema for a job."""
+    id: UUID = Field(..., description="Unique job identifier")
+    job_type: str = Field(..., description="Job type")
+    params: Optional[Dict[str, Any]] = Field(None, description="Job parameters")
+    priority: int = Field(..., description="Priority (lower = higher)")
+    status: str = Field(..., description="Job status")
+    worker_id: Optional[str] = Field(None, description="Worker that claimed the job")
+    created_at: Optional[datetime] = Field(None, description="When the job was created")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    started_at: Optional[datetime] = Field(None, description="When execution began")
+    completed_at: Optional[datetime] = Field(None, description="When execution finished")
+    retry_count: int = Field(0, description="Current retry count")
+    max_retries: int = Field(3, description="Maximum retries allowed")
+    result: Optional[Dict[str, Any]] = Field(None, description="Job result payload")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    duration: Optional[float] = Field(None, description="Execution duration in seconds")

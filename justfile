@@ -10,6 +10,9 @@ run-api *ARGS:
 run-cli *ARGS:
     just -d server -f server/justfile cli {{ARGS}}
 
+run-worker *ARGS:
+    just -d server -f server/justfile worker {{ARGS}}
+
 run-ui *ARGS:
     just -d ui -f ui/justfile up {{ARGS}}
 

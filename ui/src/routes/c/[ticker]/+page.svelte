@@ -11,7 +11,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import type { PageData } from './$types';
-	import type { FilingResponse } from '$lib/generated-api-types';
+	import type { FilingResponse } from '$lib/api-types';
 
 	let { data }: { data: PageData } = $props();
 

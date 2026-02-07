@@ -2,7 +2,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Settings, Cpu, Thermometer, Target, Hash, Dice6, Gpu, FileText } from '@lucide/svelte';
-	import type { ModelConfigResponse } from '$lib/generated-api-types';
+	import type { ModelConfigResponse } from '$lib/api-types';
 
 	let { config }: { config: ModelConfigResponse | null } = $props();
 

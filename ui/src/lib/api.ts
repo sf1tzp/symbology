@@ -8,9 +8,10 @@ import type {
 	FilingResponse,
 	DocumentResponse,
 	GeneratedContentResponse,
-	ModelConfigResponse
-} from './generated-api-types';
-import { fetchApi, isApiError } from './generated-api-types';
+	ModelConfigResponse,
+	SearchResponse
+} from './api-types';
+import { fetchApi, isApiError } from './api-types';
 import { buildApiUrl, logApiCall, config } from './config';
 
 /**
@@ -210,12 +211,10 @@ export async function getFilingsByTicker(
 		const filings = await fetchApi<FilingResponse[]>(url);
 		// Sort by filing.period_of_report (most recent first)
 		return filings.sort((a, b) => {
-			const dateA = new Date(a.period_of_report).getTime();
-			const dateB = new Date(b.period_of_report).getTime();
+			const dateA = new Date(a.period_of_report || 0).getTime();
+			const dateB = new Date(b.period_of_report || 0).getTime();
 			return dateB - dateA;
 		});
-
-		return filings;
 	} catch (error) {
 		console.error(`Error fetching filings for ticker ${ticker}:`, error);
 		return []; // Return empty array rather than throwing for missing data
@@ -370,6 +369,51 @@ export async function getDocumentByAccessionAndHash(
 		if (error instanceof Error && error.message.includes('404')) {
 			return null;
 		}
+		throw error;
+	}
+}
+
+/**
+ * Unified search across companies, filings, and generated content
+ */
+export async function search(
+	query: string,
+	options?: {
+		entityTypes?: string[];
+		sic?: string;
+		formType?: string;
+		documentType?: string;
+		dateFrom?: string;
+		dateTo?: string;
+		limit?: number;
+		offset?: number;
+	}
+): Promise<SearchResponse> {
+	try {
+		const params: Record<string, string> = { q: query };
+
+		if (options?.sic) params.sic = options.sic;
+		if (options?.formType) params.form_type = options.formType;
+		if (options?.documentType) params.document_type = options.documentType;
+		if (options?.dateFrom) params.date_from = options.dateFrom;
+		if (options?.dateTo) params.date_to = options.dateTo;
+		if (options?.limit) params.limit = options.limit.toString();
+		if (options?.offset) params.offset = options.offset.toString();
+
+		// Build URL with entity_types as repeated query params
+		let url = buildApiUrl('/search', params);
+		if (options?.entityTypes?.length) {
+			const etParams = options.entityTypes
+				.map((t) => `entity_types=${encodeURIComponent(t)}`)
+				.join('&');
+			url += (url.includes('?') ? '&' : '?') + etParams;
+		}
+
+		logApiCall('GET', url);
+
+		return await fetchApi<SearchResponse>(url);
+	} catch (error) {
+		console.error('Error performing search:', error);
 		throw error;
 	}
 }

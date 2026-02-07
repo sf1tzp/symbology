@@ -41,6 +41,10 @@ def create_app() -> FastAPI:
                 "name": "pipeline",
                 "description": "Pipeline monitoring, status, and manual trigger",
             },
+            {
+                "name": "search",
+                "description": "Full-text search across companies, filings, and generated content",
+            },
         ],
         contact={
             "name": "Symbology Team",

@@ -323,6 +323,9 @@ class GeneratedContentResponse(BaseModel):
     source_type: str = Field(..., description="Type of sources used (documents, generated_content, both)")
     created_at: datetime = Field(..., description="Timestamp when the content was created")
     total_duration: Optional[float] = Field(None, description="Total duration of content generation in seconds")
+    input_tokens: Optional[int] = Field(None, description="Number of input tokens used for generation")
+    output_tokens: Optional[int] = Field(None, description="Number of output tokens produced during generation")
+    form_type: Optional[str] = Field(None, description="SEC form type associated with source documents")
     warning: Optional[str] = Field(None, description="Warning message if any issues occurred during generation")
     content: Optional[str] = Field(None, description="The actual AI-generated content")
     summary: Optional[str] = Field(None, description="Generated summary of the content")
@@ -444,3 +447,25 @@ class PipelineStatusResponse(BaseModel):
 class PipelineTriggerRequest(BaseModel):
     """Request to manually trigger a pipeline run."""
     forms: Optional[List[str]] = Field(None, description="SEC forms to process (defaults to scheduler config)")
+
+
+# ---------------------------------------------------------------------------
+# Search schemas
+# ---------------------------------------------------------------------------
+
+class SearchResultItem(BaseModel):
+    """A single search result from unified search."""
+    entity_type: str = Field(..., description="Type of entity: company, filing, or generated_content")
+    id: UUID = Field(..., description="Entity ID")
+    rank: float = Field(..., description="Relevance ranking score")
+    headline: Optional[str] = Field(None, description="Highlighted search result snippet")
+    title: Optional[str] = Field(None, description="Primary display text (name, form type, description)")
+    subtitle: Optional[str] = Field(None, description="Secondary text (ticker, accession number)")
+    date_value: Optional[str] = Field(None, description="Associated date (filing_date, created_at)")
+
+
+class SearchResponse(BaseModel):
+    """Response for unified search endpoint."""
+    results: List[SearchResultItem] = Field(default_factory=list, description="Search result items")
+    total: int = Field(..., description="Total number of matching results")
+    query: str = Field(..., description="The search query that was executed")

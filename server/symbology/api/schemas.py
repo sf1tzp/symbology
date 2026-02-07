@@ -318,6 +318,7 @@ class GeneratedContentResponse(BaseModel):
     content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
     short_hash: Optional[str] = Field(None, description="Shortened hash for URLs (first 12 characters)")
     company_id: Optional[UUID] = Field(None, description="ID of the company this content belongs to")
+    company_group_id: Optional[UUID] = Field(None, description="ID of the company group this content belongs to")
     description: Optional[str] = Field(None, description="Content description")
     document_type: Optional[str] = Field(None, description="Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION)")
     source_type: str = Field(..., description="Type of sources used (documents, generated_content, both)")
@@ -452,6 +453,21 @@ class PipelineTriggerRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Search schemas
 # ---------------------------------------------------------------------------
+
+class CompanyGroupResponse(BaseModel):
+    """Response schema for a company group."""
+    id: UUID = Field(..., description="Unique identifier for the company group")
+    name: str = Field(..., description="Display name")
+    slug: str = Field(..., description="URL-friendly identifier")
+    description: Optional[str] = Field(None, description="Group description")
+    group_type: str = Field(..., description="Group type (sector, custom)")
+    sic_codes: List[str] = Field(default_factory=list, description="SIC code prefixes")
+    member_count: int = Field(0, description="Number of member companies")
+    created_at: datetime = Field(..., description="When the group was created")
+    updated_at: datetime = Field(..., description="When the group was last updated")
+    companies: Optional[List[CompanyResponse]] = Field(None, description="Member companies (included in detail view)")
+    latest_analysis_summary: Optional[str] = Field(None, description="Summary from latest group analysis")
+
 
 class SearchResultItem(BaseModel):
     """A single search result from unified search."""

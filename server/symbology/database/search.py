@@ -6,6 +6,7 @@ import sqlalchemy as sa
 from sqlalchemy import func, literal, union_all
 from symbology.database.base import get_db_session
 from symbology.database.companies import Company
+from symbology.database.company_groups import CompanyGroup
 from symbology.database.filings import Filing
 from symbology.database.generated_content import GeneratedContent
 from symbology.utils.logging import get_logger
@@ -49,7 +50,7 @@ def unified_search(
     ts_query = func.websearch_to_tsquery("english", query)
 
     if not entity_types:
-        entity_types = ["company", "filing", "generated_content"]
+        entity_types = ["company", "filing", "generated_content", "company_group"]
 
     subqueries = []
 
@@ -125,6 +126,24 @@ def unified_search(
             gc_q = gc_q.filter(GeneratedContent.created_at <= date_to)
 
         subqueries.append(gc_q)
+
+    if "company_group" in entity_types:
+        cg_q = session.query(
+            literal("company_group").label("entity_type"),
+            CompanyGroup.id.label("id"),
+            func.ts_rank(CompanyGroup.search_vector, ts_query).label("rank"),
+            func.ts_headline(
+                "english",
+                func.concat_ws(" ", CompanyGroup.name, CompanyGroup.slug, CompanyGroup.description),
+                ts_query,
+                "MaxWords=50, MinWords=10, StartSel=<mark>, StopSel=</mark>",
+            ).label("headline"),
+            CompanyGroup.name.label("title"),
+            CompanyGroup.slug.label("subtitle"),
+            CompanyGroup.created_at.label("date_value"),
+        ).filter(CompanyGroup.search_vector.op("@@")(ts_query))
+
+        subqueries.append(cg_q)
 
     if not subqueries:
         return {"results": [], "total": 0}

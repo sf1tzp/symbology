@@ -5,6 +5,7 @@
 
 import type {
 	CompanyResponse,
+	CompanyGroupResponse,
 	FilingResponse,
 	DocumentResponse,
 	GeneratedContentResponse,
@@ -370,6 +371,62 @@ export async function getDocumentByAccessionAndHash(
 			return null;
 		}
 		throw error;
+	}
+}
+
+/**
+ * Get all company groups (with optional type filter)
+ */
+export async function getCompanyGroups(
+	groupType?: string,
+	limit: number = 50
+): Promise<CompanyGroupResponse[]> {
+	try {
+		const params: Record<string, string> = { limit: limit.toString() };
+		if (groupType) params.group_type = groupType;
+
+		const url = buildApiUrl('/groups', params);
+		logApiCall('GET', url);
+		return await fetchApi<CompanyGroupResponse[]>(url);
+	} catch (error) {
+		console.error('Error fetching company groups:', error);
+		return [];
+	}
+}
+
+/**
+ * Get a company group by slug
+ */
+export async function getCompanyGroupBySlug(slug: string): Promise<CompanyGroupResponse | null> {
+	try {
+		const url = buildApiUrl(`/groups/${encodeURIComponent(slug)}`);
+		logApiCall('GET', url);
+		return await fetchApi<CompanyGroupResponse>(url);
+	} catch (error) {
+		console.error(`Error fetching company group ${slug}:`, error);
+		if (error instanceof Error && error.message.includes('404')) {
+			return null;
+		}
+		throw error;
+	}
+}
+
+/**
+ * Get sector analyses for a company group
+ */
+export async function getGroupAnalysis(
+	slug: string,
+	limit: number = 5
+): Promise<GeneratedContentResponse[]> {
+	try {
+		const url = buildApiUrl(`/groups/${encodeURIComponent(slug)}/analysis`, {
+			limit: limit.toString()
+		});
+		logApiCall('GET', url);
+		return await fetchApi<GeneratedContentResponse[]>(url);
+	} catch (error) {
+		console.error(`Error fetching group analysis for ${slug}:`, error);
+		return [];
 	}
 }
 

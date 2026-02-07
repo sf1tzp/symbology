@@ -35,6 +35,7 @@ from symbology.cli.jobs import jobs
 from symbology.cli.model_configs import model_configs
 from symbology.cli.pipeline import pipeline
 from symbology.cli.prompts import prompts
+from symbology.cli.groups import group
 from symbology.cli.ratings import ratings
 
 # Add project root to path for imports
@@ -71,6 +72,7 @@ cli.add_command(generated_content)
 cli.add_command(jobs)
 cli.add_command(model_configs)
 cli.add_command(pipeline)
+cli.add_command(group)
 cli.add_command(prompts)
 cli.add_command(ratings)
 

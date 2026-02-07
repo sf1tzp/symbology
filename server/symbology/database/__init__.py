@@ -90,6 +90,7 @@ from symbology.database.generated_content import (
     create_generated_content,
     delete_generated_content,
     GeneratedContent,
+    get_company_group_analysis,
     get_generated_content,
     get_generated_content_by_company_and_ticker,
     get_generated_content_by_hash,
@@ -97,6 +98,19 @@ from symbology.database.generated_content import (
     get_generated_content_by_source_document,
     get_recent_generated_content_by_ticker,
     update_generated_content,
+)
+
+# Company Groups
+from symbology.database.company_groups import (
+    add_company_to_group,
+    CompanyGroup,
+    CompanyGroupType,
+    company_group_membership,
+    create_company_group,
+    get_company_group_by_slug,
+    list_company_groups,
+    populate_group_from_sic_codes,
+    remove_company_from_group,
 )
 
 # New consolidated models

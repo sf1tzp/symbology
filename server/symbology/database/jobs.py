@@ -32,6 +32,7 @@ class JobType(str, Enum):
     INGEST_PIPELINE = "ingest_pipeline"
     FULL_PIPELINE = "full_pipeline"
     BULK_INGEST = "bulk_ingest"
+    COMPANY_GROUP_PIPELINE = "company_group_pipeline"
     TEST = "test"
 
 

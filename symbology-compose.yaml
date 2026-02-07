@@ -4,13 +4,13 @@ services:
     container_name: symbology-ui
     restart: always
     environment:
-      - PUBLIC_SYMBOLOGY_API_HOST=api.symbology.lofi
+      - PUBLIC_SYMBOLOGY_API_HOST=api.symbology.staging.lofi
       - PUBLIC_LOG_LEVEL=INFO
       - PUBLIC_ENVIRONMENT=production
     # # these were previously passed in at build time and may no longer be necessary
     #   - SYMBOLOGY_API_PORT="443"
     ports:
-      - 3000:3000
+      - 2500:3000
     networks:
       - caddy_network
 
@@ -20,8 +20,10 @@ services:
     restart: always
     environment:
       SYMBOLOGY_API_HOST: 0.0.0.0 # may not be necessary with our caddy config
-      SYMBOLOGY_API_PORT: 3001
+      SYMBOLOGY_API_PORT: 2501
       DATABASE_HOST: ${DATABASE_HOST:-localhost}
+    ports:
+      - 2501:2501
     networks:
       - caddy_network
 

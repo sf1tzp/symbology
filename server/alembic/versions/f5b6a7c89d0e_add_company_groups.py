@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import TSVECTOR
 
 
@@ -20,18 +21,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # --- Create company_group_type_enum ---
-    company_group_type_enum = sa.Enum('sector', 'custom', name='company_group_type_enum')
-    company_group_type_enum.create(op.get_bind(), checkfirst=True)
-
     # --- Create company_groups table ---
+    # Use postgresql.ENUM with create_type=False so create_table doesn't
+    # try to CREATE TYPE again after we've already created it.
+    op.execute("CREATE TYPE company_group_type_enum AS ENUM ('sector', 'custom')")
+    company_group_type_col = postgresql.ENUM(
+        'sector', 'custom', name='company_group_type_enum', create_type=False,
+    )
     op.create_table(
         'company_groups',
         sa.Column('id', sa.Uuid(), primary_key=True),
         sa.Column('name', sa.String(255), nullable=False),
         sa.Column('slug', sa.String(255), nullable=False, unique=True),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('group_type', company_group_type_enum, nullable=False, server_default='sector'),
+        sa.Column('group_type', company_group_type_col, nullable=False, server_default='sector'),
         sa.Column('sic_codes', sa.ARRAY(sa.String()), nullable=True, server_default='{}'),
         sa.Column('owner_id', sa.Uuid(), nullable=True),
         sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
@@ -82,8 +85,9 @@ def upgrade() -> None:
         FOR EACH ROW EXECUTE FUNCTION company_groups_search_vector_update();
     """)
 
-    # --- Add COMPANY_GROUP_PIPELINE value to job_type_enum ---
-    op.execute("ALTER TYPE job_type_enum ADD VALUE IF NOT EXISTS 'company_group_pipeline'")
+    # NOTE: COMPANY_GROUP_PIPELINE job type enum value is added in a separate
+    # migration (g6c7d8e90f1a) because ALTER TYPE ADD VALUE cannot run
+    # inside a transaction with other DDL statements.
 
 
 def downgrade() -> None:

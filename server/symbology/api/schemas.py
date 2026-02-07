@@ -469,6 +469,39 @@ class CompanyGroupResponse(BaseModel):
     latest_analysis_summary: Optional[str] = Field(None, description="Summary from latest group analysis")
 
 
+# ---------------------------------------------------------------------------
+# Financial comparison schemas
+# ---------------------------------------------------------------------------
+
+class PeriodValue(BaseModel):
+    """A financial value for a specific period."""
+    date: str = Field(..., description="ISO date string for the period")
+    value: Optional[float] = Field(None, description="Numeric value for this period")
+
+
+class PeriodChange(BaseModel):
+    """Period-over-period change for a financial line item."""
+    from_date: str = Field(..., description="Start period date")
+    to_date: str = Field(..., description="End period date")
+    absolute: Optional[float] = Field(None, description="Absolute change")
+    percent: Optional[float] = Field(None, description="Percentage change")
+
+
+class FinancialLineItem(BaseModel):
+    """A single financial concept with values across periods."""
+    concept_name: str = Field(..., description="XBRL concept name")
+    description: Optional[str] = Field(None, description="Human-readable description")
+    labels: List[str] = Field(default_factory=list, description="Statement type labels")
+    values: List[PeriodValue] = Field(default_factory=list, description="Values by period")
+    changes: List[PeriodChange] = Field(default_factory=list, description="Period-over-period changes")
+
+
+class FinancialComparisonResponse(BaseModel):
+    """Response for temporal financial data comparison."""
+    periods: List[str] = Field(default_factory=list, description="ISO date strings for each period column")
+    items: List[FinancialLineItem] = Field(default_factory=list, description="Financial line items with values and changes")
+
+
 class SearchResultItem(BaseModel):
     """A single search result from unified search."""
     entity_type: str = Field(..., description="Type of entity: company, filing, or generated_content")

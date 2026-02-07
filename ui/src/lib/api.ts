@@ -10,7 +10,8 @@ import type {
 	DocumentResponse,
 	GeneratedContentResponse,
 	ModelConfigResponse,
-	SearchResponse
+	SearchResponse,
+	FinancialComparisonResponse
 } from './api-types';
 import { fetchApi, isApiError } from './api-types';
 import { buildApiUrl, logApiCall, config } from './config';
@@ -472,6 +473,29 @@ export async function search(
 	} catch (error) {
 		console.error('Error performing search:', error);
 		throw error;
+	}
+}
+
+/**
+ * Get financial comparison data for a company
+ */
+export async function getFinancialComparison(
+	ticker: string,
+	statementType?: string,
+	periods: number = 5
+): Promise<FinancialComparisonResponse | null> {
+	try {
+		const params: Record<string, string> = { periods: periods.toString() };
+		if (statementType) params.statement_type = statementType;
+
+		const url = buildApiUrl(`/financials/${encodeURIComponent(ticker)}/comparison`, params);
+
+		logApiCall('GET', url);
+
+		return await fetchApi<FinancialComparisonResponse>(url);
+	} catch (error) {
+		console.error(`Error fetching financial comparison for ${ticker}:`, error);
+		return null;
 	}
 }
 

@@ -14,6 +14,22 @@ export type GeneratedContentResponse = components['schemas']['GeneratedContentRe
 export type ModelConfigResponse = components['schemas']['ModelConfigResponse'];
 export type PromptResponse = components['schemas']['PromptResponse'];
 
+// Company Group types
+// Manually defined until API types are regenerated via `just -f ui/justfile generate-api-types`
+export interface CompanyGroupResponse {
+	id: string;
+	name: string;
+	slug: string;
+	description: string | null;
+	group_type: string;
+	sic_codes: string[];
+	member_count: number;
+	created_at: string;
+	updated_at: string;
+	companies?: CompanyResponse[] | null;
+	latest_analysis_summary?: string | null;
+}
+
 // Search types
 export type SearchResponse = components['schemas']['SearchResponse'];
 export type SearchResultItem = components['schemas']['SearchResultItem'];

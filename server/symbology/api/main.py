@@ -42,6 +42,10 @@ def create_app() -> FastAPI:
                 "description": "Pipeline monitoring, status, and manual trigger",
             },
             {
+                "name": "groups",
+                "description": "Company group management and sector analysis",
+            },
+            {
                 "name": "search",
                 "description": "Full-text search across companies, filings, and generated content",
             },

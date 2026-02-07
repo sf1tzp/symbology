@@ -72,6 +72,11 @@ class GeneratedContent(Base):
         backref="generated_content"
     )
 
+    # Company Group Foreign Key (optional, for group-level content)
+    company_group_id: Mapped[Optional[UUID]] = mapped_column(
+        ForeignKey("company_groups.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+
     # description (optional, string description of the content)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
@@ -241,6 +246,7 @@ class GeneratedContent(Base):
             "content_hash": self.content_hash,
             "short_hash": self.get_short_hash(),
             "company_id": str(self.company_id) if self.company_id else None,
+            "company_group_id": str(self.company_group_id) if self.company_group_id else None,
             "document_type": self.description,
             "description": self.description,
             "source_type": self.source_type.value,
@@ -715,4 +721,35 @@ def get_frontpage_summary_by_ticker(ticker: str) -> Optional[str]:
 
     except Exception as e:
         logger.error("get_frontpage_summary_by_ticker_failed", ticker=ticker, error=str(e), exc_info=True)
+        raise
+
+
+def get_company_group_analysis(group_id: UUID, limit: int = 5) -> List[GeneratedContent]:
+    """Get the most recent company group analyses for a given group.
+
+    Args:
+        group_id: UUID of the company group
+        limit: Maximum number of results to return
+
+    Returns:
+        List of GeneratedContent objects that are group analyses
+    """
+    try:
+        session = get_db_session()
+
+        content_list = (
+            session.query(GeneratedContent)
+            .filter(
+                GeneratedContent.company_group_id == group_id,
+                GeneratedContent.description.contains("company_group_analysis"),
+            )
+            .order_by(GeneratedContent.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        logger.info("retrieved_company_group_analysis", group_id=str(group_id), count=len(content_list))
+        return content_list
+    except Exception as e:
+        logger.error("get_company_group_analysis_failed", group_id=str(group_id), error=str(e), exc_info=True)
         raise

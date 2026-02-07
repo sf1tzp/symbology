@@ -49,7 +49,7 @@ async def search(
     )
 
     # Validate entity_types if provided
-    valid_types = {"company", "filing", "generated_content"}
+    valid_types = {"company", "filing", "generated_content", "company_group"}
     if entity_types:
         invalid = set(entity_types) - valid_types
         if invalid:

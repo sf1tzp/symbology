@@ -203,6 +203,112 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     }
 
 
+@register_handler(JobType.COMPANY_GROUP_PIPELINE)
+def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Generate cross-company sector analysis from aggregate summaries.
+
+    params:
+        tickers (list[str], required): List of company ticker symbols.
+        group_slug (str, optional): Company group slug to link result to.
+        max_per_ticker (int, optional): Max aggregate summaries per ticker (default 3).
+    """
+    from symbology.database.base import get_db_session
+    from symbology.database.company_groups import get_company_group_by_slug
+    from symbology.database.generated_content import (
+        create_generated_content,
+        get_aggregate_summaries_by_ticker,
+    )
+    from symbology.llm.client import get_generate_response
+    from symbology.llm.prompts import format_user_prompt_content
+    from symbology.worker.pipeline import (
+        PIPELINE_MODEL_CONFIGS,
+        PIPELINE_PROMPTS,
+        ensure_model_config,
+        ensure_prompt,
+    )
+
+    tickers = params["tickers"]
+    group_slug = params.get("group_slug")
+    max_per_ticker = params.get("max_per_ticker", 3)
+
+    logger.info("handler_company_group_pipeline_start", tickers=tickers, group_slug=group_slug)
+
+    # Set up model config and prompt
+    mc = ensure_model_config(**PIPELINE_MODEL_CONFIGS["company_group_analysis"])
+    system_prompt = ensure_prompt(PIPELINE_PROMPTS["company_group_analysis"])
+
+    # Gather aggregate summaries for each ticker
+    all_sources = []
+    for ticker in tickers:
+        summaries = get_aggregate_summaries_by_ticker(ticker.upper(), limit=max_per_ticker)
+        all_sources.extend(summaries)
+
+    if not all_sources:
+        raise ValueError(f"No aggregate summaries found for tickers: {tickers}")
+
+    # Log warning if source content is large
+    total_chars = sum(len(s.content or "") for s in all_sources)
+    if total_chars > 200_000:
+        logger.warning(
+            "company_group_pipeline_large_input",
+            total_chars=total_chars,
+            source_count=len(all_sources),
+        )
+
+    # Resolve group if provided
+    group = None
+    group_info = ""
+    if group_slug:
+        group = get_company_group_by_slug(group_slug)
+        if group:
+            group_info = f"Group: {group.name}\nDescription: {group.description or 'N/A'}\nTickers: {', '.join(tickers)}"
+
+    # Build user prompt
+    user_prompt_text = format_user_prompt_content(
+        source_content=all_sources,
+        additional_text=group_info if group_info else f"Tickers: {', '.join(tickers)}",
+    )
+
+    # Call LLM
+    response, warning = get_generate_response(mc, system_prompt.content, user_prompt_text)
+
+    # Store result
+    content_data = {
+        "content": response.response,
+        "summary": None,
+        "company_id": None,
+        "company_group_id": group.id if group else None,
+        "description": "company_group_analysis",
+        "source_type": "generated_content",
+        "model_config_id": mc.id,
+        "system_prompt_id": system_prompt.id,
+        "total_duration": response.total_duration,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
+        "warning": warning,
+    }
+    generated, was_created = create_generated_content(content_data)
+
+    # Link source content
+    session = get_db_session()
+    generated.source_content = all_sources
+    session.commit()
+
+    logger.info(
+        "handler_company_group_pipeline_done",
+        content_id=str(generated.id),
+        tickers=tickers,
+        sources_used=len(all_sources),
+    )
+    return {
+        "content_id": str(generated.id),
+        "content_hash": generated.content_hash,
+        "was_created": was_created,
+        "tickers": tickers,
+        "sources_used": len(all_sources),
+    }
+
+
 @register_handler(JobType.INGEST_PIPELINE)
 def handle_ingest_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Full ingestion pipeline: company -> filings -> (optional content generation).

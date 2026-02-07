@@ -126,6 +126,55 @@ def trigger_pipeline(ticker: str, forms: tuple):
         sys.exit(1)
 
 
+@pipeline.command("trigger-group")
+@click.argument("tickers", nargs=-1, required=False)
+@click.option("--group", "group_slug", default=None, help="Company group slug")
+def trigger_company_group_pipeline(tickers: tuple, group_slug: str):
+    """Trigger sector analysis. Pass tickers directly or use --group."""
+    try:
+        init_session()
+
+        ticker_list = list(tickers)
+
+        # If group slug is provided, resolve tickers from the group
+        if group_slug:
+            from symbology.database.company_groups import get_company_group_by_slug
+            grp = get_company_group_by_slug(group_slug)
+            if not grp:
+                console.print(f"[red]Group not found: {group_slug}[/red]")
+                sys.exit(1)
+            if not ticker_list:
+                ticker_list = [c.ticker for c in grp.companies]
+            if not ticker_list:
+                console.print(f"[red]No companies in group '{group_slug}'[/red]")
+                sys.exit(1)
+
+        if not ticker_list:
+            console.print("[red]Provide tickers as arguments or use --group[/red]")
+            sys.exit(1)
+
+        params = {"tickers": [t.upper() for t in ticker_list]}
+        if group_slug:
+            params["group_slug"] = group_slug
+
+        job = create_job(
+            job_type=JobType.COMPANY_GROUP_PIPELINE,
+            params=params,
+            priority=1,
+        )
+
+        console.print("[green]✓[/green] Company group pipeline triggered")
+        console.print(f"  [blue]Job ID:[/blue]   {job.id}")
+        console.print(f"  [blue]Tickers:[/blue]  {', '.join(params['tickers'])}")
+        if group_slug:
+            console.print(f"  [blue]Group:[/blue]    {group_slug}")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Company group pipeline trigger failed")
+        sys.exit(1)
+
+
 @pipeline.command("runs")
 @click.option("--status", "status_filter",
               type=click.Choice([s.value for s in PipelineRunStatus], case_sensitive=False),

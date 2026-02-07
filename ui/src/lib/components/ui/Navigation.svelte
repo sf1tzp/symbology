@@ -18,6 +18,7 @@
 	const navItems = [
 		{ href: '/', label: 'Home' },
 		{ href: '/companies', label: 'Companies' },
+		{ href: '/sectors', label: 'Sectors' },
 		{ href: '/search', label: 'Search' },
 		{ href: '/faq', label: 'FAQ' }
 	];

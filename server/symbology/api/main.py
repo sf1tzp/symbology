@@ -5,10 +5,30 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
-from symbology.database.base import init_db
+from starlette.middleware.base import BaseHTTPMiddleware
+from symbology.database.base import db_session, init_db
 from symbology.utils.config import settings
 from symbology.utils.logging import configure_logging, get_logger, get_uvicorn_log_config
 import uvicorn
+
+
+class DBSessionMiddleware(BaseHTTPMiddleware):
+    """Ensure the scoped database session is cleaned up after every request.
+
+    Since all async route handlers share the same thread (and thus the same
+    scoped_session instance), a failed query on one request can poison the
+    session for all subsequent requests.  Calling ``db_session.remove()``
+    rolls back any pending transaction and returns the connection to the pool,
+    so the next request always starts with a fresh session.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        try:
+            response = await call_next(request)
+            return response
+        finally:
+            if db_session is not None:
+                db_session.remove()
 
 
 def create_app() -> FastAPI:
@@ -69,6 +89,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Add DB session cleanup middleware (must be added after CORS so it
+    # wraps the actual request handling, running for every request)
+    app.add_middleware(DBSessionMiddleware)
+
     # Add exception handling middleware
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
@@ -78,6 +102,12 @@ def create_app() -> FastAPI:
                     error_type=type(exc).__name__,
                     path=request.url.path,
                     method=request.method)
+        # Rollback the session so it's not left in a failed transaction state
+        if db_session is not None:
+            try:
+                db_session.rollback()
+            except Exception:
+                pass
         return JSONResponse(
             status_code=500,
             content={"detail": "Internal server error"}

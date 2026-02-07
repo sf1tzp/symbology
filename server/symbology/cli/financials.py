@@ -32,7 +32,7 @@ def financials():
 
 
 @financials.command('list-concepts')
-@click.option('--search', help='Search concepts by name or label')
+@click.option('--search', help='Search concepts by name or description')
 @click.option('--limit', default=20, help='Maximum number of concepts to show')
 def list_concepts(search: str, limit: int):
     """List financial concepts in the database."""
@@ -46,7 +46,7 @@ def list_concepts(search: str, limit: int):
         if search:
             query = query.filter(
                 FinancialConcept.name.ilike(f"%{search}%") |
-                FinancialConcept.label.ilike(f"%{search}%")
+                FinancialConcept.description.ilike(f"%{search}%")
             )
 
         concepts = query.limit(limit).all()
@@ -57,19 +57,17 @@ def list_concepts(search: str, limit: int):
 
         table = Table(title=f"Financial Concepts ({len(concepts)} found)")
         table.add_column("Name", style="cyan")
-        table.add_column("Label", style="white")
-        table.add_column("Type", style="magenta")
-        table.add_column("Abstract", style="yellow")
+        table.add_column("Description", style="white")
+        table.add_column("Labels", style="magenta")
 
         for concept in concepts:
             name = concept.name[:30] + "..." if concept.name and len(concept.name) > 30 else (concept.name or "Unknown")
-            label = concept.label[:40] + "..." if concept.label and len(concept.label) > 40 else (concept.label or "Unknown")
+            description = concept.description[:40] + "..." if concept.description and len(concept.description) > 40 else (concept.description or "Unknown")
 
             table.add_row(
                 name,
-                label,
-                concept.type or "Unknown",
-                "Yes" if concept.abstract else "No"
+                description,
+                ", ".join(concept.labels) if concept.labels else "None",
             )
 
         console.print(table)
@@ -107,12 +105,12 @@ def list_values(ticker: str, concept: str, year: int, limit: int):
 
         # Apply filters
         if concept:
-            query = query.join(FinancialConcept).filter(FinancialConcept.name.ilike(f"%{concept}%"))
+            query = query.join(FinancialValue.concept).filter(FinancialConcept.name.ilike(f"%{concept}%"))
 
         if year:
             # Filter by filing year (approximate)
             query = query.join(FinancialValue.filing).filter(
-                FinancialValue.filing.has(Filing.filing_date.between(f"{year}-01-01", f"{year}-12-31"))
+                Filing.filing_date.between(f"{year}-01-01", f"{year}-12-31")
             )
 
         values = query.limit(limit).all()
@@ -126,12 +124,11 @@ def list_values(ticker: str, concept: str, year: int, limit: int):
         table = Table(title=f"Financial Values ({len(values)} found)")
         table.add_column("Concept", style="cyan")
         table.add_column("Value", style="white")
-        table.add_column("Unit", style="yellow")
-        table.add_column("Period", style="magenta")
+        table.add_column("Date", style="yellow")
         table.add_column("Filing", style="green")
 
         for value in values:
-            concept_name = value.financial_concept.name[:30] + "..." if value.financial_concept and len(value.financial_concept.name) > 30 else (value.financial_concept.name if value.financial_concept else "Unknown")
+            concept_name = value.concept.name[:30] + "..." if value.concept and len(value.concept.name) > 30 else (value.concept.name if value.concept else "Unknown")
 
             # Format the value based on its type
             if value.value is not None:
@@ -154,8 +151,7 @@ def list_values(ticker: str, concept: str, year: int, limit: int):
             table.add_row(
                 concept_name,
                 formatted_value,
-                value.unit_ref or "Unknown",
-                value.context_ref or "Unknown",
+                str(value.value_date) if value.value_date else "Unknown",
                 value.filing.accession_number[:15] + "..." if value.filing and len(value.filing.accession_number) > 15 else (value.filing.accession_number if value.filing else "Unknown")
             )
 
@@ -196,18 +192,14 @@ def get_concept(concept_name: str):
         table = Table(show_header=False, box=None, padding=(0, 1))
         table.add_row("[bold blue]ID:[/bold blue]", str(concept.id))
         table.add_row("[bold blue]Name:[/bold blue]", concept.name)
-        table.add_row("[bold blue]Label:[/bold blue]", concept.label or "Unknown")
-        table.add_row("[bold blue]Type:[/bold blue]", concept.type or "Unknown")
-        table.add_row("[bold blue]Abstract:[/bold blue]", "Yes" if concept.abstract else "No")
-        table.add_row("[bold blue]Nillable:[/bold blue]", "Yes" if concept.nillable else "No")
-        table.add_row("[bold blue]Period Type:[/bold blue]", concept.period_type or "Unknown")
-        table.add_row("[bold blue]Balance:[/bold blue]", concept.balance or "Unknown")
+        table.add_row("[bold blue]Description:[/bold blue]", concept.description or "Unknown")
+        table.add_row("[bold blue]Labels:[/bold blue]", ", ".join(concept.labels) if concept.labels else "None")
 
         console.print(Panel(table, title=panel_title))
 
         # Show some example values
         values = session.query(FinancialValue).filter(
-            FinancialValue.financial_concept_id == concept.id
+            FinancialValue.concept_id == concept.id
         ).limit(5).all()
 
         if values:
@@ -215,8 +207,7 @@ def get_concept(concept_name: str):
             value_table = Table()
             value_table.add_column("Company", style="cyan")
             value_table.add_column("Value", style="white")
-            value_table.add_column("Unit", style="yellow")
-            value_table.add_column("Period", style="magenta")
+            value_table.add_column("Date", style="yellow")
 
             for value in values:
                 company_name = value.company.ticker if value.company else "Unknown"
@@ -225,8 +216,7 @@ def get_concept(concept_name: str):
                 value_table.add_row(
                     company_name,
                     formatted_value,
-                    value.unit_ref or "Unknown",
-                    value.context_ref or "Unknown"
+                    str(value.value_date) if value.value_date else "Unknown",
                 )
 
             console.print(value_table)

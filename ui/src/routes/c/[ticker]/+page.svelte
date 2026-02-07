@@ -11,7 +11,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import type { PageData } from './$types';
-	import type { FilingResponse } from '$lib/api-types';
+	import type { FilingResponse, FinancialComparisonResponse } from '$lib/api-types';
+	import { getFinancialComparison } from '$lib/api';
 
 	let { data }: { data: PageData } = $props();
 
@@ -21,6 +22,64 @@
 	const generatedContent = data.generatedContent || [];
 	const filings = data.filings || [];
 	const error = data.error;
+
+	let financialComparison = $state<FinancialComparisonResponse | null>(
+		data.financialComparison || null
+	);
+	let activeStatementType = $state<string>('balance_sheet');
+	let loadingFinancials = $state(false);
+
+	const statementTypes = [
+		{ key: 'balance_sheet', label: 'Balance Sheet' },
+		{ key: 'income_statement', label: 'Income Statement' },
+		{ key: 'cash_flow', label: 'Cash Flow' }
+	];
+
+	async function switchStatementType(type: string) {
+		if (type === activeStatementType) return;
+		activeStatementType = type;
+		loadingFinancials = true;
+		try {
+			financialComparison = await getFinancialComparison(ticker, type);
+		} catch {
+			financialComparison = null;
+		} finally {
+			loadingFinancials = false;
+		}
+	}
+
+	function formatFinancialValue(value: number | null): string {
+		if (value === null || value === undefined) return '-';
+		const abs = Math.abs(value);
+		let formatted: string;
+		if (abs >= 1_000_000_000) {
+			formatted = `${(value / 1_000_000_000).toFixed(1)}B`;
+		} else if (abs >= 1_000_000) {
+			formatted = `${(value / 1_000_000).toFixed(1)}M`;
+		} else if (abs >= 1_000) {
+			formatted = `${(value / 1_000).toFixed(1)}K`;
+		} else {
+			formatted = value.toFixed(2);
+		}
+		return formatted;
+	}
+
+	function formatConceptName(name: string): string {
+		// Convert camelCase XBRL names to readable format
+		return name
+			.replace(/^us-gaap[_:]/, '')
+			.replace(/([a-z])([A-Z])/g, '$1 $2')
+			.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+	}
+
+	function formatPeriodDate(dateStr: string): string {
+		try {
+			const d = new Date(dateStr + 'T00:00:00');
+			return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+		} catch {
+			return dateStr;
+		}
+	}
 
 	// Handle missing company data
 	const displayCompany = company || {
@@ -242,7 +301,7 @@
 		</CardContent>
 	</Card>
 
-	<!-- Section 2: Financial Overview (TBD) -->
+	<!-- Section 2: Financial Overview -->
 	<Card>
 		<CardHeader>
 			<CardTitle class="flex items-center space-x-2">
@@ -252,15 +311,100 @@
 			<CardDescription>Key financial metrics and performance indicators</CardDescription>
 		</CardHeader>
 		<CardContent>
-			<Button
-				size="sm"
-				href="https://finance.yahoo.com/quote/{data.ticker}/"
-				target="_blank"
-				class="bg-purple-700 text-white"
-			>
-				<ExternalLink class="mr-2 h-4 w-4" />
-				View on Yahoo! Finance
-			</Button>
+			{#if financialComparison && financialComparison.items.length > 0}
+				<!-- Statement type tabs -->
+				<div class="mb-4 flex space-x-1 rounded-lg bg-muted p-1">
+					{#each statementTypes as st}
+						<button
+							class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors {activeStatementType ===
+							st.key
+								? 'bg-background text-foreground shadow-sm'
+								: 'text-muted-foreground hover:text-foreground'}"
+							onclick={() => switchStatementType(st.key)}
+						>
+							{st.label}
+						</button>
+					{/each}
+				</div>
+
+				{#if loadingFinancials}
+					<div class="py-8 text-center text-muted-foreground">Loading financial data...</div>
+				{:else}
+					<!-- Comparison table -->
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
+								<tr class="border-b">
+									<th class="py-2 pr-4 text-left font-medium text-muted-foreground">Concept</th>
+									{#each financialComparison.periods as period}
+										<th class="px-3 py-2 text-right font-medium text-muted-foreground"
+											>{formatPeriodDate(period)}</th
+										>
+									{/each}
+								</tr>
+							</thead>
+							<tbody>
+								{#each financialComparison.items as item}
+									<tr class="border-b border-border/50 hover:bg-muted/30">
+										<td class="py-2 pr-4" title={item.concept_name}>
+											<span class="font-medium"
+												>{item.description || formatConceptName(item.concept_name)}</span
+											>
+										</td>
+										{#each item.values as pv, i}
+											<td class="px-3 py-2 text-right tabular-nums">
+												{formatFinancialValue(pv.value)}
+												{#if i < item.changes.length && item.changes[i].percent !== null}
+													{@const pct = item.changes[i].percent}
+													<div
+														class="text-xs {pct !== null && pct > 0
+															? 'text-green-600'
+															: pct !== null && pct < 0
+																? 'text-red-600'
+																: 'text-muted-foreground'}"
+													>
+														{#if pct !== null}
+															{pct > 0 ? '+' : ''}{pct.toFixed(1)}%
+														{/if}
+													</div>
+												{/if}
+											</td>
+										{/each}
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+
+				<div class="mt-4">
+					<Button
+						size="sm"
+						variant="outline"
+						href="https://finance.yahoo.com/quote/{data.ticker}/"
+						target="_blank"
+					>
+						<ExternalLink class="mr-2 h-4 w-4" />
+						View on Yahoo! Finance
+					</Button>
+				</div>
+			{:else}
+				<div class="space-y-3">
+					<p class="text-sm text-muted-foreground">
+						No financial data available yet. Data will appear after the pipeline processes filings
+						with XBRL data.
+					</p>
+					<Button
+						size="sm"
+						href="https://finance.yahoo.com/quote/{data.ticker}/"
+						target="_blank"
+						class="bg-purple-700 text-white"
+					>
+						<ExternalLink class="mr-2 h-4 w-4" />
+						View on Yahoo! Finance
+					</Button>
+				</div>
+			{/if}
 		</CardContent>
 	</Card>
 

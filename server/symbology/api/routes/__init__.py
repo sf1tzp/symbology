@@ -9,6 +9,7 @@ from symbology.api.routes.jobs import router as jobs_router
 from symbology.api.routes.model_configs import router as model_configs_router
 from symbology.api.routes.pipeline import router as pipeline_router
 from symbology.api.routes.prompts import router as prompts_router
+from symbology.api.routes.financials import router as financials_router
 from symbology.api.routes.search import router as search_router
 from symbology.utils.logging import get_logger
 
@@ -29,6 +30,7 @@ api_router.include_router(model_configs_router, prefix="/model-configs", tags=["
 api_router.include_router(pipeline_router, prefix="/pipeline", tags=["pipeline"])
 api_router.include_router(groups_router, prefix="/groups", tags=["groups"])
 api_router.include_router(search_router, prefix="/search", tags=["search"])
+api_router.include_router(financials_router, prefix="/financials", tags=["financials"])
 
 logger.info("api_routes_configured",
            endpoints=[
@@ -42,4 +44,5 @@ logger.info("api_routes_configured",
                "/pipeline",
                "/groups",
                "/search",
+               "/financials",
            ])

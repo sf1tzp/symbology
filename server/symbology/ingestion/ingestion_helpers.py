@@ -195,6 +195,23 @@ def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_docum
                            document_count=len(document_uuids),
                            document_types=[doc_type.value for doc_type in document_uuids.keys()])
 
+            # Ingest financial data (XBRL) - wrapped in try/except so failures don't block pipeline
+            try:
+                financial_counts = ingest_financial_data(
+                    company_id=db_id,
+                    filing_id=db_filing.id,
+                    filing=filing
+                )
+                logger.info("financial_data_ingested",
+                           accession_number=filing.accession_number,
+                           filing_id=str(db_filing.id),
+                           counts=financial_counts)
+            except Exception as e:
+                logger.warning("financial_data_ingestion_failed",
+                              accession_number=filing.accession_number,
+                              filing_id=str(db_filing.id),
+                              error=str(e))
+
             logger.info("filing_ingested",
                        company_id=str(db_id),
                        accession_number=filing.accession_number,

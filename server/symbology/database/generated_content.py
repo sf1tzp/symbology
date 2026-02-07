@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, func, Integer, String, Table, Text
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from symbology.database.base import Base, get_db_session
 from symbology.database.companies import Company
@@ -107,6 +108,9 @@ class GeneratedContent(Base):
 
     # Generated summary of the content (optional)
     summary: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Full-text search vector (maintained by PostgreSQL trigger)
+    search_vector = mapped_column(TSVECTOR, nullable=True)
 
     # Model configuration reference
     model_config_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("model_configs.id", ondelete="SET NULL"), index=True)

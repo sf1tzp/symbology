@@ -37,7 +37,7 @@ def retry_backoff(timeout, func, *args, **kwargs):
 
         except Exception as e:
             logger.error("retry_backoff", backoff=backoff, error=e)
-            backoff = min(60, backoff * 2)
+            backoff = min(300, backoff * 2)
             time.sleep(backoff)
     else:
         raise TimeoutError

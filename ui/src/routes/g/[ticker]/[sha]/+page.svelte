@@ -122,10 +122,18 @@
 			<Card>
 				<CardHeader>
 					<CardTitle class="text-lg">Generated Content</CardTitle>
-					{#if data.content?.content}
+					{#if data.content?.input_tokens || data.content?.output_tokens}
 						<div class="flex text-sm text-muted-foreground">
 							<HandCoins class="mr-2 h-4 w-4" />
-							~{estimateTokens(data.content.content || '')} tokens
+							{#if data.content.input_tokens}{data.content.input_tokens.toLocaleString()} input{/if}{#if data.content.input_tokens && data.content.output_tokens}
+								/
+							{/if}{#if data.content.output_tokens}{data.content.output_tokens.toLocaleString()} output{/if}
+							tokens
+						</div>
+					{:else if data.content?.content}
+						<div class="flex text-sm text-muted-foreground">
+							<HandCoins class="mr-2 h-4 w-4" />
+							~{estimateTokens(data.content.content || '')} tokens (estimated)
 						</div>
 					{/if}
 

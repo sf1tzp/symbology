@@ -4,7 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import { FileText, ExternalLink, File, Folder, Bot } from '@lucide/svelte';
-	import type { DocumentResponse, GeneratedContentResponse } from '$lib/generated-api-types';
+	import type { DocumentResponse, GeneratedContentResponse } from '$lib/api-types';
 	import Card from '../ui/card/card.svelte';
 	import { titleCase } from 'title-case';
 	import CardContent from '../ui/card/card-content.svelte';

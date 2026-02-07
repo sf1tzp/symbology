@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DocumentResponse, FilingResponse } from '$lib/generated-api-types';
+	import type { DocumentResponse, FilingResponse } from '$lib/api-types';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';

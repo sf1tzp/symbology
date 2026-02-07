@@ -11,7 +11,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import DocumentDetail from '$lib/components/documents/DocumentDetail.svelte';
-	import type { DocumentResponse } from '$lib/generated-api-types';
+	import type { DocumentResponse } from '$lib/api-types';
 	import { badgeVariants } from '$lib/components/ui/badge/index.js';
 	import { ExternalLink, HandCoins } from '@lucide/svelte';
 

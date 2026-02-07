@@ -4,8 +4,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Card, CardContent } from '$lib/components/ui/card';
-	import type { CompanyResponse } from '$lib/generated-api-types';
-	import { searchCompanies, getCompanies, handleApiError } from '$lib/api';
+	import { Badge } from '$lib/components/ui/badge';
+	import type { CompanyResponse, SearchResultItem } from '$lib/api-types';
+	import { searchCompanies, getCompanies, search, handleApiError } from '$lib/api';
 	import { RefreshCcw } from '@lucide/svelte';
 	import { titleCase } from 'title-case';
 
@@ -27,6 +28,8 @@
 	// Component state
 	let searchTerm = $state('');
 	let searchResults = $state<CompanyResponse[]>([]);
+	let unifiedResults = $state<SearchResultItem[]>([]);
+	let useUnifiedSearch = $state(false);
 	let showDropdown = $state(false);
 	let isSearching = $state(false);
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -64,6 +67,8 @@
 	async function performSearch() {
 		if (!searchTerm.trim()) {
 			searchResults = [];
+			unifiedResults = [];
+			useUnifiedSearch = false;
 			showDropdown = false;
 			searchError = null;
 			return;
@@ -78,16 +83,27 @@
 			searchError = null;
 
 			try {
-				// Real API call to search companies
-				const results = await searchCompanies(searchTerm, 10);
-
-				searchResults = results;
-				showDropdown = results.length > 0;
+				if (searchTerm.trim().length >= 3) {
+					// Use unified search for longer queries
+					const response = await search(searchTerm, { limit: 10 });
+					unifiedResults = response.results ?? [];
+					searchResults = [];
+					useUnifiedSearch = true;
+					showDropdown = unifiedResults.length > 0;
+				} else {
+					// Use company search for short queries (ticker prefixes)
+					const results = await searchCompanies(searchTerm, 10);
+					searchResults = results;
+					unifiedResults = [];
+					useUnifiedSearch = false;
+					showDropdown = results.length > 0;
+				}
 				currentFocusIndex = -1;
 			} catch (error) {
 				console.error('Search failed:', error);
 				searchError = handleApiError(error);
 				searchResults = [];
+				unifiedResults = [];
 				showDropdown = false;
 			} finally {
 				isSearching = false;
@@ -105,22 +121,52 @@
 		goto(`/c/${company.ticker}`);
 	}
 
+	// Handle unified search result selection
+	function selectResult(result: SearchResultItem) {
+		if (result.entity_type === 'company' && result.subtitle) {
+			goto(`/c/${result.subtitle}`);
+		} else if (result.entity_type === 'filing' && result.subtitle) {
+			goto(`/f/${result.subtitle}`);
+		} else if (result.entity_type === 'generated_content' && result.subtitle) {
+			goto(`/c/${result.subtitle}`);
+		}
+	}
+
+	function getEntityLabel(type: string): string {
+		switch (type) {
+			case 'company':
+				return 'Company';
+			case 'filing':
+				return 'Filing';
+			case 'generated_content':
+				return 'Analysis';
+			default:
+				return type;
+		}
+	}
+
+	// Get the active result list for keyboard navigation
+	const activeResults = $derived(useUnifiedSearch ? unifiedResults : searchResults);
+
 	// Handle search button click
 	function handleSearch() {
+		if (searchTerm.trim().length >= 3) {
+			// Navigate to full search page for longer queries
+			goto(`/search?q=${encodeURIComponent(searchTerm)}`);
+			return;
+		}
 		if (searchResults.length === 1) {
 			selectCompany(searchResults[0]);
 		} else if (searchResults.length > 1) {
-			// Show dropdown if multiple results
 			showDropdown = true;
 		} else {
-			// Perform search if no results yet
 			performSearch();
 		}
 	}
 
 	// Handle keyboard navigation
 	function handleKeydown(event: KeyboardEvent) {
-		if (!showDropdown || searchResults.length === 0) {
+		if (!showDropdown || activeResults.length === 0) {
 			if (event.key === 'Enter') {
 				handleSearch();
 			}
@@ -130,15 +176,19 @@
 		switch (event.key) {
 			case 'ArrowDown':
 				currentFocusIndex =
-					currentFocusIndex >= searchResults.length - 1 ? 0 : currentFocusIndex + 1;
+					currentFocusIndex >= activeResults.length - 1 ? 0 : currentFocusIndex + 1;
 				break;
 			case 'ArrowUp':
 				currentFocusIndex =
-					currentFocusIndex <= 0 ? searchResults.length - 1 : currentFocusIndex - 1;
+					currentFocusIndex <= 0 ? activeResults.length - 1 : currentFocusIndex - 1;
 				break;
 			case 'Enter':
 				if (currentFocusIndex >= 0) {
-					selectCompany(searchResults[currentFocusIndex]);
+					if (useUnifiedSearch) {
+						selectResult(unifiedResults[currentFocusIndex]);
+					} else {
+						selectCompany(searchResults[currentFocusIndex]);
+					}
 				} else {
 					handleSearch();
 				}
@@ -161,7 +211,7 @@
 
 	// Handle input focus
 	function handleFocus() {
-		if (searchResults.length > 0) {
+		if (activeResults.length > 0) {
 			showDropdown = true;
 		}
 	}
@@ -186,28 +236,63 @@
 			class=""
 		/>
 		<!-- Search Results Dropdown -->
-		{#if showDropdown && searchResults.length > 0}
+		{#if showDropdown && activeResults.length > 0}
 			<Card class="absolute top-full z-50 border border-white bg-popover shadow-lg">
 				<CardContent class="p-0">
 					<div class="max-h-60 overflow-y-auto">
-						{#each searchResults as company, index}
-							<button
-								class="w-full border-b p-2 text-left transition-colors last:border-b-0 hover:bg-muted"
-								class:bg-muted={currentFocusIndex === index}
-								onclick={() => selectCompany(company)}
-								type="button"
-							>
-								<div class="font-medium text-foreground">
-									{titleCase(company.name.toLowerCase())}
-								</div>
-								<div class="text-sm text-muted-foreground">
-									{company.ticker}
-									{#if company.sic_description}
-										• {company.sic_description}
-									{/if}
-								</div>
-							</button>
-						{/each}
+						{#if useUnifiedSearch}
+							{#each unifiedResults as result, index}
+								<button
+									class="w-full border-b p-2 text-left transition-colors last:border-b-0 hover:bg-muted"
+									class:bg-muted={currentFocusIndex === index}
+									onclick={() => selectResult(result)}
+									type="button"
+								>
+									<div class="flex items-center gap-2">
+										<span class="font-medium text-foreground">
+											{result.title || 'Untitled'}
+										</span>
+										<Badge variant="outline" class="text-xs">
+											{getEntityLabel(result.entity_type)}
+										</Badge>
+									</div>
+									<div class="text-sm text-muted-foreground">
+										{#if result.subtitle}{result.subtitle}{/if}
+										{#if result.headline}
+											<span class="ml-1">{@html result.headline}</span>
+										{/if}
+									</div>
+								</button>
+							{/each}
+							{#if unifiedResults.length >= 10}
+								<button
+									class="w-full p-2 text-center text-sm text-muted-foreground transition-colors hover:bg-muted"
+									onclick={() => goto(`/search?q=${encodeURIComponent(searchTerm)}`)}
+									type="button"
+								>
+									View all results →
+								</button>
+							{/if}
+						{:else}
+							{#each searchResults as company, index}
+								<button
+									class="w-full border-b p-2 text-left transition-colors last:border-b-0 hover:bg-muted"
+									class:bg-muted={currentFocusIndex === index}
+									onclick={() => selectCompany(company)}
+									type="button"
+								>
+									<div class="font-medium text-foreground">
+										{titleCase(company.name.toLowerCase())}
+									</div>
+									<div class="text-sm text-muted-foreground">
+										{company.ticker}
+										{#if company.sic_description}
+											• {company.sic_description}
+										{/if}
+									</div>
+								</button>
+							{/each}
+						{/if}
 					</div>
 				</CardContent>
 			</Card>

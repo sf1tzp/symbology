@@ -18,9 +18,8 @@
 	const navItems = [
 		{ href: '/', label: 'Home' },
 		{ href: '/companies', label: 'Companies' },
+		{ href: '/search', label: 'Search' },
 		{ href: '/faq', label: 'FAQ' }
-		// { href: '/filings', label: 'Filings' },
-		// { href: '/analysis', label: 'Analysis' }
 	];
 
 	function isCurrentPath(href: string): boolean {

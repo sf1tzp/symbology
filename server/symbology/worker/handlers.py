@@ -473,6 +473,7 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 single_prompt = ensure_prompt(doc_type_str, prompts_dir)
 
                 single_summary_hashes = []
+                new_singles_generated = 0
 
                 for filing in filings:
                     # Find the document of this type in this filing
@@ -524,6 +525,7 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                         })
                         if gen_result and gen_result.get("content_hash"):
                             single_summary_hashes.append(gen_result["content_hash"])
+                            new_singles_generated += 1
                             total_content_generated += 1
                             jobs_completed += 1
                         else:
@@ -543,6 +545,16 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                         form=form,
                         doc_type=doc_type_str,
                         reason="no single summaries",
+                    )
+                    continue
+
+                if new_singles_generated == 0:
+                    logger.info(
+                        "full_pipeline_skip_aggregate",
+                        form=form,
+                        doc_type=doc_type_str,
+                        reason="all single summaries already existed",
+                        existing_count=len(single_summary_hashes),
                     )
                     continue
 

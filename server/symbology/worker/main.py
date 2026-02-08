@@ -9,6 +9,7 @@ from symbology.database.jobs import claim_next_job, complete_job, fail_job, mark
 from symbology.utils.config import settings
 from symbology.utils.logging import configure_logging, get_logger
 from symbology.worker.config import worker_settings
+from symbology.llm.client import ShutdownRequested, set_shutdown_flag, reset_shutdown_flag
 from symbology.worker.handlers import get_handler, list_handlers
 
 # Import handlers module so decorators run and register themselves
@@ -28,18 +29,13 @@ def run_worker() -> None:
     wid = _worker_id()
     shutdown_requested = False
     current_job_id = None
+    reset_shutdown_flag()
 
     def _handle_signal(signum, frame):
         nonlocal shutdown_requested
         logger.info("shutdown_signal_received", signal=signum, worker_id=wid)
         shutdown_requested = True
-        if current_job_id is not None:
-            logger.info("failing_in_progress_job", job_id=str(current_job_id), worker_id=wid)
-            try:
-                fail_job(current_job_id, error="Worker received shutdown signal")
-            except Exception:
-                logger.exception("fail_job_on_shutdown_error", job_id=str(current_job_id))
-            raise SystemExit(0)
+        set_shutdown_flag()
 
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
@@ -85,6 +81,9 @@ def run_worker() -> None:
             current_job_id = None
             complete_job(job.id, result=result)
             logger.info("job_completed", job_id=str(job.id))
+        except ShutdownRequested:
+            logger.info("job_interrupted_by_shutdown", job_id=str(job.id))
+            fail_job(job.id, error="worker shutdown during execution")
         except Exception as exc:
             current_job_id = None
             logger.exception("job_execution_failed", job_id=str(job.id))

@@ -379,14 +379,24 @@ def get_cover_page_values(filing: Filing) -> pd.DataFrame:
     columns_to_drop = ['balance', 'weight', 'preferred_sign']
     df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
 
-    # Identify the date column (typically the last column)
+    # Identify date/value columns (everything that isn't concept or label)
     date_columns = [col for col in df.columns if col not in ['concept', 'label']]
 
     if date_columns:
-        # Rename the date column to filing.period_of_report
-        df = df.rename(columns={date_columns[0]: filing.period_of_report})
+        # Drop duplicate columns to avoid "cannot reindex on an axis with
+        # duplicate labels" errors that occur when XBRL data contains
+        # multiple date columns (amended filings, multi-period data, etc.)
+        df = df.loc[:, ~df.columns.duplicated()]
 
-        # Remove rows where the date column is empty or NA
+        # Rename the first date column to filing.period_of_report
+        target_col = date_columns[0]
+        if target_col != filing.period_of_report:
+            # If a column with the target name already exists, drop it first
+            if filing.period_of_report in df.columns:
+                df = df.drop(columns=[filing.period_of_report])
+            df = df.rename(columns={target_col: filing.period_of_report})
+
+        # Remove rows where the period column is empty or NA
         df = df[df[filing.period_of_report].notna() & (df[filing.period_of_report] != '')]
 
     return df

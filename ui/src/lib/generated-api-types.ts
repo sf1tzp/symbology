@@ -1263,15 +1263,12 @@ export interface components {
 		 * @example {
 		 *       "created_at": "2023-12-25T12:30:45.123456",
 		 *       "id": "123e4567-e89b-12d3-a456-426614174006",
-		 *       "model": "llama3.2:3b",
-		 *       "num_ctx": 4096,
-		 *       "num_gpu": 1,
-		 *       "num_predict": -1,
+		 *       "model": "claude-sonnet-4-5-20250929",
+		 *       "max_tokens": 4096,
 		 *       "options": {
-		 *         "num_ctx": 4096,
+		 *         "max_tokens": 4096,
 		 *         "temperature": 0.8
 		 *       },
-		 *       "seed": 42,
 		 *       "temperature": 0.8,
 		 *       "top_k": 40,
 		 *       "top_p": 0.9
@@ -1297,16 +1294,16 @@ export interface components {
 			created_at: string;
 			/**
 			 * Options
-			 * @description Ollama options as JSON
+			 * @description Model options as JSON
 			 */
 			options?: {
 				[key: string]: unknown;
 			} | null;
 			/**
-			 * Num Ctx
-			 * @description Context window size
+			 * Max Tokens
+			 * @description Maximum tokens to generate
 			 */
-			num_ctx?: number | null;
+			max_tokens?: number | null;
 			/**
 			 * Temperature
 			 * @description Temperature parameter
@@ -1322,21 +1319,6 @@ export interface components {
 			 * @description Top-p parameter
 			 */
 			top_p?: number | null;
-			/**
-			 * Seed
-			 * @description Random seed
-			 */
-			seed?: number | null;
-			/**
-			 * Num Predict
-			 * @description Number of tokens to predict
-			 */
-			num_predict?: number | null;
-			/**
-			 * Num Gpu
-			 * @description Number of GPUs to use
-			 */
-			num_gpu?: number | null;
 		};
 		/**
 		 * PipelineRunResponse

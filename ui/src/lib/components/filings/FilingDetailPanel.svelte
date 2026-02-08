@@ -2,7 +2,8 @@
 	import type {
 		FilingTimelineResponse,
 		CompanyResponse,
-		FinancialComparisonResponse
+		FinancialComparisonResponse,
+		PeriodChange
 	} from '$lib/api-types';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
@@ -28,6 +29,54 @@
 	$effect(() => {
 		localFinancials = financialComparison;
 		activeStatementType = 'balance_sheet';
+	});
+
+	// Derive filtered financials: old->new order, capped at selected filing's period
+	const filteredFinancials = $derived.by(() => {
+		if (!localFinancials) return null;
+
+		const cutoff = filing.period_of_report;
+
+		// Filter periods to only those <= selected filing's period, sort ascending (old -> new)
+		const filteredPeriods = localFinancials.periods.filter((p) => !cutoff || p <= cutoff).sort();
+
+		if (filteredPeriods.length === 0) return null;
+
+		const filteredItems = localFinancials.items.map((item) => {
+			// Build values array in old->new order
+			const filteredValues = filteredPeriods.map(
+				(period) => item.values.find((v) => v.date === period) || { date: period, value: null }
+			);
+
+			// Compute period-over-period changes for old->new order
+			const changes: PeriodChange[] = filteredValues.map((val, i) => {
+				if (i === 0) {
+					return { from_date: '', to_date: val.date, absolute: null, percent: null };
+				}
+				const prev = filteredValues[i - 1].value;
+				const curr = val.value;
+				if (curr !== null && prev !== null && prev !== 0) {
+					const abs = curr - prev;
+					const pct = (abs / Math.abs(prev)) * 100;
+					return {
+						from_date: filteredValues[i - 1].date,
+						to_date: val.date,
+						absolute: Math.round(abs * 100) / 100,
+						percent: Math.round(pct * 100) / 100
+					};
+				}
+				return {
+					from_date: filteredValues[i - 1].date,
+					to_date: val.date,
+					absolute: null,
+					percent: null
+				};
+			});
+
+			return { ...item, values: filteredValues, changes };
+		});
+
+		return { periods: filteredPeriods, items: filteredItems };
 	});
 
 	const statementTypes = [
@@ -105,8 +154,8 @@
 				<CardTitle class="text-base">Financial Snapshot</CardTitle>
 			</CardHeader>
 			<CardContent>
-				{#if localFinancials && localFinancials.items.length > 0}
-					<!-- Statement type tabs -->
+				<!-- Statement type tabs (always show when financial data exists) -->
+				{#if localFinancials}
 					<div class="mb-4 flex space-x-1 rounded-lg bg-muted p-1">
 						{#each statementTypes as st}
 							<button
@@ -120,57 +169,57 @@
 							</button>
 						{/each}
 					</div>
+				{/if}
 
-					{#if loadingFinancials}
-						<div class="py-8 text-center text-sm text-muted-foreground">
-							Loading financial data...
-						</div>
-					{:else}
-						<div class="overflow-x-auto">
-							<table class="w-full text-sm">
-								<thead>
-									<tr class="border-b">
-										<th class="py-2 pr-4 text-left text-xs font-medium text-muted-foreground"
-											>Concept</th
+				{#if loadingFinancials}
+					<div class="py-8 text-center text-sm text-muted-foreground">
+						Loading financial data...
+					</div>
+				{:else if filteredFinancials && filteredFinancials.items.length > 0}
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
+								<tr class="border-b">
+									<th class="py-2 pr-4 text-left text-xs font-medium text-muted-foreground"
+										>Concept</th
+									>
+									{#each filteredFinancials.periods as period}
+										<th class="px-2 py-2 text-right text-xs font-medium text-muted-foreground"
+											>{formatPeriodDate(period)}</th
 										>
-										{#each localFinancials.periods as period}
-											<th class="px-2 py-2 text-right text-xs font-medium text-muted-foreground"
-												>{formatPeriodDate(period)}</th
-											>
+									{/each}
+								</tr>
+							</thead>
+							<tbody>
+								{#each filteredFinancials.items as item}
+									<tr class="border-b border-border/50 hover:bg-muted/30">
+										<td class="py-1.5 pr-4 text-xs" title={item.concept_name}>
+											{item.description || formatConceptName(item.concept_name)}
+										</td>
+										{#each item.values as pv, i}
+											<td class="px-2 py-1.5 text-right text-xs tabular-nums">
+												{formatFinancialValue(pv.value)}
+												{#if item.changes[i]?.percent !== null}
+													{@const pct = item.changes[i].percent}
+													<div
+														class="text-[10px] {pct !== null && pct > 0
+															? 'text-green-600'
+															: pct !== null && pct < 0
+																? 'text-red-600'
+																: 'text-muted-foreground'}"
+													>
+														{#if pct !== null}
+															{pct > 0 ? '+' : ''}{pct.toFixed(1)}%
+														{/if}
+													</div>
+												{/if}
+											</td>
 										{/each}
 									</tr>
-								</thead>
-								<tbody>
-									{#each localFinancials.items as item}
-										<tr class="border-b border-border/50 hover:bg-muted/30">
-											<td class="py-1.5 pr-4 text-xs" title={item.concept_name}>
-												{item.description || formatConceptName(item.concept_name)}
-											</td>
-											{#each item.values as pv, i}
-												<td class="px-2 py-1.5 text-right text-xs tabular-nums">
-													{formatFinancialValue(pv.value)}
-													{#if i < item.changes.length && item.changes[i].percent !== null}
-														{@const pct = item.changes[i].percent}
-														<div
-															class="text-[10px] {pct !== null && pct > 0
-																? 'text-green-600'
-																: pct !== null && pct < 0
-																	? 'text-red-600'
-																	: 'text-muted-foreground'}"
-														>
-															{#if pct !== null}
-																{pct > 0 ? '+' : ''}{pct.toFixed(1)}%
-															{/if}
-														</div>
-													{/if}
-												</td>
-											{/each}
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-					{/if}
+								{/each}
+							</tbody>
+						</table>
+					</div>
 				{:else}
 					<p class="py-4 text-center text-sm text-muted-foreground">
 						No financial data available for this period.

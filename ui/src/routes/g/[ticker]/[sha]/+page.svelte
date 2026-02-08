@@ -101,9 +101,7 @@
 					<CardTitle class="text-lg">Model Configuration</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{#if data.content?.modelConfig}
-						<ModelConfig config={data.content.modelConfig} />
-					{/if}
+					<ModelConfig config={data.content?.modelConfig ?? null} />
 				</CardContent>
 			</Card>
 

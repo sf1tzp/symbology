@@ -7,6 +7,8 @@ import {
 	getGeneratedContentById
 } from '$lib/api';
 
+export const ssr = false;
+
 export const load: PageLoad = async ({ params, fetch }) => {
 	const { ticker, sha } = params;
 

@@ -318,29 +318,23 @@ class ModelConfigResponse(BaseModel):
     id: UUID = Field(..., description="Unique identifier for the model config")
     model: str = Field(..., description="Model name")
     created_at: datetime = Field(..., description="Timestamp when the config was created")
-    options: Optional[Dict[str, Any]] = Field(None, description="Ollama options as JSON")
-    num_ctx: Optional[int] = Field(None, description="Context window size")
+    options: Optional[Dict[str, Any]] = Field(None, description="Model options as JSON")
+    max_tokens: Optional[int] = Field(None, description="Maximum tokens to generate")
     temperature: Optional[float] = Field(None, description="Temperature parameter")
     top_k: Optional[int] = Field(None, description="Top-k parameter")
     top_p: Optional[float] = Field(None, description="Top-p parameter")
-    seed: Optional[int] = Field(None, description="Random seed")
-    num_predict: Optional[int] = Field(None, description="Number of tokens to predict")
-    num_gpu: Optional[int] = Field(None, description="Number of GPUs to use")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174006",
-                "model": "llama3.2:3b",
+                "model": "claude-sonnet-4-5-20250929",
                 "created_at": "2023-12-25T12:30:45.123456",
-                "options": {"num_ctx": 4096, "temperature": 0.8},
-                "num_ctx": 4096,
+                "options": {"max_tokens": 4096, "temperature": 0.8},
+                "max_tokens": 4096,
                 "temperature": 0.8,
                 "top_k": 40,
-                "top_p": 0.9,
-                "seed": 42,
-                "num_predict": -1,
-                "num_gpu": 1
+                "top_p": 0.9
             }
         }
 

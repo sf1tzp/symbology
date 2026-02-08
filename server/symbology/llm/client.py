@@ -19,7 +19,7 @@ class AnthropicResponseAdapter:
     def __init__(self, message, duration_ns):
         self.response = message.content[0].text
         self.content = self.response
-        self.total_duration = duration_ns
+        self.total_duration = duration_ns / 1e9
         self.done = True
         self.done_reason = message.stop_reason
         self.input_tokens = message.usage.input_tokens

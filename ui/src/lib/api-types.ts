@@ -66,6 +66,37 @@ export interface FinancialComparisonResponse {
 	items: FinancialLineItem[];
 }
 
+// Timeline types for the filing-centric company page
+export interface GeneratedContentSummaryResponse {
+	id: string;
+	content_hash: string | null;
+	short_hash: string | null;
+	description: string | null;
+	document_type: string | null;
+	summary: string | null;
+	created_at: string;
+}
+
+export interface DocumentWithContentResponse {
+	id: string;
+	title: string;
+	document_type: string | null;
+	content_hash: string | null;
+	short_hash: string | null;
+	generated_content: GeneratedContentSummaryResponse[];
+}
+
+export interface FilingTimelineResponse {
+	id: string;
+	company_id: string;
+	accession_number: string;
+	form: string;
+	filing_date: string;
+	url: string | null;
+	period_of_report: string | null;
+	documents: DocumentWithContentResponse[];
+}
+
 /**
  * API Error Response
  */

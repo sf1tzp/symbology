@@ -131,6 +131,39 @@ class DocumentResponse(BaseModel):
         }
 
 
+class GeneratedContentSummaryResponse(BaseModel):
+    """Lightweight response for generated content in timeline context (no full content body)."""
+    id: UUID = Field(..., description="Unique identifier for the generated content")
+    content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
+    short_hash: Optional[str] = Field(None, description="Shortened hash for URLs")
+    description: Optional[str] = Field(None, description="Content description")
+    document_type: Optional[str] = Field(None, description="Type of document")
+    summary: Optional[str] = Field(None, description="Generated summary")
+    created_at: datetime = Field(..., description="Timestamp when the content was created")
+
+
+class DocumentWithContentResponse(BaseModel):
+    """Document with its associated generated content for the timeline view."""
+    id: UUID = Field(..., description="Unique identifier for the document")
+    title: str = Field(..., description="Name of the document")
+    document_type: Optional[str] = Field(None, description="Type of the document")
+    content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
+    short_hash: Optional[str] = Field(None, description="Shortened hash for URLs")
+    generated_content: List[GeneratedContentSummaryResponse] = Field(default_factory=list, description="Generated content linked to this document")
+
+
+class FilingTimelineResponse(BaseModel):
+    """Filing with nested documents and their generated content for timeline display."""
+    id: UUID = Field(..., description="Unique identifier for the filing")
+    company_id: UUID = Field(..., description="ID of the company this filing belongs to")
+    accession_number: str = Field(..., description="SEC accession number")
+    form: str = Field(..., description="SEC filing type (e.g., 10-K, 10-Q)")
+    filing_date: date = Field(..., description="Date the filing was submitted")
+    url: Optional[str] = Field(None, description="URL to the filing on SEC website")
+    period_of_report: Optional[date] = Field(None, description="Period covered by the report")
+    documents: List[DocumentWithContentResponse] = Field(default_factory=list, description="Documents in this filing with their generated content")
+
+
 class DocumentContentResponse(BaseModel):
     """Response schema for document content."""
     id: UUID = Field(..., description="Unique identifier for the document")

@@ -2,11 +2,21 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
-from symbology.api.schemas import CompanyResponse, DocumentResponse, FilingResponse
+from fastapi import APIRouter, HTTPException, Query
+from symbology.api.schemas import (
+    CompanyResponse,
+    DocumentResponse,
+    DocumentWithContentResponse,
+    FilingResponse,
+    FilingTimelineResponse,
+    GeneratedContentSummaryResponse,
+)
 from symbology.database.documents import get_documents_by_filing
 from symbology.database.filings import Filing, get_filing_by_accession_number, get_filings_by_company
-from symbology.database.generated_content import get_frontpage_summary_by_ticker
+from symbology.database.generated_content import (
+    get_frontpage_summary_by_ticker,
+    get_generated_content_by_document_ids,
+)
 from symbology.utils.logging import get_logger
 
 # Create logger for this module
@@ -108,6 +118,109 @@ async def get_filings_by_ticker(ticker: str) -> List[FilingResponse]:
                     error=str(e),
                     exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to retrieve filings: {str(e)}") from e
+
+
+@router.get("/by-ticker/{ticker}/timeline", response_model=List[FilingTimelineResponse])
+async def get_filings_timeline_by_ticker(
+    ticker: str,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> List[FilingTimelineResponse]:
+    """Get filing timeline with nested documents and generated content for a company.
+
+    Returns filings ordered by period_of_report ASC (oldest first) with their
+    documents and associated generated content pre-loaded. Uses batch queries
+    to avoid N+1 problems.
+
+    Args:
+        ticker: Stock ticker symbol
+        limit: Maximum number of filings to return (default 20)
+
+    Returns:
+        List of filings with nested documents and generated content
+    """
+    try:
+        logger.debug("fetching_filings_timeline_by_ticker", ticker=ticker)
+
+        from symbology.database.companies import get_company_by_ticker
+
+        # 1. Get company
+        company = get_company_by_ticker(ticker)
+        if not company:
+            raise HTTPException(status_code=404, detail=f"Company with ticker '{ticker}' not found")
+
+        # 2. Get filings ordered by period_of_report ASC, with documents auto-loaded via selectin
+        from symbology.database.base import get_db_session
+        session = get_db_session()
+        filings = (
+            session.query(Filing)
+            .filter(Filing.company_id == company.id)
+            .order_by(Filing.period_of_report.asc())
+            .limit(limit)
+            .all()
+        )
+
+        # 3. Collect all document IDs across all filings
+        all_document_ids = []
+        for filing in filings:
+            for doc in filing.documents:
+                all_document_ids.append(doc.id)
+
+        # 4. Batch-fetch generated content for all documents (single query)
+        gc_by_doc_id = get_generated_content_by_document_ids(all_document_ids) if all_document_ids else {}
+
+        # 5. Assemble nested response
+        timeline_responses = []
+        for filing in filings:
+            doc_responses = []
+            for doc in filing.documents:
+                gc_list = gc_by_doc_id.get(doc.id, [])
+                gc_responses = [
+                    GeneratedContentSummaryResponse(
+                        id=gc.id,
+                        content_hash=gc.content_hash,
+                        short_hash=gc.get_short_hash() if gc.content_hash else None,
+                        description=gc.description,
+                        document_type=gc.document_type.value if gc.document_type else None,
+                        summary=gc.summary,
+                        created_at=gc.created_at,
+                    )
+                    for gc in gc_list
+                ]
+                doc_responses.append(DocumentWithContentResponse(
+                    id=doc.id,
+                    title=doc.title,
+                    document_type=doc.document_type.value if doc.document_type else None,
+                    content_hash=doc.content_hash,
+                    short_hash=doc.get_short_hash() if doc.content_hash else None,
+                    generated_content=gc_responses,
+                ))
+
+            timeline_responses.append(FilingTimelineResponse(
+                id=filing.id,
+                company_id=filing.company_id,
+                accession_number=filing.accession_number,
+                form=filing.form,
+                filing_date=filing.filing_date,
+                url=filing.url,
+                period_of_report=filing.period_of_report,
+                documents=doc_responses,
+            ))
+
+        logger.info("filings_timeline_retrieved",
+                    ticker=ticker,
+                    filing_count=len(timeline_responses),
+                    document_count=len(all_document_ids))
+
+        return timeline_responses
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_filings_timeline_by_ticker_failed",
+                    ticker=ticker,
+                    error=str(e),
+                    exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve filing timeline: {str(e)}") from e
 
 
 @router.get("/{accession_number}", response_model=FilingResponse)

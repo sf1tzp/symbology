@@ -7,6 +7,7 @@ import type {
 	CompanyResponse,
 	CompanyGroupResponse,
 	FilingResponse,
+	FilingTimelineResponse,
 	DocumentResponse,
 	GeneratedContentResponse,
 	ModelConfigResponse,
@@ -220,6 +221,27 @@ export async function getFilingsByTicker(
 	} catch (error) {
 		console.error(`Error fetching filings for ticker ${ticker}:`, error);
 		return []; // Return empty array rather than throwing for missing data
+	}
+}
+
+/**
+ * Get filing timeline with nested documents and generated content for a company
+ */
+export async function getFilingsTimeline(
+	ticker: string,
+	limit: number = 20
+): Promise<FilingTimelineResponse[]> {
+	try {
+		const url = buildApiUrl(`/filings/by-ticker/${encodeURIComponent(ticker)}/timeline`, {
+			limit: limit.toString()
+		});
+
+		logApiCall('GET', url);
+
+		return await fetchApi<FilingTimelineResponse[]>(url);
+	} catch (error) {
+		console.error(`Error fetching filing timeline for ticker ${ticker}:`, error);
+		return [];
 	}
 }
 

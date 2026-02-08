@@ -2,7 +2,7 @@ import type { PageLoad } from './$types';
 import {
 	getCompanyByTicker,
 	getAggregateSummariesByTicker,
-	getFilingsByTicker,
+	getFilingsTimeline,
 	getFinancialComparison
 } from '$lib/api';
 
@@ -11,30 +11,28 @@ export const load: PageLoad = async ({ params }) => {
 	const upperTicker = ticker.toUpperCase();
 
 	try {
-		// Load company data, generated content, filings, and financial data in parallel
-		const [company, generatedContent, filings, financialComparison] = await Promise.all([
+		// Load company data, aggregate summaries, filing timeline, and financial data in parallel
+		const [company, aggregateSummaries, filings, financialComparison] = await Promise.all([
 			getCompanyByTicker(upperTicker),
 			getAggregateSummariesByTicker(upperTicker, 5),
-			getFilingsByTicker(upperTicker, 5),
+			getFilingsTimeline(upperTicker, 20),
 			getFinancialComparison(upperTicker)
 		]);
 
-		// If company not found, still return data but with null company
 		return {
 			ticker: upperTicker,
 			company,
-			generatedContent,
+			aggregateSummaries,
 			filings,
 			financialComparison
 		};
 	} catch (error) {
 		console.error(`Failed to load data for ${ticker}:`, error);
 
-		// Return partial data even if some API calls fail
 		return {
 			ticker: upperTicker,
 			company: null,
-			generatedContent: [],
+			aggregateSummaries: [],
 			filings: [],
 			financialComparison: null,
 			error: error instanceof Error ? error.message : 'Unknown error'

@@ -724,6 +724,54 @@ def get_frontpage_summary_by_ticker(ticker: str) -> Optional[str]:
         raise
 
 
+def get_generated_content_by_document_ids(document_ids: List[UUID]) -> Dict[UUID, List[GeneratedContent]]:
+    """Batch-fetch generated content for multiple document IDs.
+
+    Joins through generated_content_document_association to get all generated content
+    linked to the given documents. Uses deferred content loading to avoid fetching
+    full LLM output bodies — only summary/metadata fields are loaded.
+
+    Args:
+        document_ids: List of document UUIDs to fetch content for
+
+    Returns:
+        Dict mapping document_id -> list of GeneratedContent objects
+    """
+    if not document_ids:
+        return {}
+
+    try:
+        from collections import defaultdict
+        from sqlalchemy.orm import defer
+
+        session = get_db_session()
+
+        # Query generated content joined through the association table
+        rows = (
+            session.query(GeneratedContent, generated_content_document_association.c.document_id)
+            .join(
+                generated_content_document_association,
+                GeneratedContent.id == generated_content_document_association.c.generated_content_id,
+            )
+            .filter(generated_content_document_association.c.document_id.in_(document_ids))
+            .options(defer(GeneratedContent.content))
+            .all()
+        )
+
+        result: Dict[UUID, List[GeneratedContent]] = defaultdict(list)
+        for gc, doc_id in rows:
+            result[doc_id].append(gc)
+
+        logger.info("batch_fetched_generated_content_by_document_ids",
+                    document_count=len(document_ids),
+                    content_count=sum(len(v) for v in result.values()))
+        return dict(result)
+    except Exception as e:
+        logger.error("get_generated_content_by_document_ids_failed",
+                    error=str(e), exc_info=True)
+        raise
+
+
 def get_company_group_analysis(group_id: UUID, limit: int = 5) -> List[GeneratedContent]:
     """Get the most recent company group analyses for a given group.
 

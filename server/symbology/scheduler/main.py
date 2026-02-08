@@ -4,7 +4,7 @@ import time
 
 from symbology.database.base import init_db
 from symbology.scheduler.config import scheduler_settings
-from symbology.scheduler.polling import poll_all_companies
+from symbology.scheduler.polling import poll_all_companies, poll_all_filings
 from symbology.utils.config import settings
 from symbology.utils.logging import configure_logging, get_logger
 
@@ -34,6 +34,7 @@ def run_scheduler() -> None:
         poll_interval=scheduler_settings.poll_interval,
         enabled_forms=scheduler_settings.enabled_forms,
         lookback_days=scheduler_settings.filing_lookback_days,
+        bulk_ingest_enabled=scheduler_settings.bulk_ingest_enabled,
     )
 
     while not shutdown_requested:
@@ -44,6 +45,15 @@ def run_scheduler() -> None:
             )
         except Exception:
             logger.exception("poll_cycle_error")
+
+        if scheduler_settings.bulk_ingest_enabled:
+            try:
+                poll_all_filings(
+                    forms=scheduler_settings.bulk_ingest_forms,
+                    batch_size=scheduler_settings.bulk_ingest_batch_size,
+                )
+            except Exception:
+                logger.exception("bulk_poll_cycle_error")
 
         try:
             from symbology.scheduler.alerts import check_alerts

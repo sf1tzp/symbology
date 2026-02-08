@@ -126,6 +126,146 @@ def trigger_pipeline(ticker: str, forms: tuple):
         sys.exit(1)
 
 
+@pipeline.command("backfill")
+@click.option("--start-year", default=2021, type=int, help="Start year for backfill (default: 2021)")
+@click.option("--end-year", default=None, type=int, help="End year for backfill (default: current year)")
+@click.option("--forms", "-f", multiple=True, help="Form types (default: 10-K, 10-K/A, 10-Q, 10-Q/A, 8-K, 8-K/A)")
+@click.option("--batch-size", default=50, type=int, help="Filings per job (default: 50)")
+@click.option("--dry-run", is_flag=True, help="Show counts without creating jobs")
+@click.option("--include-documents/--no-documents", default=True, help="Ingest document text sections")
+def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_run: bool, include_documents: bool):
+    """Backfill EDGAR filings for a date range (no LLM)."""
+    from datetime import date
+
+    from symbology.ingestion.bulk_discovery import BULK_FORM_TYPES, discover_filings_by_date_range
+    from symbology.ingestion.edgar_db.accessors import edgar_login
+
+    try:
+        init_session()
+        edgar_login(settings.edgar_api.edgar_contact)
+
+        if end_year is None:
+            end_year = date.today().year
+        form_types = list(forms) if forms else BULK_FORM_TYPES
+
+        console.print(f"Backfill: {start_year} - {end_year}")
+        console.print(f"Forms: {', '.join(form_types)}")
+        console.print(f"Batch size: {batch_size}")
+        if dry_run:
+            console.print("[yellow]DRY RUN — no jobs will be created[/yellow]")
+        console.print()
+
+        total_filings = 0
+        total_jobs = 0
+
+        # Process quarter-by-quarter to manage memory
+        for year in range(start_year, end_year + 1):
+            quarters = [
+                (date(year, 1, 1), date(year, 3, 31)),
+                (date(year, 4, 1), date(year, 6, 30)),
+                (date(year, 7, 1), date(year, 9, 30)),
+                (date(year, 10, 1), date(year, 12, 31)),
+            ]
+            for q_idx, (q_start, q_end) in enumerate(quarters, 1):
+                # Skip future quarters
+                if q_start > date.today():
+                    break
+
+                # Clamp end date to today
+                actual_end = min(q_end, date.today())
+
+                console.print(f"  {year} Q{q_idx} ({q_start} to {actual_end})...", end=" ")
+                new_filings = discover_filings_by_date_range(q_start, actual_end, form_types)
+                console.print(f"[cyan]{len(new_filings)}[/cyan] new filings")
+
+                if new_filings and not dry_run:
+                    for i in range(0, len(new_filings), batch_size):
+                        batch = new_filings[i : i + batch_size]
+                        create_job(
+                            job_type=JobType.BULK_INGEST,
+                            params={"filings": batch, "include_documents": include_documents},
+                            priority=4,  # lowest — backfill shouldn't block ongoing work
+                        )
+                        total_jobs += 1
+
+                total_filings += len(new_filings)
+
+        console.print()
+        console.print(f"Total new filings: [cyan]{total_filings}[/cyan]")
+        if dry_run:
+            estimated_jobs = (total_filings + batch_size - 1) // batch_size if total_filings else 0
+            console.print(f"Would create: [cyan]{estimated_jobs}[/cyan] BULK_INGEST jobs")
+        else:
+            console.print(f"Created: [green]{total_jobs}[/green] BULK_INGEST jobs")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Backfill failed")
+        sys.exit(1)
+
+
+@pipeline.command("enrich-companies")
+@click.option("--limit", default=100, type=int, help="Max companies to enrich per run")
+def enrich_companies(limit: int):
+    """Resolve real tickers for companies with CIK placeholder tickers."""
+    from edgar import Company as EdgarCompany
+
+    from symbology.database.companies import update_company
+    from symbology.ingestion.edgar_db.accessors import edgar_login
+
+    try:
+        init_session()
+        edgar_login(settings.edgar_api.edgar_contact)
+
+        session = get_db_session()
+        from symbology.database.companies import Company
+        placeholder_companies = (
+            session.query(Company)
+            .filter(Company.ticker.like("CIK%"))
+            .limit(limit)
+            .all()
+        )
+
+        if not placeholder_companies:
+            console.print("[green]No placeholder companies to enrich[/green]")
+            return
+
+        console.print(f"Found [cyan]{len(placeholder_companies)}[/cyan] companies with CIK placeholders")
+
+        enriched = 0
+        failed = 0
+
+        for company in placeholder_companies:
+            try:
+                edgar_company = EdgarCompany(company.cik)
+                ticker = edgar_company.get_ticker()
+                if ticker and not ticker.startswith("CIK"):
+                    update_data = {
+                        "ticker": ticker,
+                        "display_name": edgar_company.data.display_name if hasattr(edgar_company.data, "display_name") else None,
+                        "exchanges": edgar_company.get_exchanges(),
+                        "sic": edgar_company.data.sic if hasattr(edgar_company.data, "sic") else None,
+                        "sic_description": edgar_company.data.sic_description if hasattr(edgar_company.data, "sic_description") else None,
+                    }
+                    # Remove None values to avoid overwriting existing data
+                    update_data = {k: v for k, v in update_data.items() if v is not None}
+                    update_company(company.id, update_data)
+                    enriched += 1
+                    console.print(f"  [green]{company.name}[/green]: CIK{company.cik} -> {ticker}")
+                else:
+                    console.print(f"  [yellow]{company.name}[/yellow]: no ticker resolved")
+            except Exception as e:
+                failed += 1
+                console.print(f"  [red]{company.name}[/red]: {e}")
+
+        console.print(f"\nEnriched: [green]{enriched}[/green], Failed: [red]{failed}[/red]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Enrich companies failed")
+        sys.exit(1)
+
+
 @pipeline.command("runs")
 @click.option("--status", "status_filter",
               type=click.Choice([s.value for s in PipelineRunStatus], case_sensitive=False),

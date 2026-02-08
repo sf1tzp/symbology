@@ -1,11 +1,11 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 from edgar import Company, Filing
 import pandas as pd
-from symbology.database.companies import create_company, get_company, get_company_by_ticker, update_company
+from symbology.database.companies import create_company, get_company, get_company_by_cik, get_company_by_ticker, update_company
 from symbology.database.documents import DocumentType, find_or_create_document
 from symbology.database.filings import upsert_filing_by_accession_number
 from symbology.database.financial_concepts import find_or_create_financial_concept
@@ -63,6 +63,7 @@ def ingest_company(ticker: str) -> Tuple[Company, UUID]:
             'name': entity_data.name,
             'display_name': entity_data.display_name,
             'ticker': edgar_company.get_ticker(),
+            'cik': str(edgar_company.cik),
             'exchanges': edgar_company.get_exchanges(),
             'sic': entity_data.sic,
             'sic_description': entity_data.sic_description,
@@ -92,8 +93,10 @@ def ingest_company(ticker: str) -> Tuple[Company, UUID]:
         else:
             company_data['fiscal_year_end'] = None
 
-        # Store in database
+        # Store in database — look up by ticker first, then CIK fallback
         db_company = get_company_by_ticker(ticker)
+        if db_company is None and company_data.get('cik'):
+            db_company = get_company_by_cik(company_data['cik'])
         if db_company is not None:
             db_company = update_company(db_company.id, company_data)
         else:
@@ -485,4 +488,91 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                     filing_id=str(filing_id),
                     error=str(e),
                     exc_info=True)
+        raise
+
+
+def ingest_single_filing(
+    company_id: UUID,
+    accession_number: str,
+    include_documents: bool = True,
+) -> Optional[UUID]:
+    """Ingest a single filing by accession number without triggering LLM.
+
+    Fetches the filing from EDGAR, stores metadata, documents, and financial data.
+    Designed for bulk ingestion where the company already exists in the DB.
+
+    Args:
+        company_id: UUID of the company in the database.
+        accession_number: EDGAR accession number of the filing.
+        include_documents: Whether to ingest document text sections.
+
+    Returns:
+        The filing UUID if successful, None if the filing couldn't be fetched.
+    """
+    from edgar import find
+
+    try:
+        edgar_filing = find(accession_number)
+        if edgar_filing is None:
+            logger.warning("ingest_single_filing_not_found", accession_number=accession_number)
+            return None
+
+        # Upsert filing metadata
+        filing_data = {
+            "company_id": company_id,
+            "accession_number": edgar_filing.accession_number,
+            "form": edgar_filing.form,
+            "filing_date": edgar_filing.filing_date,
+            "period_of_report": edgar_filing.period_of_report,
+            "url": edgar_filing.url,
+        }
+        db_filing = upsert_filing_by_accession_number(filing_data)
+
+        # Ingest document text sections (graceful skip for forms without section mappings)
+        if include_documents:
+            try:
+                ingest_filing_documents(
+                    company_id=company_id,
+                    filing_id=db_filing.id,
+                    filing=edgar_filing,
+                )
+            except Exception:
+                logger.warning(
+                    "ingest_single_filing_documents_skipped",
+                    accession_number=accession_number,
+                    form=edgar_filing.form,
+                    exc_info=True,
+                )
+
+        # Ingest XBRL financial data (graceful failure for filings without XBRL)
+        try:
+            ingest_financial_data(
+                company_id=company_id,
+                filing_id=db_filing.id,
+                filing=edgar_filing,
+            )
+        except Exception:
+            logger.warning(
+                "ingest_single_filing_financials_skipped",
+                accession_number=accession_number,
+                form=edgar_filing.form,
+                exc_info=True,
+            )
+
+        logger.info(
+            "ingest_single_filing_done",
+            accession_number=accession_number,
+            filing_id=str(db_filing.id),
+            company_id=str(company_id),
+        )
+        return db_filing.id
+
+    except Exception as e:
+        logger.error(
+            "ingest_single_filing_failed",
+            accession_number=accession_number,
+            company_id=str(company_id),
+            error=str(e),
+            exc_info=True,
+        )
         raise

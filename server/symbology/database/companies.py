@@ -37,6 +37,7 @@ class Company(Base):
     ticker: Mapped[str] = mapped_column(String(10))
     exchanges: Mapped[List[str]] = mapped_column(ARRAY(String), default=list)
     sic: Mapped[Optional[str]] = mapped_column(String(4), index=True)
+    cik: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True)
     sic_description: Mapped[Optional[str]] = mapped_column(String(255))
     fiscal_year_end: Mapped[Optional[date]] = mapped_column(Date)
     former_names: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
@@ -189,6 +190,28 @@ def delete_company(company_id: Union[UUID, str]) -> bool:
     except Exception as e:
         session.rollback()
         logger.error("delete_company_failed", company_id=str(company_id), error=str(e), exc_info=True)
+        raise
+
+
+def get_company_by_cik(cik: str) -> Optional[Company]:
+    """Get a company by its CIK number.
+
+    Args:
+        cik: Central Index Key of the company
+
+    Returns:
+        Company object if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+        company = session.query(Company).filter(Company.cik == cik).first()
+        if company:
+            logger.info("retrieved_company_by_cik", company=company.name, cik=cik)
+        else:
+            logger.debug("company_by_cik_not_found", cik=cik)
+        return company
+    except Exception as e:
+        logger.error("get_company_by_cik_failed", cik=cik, error=str(e), exc_info=True)
         raise
 
 

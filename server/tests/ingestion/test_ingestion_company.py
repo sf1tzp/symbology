@@ -29,6 +29,7 @@ def test_ingest_company_happy_path():
 
     with mock.patch('symbology.ingestion.ingestion_helpers.Company', return_value=mock_edgar_company), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_company_by_ticker', return_value=None), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_company_by_cik', return_value=None), \
          mock.patch('symbology.ingestion.ingestion_helpers.create_company', return_value=mock_db_company) as mock_create, \
          mock.patch('symbology.ingestion.ingestion_helpers.logger') as mock_logger:
 
@@ -43,6 +44,7 @@ def test_ingest_company_happy_path():
         assert company_data['name'] == 'Test Company Inc.'
         assert company_data['display_name'] == 'TEST COMPANY INC.'
         assert company_data['ticker'] == 'TEST'
+        assert company_data['cik'] is not None
         assert company_data['exchanges'] == ['NYSE']
         assert company_data['sic'] == '7370'
         assert company_data['sic_description'] == 'Technology Services'
@@ -83,6 +85,7 @@ def test_ingest_company_invalid_fiscal_year_format():
 
     with mock.patch('symbology.ingestion.ingestion_helpers.Company', return_value=mock_edgar_company), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_company_by_ticker', return_value=None), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_company_by_cik', return_value=None), \
          mock.patch('symbology.ingestion.ingestion_helpers.create_company', return_value=mock_db_company) as mock_create, \
          mock.patch('symbology.ingestion.ingestion_helpers.logger') as mock_logger:
 
@@ -122,6 +125,7 @@ def test_ingest_company_missing_optional_fields():
 
     with mock.patch('symbology.ingestion.ingestion_helpers.Company', return_value=mock_edgar_company), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_company_by_ticker', return_value=None), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_company_by_cik', return_value=None), \
          mock.patch('symbology.ingestion.ingestion_helpers.create_company', return_value=mock_db_company) as mock_create:
 
         edgar_company, company_id = ingest_company('TEST')

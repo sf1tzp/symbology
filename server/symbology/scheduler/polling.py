@@ -132,3 +132,49 @@ def poll_all_companies(
 
     logger.info("poll_cycle_done", jobs_enqueued=jobs_enqueued)
     return jobs_enqueued
+
+
+def poll_all_filings(
+    forms: List[str],
+    batch_size: int = 50,
+) -> int:
+    """Poll EDGAR's current filings feed for ALL new filings and enqueue BULK_INGEST jobs.
+
+    Unlike poll_all_companies() which only checks tracked companies, this discovers
+    filings from any company on EDGAR.
+
+    Args:
+        forms: Form types to discover.
+        batch_size: Number of filings per BULK_INGEST job.
+
+    Returns:
+        Number of new filings discovered.
+    """
+    from symbology.ingestion.bulk_discovery import discover_current_filings
+
+    _init_edgar()
+
+    logger.info("bulk_poll_cycle_start", forms=forms)
+    new_filings = discover_current_filings(form_types=forms)
+
+    if not new_filings:
+        logger.info("bulk_poll_cycle_done", new_filings=0, jobs_enqueued=0)
+        return 0
+
+    # Batch filings into BULK_INGEST jobs
+    jobs_enqueued = 0
+    for i in range(0, len(new_filings), batch_size):
+        batch = new_filings[i : i + batch_size]
+        create_job(
+            job_type=JobType.BULK_INGEST,
+            params={"filings": batch},
+            priority=3,  # lower priority than tracked-company jobs (priority 2)
+        )
+        jobs_enqueued += 1
+
+    logger.info(
+        "bulk_poll_cycle_done",
+        new_filings=len(new_filings),
+        jobs_enqueued=jobs_enqueued,
+    )
+    return len(new_filings)

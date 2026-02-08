@@ -31,6 +31,7 @@ class JobType(str, Enum):
     CONTENT_GENERATION = "content_generation"
     INGEST_PIPELINE = "ingest_pipeline"
     FULL_PIPELINE = "full_pipeline"
+    BULK_INGEST = "bulk_ingest"
     TEST = "test"
 
 

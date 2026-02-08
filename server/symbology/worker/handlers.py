@@ -203,6 +203,61 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     }
 
 
+@register_handler(JobType.BULK_INGEST)
+def handle_bulk_ingest(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Ingest a batch of filings without LLM processing.
+
+    params:
+        filings (list[dict], required): List of filing dicts, each with:
+            - cik (str): Company CIK number
+            - company_name (str): Company name from EDGAR
+            - accession_number (str): Filing accession number
+            - form (str): Form type (10-K, 10-Q, 8-K, etc.)
+        include_documents (bool): Whether to ingest document sections (default True).
+    """
+    from symbology.ingestion.bulk_discovery import get_or_create_company_from_filing
+    from symbology.ingestion.edgar_db.accessors import edgar_login
+    from symbology.ingestion.ingestion_helpers import ingest_single_filing
+    from symbology.utils.config import settings
+
+    edgar_login(settings.edgar_api.edgar_contact)
+
+    filings = params["filings"]
+    include_documents = params.get("include_documents", True)
+    ingested = 0
+    skipped = 0
+    failed = 0
+
+    for filing_info in filings:
+        accession = filing_info["accession_number"]
+        try:
+            company = get_or_create_company_from_filing(
+                cik=filing_info["cik"],
+                company_name=filing_info["company_name"],
+            )
+            filing_id = ingest_single_filing(
+                company_id=company.id,
+                accession_number=accession,
+                include_documents=include_documents,
+            )
+            if filing_id:
+                ingested += 1
+            else:
+                skipped += 1
+        except Exception:
+            failed += 1
+            logger.exception("bulk_ingest_filing_failed", accession_number=accession)
+
+    logger.info(
+        "handle_bulk_ingest_done",
+        ingested=ingested,
+        skipped=skipped,
+        failed=failed,
+        total=len(filings),
+    )
+    return {"ingested": ingested, "skipped": skipped, "failed": failed}
+
+
 @register_handler(JobType.INGEST_PIPELINE)
 def handle_ingest_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Full ingestion pipeline: company -> filings -> (optional content generation).

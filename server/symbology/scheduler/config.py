@@ -27,7 +27,7 @@ class SchedulerSettings(BaseSettings):
         description="Enable polling for ALL new EDGAR filings (not just tracked companies)",
     )
     bulk_ingest_forms: List[str] = Field(
-        default=["10-K", "10-K/A", "10-Q", "10-Q/A", "8-K", "8-K/A"],
+        default=["10-K", "10-K/A", "10-Q", "10-Q/A"],
         description="Form types to discover in bulk ingestion",
     )
     bulk_ingest_batch_size: int = Field(

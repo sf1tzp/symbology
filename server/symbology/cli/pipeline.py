@@ -129,7 +129,7 @@ def trigger_pipeline(ticker: str, forms: tuple):
 @pipeline.command("backfill")
 @click.option("--start-year", default=2021, type=int, help="Start year for backfill (default: 2021)")
 @click.option("--end-year", default=None, type=int, help="End year for backfill (default: current year)")
-@click.option("--forms", "-f", multiple=True, help="Form types (default: 10-K, 10-K/A, 10-Q, 10-Q/A, 8-K, 8-K/A)")
+@click.option("--forms", "-f", multiple=True, help="Form types (default: 10-K, 10-K/A, 10-Q, 10-Q/A)")
 @click.option("--batch-size", default=50, type=int, help="Filings per job (default: 50)")
 @click.option("--dry-run", is_flag=True, help="Show counts without creating jobs")
 @click.option("--include-documents/--no-documents", default=True, help="Ingest document text sections")

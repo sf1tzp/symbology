@@ -433,7 +433,11 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                                   concept=concept_name,
                                   value=str(value_str))
 
-        cover_df = get_cover_page_values(filing)
+        try:
+            cover_df = get_cover_page_values(filing)
+        except Exception:
+            logger.info("cover_page_not_available", filing_id=str(filing_id))
+            cover_df = pd.DataFrame()
         for _index, row in cover_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None

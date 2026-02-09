@@ -386,6 +386,9 @@ def get_cover_page_values(filing: Filing) -> pd.DataFrame:
         # Rename the date column to filing.period_of_report
         df = df.rename(columns={date_columns[0]: filing.period_of_report})
 
+        # Drop duplicate columns (some cover pages have repeated date columns)
+        df = df.loc[:, ~df.columns.duplicated()]
+
         # Remove rows where the date column is empty or NA
         df = df[df[filing.period_of_report].notna() & (df[filing.period_of_report] != '')]
 

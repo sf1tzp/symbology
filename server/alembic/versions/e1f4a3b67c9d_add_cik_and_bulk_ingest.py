@@ -24,7 +24,7 @@ def upgrade() -> None:
     op.create_unique_constraint('uq_companies_cik', 'companies', ['cik'])
     op.create_index('ix_companies_cik', 'companies', ['cik'])
 
-    op.execute("ALTER TYPE job_type_enum ADD VALUE IF NOT EXISTS 'bulk_ingest'")
+    op.execute("ALTER TYPE job_type_enum ADD VALUE IF NOT EXISTS 'BULK_INGEST'")
 
 
 def downgrade() -> None:

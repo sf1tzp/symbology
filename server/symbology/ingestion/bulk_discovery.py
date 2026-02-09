@@ -3,14 +3,14 @@ from datetime import date
 from typing import Dict, List, Optional, Set
 
 from symbology.database.base import get_db_session
-from symbology.database.companies import Company, create_company, get_company_by_cik
+from symbology.database.companies import Company, create_company, get_company_by_cik, update_company
 from symbology.database.filings import Filing
 from symbology.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 # Form types including amendments
-BULK_FORM_TYPES = ["10-K", "10-K/A", "10-Q", "10-Q/A", "8-K", "8-K/A"]
+BULK_FORM_TYPES = ["10-K", "10-K/A", "10-Q", "10-Q/A"]
 
 
 def get_known_accession_numbers(form_types: Optional[List[str]] = None) -> Set[str]:
@@ -136,10 +136,11 @@ def discover_current_filings(
 
 
 def get_or_create_company_from_filing(cik: str, company_name: str) -> Company:
-    """Look up a company by CIK, creating a minimal record if not found.
+    """Look up a company by CIK, creating a full record if not found.
 
-    New companies get a placeholder ticker of CIK{cik_padded} (e.g. CIK0000012345)
-    which can be enriched later with the real ticker.
+    When creating, fetches entity data from EDGAR to populate ticker, SIC,
+    exchanges, etc.  Falls back to a minimal record with a CIK{cik}
+    placeholder ticker if the EDGAR lookup fails.
 
     Args:
         cik: Central Index Key from EDGAR.
@@ -150,23 +151,76 @@ def get_or_create_company_from_filing(cik: str, company_name: str) -> Company:
     """
     existing = get_company_by_cik(cik)
     if existing:
+        # Enrich placeholder companies (missing SIC) with full EDGAR entity data
+        if not existing.sic:
+            enriched = _fetch_edgar_entity_data(cik, company_name)
+            if enriched.get("sic"):
+                updated = update_company(existing.id, enriched)
+                if updated:
+                    logger.info("enriched_placeholder_company", cik=cik, ticker=enriched.get("ticker"), sic=enriched.get("sic"))
+                    return updated
         return existing
 
-    # Create minimal company record with placeholder ticker
-    padded_cik = cik.zfill(10)
-    placeholder_ticker = f"CIK{padded_cik}"
+    # Fetch full EDGAR entity data (provides ticker, SIC, exchanges, etc.)
+    company_data = _fetch_edgar_entity_data(cik, company_name)
 
-    company = create_company({
-        "name": company_name,
-        "ticker": placeholder_ticker,
-        "cik": cik,
-        "exchanges": [],
-    })
+    company = create_company(company_data)
     logger.info(
-        "created_placeholder_company",
+        "created_company_from_filing",
         cik=cik,
         company_name=company_name,
-        placeholder_ticker=placeholder_ticker,
+        ticker=company_data["ticker"],
+        sic=company_data.get("sic"),
         company_id=str(company.id),
     )
     return company
+
+
+def _fetch_edgar_entity_data(cik: str, fallback_name: str) -> Dict:
+    """Fetch full entity data from EDGAR by CIK, falling back to minimal record.
+
+    Returns:
+        Dict suitable for create_company().
+    """
+    from datetime import date as date_cls
+
+    try:
+        import edgar as edgarlib
+
+        entity = edgarlib.Company(int(cik))
+        data = entity.data
+        ticker = entity.get_ticker()
+
+        # Truncate ticker to 10 chars (DB column limit)
+        if ticker and len(ticker) > 10:
+            ticker = f"CIK{cik}"
+
+        company_data: Dict = {
+            "name": data.name or fallback_name,
+            "display_name": data.display_name,
+            "ticker": ticker or f"CIK{cik}",
+            "cik": cik,
+            "exchanges": entity.get_exchanges() or [],
+            "sic": data.sic,
+            "sic_description": data.sic_description,
+            "former_names": data.former_names if hasattr(data, "former_names") else [],
+        }
+
+        # Parse fiscal_year_end from MMDD string
+        fye = getattr(entity, "fiscal_year_end", None)
+        if isinstance(fye, str) and len(fye) == 4:
+            try:
+                month, day = int(fye[:2]), int(fye[2:])
+                company_data["fiscal_year_end"] = date_cls(date_cls.today().year, month, day)
+            except (ValueError, TypeError):
+                pass
+
+        return company_data
+    except Exception:
+        logger.debug("edgar_entity_lookup_failed", cik=cik, exc_info=True)
+        return {
+            "name": fallback_name,
+            "ticker": f"CIK{cik}",
+            "cik": cik,
+            "exchanges": [],
+        }

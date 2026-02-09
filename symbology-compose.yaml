@@ -20,7 +20,7 @@ services:
     restart: always
     environment:
       SYMBOLOGY_API_HOST: 0.0.0.0 # may not be necessary with our caddy config
-      SYMBOLOGY_API_PORT: 2501
+      SYMBOLOGY_API_PORT: 3001
       DATABASE_HOST: ${DATABASE_HOST:-localhost}
     ports:
       - 5556:3001

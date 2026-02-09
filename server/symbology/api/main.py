@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from symbology.database.base import db_session, init_db
+from symbology.database import base as db_base
+from symbology.database.base import init_db
 from symbology.utils.config import settings
 from symbology.utils.logging import configure_logging, get_logger, get_uvicorn_log_config
 import uvicorn
@@ -27,8 +28,8 @@ class DBSessionMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
         finally:
-            if db_session is not None:
-                db_session.remove()
+            if db_base.db_session is not None:
+                db_base.db_session.remove()
 
 
 def create_app() -> FastAPI:
@@ -103,9 +104,9 @@ def create_app() -> FastAPI:
                     path=request.url.path,
                     method=request.method)
         # Rollback the session so it's not left in a failed transaction state
-        if db_session is not None:
+        if db_base.db_session is not None:
             try:
-                db_session.rollback()
+                db_base.db_session.rollback()
             except Exception:
                 pass
         return JSONResponse(

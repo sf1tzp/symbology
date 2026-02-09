@@ -1,0 +1,56 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2148,SC2035,SC1083
+
+set dotenv-load
+
+_create_venv:
+    #!/usr/bin/env bash
+    if [[ ! -d .venv ]]; then
+        echo "_create_venv at $(pwd)"
+        uv venv -p 3.13 .venv
+        uv pip install -r requirements.lock
+    fi
+
+deps:
+    uv pip compile pyproject.toml -o requirements.lock
+    uv pip install -e .[dev,test]
+
+run *ARGS: _create_venv
+    uv run -m symbology.api.main {{ARGS}}
+
+cli *ARGS: _create_venv
+    uv run -m symbology.cli.main {{ARGS}}
+
+# Unit tests (no DB required). For integration tests: just test -m integration
+test *ARGS: _create_venv
+    uv run -m pytest \
+      --cov=symbology.api \
+      --cov=symbology.database \
+      --cov=symbology.ingestion \
+      --cov=symbology.llm \
+      --cov=symbology.worker \
+      --cov=symbology.scheduler \
+      tests/ {{ARGS}} | tee test.log
+
+# Database migrations (alembic)
+migrate *ARGS: _create_venv
+    uv run alembic upgrade head {{ARGS}}
+
+migration-create message: _create_venv
+    uv run alembic revision --autogenerate -m "{{message}}"
+
+migration-status: _create_venv
+    uv run alembic current
+
+worker *ARGS: _create_venv
+    uv run -m symbology.worker.main {{ARGS}}
+
+scheduler *ARGS: _create_venv
+    uv run -m symbology.scheduler.main {{ARGS}}
+
+lint *FLAGS: # lint --fix
+    ruff check {{FLAGS}} | tee lint.log
+
+build:
+    nerdctl build -t symbology-api:latest .
+    nerdctl save symbology-api:latest -o symbology-api-latest.tar

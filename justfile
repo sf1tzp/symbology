@@ -1,38 +1,34 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2035,SC2050,SC2148,SC1083,SC2164
-# set dotenv-load
 
 set dotenv-load
 
-# Development resources
-run component *ARGS:
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    uv run -m src.api.main {{ARGS}}
+# Run components
+run-api *ARGS:
+    just -d server -f server/justfile run {{ARGS}}
 
-  elif [[ "{{component}}" == "cli" ]]; then
-    uv run -m src.cli.main {{ARGS}}
+cli *ARGS:
+    just -d server -f server/justfile cli {{ARGS}}
 
-  elif [[ "{{component}}" == "ui" ]]; then
+run-worker *ARGS:
+    just -d server -f server/justfile worker {{ARGS}}
+
+run-scheduler *ARGS:
+    just -d server -f server/justfile scheduler {{ARGS}}
+
+run-pipeline-trigger *ARGS:
+    just -d server -f server/justfile cli pipeline trigger {{ARGS}}
+
+run-ui *ARGS:
     just -d ui -f ui/justfile up {{ARGS}}
 
-  elif [[ "{{component}}" == "db" ]]; then
+run-db:
     just -d infra -f infra/justfile up
 
-  else
-    echo "Error: Unknown component '{{component}}'" && exit 1
-  fi
-
-test component *ARGS:
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    just -d . -f src/justfile test {{ARGS}}
-
-  elif [[ "{{component}}" == "ui" ]]; then
-    echo "no testing for ui yet"
-  else
-    echo "Error: Unknown component '{{component}}'" && exit 1
-  fi
+# Testing
+# just test -m integration (run database tests, requires db availability)
+test *ARGS:
+    just -d server -f server/justfile test {{ARGS}}
 
 # j benchmark production https://symbology.online
 # j benchmark staging 10.0.0.21 --insecure-skip-tls-verify
@@ -40,36 +36,26 @@ benchmark environment TARGET *ARGS:
   #!/usr/bin/env bash
   k6 run --env TARGET={{TARGET}} {{ARGS}} infra/testing/smoke.{{environment}}.ts
 
+# Linting
+lint-api *ARGS:
+    just -d server -f server/justfile lint {{ARGS}}
 
-lint component *ARGS:
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    just -d src -f src/justfile lint {{ARGS}}
-  elif [[ "{{component}}" == "ui" ]]; then
+lint-ui *ARGS:
     just -d ui -f ui/justfile lint {{ARGS}}
-  else
-    echo "Error: Unknown component '{{component}}'"
-    exit 1
-  fi
 
+# Dependencies
+deps-api:
+    just -d server -f server/justfile deps
 
-deps component *ARGS:
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    just -d src -f src/justfile deps
-  elif [[ "{{component}}" == "ui" ]]; then
+deps-ui:
     just -d ui -f ui/justfile deps
-  else
-    echo "Error: Unknown component '{{component}}'"
-    exit 1
-  fi
 
 _generate-api-types:
-  just -d ui -f ui/justfile generate-api-types
+    just -d ui -f ui/justfile generate-api-types
 
 build:
-  just -f ui/justfile build
-  just -f src/justfile build
+    just -f ui/justfile build
+    just -f server/justfile build
 
 deploy HOST:
     #!/usr/bin/env bash
@@ -79,7 +65,7 @@ deploy HOST:
     scp Caddyfile {{HOST}}:~/caddyfiles/symbology.caddy
     scp symbology-compose.yaml {{HOST}}:~/symbology-compose.yaml
     scp ui/symbology-ui-latest.tar {{HOST}}:~/images/symbology-ui-latest.tar
-    scp src/symbology-api-latest.tar {{HOST}}:~/images/symbology-api-latest.tar
+    scp server/symbology-api-latest.tar {{HOST}}:~/images/symbology-api-latest.tar
     ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-ui-latest.tar"
     ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-api-latest.tar"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
@@ -88,4 +74,3 @@ deploy HOST:
 bounce HOST:
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/symbology/.env"
-

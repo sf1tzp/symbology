@@ -4,13 +4,13 @@ services:
     container_name: symbology-ui
     restart: always
     environment:
-      - PUBLIC_SYMBOLOGY_API_HOST=api.symbology.online
+      - PUBLIC_SYMBOLOGY_API_HOST=api.symbology.staging.lofi
       - PUBLIC_LOG_LEVEL=INFO
       - PUBLIC_ENVIRONMENT=production
     # # these were previously passed in at build time and may no longer be necessary
     #   - SYMBOLOGY_API_PORT="443"
     ports:
-      - 3000:3000
+      - 5555:3000
     networks:
       - caddy_network
 
@@ -22,8 +22,36 @@ services:
       SYMBOLOGY_API_HOST: 0.0.0.0 # may not be necessary with our caddy config
       SYMBOLOGY_API_PORT: 3001
       DATABASE_HOST: ${DATABASE_HOST:-localhost}
+    ports:
+      - 5556:3001
     networks:
       - caddy_network
+
+  # symbology-worker:
+  #   image: symbology-api
+  #   container_name: symbology-worker
+  #   restart: always
+  #   command: ["python", "-m", "symbology.worker.main"]
+  #   environment:
+  #     DATABASE_HOST: ${DATABASE_HOST:-localhost}
+  #     WORKER_POLL_INTERVAL: ${WORKER_POLL_INTERVAL:-2.0}
+  #     WORKER_STALE_THRESHOLD: ${WORKER_STALE_THRESHOLD:-600}
+  #     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+  #   networks:
+  #     - caddy_network
+
+  # symbology-scheduler:
+  #   image: symbology-api
+  #   container_name: symbology-scheduler
+  #   restart: always
+  #   command: ["python", "-m", "symbology.scheduler.main"]
+  #   environment:
+  #     DATABASE_HOST: ${DATABASE_HOST:-localhost}
+  #     SCHEDULER_POLL_INTERVAL: ${SCHEDULER_POLL_INTERVAL:-21600}
+  #     SCHEDULER_ALERT_WEBHOOK_URL: ${SCHEDULER_ALERT_WEBHOOK_URL:-}
+  #     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+  #   networks:
+  #     - caddy_network
 
 networks:
   caddy_network:

@@ -99,11 +99,25 @@ def job_status(job_id: str):
 
 @jobs.command("list")
 @click.option("--status", "status_filter", type=click.Choice([s.value for s in JobStatus], case_sensitive=False), help="Filter by status")
+@click.option("--running", "shortcut_running", is_flag=True, help="Show only in-progress jobs")
+@click.option("--pending", "shortcut_pending", is_flag=True, help="Show only pending jobs")
+@click.option("--failed", "shortcut_failed", is_flag=True, help="Show only failed jobs")
+@click.option("--completed", "shortcut_completed", is_flag=True, help="Show only completed jobs")
 @click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="Filter by job type")
 @click.option("--limit", default=20, help="Maximum number of jobs to show")
-def list_jobs_cmd(status_filter: str, type_filter: str, limit: int):
+def list_jobs_cmd(status_filter: str, type_filter: str, limit: int, shortcut_running: bool, shortcut_pending: bool, shortcut_failed: bool, shortcut_completed: bool):
     """List jobs in the queue."""
     try:
+        # Resolve status from shortcut flags (last one wins if multiple given)
+        if shortcut_running:
+            status_filter = JobStatus.IN_PROGRESS.value
+        elif shortcut_pending:
+            status_filter = JobStatus.PENDING.value
+        elif shortcut_failed:
+            status_filter = JobStatus.FAILED.value
+        elif shortcut_completed:
+            status_filter = JobStatus.COMPLETED.value
+
         init_session()
         js = JobStatus(status_filter) if status_filter else None
         jt = JobType(type_filter) if type_filter else None
@@ -113,6 +127,9 @@ def list_jobs_cmd(status_filter: str, type_filter: str, limit: int):
             console.print("[yellow]No jobs found[/yellow]")
             return
 
+        def fmt_ts(ts):
+            return str(ts)[:19] if ts else "-"
+
         table = Table(title="Jobs")
         table.add_column("ID", style="dim", max_width=12)
         table.add_column("Type", style="cyan")
@@ -120,6 +137,8 @@ def list_jobs_cmd(status_filter: str, type_filter: str, limit: int):
         table.add_column("Priority")
         table.add_column("Retries")
         table.add_column("Created")
+        table.add_column("Started")
+        table.add_column("Completed")
 
         for job in job_list:
             status_style = {
@@ -136,7 +155,9 @@ def list_jobs_cmd(status_filter: str, type_filter: str, limit: int):
                 f"[{status_style}]{job.status.value}[/{status_style}]",
                 str(job.priority),
                 f"{job.retry_count}/{job.max_retries}",
-                str(job.created_at)[:19] if job.created_at else "-",
+                fmt_ts(job.created_at),
+                fmt_ts(job.started_at),
+                fmt_ts(job.completed_at),
             )
 
         console.print(table)

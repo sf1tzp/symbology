@@ -16,7 +16,7 @@
 		/>
 		<h1 class="m-0 text-center text-2xl font-bold tracking-wide text-primary">symbology.online</h1>
 		<p class="justify-center text-center text-sm text-muted-foreground">
-			Explore LLM-generated insights from public SEC filings
+			AI-powered analysis of public SEC filings
 		</p>
 	</div>
 </header>
@@ -31,7 +31,7 @@
 		<div class="flex flex-col">
 			<h1 class="text-6xl font-bold tracking-wide text-primary">symbology.online</h1>
 			<p class="text-center text-sm text-muted-foreground">
-				Explore LLM-generated insights from public SEC filings
+				AI-powered analysis of public SEC filings
 			</p>
 		</div>
 	</div>

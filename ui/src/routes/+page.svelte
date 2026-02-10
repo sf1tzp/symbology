@@ -4,13 +4,13 @@
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 
 	let introContent = `
-## [Investment Research](https://www.investor.gov/introduction-investing/getting-started/researching-investments) for the modern era.
+## [Investment Research](https://www.investor.gov/introduction-investing/getting-started/researching-investments), intelligently automated.
 
-Leverage LLMs to read the forms so you don't have to. With thoughtful prompt techniques, compare years of filing, identify changes and get _trustworthy*_ read-outs on Company status.
+Every quarter, thousands of public companies file detailed reports with the SEC. The insights are there — buried in thousands of pages of dense, unstructured text.
 
-_*LLMs still generate gibberish despite our best efforts. Please [report](https://github.com/sf1tzp/symbology/issues) low quality content [here](https://github.com/sf1tzp/symbology/issues)._
+Symbology uses large language models to read, distill, and compare these filings over time — so you can focus on what actually changed.
 
-This site is a work in progress. Please check out the [F.A.Q.](https://symbology.online/faq) and [code](https://github.com/sf1tzp/symbology/) for more details.
+Learn more in the [FAQ](/faq) or explore the [source code](https://github.com/sf1tzp/symbology/).
 `;
 </script>
 

@@ -133,16 +133,41 @@ def trigger_pipeline(ticker: str, forms: tuple):
 @click.option("--batch-size", default=50, type=int, help="Filings per job (default: 50)")
 @click.option("--dry-run", is_flag=True, help="Show counts without creating jobs")
 @click.option("--include-documents/--no-documents", default=True, help="Ingest document text sections")
-def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_run: bool, include_documents: bool):
+@click.option("--sp500", is_flag=True, help="Limit to S&P 500 companies")
+@click.option("--ciks-file", type=click.Path(exists=True), help="CSV file with Cik column to filter by")
+@click.option("--group", "group_slug", default=None, help="Company group slug to filter by")
+def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_run: bool, include_documents: bool, sp500: bool, ciks_file: str, group_slug: str):
     """Backfill EDGAR filings for a date range (no LLM)."""
     from datetime import date
 
-    from symbology.ingestion.bulk_discovery import BULK_FORM_TYPES, discover_filings_by_date_range
+    from symbology.ingestion.bulk_discovery import BULK_FORM_TYPES, discover_filings_by_date_range, get_sp500_ciks, load_ciks_from_csv
     from symbology.ingestion.edgar_db.accessors import edgar_login
 
     try:
         init_session()
         edgar_login(settings.edgar_api.edgar_contact)
+
+        # Resolve CIK filter (mutually exclusive)
+        filter_flags = sum([sp500, bool(ciks_file), bool(group_slug)])
+        if filter_flags > 1:
+            console.print("[red]Error: --sp500, --ciks-file, and --group are mutually exclusive[/red]")
+            sys.exit(1)
+
+        allowed_ciks = None
+        if sp500:
+            allowed_ciks = get_sp500_ciks()
+            console.print(f"Filter: [green]S&P 500[/green] ({len(allowed_ciks)} CIKs)")
+        elif ciks_file:
+            allowed_ciks = load_ciks_from_csv(ciks_file)
+            console.print(f"Filter: [green]{ciks_file}[/green] ({len(allowed_ciks)} CIKs)")
+        elif group_slug:
+            from symbology.database.company_groups import get_company_group_by_slug
+            grp = get_company_group_by_slug(group_slug)
+            if not grp:
+                console.print(f"[red]Group not found: {group_slug}[/red]")
+                sys.exit(1)
+            allowed_ciks = {c.cik for c in grp.companies if c.cik}
+            console.print(f"Filter: [green]{grp.name}[/green] ({len(allowed_ciks)} CIKs)")
 
         if end_year is None:
             end_year = date.today().year
@@ -175,7 +200,7 @@ def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_
                 actual_end = min(q_end, date.today())
 
                 console.print(f"  {year} Q{q_idx} ({q_start} to {actual_end})...", end=" ")
-                new_filings = discover_filings_by_date_range(q_start, actual_end, form_types)
+                new_filings = discover_filings_by_date_range(q_start, actual_end, form_types, allowed_ciks=allowed_ciks)
                 console.print(f"[cyan]{len(new_filings)}[/cyan] new filings")
 
                 if new_filings and not dry_run:

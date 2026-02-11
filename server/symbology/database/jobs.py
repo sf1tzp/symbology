@@ -249,6 +249,64 @@ def fail_job(job_id: Union[UUID, str], error: str) -> Optional[Job]:
         raise
 
 
+def count_jobs_by_status(status: JobStatus, job_type: Optional[JobType] = None) -> int:
+    """Count jobs with a given status, optionally filtered by type."""
+    try:
+        session = get_db_session()
+        query = session.query(func.count(Job.id)).filter(Job.status == status)
+        if job_type:
+            query = query.filter(Job.job_type == job_type)
+        return query.scalar() or 0
+    except Exception as e:
+        logger.error("count_jobs_by_status_failed", error=str(e), exc_info=True)
+        raise
+
+
+def requeue_failed_jobs(job_type: Optional[JobType] = None) -> List[Job]:
+    """Reset FAILED jobs to PENDING so they can be retried.
+
+    Clears retry_count, worker_id, error, started_at, and completed_at.
+    """
+    try:
+        session = get_db_session()
+        query = session.query(Job).filter(Job.status == JobStatus.FAILED)
+        if job_type:
+            query = query.filter(Job.job_type == job_type)
+        jobs = query.all()
+        for job in jobs:
+            job.status = JobStatus.PENDING
+            job.retry_count = 0
+            job.worker_id = None
+            job.error = None
+            job.started_at = None
+            job.completed_at = None
+        if jobs:
+            session.commit()
+            logger.info("requeued_failed_jobs", count=len(jobs), job_type=job_type)
+        return jobs
+    except Exception as e:
+        session.rollback()
+        logger.error("requeue_failed_jobs_failed", error=str(e), exc_info=True)
+        raise
+
+
+def cancel_failed_jobs(job_type: Optional[JobType] = None) -> int:
+    """Bulk-cancel FAILED jobs (FAILED → CANCELLED). Returns count affected."""
+    try:
+        session = get_db_session()
+        query = session.query(Job).filter(Job.status == JobStatus.FAILED)
+        if job_type:
+            query = query.filter(Job.job_type == job_type)
+        count = query.update({Job.status: JobStatus.CANCELLED})
+        session.commit()
+        logger.info("cancelled_failed_jobs", count=count, job_type=job_type)
+        return count
+    except Exception as e:
+        session.rollback()
+        logger.error("cancel_failed_jobs_failed", error=str(e), exc_info=True)
+        raise
+
+
 def mark_stale_jobs_as_failed(stale_threshold_seconds: int = 600) -> List[Job]:
     """Find IN_PROGRESS jobs not updated within the threshold and mark them failed."""
     try:

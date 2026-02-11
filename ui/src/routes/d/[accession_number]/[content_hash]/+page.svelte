@@ -64,7 +64,9 @@
 
 	function formatTitle(document: DocumentResponse): string {
 		const type = getAnalysisTypeDisplay(document.document_type);
-		const year = document.filing?.period_of_report ? formatYear(document.filing.period_of_report) : '';
+		const year = document.filing?.period_of_report
+			? formatYear(document.filing.period_of_report)
+			: '';
 		return `${document.company_ticker}. ${year} ${type}`;
 	}
 

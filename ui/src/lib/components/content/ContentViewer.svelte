@@ -8,10 +8,18 @@
 	} from '$lib/api-types';
 	import MarkdownContent from '../ui/MarkdownContent.svelte';
 
-	type SourceItem = (DocumentResponse & { source_type: string }) | (GeneratedContentResponse & { source_type: string });
+	type SourceItem =
+		| (DocumentResponse & { source_type: string })
+		| (GeneratedContentResponse & { source_type: string });
 
-	let { content }: { content: GeneratedContentResponse & { modelConfig?: ModelConfigResponse | null; sources?: SourceItem[] } } =
-		$props();
+	let {
+		content
+	}: {
+		content: GeneratedContentResponse & {
+			modelConfig?: ModelConfigResponse | null;
+			sources?: SourceItem[];
+		};
+	} = $props();
 
 	/**
 	 * Clean content by removing <think> tags and internal reasoning patterns

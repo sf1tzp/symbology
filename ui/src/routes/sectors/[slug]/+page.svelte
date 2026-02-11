@@ -31,10 +31,7 @@
 
 <svelte:head>
 	<title>{group?.name || data.slug} - Sectors - Symbology</title>
-	<meta
-		name="description"
-		content="Sector analysis for {group?.name || data.slug}"
-	/>
+	<meta name="description" content="Sector analysis for {group?.name || data.slug}" />
 </svelte:head>
 
 <div class="space-y-8">
@@ -62,9 +59,7 @@
 				{#if group.sic_codes && group.sic_codes.length > 0}
 					<div class="flex flex-wrap gap-2">
 						{#each group.sic_codes as code}
-							<span
-								class="rounded bg-muted px-2 py-1 text-sm text-muted-foreground"
-							>
+							<span class="rounded bg-muted px-2 py-1 text-sm text-muted-foreground">
 								SIC {code}
 							</span>
 						{/each}
@@ -79,9 +74,7 @@
 		<Card>
 			<CardHeader>
 				<CardTitle>Member Companies</CardTitle>
-				<CardDescription>
-					Companies in this sector group
-				</CardDescription>
+				<CardDescription>Companies in this sector group</CardDescription>
 			</CardHeader>
 			<CardContent>
 				{#if group.companies && group.companies.length > 0}
@@ -128,9 +121,7 @@
 		<Card>
 			<CardHeader>
 				<CardTitle>Sector Analysis</CardTitle>
-				<CardDescription>
-					Cross-company analysis generated from aggregate summaries
-				</CardDescription>
+				<CardDescription>Cross-company analysis generated from aggregate summaries</CardDescription>
 			</CardHeader>
 			<CardContent>
 				{#if analyses.length > 0}

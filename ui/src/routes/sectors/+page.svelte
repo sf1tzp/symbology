@@ -56,9 +56,7 @@
 						{#if group.sic_codes && group.sic_codes.length > 0}
 							<div class="flex flex-wrap gap-1">
 								{#each group.sic_codes as code}
-									<span
-										class="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-									>
+									<span class="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
 										SIC {code}
 									</span>
 								{/each}
@@ -85,8 +83,7 @@
 		<div class="py-16 text-center">
 			<p class="text-lg text-muted-foreground">No sector groups found</p>
 			<p class="mt-2 text-sm text-muted-foreground">
-				Sector groups can be created via the CLI to organize companies for cross-company
-				analysis.
+				Sector groups can be created via the CLI to organize companies for cross-company analysis.
 			</p>
 		</div>
 	{/if}

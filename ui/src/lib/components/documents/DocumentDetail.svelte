@@ -31,7 +31,7 @@
 	<CardContent>
 		<div class="space-y-4">
 			<Separator />
-			<MarkdownContent content={document.content} />
+			<MarkdownContent content={document.content ?? ''} />
 		</div>
 	</CardContent>
 </Card>

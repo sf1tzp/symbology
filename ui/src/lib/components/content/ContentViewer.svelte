@@ -1,10 +1,16 @@
 <script lang="ts">
 	import { Separator } from '$lib/components/ui/separator';
 	import { Eye } from '@lucide/svelte';
-	import type { GeneratedContentResponse } from '$lib/api-types';
+	import type {
+		GeneratedContentResponse,
+		ModelConfigResponse,
+		DocumentResponse
+	} from '$lib/api-types';
 	import MarkdownContent from '../ui/MarkdownContent.svelte';
 
-	let { content }: { content: GeneratedContentResponse & { modelConfig?: any; sources?: any[] } } =
+	type SourceItem = (DocumentResponse & { source_type: string }) | (GeneratedContentResponse & { source_type: string });
+
+	let { content }: { content: GeneratedContentResponse & { modelConfig?: ModelConfigResponse | null; sources?: SourceItem[] } } =
 		$props();
 
 	/**

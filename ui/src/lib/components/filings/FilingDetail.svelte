@@ -56,8 +56,8 @@
 	});
 
 	function format_filing_period(filing: FilingResponse) {
-		let fye = new Date(company?.fiscal_year_end);
-		let reportDate = new Date(filing.period_of_report);
+		let fye = company?.fiscal_year_end ? new Date(company.fiscal_year_end) : null;
+		let reportDate = new Date(filing.period_of_report ?? filing.filing_date);
 
 		try {
 			const reportMonth = reportDate.getMonth() + 1; // getMonth returns 0-11

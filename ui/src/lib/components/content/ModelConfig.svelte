@@ -6,7 +6,7 @@
 
 	let { config }: { config: ModelConfigResponse | null } = $props();
 
-	function formatValue(value: any): string {
+	function formatValue(value: string | number | null | undefined): string {
 		if (value === null || value === undefined) return 'N/A';
 		if (typeof value === 'number') {
 			if (value >= 1000) {

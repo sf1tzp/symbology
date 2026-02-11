@@ -1,4 +1,5 @@
 import type { PageLoad } from './$types';
+import type { DocumentResponse, GeneratedContentResponse } from '$lib/api-types';
 import {
 	getCompanyByTicker,
 	getGeneratedContentByTickerAndHash,
@@ -32,7 +33,8 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			}
 
 			// Fetch source documents if available
-			let sources: any[] = [];
+			type SourceItem = (DocumentResponse & { source_type: string }) | (GeneratedContentResponse & { source_type: string });
+			const sources: SourceItem[] = [];
 
 			// Fetch source documents
 			if (content.source_document_ids && content.source_document_ids.length > 0) {

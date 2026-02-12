@@ -27,6 +27,7 @@ import click
 
 # Import command modules
 from symbology.cli.companies import companies
+from symbology.cli.db import db
 from symbology.cli.documents import documents
 from symbology.cli.filings import filings
 from symbology.cli.financials import financials
@@ -65,6 +66,7 @@ def cli(ctx, verbose):
 
 # Add command groups
 cli.add_command(companies)
+cli.add_command(db)
 cli.add_command(documents)
 cli.add_command(filings)
 cli.add_command(financials)

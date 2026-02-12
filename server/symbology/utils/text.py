@@ -1,5 +1,6 @@
 import html
 import re
+from typing import Tuple
 
 # Smart quotes, dashes, ellipsis → ASCII equivalents
 _UNICODE_REPLACEMENTS = {
@@ -46,3 +47,44 @@ def normalize_filing_text(text: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     return text.strip()
+
+
+# Pattern matching page references like "Page 3", "Pages 37-51", "Page(s) 12"
+_PAGE_REF_PATTERN = re.compile(
+    r"\bPages?\s*\(?\s*\d+(?:\s*[-,]\s*\d+)*\s*\)?",
+    re.IGNORECASE,
+)
+
+# Minimum character count for a section to be considered substantive prose
+_MIN_SECTION_LENGTH = 1500
+
+# Maximum page-reference density (matches per 1000 chars) before flagging as TOC
+_MAX_PAGE_REF_DENSITY = 1.5
+
+
+def validate_section_content(text: str) -> Tuple[bool, str]:
+    """Check whether extracted section content is substantive prose.
+
+    Returns (True, "") if the content looks valid, or (False, reason) if it
+    appears to be a table of contents or other structural artifact.
+    """
+    if not text or not text.strip():
+        return False, "empty"
+
+    stripped = text.strip()
+    length = len(stripped)
+
+    # Check page-reference density
+    page_refs = _PAGE_REF_PATTERN.findall(stripped)
+    if page_refs:
+        density = len(page_refs) / (length / 1000)
+        if density >= _MAX_PAGE_REF_DENSITY:
+            return False, f"page_ref_density={density:.1f} ({len(page_refs)} refs in {length} chars)"
+
+    # Check minimum length (applied after page-ref check so a short but
+    # genuine section like Legal Proceedings "None" doesn't need the density
+    # test to reject it — it just gets the length gate)
+    if length < _MIN_SECTION_LENGTH:
+        return False, f"too_short ({length} chars)"
+
+    return True, ""

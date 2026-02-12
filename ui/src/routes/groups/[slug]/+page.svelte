@@ -30,18 +30,18 @@
 </script>
 
 <svelte:head>
-	<title>{group?.name || data.slug} - Sectors - Symbology</title>
-	<meta name="description" content="Sector analysis for {group?.name || data.slug}" />
+	<title>{group?.name || data.slug} - Groups - Symbology</title>
+	<meta name="description" content="Group analysis for {group?.name || data.slug}" />
 </svelte:head>
 
 <div class="space-y-8">
 	<!-- Header with back navigation -->
 	<div class="space-y-4">
-		<Button variant="ghost" onclick={() => goto('/sectors')}>← Back to Sectors</Button>
+		<Button variant="ghost" onclick={() => goto('/groups')}>← Back to Groups</Button>
 
 		{#if !group}
 			<div class="rounded-md bg-red-50 p-4 text-red-700">
-				<p class="font-medium">Sector group not found: {data.slug}</p>
+				<p class="font-medium">Group not found: {data.slug}</p>
 			</div>
 		{:else}
 			<div class="space-y-2">
@@ -74,7 +74,7 @@
 		<Card>
 			<CardHeader>
 				<CardTitle>Member Companies</CardTitle>
-				<CardDescription>Companies in this sector group</CardDescription>
+				<CardDescription>Companies in this group</CardDescription>
 			</CardHeader>
 			<CardContent>
 				{#if group.companies && group.companies.length > 0}
@@ -117,10 +117,10 @@
 			</CardContent>
 		</Card>
 
-		<!-- Sector Analysis -->
+		<!-- Group Analysis -->
 		<Card>
 			<CardHeader>
-				<CardTitle>Sector Analysis</CardTitle>
+				<CardTitle>Group Analysis</CardTitle>
 				<CardDescription>Cross-company analysis generated from aggregate summaries</CardDescription>
 			</CardHeader>
 			<CardContent>
@@ -142,9 +142,9 @@
 					</div>
 				{:else}
 					<div class="py-8 text-center">
-						<p class="text-muted-foreground">No sector analysis available yet</p>
+						<p class="text-muted-foreground">No group analysis available yet</p>
 						<p class="mt-2 text-sm text-muted-foreground">
-							Trigger a sector analysis via the CLI to generate cross-company insights.
+							Trigger a group analysis via the CLI to generate cross-company insights.
 						</p>
 					</div>
 				{/if}

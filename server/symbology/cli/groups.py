@@ -8,7 +8,6 @@ from rich.table import Table
 from symbology.database.base import get_db_session, init_db
 from symbology.database.companies import get_company_by_ticker
 from symbology.database.company_groups import (
-    CompanyGroupType,
     add_company_to_group,
     create_company_group,
     get_company_group_by_slug,
@@ -38,10 +37,8 @@ def group():
 @click.option("--name", required=True, help="Display name for the group")
 @click.option("--slug", required=True, help="URL-friendly identifier")
 @click.option("--sic-codes", default=None, help="Comma-separated SIC code prefixes (e.g. 35,73)")
-@click.option("--type", "group_type", default="sector", type=click.Choice(["sector", "custom"]),
-              help="Group type (default: sector)")
 @click.option("--description", default=None, help="Group description")
-def create_group(name: str, slug: str, sic_codes: str, group_type: str, description: str):
+def create_group(name: str, slug: str, sic_codes: str, description: str):
     """Create a new company group."""
     try:
         init_session()
@@ -49,7 +46,6 @@ def create_group(name: str, slug: str, sic_codes: str, group_type: str, descript
         data = {
             "name": name,
             "slug": slug,
-            "group_type": CompanyGroupType(group_type),
             "sic_codes": [s.strip() for s in sic_codes.split(",")] if sic_codes else [],
         }
         if description:
@@ -59,7 +55,6 @@ def create_group(name: str, slug: str, sic_codes: str, group_type: str, descript
 
         console.print(f"[green]✓[/green] Created group '{grp.name}' (slug: {grp.slug})")
         console.print(f"  [blue]ID:[/blue]        {grp.id}")
-        console.print(f"  [blue]Type:[/blue]      {grp.group_type.value}")
         if grp.sic_codes:
             console.print(f"  [blue]SIC codes:[/blue] {', '.join(grp.sic_codes)}")
 
@@ -70,15 +65,12 @@ def create_group(name: str, slug: str, sic_codes: str, group_type: str, descript
 
 
 @group.command("list")
-@click.option("--type", "group_type", default=None, type=click.Choice(["sector", "custom"]),
-              help="Filter by group type")
-def list_groups(group_type: str):
+def list_groups():
     """List all company groups."""
     try:
         init_session()
 
-        gt = CompanyGroupType(group_type) if group_type else None
-        groups = list_company_groups(group_type=gt)
+        groups = list_company_groups()
 
         if not groups:
             console.print("[yellow]No company groups found[/yellow]")
@@ -87,7 +79,6 @@ def list_groups(group_type: str):
         table = Table(title="Company Groups")
         table.add_column("Slug", style="cyan")
         table.add_column("Name", style="white")
-        table.add_column("Type")
         table.add_column("SIC Codes", style="dim")
         table.add_column("Members", justify="right")
 
@@ -95,7 +86,6 @@ def list_groups(group_type: str):
             table.add_row(
                 grp.slug,
                 grp.name,
-                grp.group_type.value,
                 ", ".join(grp.sic_codes) if grp.sic_codes else "-",
                 str(len(grp.companies)),
             )
@@ -121,7 +111,6 @@ def show_group(slug: str):
             sys.exit(1)
 
         console.print(f"\n[bold]{grp.name}[/bold] ({grp.slug})")
-        console.print(f"  [blue]Type:[/blue]        {grp.group_type.value}")
         console.print(f"  [blue]Description:[/blue] {grp.description or 'N/A'}")
         console.print(f"  [blue]SIC codes:[/blue]   {', '.join(grp.sic_codes) if grp.sic_codes else 'N/A'}")
         console.print(f"  [blue]Members:[/blue]     {len(grp.companies)}")

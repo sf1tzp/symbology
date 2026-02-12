@@ -1,12 +1,11 @@
 """Company Groups API routes."""
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, HTTPException, Query, status
 from symbology.api.routes.companies import _company_to_response
 from symbology.api.schemas import CompanyGroupResponse, GeneratedContentResponse
 from symbology.database.company_groups import (
     CompanyGroup,
-    CompanyGroupType,
     get_company_group_by_slug,
     list_company_groups,
 )
@@ -37,7 +36,6 @@ def _group_to_response(group: CompanyGroup, include_companies: bool = False) -> 
         name=group.name,
         slug=group.slug,
         description=group.description,
-        group_type=group.group_type.value,
         sic_codes=group.sic_codes or [],
         member_count=len(group.companies),
         created_at=group.created_at,
@@ -56,24 +54,13 @@ def _group_to_response(group: CompanyGroup, include_companies: bool = False) -> 
     },
 )
 async def list_groups(
-    group_type: Optional[str] = Query(None, description="Filter by group type: sector, custom"),
     skip: int = Query(0, ge=0, description="Number of groups to skip"),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of groups to return"),
 ):
     """List all company groups."""
-    logger.info("api_list_groups", group_type=group_type, skip=skip, limit=limit)
+    logger.info("api_list_groups", skip=skip, limit=limit)
 
-    gt = None
-    if group_type:
-        try:
-            gt = CompanyGroupType(group_type)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid group type: {group_type}. Valid types: sector, custom",
-            )
-
-    groups = list_company_groups(group_type=gt, limit=limit, offset=skip)
+    groups = list_company_groups(limit=limit, offset=skip)
     return [_group_to_response(g) for g in groups]
 
 
@@ -110,7 +97,7 @@ async def get_group_analysis(
     slug: str,
     limit: int = Query(5, ge=1, le=20, description="Maximum analyses to return"),
 ):
-    """Get sector analyses for a company group."""
+    """Get analyses for a company group."""
     logger.info("api_get_group_analysis", slug=slug, limit=limit)
 
     group = get_company_group_by_slug(slug)

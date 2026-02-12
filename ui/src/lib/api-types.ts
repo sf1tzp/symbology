@@ -21,7 +21,6 @@ export interface CompanyGroupResponse {
 	name: string;
 	slug: string;
 	description: string | null;
-	group_type: string;
 	sic_codes: string[];
 	member_count: number;
 	created_at: string;

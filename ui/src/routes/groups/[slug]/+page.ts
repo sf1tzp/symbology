@@ -16,7 +16,7 @@ export const load: PageLoad = async ({ params }) => {
 			analyses
 		};
 	} catch (error) {
-		console.error(`Failed to load sector ${slug}:`, error);
+		console.error(`Failed to load group ${slug}:`, error);
 		return {
 			slug,
 			group: null,

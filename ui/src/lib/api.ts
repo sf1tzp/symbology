@@ -398,15 +398,11 @@ export async function getDocumentByAccessionAndHash(
 }
 
 /**
- * Get all company groups (with optional type filter)
+ * Get all company groups
  */
-export async function getCompanyGroups(
-	groupType?: string,
-	limit: number = 50
-): Promise<CompanyGroupResponse[]> {
+export async function getCompanyGroups(limit: number = 50): Promise<CompanyGroupResponse[]> {
 	try {
 		const params: Record<string, string> = { limit: limit.toString() };
-		if (groupType) params.group_type = groupType;
 
 		const url = buildApiUrl('/groups', params);
 		logApiCall('GET', url);
@@ -435,7 +431,7 @@ export async function getCompanyGroupBySlug(slug: string): Promise<CompanyGroupR
 }
 
 /**
- * Get sector analyses for a company group
+ * Get analyses for a company group
  */
 export async function getGroupAnalysis(
 	slug: string,

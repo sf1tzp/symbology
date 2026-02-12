@@ -1,11 +1,9 @@
 """Database models and CRUD functions for company groups."""
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import Column, DateTime, ForeignKey, func, String, Table, Text
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from symbology.database.base import Base, get_db_session
@@ -14,12 +12,6 @@ from symbology.utils.logging import get_logger
 from uuid_extensions import uuid7
 
 logger = get_logger(__name__)
-
-
-class CompanyGroupType(str, Enum):
-    """Enumeration of company group types."""
-    SECTOR = "sector"
-    CUSTOM = "custom"
 
 
 # Association table for many-to-many relationship between CompanyGroup and Company
@@ -41,13 +33,7 @@ class CompanyGroup(Base):
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    group_type: Mapped[CompanyGroupType] = mapped_column(
-        SQLEnum(CompanyGroupType, name="company_group_type_enum"),
-        nullable=False,
-        default=CompanyGroupType.SECTOR,
-    )
     sic_codes: Mapped[List[str]] = mapped_column(ARRAY(String), default=list)
-    owner_id: Mapped[Optional[UUID]] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     search_vector = mapped_column(TSVECTOR, nullable=True)
@@ -97,19 +83,16 @@ def get_company_group_by_slug(slug: str) -> Optional[CompanyGroup]:
 
 
 def list_company_groups(
-    group_type: Optional[CompanyGroupType] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> List[CompanyGroup]:
-    """List company groups with optional type filter."""
+    """List company groups."""
     try:
         session = get_db_session()
         query = session.query(CompanyGroup)
-        if group_type:
-            query = query.filter(CompanyGroup.group_type == group_type)
         query = query.order_by(CompanyGroup.name)
         groups = query.offset(offset).limit(limit).all()
-        logger.info("listed_company_groups", count=len(groups), group_type=group_type)
+        logger.info("listed_company_groups", count=len(groups))
         return groups
     except Exception as e:
         logger.error("list_company_groups_failed", error=str(e), exc_info=True)

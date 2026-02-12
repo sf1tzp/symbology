@@ -104,7 +104,6 @@ from symbology.database.generated_content import (
 from symbology.database.company_groups import (
     add_company_to_group,
     CompanyGroup,
-    CompanyGroupType,
     company_group_membership,
     create_company_group,
     get_company_group_by_slug,

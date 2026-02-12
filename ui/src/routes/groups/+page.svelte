@@ -15,20 +15,20 @@
 	const groups = data.groups || [];
 
 	function handleGroupClick(slug: string) {
-		goto(`/sectors/${slug}`);
+		goto(`/groups/${slug}`);
 	}
 </script>
 
 <svelte:head>
-	<title>Sectors - Symbology</title>
-	<meta name="description" content="Explore sector groups and cross-company analysis" />
+	<title>Groups - Symbology</title>
+	<meta name="description" content="Explore company groups and cross-company analysis" />
 </svelte:head>
 
 <div class="space-y-8">
 	<section class="space-y-4 text-center">
-		<h1 class="text-4xl font-bold tracking-tight">Sectors</h1>
+		<h1 class="text-4xl font-bold tracking-tight">Groups</h1>
 		<p class="mx-auto max-w-2xl text-xl text-muted-foreground">
-			Explore industry sectors and cross-company analysis
+			Explore company groups and cross-company analysis
 		</p>
 	</section>
 
@@ -73,7 +73,7 @@
 							class="w-full"
 							onclick={() => handleGroupClick(group.slug)}
 						>
-							View Sector
+							View Group
 						</Button>
 					</CardContent>
 				</Card>
@@ -81,9 +81,9 @@
 		</div>
 	{:else}
 		<div class="py-16 text-center">
-			<p class="text-lg text-muted-foreground">No sector groups found</p>
+			<p class="text-lg text-muted-foreground">No groups found</p>
 			<p class="mt-2 text-sm text-muted-foreground">
-				Sector groups can be created via the CLI to organize companies for cross-company analysis.
+				Groups can be created via the CLI to organize companies for cross-company analysis.
 			</p>
 		</div>
 	{/if}

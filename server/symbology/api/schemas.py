@@ -487,7 +487,6 @@ class CompanyGroupResponse(BaseModel):
     name: str = Field(..., description="Display name")
     slug: str = Field(..., description="URL-friendly identifier")
     description: Optional[str] = Field(None, description="Group description")
-    group_type: str = Field(..., description="Group type (sector, custom)")
     sic_codes: List[str] = Field(default_factory=list, description="SIC code prefixes")
     member_count: int = Field(0, description="Number of member companies")
     created_at: datetime = Field(..., description="When the group was created")

@@ -3,9 +3,10 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from symbology.api.schemas import GeneratedContentResponse
+from symbology.api.schemas import GeneratedContentResponse, GeneratedContentSummaryResponse
 from symbology.database.generated_content import (
     get_aggregate_summaries_by_ticker,
+    get_all_generated_content_by_ticker,
     get_generated_content,
     get_generated_content_by_company_and_ticker,
     get_generated_content_by_hash,
@@ -122,6 +123,59 @@ async def get_aggregate_summaries_by_ticker_route(ticker: str, limit: int = 10):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving aggregate summaries"
+        ) from e
+
+
+@router.get(
+    "/all/by-ticker/{ticker}",
+    response_model=List[GeneratedContentSummaryResponse],
+    status_code=status.HTTP_200_OK,
+    responses={
+        500: {"description": "Internal server error"}
+    }
+)
+async def get_all_generated_content_by_ticker_route(ticker: str, limit: int = 100):
+    """Get all generated content for a company by ticker.
+
+    Returns every piece of generated content (no grouping), ordered by most recent first,
+    with deferred content loading for lightweight listing.
+
+    Args:
+        ticker: Company ticker symbol (e.g., 'AAPL', 'GOOGL')
+        limit: Maximum number of results to return (default: 100)
+
+    Returns:
+        List of GeneratedContentSummaryResponse objects
+    """
+    logger.info("api_get_all_generated_content_by_ticker", ticker=ticker)
+
+    try:
+        content_list = get_all_generated_content_by_ticker(ticker, limit)
+
+        response_data = []
+        for gc in content_list:
+            response_data.append(GeneratedContentSummaryResponse(
+                id=gc.id,
+                content_hash=gc.content_hash,
+                short_hash=gc.get_short_hash(),
+                description=gc.description,
+                document_type=gc.document_type.value if gc.document_type else None,
+                form_type=gc.form_type,
+                content_stage=gc.content_stage.value if gc.content_stage else None,
+                summary=gc.summary,
+                created_at=gc.created_at,
+            ))
+
+        logger.info("api_get_all_generated_content_by_ticker_success",
+                   ticker=ticker, count=len(response_data))
+        return response_data
+
+    except Exception as e:
+        logger.error("api_get_all_generated_content_by_ticker_failed",
+                    ticker=ticker, error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while retrieving generated content"
         ) from e
 
 

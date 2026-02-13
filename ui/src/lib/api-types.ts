@@ -72,6 +72,8 @@ export interface GeneratedContentSummaryResponse {
 	short_hash: string | null;
 	description: string | null;
 	document_type: string | null;
+	form_type: string | null;
+	content_stage: string | null;
 	summary: string | null;
 	created_at: string;
 }

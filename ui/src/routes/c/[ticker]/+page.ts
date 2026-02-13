@@ -2,6 +2,7 @@ import type { PageLoad } from './$types';
 import {
 	getCompanyByTicker,
 	getAggregateSummariesByTicker,
+	getAllGeneratedContentByTicker,
 	getFilingsTimeline,
 	getFinancialComparison
 } from '$lib/api';
@@ -12,19 +13,22 @@ export const load: PageLoad = async ({ params }) => {
 
 	try {
 		// Load company data, aggregate summaries, filing timeline, and financial data in parallel
-		const [company, aggregateSummaries, filings, financialComparison] = await Promise.all([
-			getCompanyByTicker(upperTicker),
-			getAggregateSummariesByTicker(upperTicker, 5),
-			getFilingsTimeline(upperTicker, 20),
-			getFinancialComparison(upperTicker)
-		]);
+		const [company, aggregateSummaries, filings, financialComparison, allGeneratedContent] =
+			await Promise.all([
+				getCompanyByTicker(upperTicker),
+				getAggregateSummariesByTicker(upperTicker, 5),
+				getFilingsTimeline(upperTicker, 20),
+				getFinancialComparison(upperTicker),
+				getAllGeneratedContentByTicker(upperTicker)
+			]);
 
 		return {
 			ticker: upperTicker,
 			company,
 			aggregateSummaries,
 			filings,
-			financialComparison
+			financialComparison,
+			allGeneratedContent
 		};
 	} catch (error) {
 		console.error(`Failed to load data for ${ticker}:`, error);
@@ -35,6 +39,7 @@ export const load: PageLoad = async ({ params }) => {
 			aggregateSummaries: [],
 			filings: [],
 			financialComparison: null,
+			allGeneratedContent: [],
 			error: error instanceof Error ? error.message : 'Unknown error'
 		};
 	}

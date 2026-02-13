@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, afterNavigate } from '$app/navigation';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import {
@@ -12,6 +12,7 @@
 	import FilingTimeline from '$lib/components/filings/FilingTimeline.svelte';
 	import FilingDetailPanel from '$lib/components/filings/FilingDetailPanel.svelte';
 	import AggregateSummaryCard from '$lib/components/content/AggregateSummaryCard.svelte';
+	import GeneratedContentTable from '$lib/components/content/GeneratedContentTable.svelte';
 	import type { PageData } from './$types';
 	import type { FilingTimelineResponse } from '$lib/api-types';
 	import { cleanContent } from '$lib/utils/filings';
@@ -22,6 +23,7 @@
 	const company = data.company;
 	const aggregateSummaries = data.aggregateSummaries || [];
 	const filings = data.filings || [];
+	const allGeneratedContent = data.allGeneratedContent || [];
 	const error = data.error;
 
 	let financialComparison = $state(data.financialComparison || null);
@@ -46,6 +48,30 @@
 		exchanges: [],
 		former_names: []
 	};
+
+	let backHref = $state('/');
+	let backLabel = $state('Back');
+
+	afterNavigate(({ from }) => {
+		if (from?.url) {
+			const path = from.url.pathname;
+			backHref = path + from.url.search;
+			if (path === '/search') {
+				backLabel = 'Back to Search';
+			} else if (path.startsWith('/groups/')) {
+				const slug = path.split('/').pop() || '';
+				const groupName = slug
+					.split('-')
+					.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+					.join(' ');
+				backLabel = `Back to ${groupName}`;
+			} else if (path === '/groups') {
+				backLabel = 'Back to Groups';
+			} else if (path === '/companies') {
+				backLabel = 'Back to Companies';
+			}
+		}
+	});
 </script>
 
 <svelte:head>
@@ -60,7 +86,7 @@
 <div class="space-y-6">
 	<!-- Header with back navigation and company info -->
 	<div class="space-y-3">
-		<Button variant="ghost" size="sm" onclick={() => goto('/')}>← Back to Search</Button>
+		<Button variant="ghost" size="sm" onclick={() => goto(backHref)}>← {backLabel}</Button>
 
 		{#if error}
 			<div class="rounded-md bg-red-50 p-4 text-red-700">
@@ -150,4 +176,7 @@
 			</CardContent>
 		</Card>
 	{/if}
+
+	<!-- All Generated Content Table -->
+	<GeneratedContentTable content={allGeneratedContent} {ticker} />
 </div>

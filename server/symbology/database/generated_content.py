@@ -100,7 +100,7 @@ class GeneratedContent(Base):
 
     # Pipeline stage that produced this content
     content_stage: Mapped[Optional[ContentStage]] = mapped_column(
-        SQLEnum(ContentStage, name="content_stage_enum"),
+        SQLEnum(ContentStage, name="content_stage_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=True, index=True,
     )
 
@@ -431,6 +431,41 @@ def get_recent_generated_content_by_ticker(ticker: str, limit: int = 10) -> List
         return content_list
     except Exception as e:
         logger.error("get_recent_generated_content_by_ticker_failed", ticker=ticker, error=str(e), exc_info=True)
+        raise
+
+
+def get_all_generated_content_by_ticker(ticker: str, limit: int = 100) -> List[GeneratedContent]:
+    """Get all generated content for a company by ticker, ordered by most recent first.
+
+    Unlike get_recent_generated_content_by_ticker, this returns every row
+    (no GROUP BY) with deferred content loading for lightweight listing.
+
+    Args:
+        ticker: Company ticker symbol
+        limit: Maximum number of results to return
+
+    Returns:
+        List of GeneratedContent objects
+    """
+    try:
+        from sqlalchemy.orm import defer
+
+        session = get_db_session()
+
+        content_list = (
+            session.query(GeneratedContent)
+            .join(Company, GeneratedContent.company_id == Company.id)
+            .filter(Company.ticker == ticker.upper())
+            .options(defer(GeneratedContent.content))
+            .order_by(GeneratedContent.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        logger.info("retrieved_all_generated_content_by_ticker", ticker=ticker, count=len(content_list))
+        return content_list
+    except Exception as e:
+        logger.error("get_all_generated_content_by_ticker_failed", ticker=ticker, error=str(e), exc_info=True)
         raise
 
 

@@ -10,6 +10,7 @@ import type {
 	FilingTimelineResponse,
 	DocumentResponse,
 	GeneratedContentResponse,
+	GeneratedContentSummaryResponse,
 	ModelConfigResponse,
 	SearchResponse,
 	FinancialComparisonResponse
@@ -128,6 +129,27 @@ export async function getAggregateSummariesByTicker(
 	} catch (error) {
 		console.error(`Error fetching aggregate summaries for ticker ${ticker}:`, error);
 		return []; // Return empty array rather than throwing for missing data
+	}
+}
+
+/**
+ * Get all generated content for a company by ticker (lightweight listing)
+ */
+export async function getAllGeneratedContentByTicker(
+	ticker: string,
+	limit: number = 100
+): Promise<GeneratedContentSummaryResponse[]> {
+	try {
+		const url = buildApiUrl(`/generated-content/all/by-ticker/${encodeURIComponent(ticker)}`, {
+			limit: limit.toString()
+		});
+
+		logApiCall('GET', url);
+
+		return await fetchApi<GeneratedContentSummaryResponse[]>(url);
+	} catch (error) {
+		console.error(`Error fetching all generated content for ticker ${ticker}:`, error);
+		return [];
 	}
 }
 

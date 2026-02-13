@@ -45,7 +45,7 @@ class Job(Base):
 
     # Job definition
     job_type: Mapped[JobType] = mapped_column(
-        SQLEnum(JobType, name="job_type_enum"),
+        SQLEnum(JobType, name="job_type_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
     )
     params: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, default=dict)
@@ -53,7 +53,7 @@ class Job(Base):
 
     # Lifecycle
     status: Mapped[JobStatus] = mapped_column(
-        SQLEnum(JobStatus, name="job_status_enum"),
+        SQLEnum(JobStatus, name="job_status_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=JobStatus.PENDING,
     )

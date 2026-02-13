@@ -90,7 +90,7 @@ class GeneratedContent(Base):
 
     # Document type for disambiguation when content is generated from documents
     document_type: Mapped[Optional[DocumentType]] = mapped_column(
-        SQLEnum(DocumentType, name="document_type_enum"),
+        SQLEnum(DocumentType, name="document_type_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=True,
         index=True
     )
@@ -106,7 +106,7 @@ class GeneratedContent(Base):
 
     # Source type - what kind of sources this content was generated from
     source_type: Mapped[ContentSourceType] = mapped_column(
-        SQLEnum(ContentSourceType, name="content_source_type_enum"),
+        SQLEnum(ContentSourceType, name="content_source_type_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=ContentSourceType.DOCUMENTS
     )

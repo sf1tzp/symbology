@@ -181,6 +181,8 @@ async def get_filings_timeline_by_ticker(
                         short_hash=gc.get_short_hash() if gc.content_hash else None,
                         description=gc.description,
                         document_type=gc.document_type.value if gc.document_type else None,
+                        form_type=gc.form_type,
+                        content_stage=gc.content_stage.value if gc.content_stage else None,
                         summary=gc.summary,
                         created_at=gc.created_at,
                     )

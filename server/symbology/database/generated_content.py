@@ -5,7 +5,7 @@ import hashlib
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, func, Integer, String, Table, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, func, Integer, or_, String, Table, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,6 +31,14 @@ class ContentSourceType(str, Enum):
     DOCUMENTS = "documents"
     GENERATED_CONTENT = "generated_content"
     BOTH = "both"
+
+
+class ContentStage(str, Enum):
+    """Pipeline stage that produced this content."""
+    SINGLE_SUMMARY = "single_summary"
+    AGGREGATE_SUMMARY = "aggregate_summary"
+    FRONTPAGE_SUMMARY = "frontpage_summary"
+    COMPANY_GROUP_ANALYSIS = "company_group_analysis"
 
 
 # Association table for many-to-many relationship between GeneratedContent and Document
@@ -89,6 +97,12 @@ class GeneratedContent(Base):
 
     # Form type (10-K, 10-Q, etc.) associated with source documents
     form_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, index=True)
+
+    # Pipeline stage that produced this content
+    content_stage: Mapped[Optional[ContentStage]] = mapped_column(
+        SQLEnum(ContentStage, name="content_stage_enum"),
+        nullable=True, index=True,
+    )
 
     # Source type - what kind of sources this content was generated from
     source_type: Mapped[ContentSourceType] = mapped_column(
@@ -247,13 +261,16 @@ class GeneratedContent(Base):
             "short_hash": self.get_short_hash(),
             "company_id": str(self.company_id) if self.company_id else None,
             "company_group_id": str(self.company_group_id) if self.company_group_id else None,
-            "document_type": self.description,
+            "document_type": self.document_type.value if self.document_type else None,
+            "form_type": self.form_type,
+            "content_stage": self.content_stage.value if self.content_stage else None,
             "description": self.description,
             "source_type": self.source_type.value,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "total_duration": self.total_duration,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
+            "warning": self.warning,
             "content": self.content,
             "summary": self.summary,
             "model_config_id": str(self.model_config_id) if self.model_config_id else None,
@@ -417,15 +434,19 @@ def get_recent_generated_content_by_ticker(ticker: str, limit: int = 10) -> List
         raise
 
 
-def get_aggregate_summaries_by_ticker(ticker: str, limit: int = 10) -> List[GeneratedContent]:
+def get_aggregate_summaries_by_ticker(
+    ticker: str, limit: int = 10, form_type: Optional[str] = None,
+) -> List[GeneratedContent]:
     """Get the most recent aggregate summary content for a company by ticker.
 
-    Filters to only include generated content whose description contains "aggregate_summary".
-    Returns only the most recent content for each description type to avoid duplicates.
+    Uses structured ``content_stage`` field with a legacy fallback on
+    ``description LIKE '%aggregate_summary%'`` for rows created before the
+    metadata migration.
 
     Args:
         ticker: Company ticker symbol
         limit: Maximum number of results to return (default: 10)
+        form_type: Optional form type filter (e.g. "10-K")
 
     Returns:
         List of GeneratedContent objects - the most recent aggregate summaries
@@ -433,28 +454,47 @@ def get_aggregate_summaries_by_ticker(ticker: str, limit: int = 10) -> List[Gene
     try:
         session = get_db_session()
 
-        # Subquery to get the most recent content for each aggregate summary description type
+        stage_filter = or_(
+            GeneratedContent.content_stage == ContentStage.AGGREGATE_SUMMARY,
+            GeneratedContent.description.contains('aggregate_summary'),
+        )
+
+        # Group by (document_type, form_type) when structured, fall back to description
+        group_col = func.coalesce(
+            func.concat(
+                func.cast(GeneratedContent.document_type, String),
+                ':',
+                GeneratedContent.form_type,
+            ),
+            GeneratedContent.description,
+        )
+
+        base_filter = [
+            Company.ticker == ticker.upper(),
+            stage_filter,
+        ]
+        if form_type:
+            base_filter.append(GeneratedContent.form_type == form_type)
+
         subquery = (
             session.query(
-                GeneratedContent.description,
-                func.max(GeneratedContent.created_at).label('latest_date')
+                group_col.label('group_key'),
+                func.max(GeneratedContent.created_at).label('latest_date'),
             )
             .join(Company, GeneratedContent.company_id == Company.id)
-            .filter(Company.ticker == ticker.upper())
-            .filter(GeneratedContent.description.contains('aggregate_summary'))
-            .group_by(GeneratedContent.description)
+            .filter(*base_filter)
+            .group_by(group_col)
             .subquery()
         )
 
-        # Main query to get the actual content records
         content_list = (
             session.query(GeneratedContent)
             .join(Company, GeneratedContent.company_id == Company.id)
             .join(subquery,
-                  (GeneratedContent.description == subquery.c.description) &
+                  (group_col == subquery.c.group_key) &
                   (GeneratedContent.created_at == subquery.c.latest_date))
             .filter(Company.ticker == ticker.upper())
-            .filter(GeneratedContent.description.contains('aggregate_summary'))
+            .filter(stage_filter)
             .limit(limit)
             .all()
         )
@@ -690,11 +730,17 @@ def get_content_with_sources_loaded(content_id: Union[UUID, str]) -> Optional[Ge
         raise
 
 
-def get_frontpage_summary_by_ticker(ticker: str) -> Optional[str]:
+def get_frontpage_summary_by_ticker(
+    ticker: str, form_type: Optional[str] = None,
+) -> Optional[str]:
     """Get the most recent frontpage summary content for a company by ticker.
+
+    Uses structured ``content_stage`` + ``document_type`` fields with a
+    legacy fallback on the description string for pre-migration rows.
 
     Args:
         ticker: Company ticker symbol
+        form_type: Optional form type filter (e.g. "10-K")
 
     Returns:
         Content string of the frontpage summary if found, None otherwise
@@ -702,15 +748,22 @@ def get_frontpage_summary_by_ticker(ticker: str) -> Optional[str]:
     try:
         session = get_db_session()
 
-        # Query for the most recent frontpage summary for the company
-        content = (
+        stage_filter = or_(
+            (GeneratedContent.content_stage == ContentStage.FRONTPAGE_SUMMARY) &
+            (GeneratedContent.document_type == DocumentType.DESCRIPTION),
+            GeneratedContent.description == 'business_description_frontpage_summary',
+        )
+
+        query = (
             session.query(GeneratedContent)
             .join(Company, GeneratedContent.company_id == Company.id)
             .filter(Company.ticker == ticker.upper())
-            .filter(GeneratedContent.description == 'business_description_frontpage_summary')
-            .order_by(GeneratedContent.created_at.desc())
-            .first()
+            .filter(stage_filter)
         )
+        if form_type:
+            query = query.filter(GeneratedContent.form_type == form_type)
+
+        content = query.order_by(GeneratedContent.created_at.desc()).first()
 
         if content and content.content:
             logger.info("retrieved_frontpage_summary_by_ticker", ticker=ticker, content_id=str(content.id))
@@ -775,6 +828,9 @@ def get_generated_content_by_document_ids(document_ids: List[UUID]) -> Dict[UUID
 def get_company_group_analysis(group_id: UUID, limit: int = 5) -> List[GeneratedContent]:
     """Get the most recent company group analyses for a given group.
 
+    Uses structured ``content_stage`` field with a legacy fallback on
+    the description string for pre-migration rows.
+
     Args:
         group_id: UUID of the company group
         limit: Maximum number of results to return
@@ -789,7 +845,10 @@ def get_company_group_analysis(group_id: UUID, limit: int = 5) -> List[Generated
             session.query(GeneratedContent)
             .filter(
                 GeneratedContent.company_group_id == group_id,
-                GeneratedContent.description.contains("company_group_analysis"),
+                or_(
+                    GeneratedContent.content_stage == ContentStage.COMPANY_GROUP_ANALYSIS,
+                    GeneratedContent.description.contains("company_group_analysis"),
+                ),
             )
             .order_by(GeneratedContent.created_at.desc())
             .limit(limit)

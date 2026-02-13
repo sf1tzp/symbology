@@ -129,6 +129,9 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     source_content_hashes = params.get("source_content_hashes", [])
     company_ticker = params.get("company_ticker")
     description = params.get("description")
+    document_type_str = params.get("document_type")
+    form_type = params.get("form_type")
+    content_stage_str = params.get("content_stage")
 
     session = get_db_session()
 
@@ -174,12 +177,21 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
         if company:
             company_id = company.id
 
+    # Resolve structured metadata
+    from symbology.database.documents import DocumentType
+    from symbology.database.generated_content import ContentStage
+    resolved_document_type = DocumentType(document_type_str) if document_type_str else None
+    resolved_content_stage = ContentStage(content_stage_str) if content_stage_str else None
+
     # Save generated content
     content_data = {
         "content": response.response,
         "summary": None,
         "company_id": company_id,
         "description": description,
+        "document_type": resolved_document_type,
+        "form_type": form_type,
+        "content_stage": resolved_content_stage,
         "source_type": "documents" if source_documents else "generated_content",
         "model_config_id": model_config.id,
         "system_prompt_id": system_prompt.id,
@@ -274,6 +286,7 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
     )
     from symbology.llm.client import get_generate_response
     from symbology.llm.prompts import format_user_prompt_content
+    from symbology.database.generated_content import ContentStage
     from symbology.worker.pipeline import (
         PIPELINE_MODEL_CONFIGS,
         PIPELINE_PROMPTS,
@@ -333,6 +346,7 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
         "company_id": None,
         "company_group_id": group.id if group else None,
         "description": "company_group_analysis",
+        "content_stage": ContentStage.COMPANY_GROUP_ANALYSIS,
         "source_type": "generated_content",
         "model_config_id": mc.id,
         "system_prompt_id": system_prompt.id,
@@ -405,32 +419,26 @@ def handle_ingest_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """End-to-end automated pipeline: company -> filings -> content generation.
 
-    Replaces ingest.just by orchestrating the full ingestion and LLM content
-    generation pipeline in Python.  For each form and document type it:
+    Orchestrates ingestion and 3-stage LLM content generation pipeline.
+    For each form and document type it:
       1. Ingests the company and filings from EDGAR
       2. Generates single summaries per filing document
       3. Generates an aggregate summary from all singles
       4. Generates a frontpage summary from the aggregate
 
-    Creates a PipelineRun record to track progress and updates it on
-    completion or failure.
-
     params:
         ticker (str, required): Company ticker symbol.
-        forms (list[str]): Form types to process.
-            Defaults to ["10-K", "10-Q"].
+        forms (list[str]): Form types to process. Defaults to ["10-K", "10-Q"].
         counts (dict[str, int]): Number of filings per form.
-            Defaults to {"10-K": 5, "10-Q": 6}.
         document_types (dict[str, list[str]]): Document types per form.
-            Defaults to FORM_DOCUMENT_TYPES.
-        prompts_dir (str): Path to prompts directory. Defaults to "prompts".
+        prompts_dir (str): Path to prompts directory.
         trigger (str): "manual" or "scheduled". Defaults to "manual".
+        force (bool): If True, bypass dedup and regenerate all content.
     """
     from pathlib import Path
     from uuid import UUID
 
     from symbology.database.base import get_db_session
-    from symbology.database.documents import DocumentType
     from symbology.database.filings import Filing
     from symbology.database.pipeline_runs import (
         PipelineTrigger,
@@ -445,6 +453,9 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         PIPELINE_PROMPTS,
         ensure_model_config,
         ensure_prompt,
+        generate_aggregate_summary,
+        generate_frontpage_summary,
+        generate_single_summaries,
     )
 
     ticker = params["ticker"]
@@ -455,10 +466,11 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     prompts_dir = Path(params["prompts_dir"]) if "prompts_dir" in params else None
     trigger_str = params.get("trigger", "manual")
     trigger = PipelineTrigger(trigger_str)
+    force = params.get("force", False)
 
-    logger.info("handler_full_pipeline_start", ticker=ticker, forms=forms)
+    logger.info("handler_full_pipeline_start", ticker=ticker, forms=forms, force=force)
 
-    # Step 1: Company ingestion (needed before creating the run record)
+    # Step 1: Company ingestion
     company_result = handle_company_ingestion({"ticker": ticker})
     company_id = company_result["company_id"]
 
@@ -476,7 +488,7 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     jobs_failed = 0
 
     try:
-        # Step 2: Set up model configs (idempotent via content-hash dedup)
+        # Step 2: Set up model configs
         mc_single = ensure_model_config(**PIPELINE_MODEL_CONFIGS["single_summary"])
         mc_aggregate = ensure_model_config(**PIPELINE_MODEL_CONFIGS["aggregate_summary"])
         mc_frontpage = ensure_model_config(**PIPELINE_MODEL_CONFIGS["frontpage_summary"])
@@ -514,151 +526,60 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             session = get_db_session()
             filings = (
                 session.query(Filing)
-                .filter(
-                    Filing.company_id == UUID(company_id),
-                    Filing.form == form,
-                )
+                .filter(Filing.company_id == UUID(company_id), Filing.form == form)
                 .all()
             )
 
             # Step 5: For each document type, run the 3-stage content pipeline
             for doc_type_str in doc_types:
-                doc_type = DocumentType(doc_type_str)
                 single_prompt = ensure_prompt(doc_type_str, prompts_dir)
 
-                single_summary_hashes = []
-                new_singles_generated = 0
+                # Stage 1: Single summaries
+                hashes, new, reused, failed = generate_single_summaries(
+                    company_id, ticker, form, doc_type_str,
+                    filings, single_prompt, mc_single, force=force,
+                )
+                jobs_created += new + failed
+                jobs_completed += new + reused
+                jobs_failed += failed
+                total_content_generated += new + reused
 
-                for filing in filings:
-                    # Find the document of this type in this filing
-                    matching = [
-                        d for d in filing.documents if d.document_type == doc_type
-                    ]
-                    if not matching:
-                        logger.debug(
-                            "full_pipeline_no_document",
-                            filing_id=str(filing.id),
-                            doc_type=doc_type_str,
-                        )
-                        continue
-                    doc = matching[0]
-                    if not doc.content_hash:
-                        continue
-
-                    # Skip if content already exists for this
-                    # (document, prompt, model_config) triple
-                    from symbology.database.generated_content import (
-                        find_existing_content_for_document,
-                    )
-                    existing = find_existing_content_for_document(
-                        document_id=doc.id,
-                        system_prompt_id=single_prompt.id,
-                        model_config_id=mc_single.id,
-                    )
-                    if existing and existing.content_hash:
-                        logger.info(
-                            "full_pipeline_skip_existing",
-                            filing_id=str(filing.id),
-                            doc_type=doc_type_str,
-                            content_hash=existing.content_hash[:12],
-                        )
-                        single_summary_hashes.append(existing.content_hash)
-                        total_content_generated += 1
-                        jobs_completed += 1
-                        continue
-
-                    # Generate single summary
-                    jobs_created += 1
-                    try:
-                        gen_result = handle_content_generation({
-                            "system_prompt_hash": single_prompt.content_hash,
-                            "model_config_hash": str(mc_single.id),
-                            "source_document_hashes": [doc.content_hash],
-                            "company_ticker": ticker,
-                            "description": f"{doc_type_str}_single_summary",
-                        })
-                        if gen_result and gen_result.get("content_hash"):
-                            single_summary_hashes.append(gen_result["content_hash"])
-                            new_singles_generated += 1
-                            total_content_generated += 1
-                            jobs_completed += 1
-                        else:
-                            jobs_failed += 1
-                    except Exception as e:
-                        jobs_failed += 1
-                        logger.error(
-                            "full_pipeline_single_summary_failed",
-                            filing_id=str(filing.id),
-                            doc_type=doc_type_str,
-                            error=str(e),
-                        )
-
-                if not single_summary_hashes:
-                    logger.info(
-                        "full_pipeline_skip_aggregate",
-                        form=form,
-                        doc_type=doc_type_str,
-                        reason="no single summaries",
-                    )
+                if not hashes:
+                    logger.info("full_pipeline_skip_aggregate", form=form,
+                                doc_type=doc_type_str, reason="no single summaries")
                     continue
 
-                if new_singles_generated == 0:
-                    logger.info(
-                        "full_pipeline_skip_aggregate",
-                        form=form,
-                        doc_type=doc_type_str,
-                        reason="all single summaries already existed",
-                        existing_count=len(single_summary_hashes),
-                    )
+                if new == 0 and not force:
+                    logger.info("full_pipeline_skip_aggregate", form=form,
+                                doc_type=doc_type_str, reason="all single summaries already existed",
+                                existing_count=len(hashes))
                     continue
 
-                # Generate aggregate summary
+                # Stage 2: Aggregate summary
                 jobs_created += 1
-                try:
-                    agg_result = handle_content_generation({
-                        "system_prompt_hash": aggregate_prompt.content_hash,
-                        "model_config_hash": str(mc_aggregate.id),
-                        "source_content_hashes": single_summary_hashes,
-                        "company_ticker": ticker,
-                        "description": f"{doc_type_str}_aggregate_summary",
-                    })
-                    if agg_result and agg_result.get("content_hash"):
-                        total_content_generated += 1
-                        jobs_completed += 1
+                agg_hash, agg_ok = generate_aggregate_summary(
+                    company_id, ticker, form, doc_type_str,
+                    hashes, aggregate_prompt, mc_aggregate, force=force,
+                )
+                if agg_ok:
+                    jobs_completed += 1
+                    total_content_generated += 1
 
-                        # Generate frontpage summary
-                        jobs_created += 1
-                        try:
-                            fp_result = handle_content_generation({
-                                "system_prompt_hash": frontpage_prompt.content_hash,
-                                "model_config_hash": str(mc_frontpage.id),
-                                "source_content_hashes": [agg_result["content_hash"]],
-                                "company_ticker": ticker,
-                                "description": f"{doc_type_str}_frontpage_summary",
-                            })
-                            if fp_result:
-                                total_content_generated += 1
-                                jobs_completed += 1
-                            else:
-                                jobs_failed += 1
-                        except Exception as e:
-                            jobs_failed += 1
-                            logger.error(
-                                "full_pipeline_frontpage_failed",
-                                doc_type=doc_type_str,
-                                error=str(e),
-                            )
+                    # Stage 3: Frontpage summary
+                    jobs_created += 1
+                    fp_hash, fp_ok = generate_frontpage_summary(
+                        company_id, ticker, form, doc_type_str,
+                        agg_hash, frontpage_prompt, mc_frontpage, force=force,
+                    )
+                    if fp_ok:
+                        jobs_completed += 1
+                        total_content_generated += 1
                     else:
                         jobs_failed += 1
-                except Exception as e:
+                else:
                     jobs_failed += 1
-                    logger.error(
-                        "full_pipeline_aggregate_failed",
-                        doc_type=doc_type_str,
-                        error=str(e),
-                    )
 
-        # Mark pipeline run as completed (or partial if some jobs failed)
+        # Mark pipeline run as completed
         complete_pipeline_run(
             pipeline_run.id,
             jobs_created=jobs_created,
@@ -668,8 +589,7 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
         logger.info(
             "handler_full_pipeline_done",
-            ticker=ticker,
-            forms=forms,
+            ticker=ticker, forms=forms,
             content_generated=total_content_generated,
             run_id=str(pipeline_run.id),
         )

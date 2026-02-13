@@ -413,3 +413,298 @@ def list_runs(status_filter: str, ticker: str, limit: int):
         console.print(f"[red]Error listing runs: {e}[/red]")
         logger.exception("Failed to list pipeline runs")
         sys.exit(1)
+
+
+@pipeline.command("regenerate")
+@click.argument("ticker")
+@click.option("--form", "-f", default="10-K", help="SEC form type (default: 10-K)")
+@click.option("--doc-type", "-d", required=True, help="Document type (e.g. risk_factors, business_description)")
+@click.option("--stage", "-s", default="all",
+              type=click.Choice(["single", "aggregate", "frontpage", "all"], case_sensitive=False),
+              help="Pipeline stage to regenerate (default: all)")
+@click.option("--force/--no-force", default=True, help="Bypass dedup checks (default: True)")
+def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
+    """Regenerate content for a specific ticker/form/doc-type.
+
+    Calls composable pipeline functions directly (not via job queue)
+    for immediate execution.
+
+    Examples:
+
+      just cli pipeline regenerate AAPL --doc-type risk_factors --stage aggregate
+
+      just cli pipeline regenerate MSFT -f 10-Q -d management_discussion --stage all
+    """
+    from symbology.database.filings import Filing
+    from symbology.worker.pipeline import (
+        PIPELINE_MODEL_CONFIGS,
+        PIPELINE_PROMPTS,
+        ensure_model_config,
+        ensure_prompt,
+        generate_aggregate_summary,
+        generate_frontpage_summary,
+        generate_single_summaries,
+    )
+
+    try:
+        session = init_session()
+        company = get_company_by_ticker(ticker.upper())
+        if not company:
+            console.print(f"[red]Company not found: {ticker}[/red]")
+            sys.exit(1)
+
+        company_id = str(company.id)
+
+        console.print(f"Regenerate: [cyan]{ticker.upper()}[/cyan] / {form} / {doc_type} / stage={stage}")
+        console.print(f"Force: {'yes' if force else 'no'}")
+
+        # Set up model configs and prompts
+        mc_single = ensure_model_config(**PIPELINE_MODEL_CONFIGS["single_summary"])
+        mc_aggregate = ensure_model_config(**PIPELINE_MODEL_CONFIGS["aggregate_summary"])
+        mc_frontpage = ensure_model_config(**PIPELINE_MODEL_CONFIGS["frontpage_summary"])
+        single_prompt = ensure_prompt(doc_type)
+        aggregate_prompt = ensure_prompt(PIPELINE_PROMPTS["aggregate_summary"])
+        frontpage_prompt = ensure_prompt(PIPELINE_PROMPTS["frontpage_summary"])
+
+        total_generated = 0
+
+        if stage in ("single", "all"):
+            # Get filings
+            filings = (
+                session.query(Filing)
+                .filter(Filing.company_id == company.id, Filing.form == form)
+                .all()
+            )
+            if not filings:
+                console.print(f"[yellow]No {form} filings found for {ticker.upper()}[/yellow]")
+                sys.exit(0)
+
+            console.print(f"Found [cyan]{len(filings)}[/cyan] {form} filings")
+
+            hashes, new, reused, failed = generate_single_summaries(
+                company_id, ticker.upper(), form, doc_type,
+                filings, single_prompt, mc_single, force=force,
+            )
+            console.print(f"  Singles: [green]{new} new[/green], {reused} reused, [red]{failed} failed[/red]")
+            total_generated += new
+
+            if stage == "all" and hashes:
+                # Continue to aggregate
+                agg_hash, agg_ok = generate_aggregate_summary(
+                    company_id, ticker.upper(), form, doc_type,
+                    hashes, aggregate_prompt, mc_aggregate, force=force,
+                )
+                if agg_ok:
+                    console.print("  Aggregate: [green]generated[/green]")
+                    total_generated += 1
+
+                    fp_hash, fp_ok = generate_frontpage_summary(
+                        company_id, ticker.upper(), form, doc_type,
+                        agg_hash, frontpage_prompt, mc_frontpage, force=force,
+                    )
+                    if fp_ok:
+                        console.print("  Frontpage: [green]generated[/green]")
+                        total_generated += 1
+                    else:
+                        console.print("  Frontpage: [red]failed[/red]")
+                else:
+                    console.print("  Aggregate: [red]failed[/red]")
+
+        elif stage == "aggregate":
+            # Find existing single summary hashes for this form/doc_type
+            from symbology.database.generated_content import ContentStage, GeneratedContent
+            from sqlalchemy import or_
+
+            single_hashes = (
+                session.query(GeneratedContent.content_hash)
+                .filter(
+                    GeneratedContent.company_id == company.id,
+                    or_(
+                        (GeneratedContent.content_stage == ContentStage.SINGLE_SUMMARY) &
+                        (GeneratedContent.form_type == form) &
+                        (GeneratedContent.description.contains(doc_type)),
+                        GeneratedContent.description == f"{doc_type}_single_summary",
+                    ),
+                )
+                .all()
+            )
+            hashes = [h for (h,) in single_hashes if h]
+
+            if not hashes:
+                console.print(f"[yellow]No single summaries found for {doc_type}/{form}[/yellow]")
+                sys.exit(0)
+
+            console.print(f"Found [cyan]{len(hashes)}[/cyan] single summaries")
+
+            agg_hash, agg_ok = generate_aggregate_summary(
+                company_id, ticker.upper(), form, doc_type,
+                hashes, aggregate_prompt, mc_aggregate, force=force,
+            )
+            if agg_ok:
+                console.print("  Aggregate: [green]generated[/green]")
+                total_generated += 1
+
+                fp_hash, fp_ok = generate_frontpage_summary(
+                    company_id, ticker.upper(), form, doc_type,
+                    agg_hash, frontpage_prompt, mc_frontpage, force=force,
+                )
+                if fp_ok:
+                    console.print("  Frontpage: [green]generated[/green]")
+                    total_generated += 1
+                else:
+                    console.print("  Frontpage: [red]failed[/red]")
+            else:
+                console.print("  Aggregate: [red]failed[/red]")
+
+        elif stage == "frontpage":
+            # Find latest aggregate hash
+            from symbology.database.generated_content import ContentStage, GeneratedContent
+            from sqlalchemy import or_
+
+            agg = (
+                session.query(GeneratedContent)
+                .filter(
+                    GeneratedContent.company_id == company.id,
+                    or_(
+                        (GeneratedContent.content_stage == ContentStage.AGGREGATE_SUMMARY) &
+                        (GeneratedContent.form_type == form) &
+                        (GeneratedContent.description.contains(doc_type)),
+                        GeneratedContent.description == f"{doc_type}_aggregate_summary",
+                    ),
+                )
+                .order_by(GeneratedContent.created_at.desc())
+                .first()
+            )
+            if not agg or not agg.content_hash:
+                console.print(f"[yellow]No aggregate summary found for {doc_type}/{form}[/yellow]")
+                sys.exit(0)
+
+            fp_hash, fp_ok = generate_frontpage_summary(
+                company_id, ticker.upper(), form, doc_type,
+                agg.content_hash, frontpage_prompt, mc_frontpage, force=force,
+            )
+            if fp_ok:
+                console.print("  Frontpage: [green]generated[/green]")
+                total_generated += 1
+            else:
+                console.print("  Frontpage: [red]failed[/red]")
+
+        console.print(f"\nTotal generated: [green]{total_generated}[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Pipeline regenerate failed")
+        sys.exit(1)
+
+
+@pipeline.command("backfill-metadata")
+@click.option("--dry-run", is_flag=True, help="Show what would be updated without making changes")
+@click.option("--limit", default=1000, type=int, help="Max rows to process (default: 1000)")
+def backfill_metadata(dry_run: bool, limit: int):
+    """Backfill content_stage, document_type, and form_type on existing rows.
+
+    Parses the description string (e.g. 'risk_factors_aggregate_summary')
+    to populate structured metadata fields. Infers form_type from source
+    document chain where possible.
+
+    Examples:
+
+      just cli pipeline backfill-metadata --dry-run
+
+      just cli pipeline backfill-metadata --limit 500
+    """
+    from symbology.database.documents import DocumentType
+    from symbology.database.generated_content import ContentStage, GeneratedContent
+
+    STAGE_SUFFIXES = {
+        "_single_summary": ContentStage.SINGLE_SUMMARY,
+        "_aggregate_summary": ContentStage.AGGREGATE_SUMMARY,
+        "_frontpage_summary": ContentStage.FRONTPAGE_SUMMARY,
+    }
+
+    DOC_TYPE_MAP = {dt.value: dt for dt in DocumentType}
+
+    try:
+        session = init_session()
+
+        # Find rows with description but no content_stage
+        rows = (
+            session.query(GeneratedContent)
+            .filter(
+                GeneratedContent.description.is_not(None),
+                GeneratedContent.content_stage.is_(None),
+            )
+            .limit(limit)
+            .all()
+        )
+
+        if not rows:
+            console.print("[green]No rows need backfilling[/green]")
+            return
+
+        console.print(f"Found [cyan]{len(rows)}[/cyan] rows to backfill")
+        if dry_run:
+            console.print("[yellow]DRY RUN — no changes will be made[/yellow]")
+
+        updated = 0
+        skipped = 0
+
+        for row in rows:
+            desc = row.description or ""
+
+            # Detect stage from description suffix
+            detected_stage = None
+            doc_type_prefix = desc
+            for suffix, stage in STAGE_SUFFIXES.items():
+                if desc.endswith(suffix):
+                    detected_stage = stage
+                    doc_type_prefix = desc[: -len(suffix)]
+                    break
+
+            if desc == "company_group_analysis":
+                detected_stage = ContentStage.COMPANY_GROUP_ANALYSIS
+                doc_type_prefix = None
+
+            if not detected_stage:
+                skipped += 1
+                continue
+
+            # Detect document_type from prefix
+            detected_doc_type = DOC_TYPE_MAP.get(doc_type_prefix) if doc_type_prefix else None
+
+            # Infer form_type from source documents
+            detected_form_type = None
+            if row.source_documents:
+                for src_doc in row.source_documents:
+                    if src_doc.filing and src_doc.filing.form:
+                        detected_form_type = src_doc.filing.form
+                        break
+
+            if dry_run:
+                console.print(
+                    f"  {row.content_hash[:12] if row.content_hash else '?'}: "
+                    f"[dim]{desc}[/dim] -> "
+                    f"stage={detected_stage.value}, "
+                    f"doc_type={detected_doc_type.value if detected_doc_type else 'None'}, "
+                    f"form_type={detected_form_type or 'None'}"
+                )
+            else:
+                row.content_stage = detected_stage
+                if detected_doc_type and not row.document_type:
+                    row.document_type = detected_doc_type
+                if detected_form_type and not row.form_type:
+                    row.form_type = detected_form_type
+
+            updated += 1
+
+        if not dry_run:
+            session.commit()
+
+        console.print(f"\n{'Would update' if dry_run else 'Updated'}: [green]{updated}[/green]")
+        if skipped:
+            console.print(f"Skipped (unrecognized description): [yellow]{skipped}[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Backfill metadata failed")
+        sys.exit(1)

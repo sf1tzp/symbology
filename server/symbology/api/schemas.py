@@ -138,6 +138,8 @@ class GeneratedContentSummaryResponse(BaseModel):
     short_hash: Optional[str] = Field(None, description="Shortened hash for URLs")
     description: Optional[str] = Field(None, description="Content description")
     document_type: Optional[str] = Field(None, description="Type of document")
+    form_type: Optional[str] = Field(None, description="SEC form type (10-K, 10-Q, etc.)")
+    content_stage: Optional[str] = Field(None, description="Pipeline stage (single_summary, aggregate_summary, etc.)")
     summary: Optional[str] = Field(None, description="Generated summary")
     created_at: datetime = Field(..., description="Timestamp when the content was created")
 
@@ -354,6 +356,7 @@ class GeneratedContentResponse(BaseModel):
     input_tokens: Optional[int] = Field(None, description="Number of input tokens used for generation")
     output_tokens: Optional[int] = Field(None, description="Number of output tokens produced during generation")
     form_type: Optional[str] = Field(None, description="SEC form type associated with source documents")
+    content_stage: Optional[str] = Field(None, description="Pipeline stage (single_summary, aggregate_summary, etc.)")
     warning: Optional[str] = Field(None, description="Warning message if any issues occurred during generation")
     content: Optional[str] = Field(None, description="The actual AI-generated content")
     summary: Optional[str] = Field(None, description="Generated summary of the content")

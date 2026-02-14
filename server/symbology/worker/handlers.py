@@ -292,6 +292,7 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
         PIPELINE_PROMPTS,
         ensure_model_config,
         ensure_prompt,
+        generate_group_frontpage_summary,
     )
 
     tickers = params["tickers"]
@@ -362,6 +363,23 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
     generated.source_content = all_sources
     session.commit()
 
+    # Generate frontpage summary from the analysis
+    frontpage_hash = None
+    if generated.content_hash and group:
+        mc_fp = ensure_model_config(**PIPELINE_MODEL_CONFIGS["company_group_frontpage"])
+        fp_prompt = ensure_prompt(PIPELINE_PROMPTS["company_group_frontpage"])
+        fp_hash, fp_ok = generate_group_frontpage_summary(
+            company_group_id=str(group.id),
+            analysis_hash=generated.content_hash,
+            prompt=fp_prompt,
+            model_config=mc_fp,
+        )
+        if fp_ok:
+            frontpage_hash = fp_hash
+            logger.info("handler_company_group_frontpage_done", frontpage_hash=fp_hash)
+        else:
+            logger.warning("handler_company_group_frontpage_failed", group_slug=group_slug)
+
     logger.info(
         "handler_company_group_pipeline_done",
         content_id=str(generated.id),
@@ -371,6 +389,7 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
     return {
         "content_id": str(generated.id),
         "content_hash": generated.content_hash,
+        "frontpage_hash": frontpage_hash,
         "was_created": was_created,
         "tickers": tickers,
         "sources_used": len(all_sources),

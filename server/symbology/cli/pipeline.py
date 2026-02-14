@@ -597,6 +597,66 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
         sys.exit(1)
 
 
+@pipeline.command("regenerate-group-frontpage")
+@click.option("--group", "group_slug", required=True, help="Company group slug")
+def regenerate_group_frontpage(group_slug: str):
+    """Regenerate frontpage summary for an existing group analysis.
+
+    Fetches the latest COMPANY_GROUP_ANALYSIS for the group and generates
+    a frontpage summary from it.
+
+    Examples:
+
+      just cli pipeline regenerate-group-frontpage --group semiconductors
+    """
+    from symbology.database.company_groups import get_company_group_by_slug
+    from symbology.database.generated_content import get_company_group_analysis
+    from symbology.worker.pipeline import (
+        PIPELINE_MODEL_CONFIGS,
+        PIPELINE_PROMPTS,
+        ensure_model_config,
+        ensure_prompt,
+        generate_group_frontpage_summary,
+    )
+
+    try:
+        init_session()
+
+        grp = get_company_group_by_slug(group_slug)
+        if not grp:
+            console.print(f"[red]Group not found: {group_slug}[/red]")
+            sys.exit(1)
+
+        analyses = get_company_group_analysis(grp.id, limit=1)
+        if not analyses or not analyses[0].content_hash:
+            console.print(f"[yellow]No group analysis found for '{group_slug}'[/yellow]")
+            sys.exit(0)
+
+        analysis = analyses[0]
+        console.print(f"Group: [cyan]{grp.name}[/cyan]")
+        console.print(f"Analysis hash: [dim]{analysis.content_hash[:12]}[/dim]")
+
+        mc = ensure_model_config(**PIPELINE_MODEL_CONFIGS["company_group_frontpage"])
+        prompt = ensure_prompt(PIPELINE_PROMPTS["company_group_frontpage"])
+
+        fp_hash, fp_ok = generate_group_frontpage_summary(
+            company_group_id=str(grp.id),
+            analysis_hash=analysis.content_hash,
+            prompt=prompt,
+            model_config=mc,
+        )
+        if fp_ok:
+            console.print(f"  Frontpage: [green]generated[/green] ({fp_hash[:12]})")
+        else:
+            console.print("  Frontpage: [red]failed[/red]")
+            sys.exit(1)
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Regenerate group frontpage failed")
+        sys.exit(1)
+
+
 @pipeline.command("backfill-metadata")
 @click.option("--dry-run", is_flag=True, help="Show what would be updated without making changes")
 @click.option("--limit", default=1000, type=int, help="Max rows to process (default: 1000)")

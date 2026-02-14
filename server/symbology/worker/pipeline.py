@@ -21,6 +21,7 @@ PIPELINE_MODEL_CONFIGS = {
     "aggregate_summary": {"model_name": "claude-sonnet-4-5-20250929", "max_tokens": 4096, "temperature": 0.3},
     "frontpage_summary": {"model_name": "claude-haiku-4-5-20251001", "max_tokens": 512, "temperature": 0.3},
     "company_group_analysis": {"model_name": "claude-sonnet-4-5-20250929", "max_tokens": 8192, "temperature": 0.3},
+    "company_group_frontpage": {"model_name": "claude-haiku-4-5-20251001", "max_tokens": 512, "temperature": 0.3},
 }
 
 # Prompt names used at each pipeline stage
@@ -28,6 +29,7 @@ PIPELINE_PROMPTS = {
     "aggregate_summary": "aggregate-summary",
     "frontpage_summary": "general-summary",
     "company_group_analysis": "company-group-analysis",
+    "company_group_frontpage": "company-group-frontpage",
 }
 
 # Document types per form (mirrors ingest.just)
@@ -331,6 +333,77 @@ def generate_frontpage_summary(
             "pipeline_frontpage_summary_failed",
             doc_type=doc_type_str,
             form=form,
+            error=str(e),
+        )
+        return None, False
+
+
+def generate_group_frontpage_summary(
+    company_group_id: str,
+    analysis_hash: str,
+    prompt: Prompt,
+    model_config: ModelConfig,
+) -> Tuple[Optional[str], bool]:
+    """Generate a frontpage summary from a company group analysis.
+
+    Args:
+        company_group_id: UUID string of the company group.
+        analysis_hash: Content hash of the group analysis.
+        prompt: System prompt for group frontpage summaries.
+        model_config: Model configuration for group frontpage summaries.
+
+    Returns:
+        Tuple of (content_hash_or_None, success).
+    """
+    from symbology.database.base import get_db_session
+    from symbology.database.generated_content import (
+        ContentStage,
+        create_generated_content,
+        get_generated_content_by_hash,
+    )
+    from symbology.llm.client import get_generate_response
+    from symbology.llm.prompts import format_user_prompt_content
+
+    try:
+        source_content = get_generated_content_by_hash(analysis_hash)
+        if not source_content:
+            logger.error("group_frontpage_source_not_found", analysis_hash=analysis_hash)
+            return None, False
+
+        user_prompt_text = format_user_prompt_content(source_content=[source_content])
+        response, warning = get_generate_response(model_config, prompt.content, user_prompt_text)
+
+        content_data = {
+            "content": response.response,
+            "summary": None,
+            "company_id": None,
+            "company_group_id": company_group_id,
+            "description": "company_group_frontpage",
+            "content_stage": ContentStage.COMPANY_GROUP_FRONTPAGE,
+            "source_type": "generated_content",
+            "model_config_id": model_config.id,
+            "system_prompt_id": prompt.id,
+            "total_duration": response.total_duration,
+            "input_tokens": response.input_tokens,
+            "output_tokens": response.output_tokens,
+            "warning": warning,
+        }
+        generated, was_created = create_generated_content(content_data)
+
+        session = get_db_session()
+        generated.source_content = [source_content]
+        session.commit()
+
+        logger.info(
+            "group_frontpage_summary_generated",
+            content_id=str(generated.id),
+            company_group_id=company_group_id,
+        )
+        return generated.content_hash, True
+    except Exception as e:
+        logger.error(
+            "pipeline_group_frontpage_summary_failed",
+            company_group_id=company_group_id,
             error=str(e),
         )
         return None, False

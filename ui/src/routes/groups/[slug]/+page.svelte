@@ -15,6 +15,7 @@
 
 	const group = data.group;
 	const analyses = data.analyses || [];
+	const frontpageSummary = data.frontpageSummary;
 
 	function handleCompanyClick(ticker: string) {
 		goto(`/c/${ticker}`);
@@ -70,6 +71,11 @@
 	</div>
 
 	{#if group}
+		<!-- Frontpage Summary -->
+		{#if frontpageSummary}
+			<p class="text-lg leading-relaxed text-muted-foreground">{frontpageSummary}</p>
+		{/if}
+
 		<!-- Member Companies -->
 		<Card>
 			<CardHeader>

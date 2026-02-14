@@ -39,6 +39,7 @@ class ContentStage(str, Enum):
     AGGREGATE_SUMMARY = "aggregate_summary"
     FRONTPAGE_SUMMARY = "frontpage_summary"
     COMPANY_GROUP_ANALYSIS = "company_group_analysis"
+    COMPANY_GROUP_FRONTPAGE = "company_group_frontpage"
 
 
 # Association table for many-to-many relationship between GeneratedContent and Document
@@ -857,6 +858,39 @@ def get_generated_content_by_document_ids(document_ids: List[UUID]) -> Dict[UUID
     except Exception as e:
         logger.error("get_generated_content_by_document_ids_failed",
                     error=str(e), exc_info=True)
+        raise
+
+
+def get_company_group_frontpage_summary(group_id: UUID) -> Optional[str]:
+    """Get the most recent company group frontpage summary for a given group.
+
+    Args:
+        group_id: UUID of the company group
+
+    Returns:
+        Content string of the frontpage summary if found, None otherwise
+    """
+    try:
+        session = get_db_session()
+
+        content = (
+            session.query(GeneratedContent)
+            .filter(
+                GeneratedContent.company_group_id == group_id,
+                GeneratedContent.content_stage == ContentStage.COMPANY_GROUP_FRONTPAGE,
+            )
+            .order_by(GeneratedContent.created_at.desc())
+            .first()
+        )
+
+        if content and content.content:
+            logger.info("retrieved_company_group_frontpage_summary", group_id=str(group_id))
+            return content.content
+        else:
+            logger.warning("company_group_frontpage_summary_not_found", group_id=str(group_id))
+            return None
+    except Exception as e:
+        logger.error("get_company_group_frontpage_summary_failed", group_id=str(group_id), error=str(e), exc_info=True)
         raise
 
 

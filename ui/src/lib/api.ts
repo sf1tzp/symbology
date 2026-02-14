@@ -453,6 +453,21 @@ export async function getCompanyGroupBySlug(slug: string): Promise<CompanyGroupR
 }
 
 /**
+ * Get frontpage summary for a company group
+ */
+export async function getGroupFrontpageSummary(slug: string): Promise<string | null> {
+	try {
+		const url = buildApiUrl(`/groups/${encodeURIComponent(slug)}/frontpage-summary`);
+		logApiCall('GET', url);
+		const result = await fetchApi<{ summary: string }>(url);
+		return result.summary;
+	} catch (error) {
+		console.error(`Error fetching group frontpage summary for ${slug}:`, error);
+		return null;
+	}
+}
+
+/**
  * Get analyses for a company group
  */
 export async function getGroupAnalysis(

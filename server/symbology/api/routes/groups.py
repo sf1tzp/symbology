@@ -9,7 +9,10 @@ from symbology.database.company_groups import (
     get_company_group_by_slug,
     list_company_groups,
 )
-from symbology.database.generated_content import get_company_group_analysis
+from symbology.database.generated_content import (
+    get_company_group_analysis,
+    get_company_group_frontpage_summary,
+)
 from symbology.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -22,12 +25,16 @@ def _group_to_response(group: CompanyGroup, include_companies: bool = False) -> 
     if include_companies:
         companies = [_company_to_response(c) for c in group.companies]
 
-    # Get latest analysis summary
+    # Get latest analysis summary — prefer frontpage summary over truncated analysis
     latest_summary = None
     try:
-        analyses = get_company_group_analysis(group.id, limit=1)
-        if analyses and analyses[0].content:
-            latest_summary = analyses[0].content[:500]
+        frontpage = get_company_group_frontpage_summary(group.id)
+        if frontpage:
+            latest_summary = frontpage
+        else:
+            analyses = get_company_group_analysis(group.id, limit=1)
+            if analyses and analyses[0].content:
+                latest_summary = analyses[0].content[:500]
     except Exception as e:
         logger.warning("failed_to_get_latest_analysis", slug=group.slug, error=str(e))
 
@@ -82,6 +89,30 @@ async def get_group_detail(slug: str):
         raise HTTPException(status_code=404, detail=f"Group not found: {slug}")
 
     return _group_to_response(group, include_companies=True)
+
+
+@router.get(
+    "/{slug}/frontpage-summary",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+    responses={
+        404: {"description": "Group not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def get_group_frontpage_summary(slug: str):
+    """Get frontpage summary for a company group."""
+    logger.info("api_get_group_frontpage_summary", slug=slug)
+
+    group = get_company_group_by_slug(slug)
+    if not group:
+        raise HTTPException(status_code=404, detail=f"Group not found: {slug}")
+
+    summary = get_company_group_frontpage_summary(group.id)
+    if not summary:
+        raise HTTPException(status_code=404, detail="Frontpage summary not available")
+
+    return {"summary": summary}
 
 
 @router.get(

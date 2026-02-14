@@ -73,7 +73,9 @@
 	{#if group}
 		<!-- Frontpage Summary -->
 		{#if frontpageSummary}
-			<p class="text-lg leading-relaxed text-muted-foreground">{frontpageSummary}</p>
+			<div class="text-lg leading-relaxed text-muted-foreground">
+				<MarkdownContent content={frontpageSummary} />
+			</div>
 		{/if}
 
 		<!-- Member Companies -->

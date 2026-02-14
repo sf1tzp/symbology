@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
 from sqlalchemy import Date, ForeignKey, String
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from symbology.database.base import Base, get_db_session
 from symbology.database.companies import Company
@@ -39,6 +40,9 @@ class Filing(Base):
     filing_date: Mapped[date] = mapped_column(Date, index=True)
     period_of_report: Mapped[Optional[date]] = mapped_column(Date, index=True)
     url: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Full-text search vector (maintained by PostgreSQL trigger)
+    search_vector = mapped_column(TSVECTOR, nullable=True)
 
     def __repr__(self) -> str:
         return f"{self.company.ticker} {self.period_of_report.year} {self.form}"

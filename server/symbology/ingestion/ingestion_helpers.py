@@ -18,7 +18,7 @@ from symbology.ingestion.edgar_db.accessors import (
     get_sections_for_document_types,
 )
 from symbology.utils.logging import get_logger
-from symbology.utils.text import normalize_filing_text
+from symbology.utils.text import normalize_filing_text, validate_section_content
 
 logger = get_logger(__name__)
 
@@ -198,6 +198,23 @@ def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_docum
                            document_count=len(document_uuids),
                            document_types=[doc_type.value for doc_type in document_uuids.keys()])
 
+            # Ingest financial data (XBRL) - wrapped in try/except so failures don't block pipeline
+            try:
+                financial_counts = ingest_financial_data(
+                    company_id=db_id,
+                    filing_id=db_filing.id,
+                    filing=filing
+                )
+                logger.info("financial_data_ingested",
+                           accession_number=filing.accession_number,
+                           filing_id=str(db_filing.id),
+                           counts=financial_counts)
+            except Exception as e:
+                logger.warning("financial_data_ingestion_failed",
+                              accession_number=filing.accession_number,
+                              filing_id=str(db_filing.id),
+                              error=str(e))
+
             logger.info("filing_ingested",
                        company_id=str(db_id),
                        accession_number=filing.accession_number,
@@ -239,6 +256,17 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
         for doc_type, content in sections_content.items():
             if content and content.strip():
                 content = normalize_filing_text(content)
+
+                valid, reason = validate_section_content(content)
+                if not valid:
+                    logger.warning(
+                        "section_content_rejected",
+                        doc_type=doc_type.value,
+                        accession_number=filing.accession_number,
+                        reason=reason,
+                    )
+                    continue
+
                 # Create a readable document name based on the document type
                 doc_type_names = {
                     DocumentType.DESCRIPTION: "Business Description",

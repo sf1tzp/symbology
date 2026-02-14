@@ -131,6 +131,41 @@ class DocumentResponse(BaseModel):
         }
 
 
+class GeneratedContentSummaryResponse(BaseModel):
+    """Lightweight response for generated content in timeline context (no full content body)."""
+    id: UUID = Field(..., description="Unique identifier for the generated content")
+    content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
+    short_hash: Optional[str] = Field(None, description="Shortened hash for URLs")
+    description: Optional[str] = Field(None, description="Content description")
+    document_type: Optional[str] = Field(None, description="Type of document")
+    form_type: Optional[str] = Field(None, description="SEC form type (10-K, 10-Q, etc.)")
+    content_stage: Optional[str] = Field(None, description="Pipeline stage (single_summary, aggregate_summary, etc.)")
+    summary: Optional[str] = Field(None, description="Generated summary")
+    created_at: datetime = Field(..., description="Timestamp when the content was created")
+
+
+class DocumentWithContentResponse(BaseModel):
+    """Document with its associated generated content for the timeline view."""
+    id: UUID = Field(..., description="Unique identifier for the document")
+    title: str = Field(..., description="Name of the document")
+    document_type: Optional[str] = Field(None, description="Type of the document")
+    content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
+    short_hash: Optional[str] = Field(None, description="Shortened hash for URLs")
+    generated_content: List[GeneratedContentSummaryResponse] = Field(default_factory=list, description="Generated content linked to this document")
+
+
+class FilingTimelineResponse(BaseModel):
+    """Filing with nested documents and their generated content for timeline display."""
+    id: UUID = Field(..., description="Unique identifier for the filing")
+    company_id: UUID = Field(..., description="ID of the company this filing belongs to")
+    accession_number: str = Field(..., description="SEC accession number")
+    form: str = Field(..., description="SEC filing type (e.g., 10-K, 10-Q)")
+    filing_date: date = Field(..., description="Date the filing was submitted")
+    url: Optional[str] = Field(None, description="URL to the filing on SEC website")
+    period_of_report: Optional[date] = Field(None, description="Period covered by the report")
+    documents: List[DocumentWithContentResponse] = Field(default_factory=list, description="Documents in this filing with their generated content")
+
+
 class DocumentContentResponse(BaseModel):
     """Response schema for document content."""
     id: UUID = Field(..., description="Unique identifier for the document")
@@ -285,29 +320,23 @@ class ModelConfigResponse(BaseModel):
     id: UUID = Field(..., description="Unique identifier for the model config")
     model: str = Field(..., description="Model name")
     created_at: datetime = Field(..., description="Timestamp when the config was created")
-    options: Optional[Dict[str, Any]] = Field(None, description="Ollama options as JSON")
-    num_ctx: Optional[int] = Field(None, description="Context window size")
+    options: Optional[Dict[str, Any]] = Field(None, description="Model options as JSON")
+    max_tokens: Optional[int] = Field(None, description="Maximum tokens to generate")
     temperature: Optional[float] = Field(None, description="Temperature parameter")
     top_k: Optional[int] = Field(None, description="Top-k parameter")
     top_p: Optional[float] = Field(None, description="Top-p parameter")
-    seed: Optional[int] = Field(None, description="Random seed")
-    num_predict: Optional[int] = Field(None, description="Number of tokens to predict")
-    num_gpu: Optional[int] = Field(None, description="Number of GPUs to use")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174006",
-                "model": "llama3.2:3b",
+                "model": "claude-sonnet-4-5-20250929",
                 "created_at": "2023-12-25T12:30:45.123456",
-                "options": {"num_ctx": 4096, "temperature": 0.8},
-                "num_ctx": 4096,
+                "options": {"max_tokens": 4096, "temperature": 0.8},
+                "max_tokens": 4096,
                 "temperature": 0.8,
                 "top_k": 40,
-                "top_p": 0.9,
-                "seed": 42,
-                "num_predict": -1,
-                "num_gpu": 1
+                "top_p": 0.9
             }
         }
 
@@ -318,11 +347,16 @@ class GeneratedContentResponse(BaseModel):
     content_hash: Optional[str] = Field(None, description="SHA256 hash of the content")
     short_hash: Optional[str] = Field(None, description="Shortened hash for URLs (first 12 characters)")
     company_id: Optional[UUID] = Field(None, description="ID of the company this content belongs to")
+    company_group_id: Optional[UUID] = Field(None, description="ID of the company group this content belongs to")
     description: Optional[str] = Field(None, description="Content description")
     document_type: Optional[str] = Field(None, description="Type of document (e.g., MDA, RISK_FACTORS, DESCRIPTION)")
     source_type: str = Field(..., description="Type of sources used (documents, generated_content, both)")
     created_at: datetime = Field(..., description="Timestamp when the content was created")
     total_duration: Optional[float] = Field(None, description="Total duration of content generation in seconds")
+    input_tokens: Optional[int] = Field(None, description="Number of input tokens used for generation")
+    output_tokens: Optional[int] = Field(None, description="Number of output tokens produced during generation")
+    form_type: Optional[str] = Field(None, description="SEC form type associated with source documents")
+    content_stage: Optional[str] = Field(None, description="Pipeline stage (single_summary, aggregate_summary, etc.)")
     warning: Optional[str] = Field(None, description="Warning message if any issues occurred during generation")
     content: Optional[str] = Field(None, description="The actual AI-generated content")
     summary: Optional[str] = Field(None, description="Generated summary of the content")
@@ -444,3 +478,72 @@ class PipelineStatusResponse(BaseModel):
 class PipelineTriggerRequest(BaseModel):
     """Request to manually trigger a pipeline run."""
     forms: Optional[List[str]] = Field(None, description="SEC forms to process (defaults to scheduler config)")
+
+
+# ---------------------------------------------------------------------------
+# Search schemas
+# ---------------------------------------------------------------------------
+
+class CompanyGroupResponse(BaseModel):
+    """Response schema for a company group."""
+    id: UUID = Field(..., description="Unique identifier for the company group")
+    name: str = Field(..., description="Display name")
+    slug: str = Field(..., description="URL-friendly identifier")
+    description: Optional[str] = Field(None, description="Group description")
+    sic_codes: List[str] = Field(default_factory=list, description="SIC code prefixes")
+    member_count: int = Field(0, description="Number of member companies")
+    created_at: datetime = Field(..., description="When the group was created")
+    updated_at: datetime = Field(..., description="When the group was last updated")
+    companies: Optional[List[CompanyResponse]] = Field(None, description="Member companies (included in detail view)")
+    latest_analysis_summary: Optional[str] = Field(None, description="Summary from latest group analysis")
+
+
+# ---------------------------------------------------------------------------
+# Financial comparison schemas
+# ---------------------------------------------------------------------------
+
+class PeriodValue(BaseModel):
+    """A financial value for a specific period."""
+    date: str = Field(..., description="ISO date string for the period")
+    value: Optional[float] = Field(None, description="Numeric value for this period")
+
+
+class PeriodChange(BaseModel):
+    """Period-over-period change for a financial line item."""
+    from_date: str = Field(..., description="Start period date")
+    to_date: str = Field(..., description="End period date")
+    absolute: Optional[float] = Field(None, description="Absolute change")
+    percent: Optional[float] = Field(None, description="Percentage change")
+
+
+class FinancialLineItem(BaseModel):
+    """A single financial concept with values across periods."""
+    concept_name: str = Field(..., description="XBRL concept name")
+    description: Optional[str] = Field(None, description="Human-readable description")
+    labels: List[str] = Field(default_factory=list, description="Statement type labels")
+    values: List[PeriodValue] = Field(default_factory=list, description="Values by period")
+    changes: List[PeriodChange] = Field(default_factory=list, description="Period-over-period changes")
+
+
+class FinancialComparisonResponse(BaseModel):
+    """Response for temporal financial data comparison."""
+    periods: List[str] = Field(default_factory=list, description="ISO date strings for each period column")
+    items: List[FinancialLineItem] = Field(default_factory=list, description="Financial line items with values and changes")
+
+
+class SearchResultItem(BaseModel):
+    """A single search result from unified search."""
+    entity_type: str = Field(..., description="Type of entity: company, filing, or generated_content")
+    id: UUID = Field(..., description="Entity ID")
+    rank: float = Field(..., description="Relevance ranking score")
+    headline: Optional[str] = Field(None, description="Highlighted search result snippet")
+    title: Optional[str] = Field(None, description="Primary display text (name, form type, description)")
+    subtitle: Optional[str] = Field(None, description="Secondary text (ticker, accession number)")
+    date_value: Optional[str] = Field(None, description="Associated date (filing_date, created_at)")
+
+
+class SearchResponse(BaseModel):
+    """Response for unified search endpoint."""
+    results: List[SearchResultItem] = Field(default_factory=list, description="Search result items")
+    total: int = Field(..., description="Total number of matching results")
+    query: str = Field(..., description="The search query that was executed")

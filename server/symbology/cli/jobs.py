@@ -9,10 +9,13 @@ from symbology.database.base import get_db_session, init_db
 from symbology.database.jobs import (
     JobStatus,
     JobType,
+    cancel_failed_jobs,
     cancel_job,
+    count_jobs_by_status,
     create_job,
     get_job,
     list_jobs,
+    requeue_failed_jobs,
 )
 from symbology.utils.config import settings
 from symbology.utils.logging import get_logger
@@ -188,4 +191,56 @@ def cancel_job_cmd(job_id: str):
     except Exception as e:
         console.print(f"[red]Error cancelling job: {e}[/red]")
         logger.exception("Failed to cancel job")
+        sys.exit(1)
+
+
+@jobs.command("requeue-failed")
+@click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="Filter by job type")
+@click.option("--dry-run", is_flag=True, help="Show counts without making changes")
+def requeue_failed_cmd(type_filter: str, dry_run: bool):
+    """Reset FAILED jobs back to PENDING for retry."""
+    try:
+        init_session()
+        jt = JobType(type_filter) if type_filter else None
+        count = count_jobs_by_status(JobStatus.FAILED, job_type=jt)
+
+        if count == 0:
+            console.print("[yellow]No failed jobs found[/yellow]")
+            return
+
+        if dry_run:
+            console.print(f"Would requeue: [cyan]{count}[/cyan] failed jobs")
+            return
+
+        requeued = requeue_failed_jobs(job_type=jt)
+        console.print(f"[green]✓[/green] Requeued {len(requeued)} failed jobs to PENDING")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Failed to requeue jobs")
+        sys.exit(1)
+
+
+@jobs.command("clear-failed")
+@click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="Filter by job type")
+@click.option("--dry-run", is_flag=True, help="Show counts without making changes")
+def clear_failed_cmd(type_filter: str, dry_run: bool):
+    """Mark FAILED jobs as CANCELLED (clear them from the queue)."""
+    try:
+        init_session()
+        jt = JobType(type_filter) if type_filter else None
+        count = count_jobs_by_status(JobStatus.FAILED, job_type=jt)
+
+        if count == 0:
+            console.print("[yellow]No failed jobs found[/yellow]")
+            return
+
+        if dry_run:
+            console.print(f"Would cancel: [cyan]{count}[/cyan] failed jobs")
+            return
+
+        cancelled = cancel_failed_jobs(job_type=jt)
+        console.print(f"[green]✓[/green] Cancelled {cancelled} failed jobs")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Failed to clear failed jobs")
         sys.exit(1)

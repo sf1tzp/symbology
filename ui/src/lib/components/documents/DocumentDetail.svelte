@@ -3,7 +3,7 @@
 	import { HandCoins } from '@lucide/svelte';
 	import MarkdownContent from '../ui/MarkdownContent.svelte';
 	import Separator from '../ui/separator/separator.svelte';
-	import type { DocumentResponse } from '$lib/generated-api-types';
+	import type { DocumentResponse } from '$lib/api-types';
 
 	interface Props {
 		document: DocumentResponse;
@@ -31,7 +31,7 @@
 	<CardContent>
 		<div class="space-y-4">
 			<Separator />
-			<MarkdownContent content={document.content} />
+			<MarkdownContent content={document.content ?? ''} />
 		</div>
 	</CardContent>
 </Card>

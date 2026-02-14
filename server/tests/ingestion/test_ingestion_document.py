@@ -5,6 +5,12 @@ from symbology.database.documents import DocumentType
 from symbology.ingestion.ingestion_helpers import ingest_filing_documents
 from uuid_extensions import uuid7
 
+# Content must exceed the minimum length threshold (1500 chars) to pass validation.
+# Strip trailing space so the string matches after normalize_filing_text().
+_LONG_BUSINESS = ("The company designs and manufactures semiconductors. " * 40).strip()
+_LONG_RISK = ("Investing in our securities involves significant risk. " * 40).strip()
+_LONG_MDA = ("Management discusses the financial results below. " * 40).strip()
+
 
 def test_ingest_filing_documents_happy_path():
     """Test the successful ingestion of filing documents."""
@@ -21,9 +27,9 @@ def test_ingest_filing_documents_happy_path():
 
     # Mock get_sections_for_document_types returning section content
     sections = {
-        DocumentType.DESCRIPTION: "Business description text",
-        DocumentType.RISK_FACTORS: "Risk factors text",
-        DocumentType.MDA: "MD&A text",
+        DocumentType.DESCRIPTION: _LONG_BUSINESS,
+        DocumentType.RISK_FACTORS: _LONG_RISK,
+        DocumentType.MDA: _LONG_MDA,
     }
 
     with mock.patch('symbology.ingestion.ingestion_helpers.get_company', return_value=mock_company), \
@@ -56,9 +62,9 @@ def test_ingest_filing_documents_happy_path():
 
         # Verify document content was stored correctly
         contents = [kw['content'] for kw in call_kwargs_list]
-        assert "Business description text" in contents
-        assert "Risk factors text" in contents
-        assert "MD&A text" in contents
+        assert _LONG_BUSINESS in contents
+        assert _LONG_RISK in contents
+        assert _LONG_MDA in contents
 
         # Verify document UUIDs were returned correctly
         assert document_uuids == {
@@ -82,7 +88,7 @@ def test_ingest_filing_documents_missing_sections():
 
     # Only business description available
     sections = {
-        DocumentType.DESCRIPTION: "Business description text",
+        DocumentType.DESCRIPTION: _LONG_BUSINESS,
     }
 
     with mock.patch('symbology.ingestion.ingestion_helpers.get_company', return_value=mock_company), \
@@ -119,7 +125,7 @@ def test_ingest_filing_documents_uses_company_from_db():
     mock_company.name = 'DB Company Name'
 
     sections = {
-        DocumentType.DESCRIPTION: "Business description text",
+        DocumentType.DESCRIPTION: _LONG_BUSINESS,
     }
 
     with mock.patch('symbology.ingestion.ingestion_helpers.get_company', return_value=mock_company) as mock_get_company, \

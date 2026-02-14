@@ -44,14 +44,14 @@ class PipelineRun(Base):
 
     # How it was triggered
     trigger: Mapped[PipelineTrigger] = mapped_column(
-        SQLEnum(PipelineTrigger, name="pipeline_trigger_enum"),
+        SQLEnum(PipelineTrigger, name="pipeline_trigger_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=PipelineTrigger.MANUAL,
     )
 
     # Lifecycle
     status: Mapped[PipelineRunStatus] = mapped_column(
-        SQLEnum(PipelineRunStatus, name="pipeline_run_status_enum"),
+        SQLEnum(PipelineRunStatus, name="pipeline_run_status_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=PipelineRunStatus.PENDING,
     )

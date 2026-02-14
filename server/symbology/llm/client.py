@@ -19,11 +19,32 @@ class AnthropicResponseAdapter:
     def __init__(self, message, duration_ns):
         self.response = message.content[0].text
         self.content = self.response
-        self.total_duration = duration_ns
+        self.total_duration = duration_ns / 1e9
         self.done = True
         self.done_reason = message.stop_reason
         self.input_tokens = message.usage.input_tokens
         self.output_tokens = message.usage.output_tokens
+
+
+class ShutdownRequested(Exception):
+    """Raised when a shutdown signal is received during a backoff sleep."""
+
+
+# Global flag set by the worker's signal handler so that retry_backoff
+# can break out of long sleeps promptly.
+_shutdown_flag = False
+
+
+def set_shutdown_flag():
+    """Signal retry_backoff loops to abort."""
+    global _shutdown_flag
+    _shutdown_flag = True
+
+
+def reset_shutdown_flag():
+    """Reset the shutdown flag (e.g. at worker start)."""
+    global _shutdown_flag
+    _shutdown_flag = False
 
 
 def retry_backoff(timeout, func, *args, **kwargs):
@@ -31,14 +52,22 @@ def retry_backoff(timeout, func, *args, **kwargs):
     logger.debug("retry_backoff", backoff=backoff, timeout=timeout, func=func, args=args, kwargs=kwargs)
     start = time.time()
     while time.time() - start < timeout:
+        if _shutdown_flag:
+            raise ShutdownRequested("shutdown requested during retry backoff")
+
         try:
             result = func(*args, **kwargs)
             return result
 
         except Exception as e:
             logger.error("retry_backoff", backoff=backoff, error=e)
-            backoff = min(60, backoff * 2)
-            time.sleep(backoff)
+            backoff = min(300, backoff * 2)
+            # Sleep in 1-second increments so we can respond to shutdown signals
+            sleep_until = time.time() + backoff
+            while time.time() < sleep_until:
+                if _shutdown_flag:
+                    raise ShutdownRequested("shutdown requested during retry backoff")
+                time.sleep(min(1.0, sleep_until - time.time()))
     else:
         raise TimeoutError
 

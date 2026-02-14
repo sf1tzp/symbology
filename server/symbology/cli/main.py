@@ -27,6 +27,7 @@ import click
 
 # Import command modules
 from symbology.cli.companies import companies
+from symbology.cli.db import db
 from symbology.cli.documents import documents
 from symbology.cli.filings import filings
 from symbology.cli.financials import financials
@@ -35,6 +36,7 @@ from symbology.cli.jobs import jobs
 from symbology.cli.model_configs import model_configs
 from symbology.cli.pipeline import pipeline
 from symbology.cli.prompts import prompts
+from symbology.cli.groups import group
 from symbology.cli.ratings import ratings
 
 # Add project root to path for imports
@@ -64,6 +66,7 @@ def cli(ctx, verbose):
 
 # Add command groups
 cli.add_command(companies)
+cli.add_command(db)
 cli.add_command(documents)
 cli.add_command(filings)
 cli.add_command(financials)
@@ -71,6 +74,7 @@ cli.add_command(generated_content)
 cli.add_command(jobs)
 cli.add_command(model_configs)
 cli.add_command(pipeline)
+cli.add_command(group)
 cli.add_command(prompts)
 cli.add_command(ratings)
 

@@ -5,12 +5,17 @@
 
 import type {
 	CompanyResponse,
+	CompanyGroupResponse,
 	FilingResponse,
+	FilingTimelineResponse,
 	DocumentResponse,
 	GeneratedContentResponse,
-	ModelConfigResponse
-} from './generated-api-types';
-import { fetchApi, isApiError } from './generated-api-types';
+	GeneratedContentSummaryResponse,
+	ModelConfigResponse,
+	SearchResponse,
+	FinancialComparisonResponse
+} from './api-types';
+import { fetchApi, isApiError } from './api-types';
 import { buildApiUrl, logApiCall, config } from './config';
 
 /**
@@ -128,6 +133,27 @@ export async function getAggregateSummariesByTicker(
 }
 
 /**
+ * Get all generated content for a company by ticker (lightweight listing)
+ */
+export async function getAllGeneratedContentByTicker(
+	ticker: string,
+	limit: number = 100
+): Promise<GeneratedContentSummaryResponse[]> {
+	try {
+		const url = buildApiUrl(`/generated-content/all/by-ticker/${encodeURIComponent(ticker)}`, {
+			limit: limit.toString()
+		});
+
+		logApiCall('GET', url);
+
+		return await fetchApi<GeneratedContentSummaryResponse[]>(url);
+	} catch (error) {
+		console.error(`Error fetching all generated content for ticker ${ticker}:`, error);
+		return [];
+	}
+}
+
+/**
  * Get a specific generated content by ticker and hash
  */
 export async function getGeneratedContentByTickerAndHash(
@@ -210,15 +236,34 @@ export async function getFilingsByTicker(
 		const filings = await fetchApi<FilingResponse[]>(url);
 		// Sort by filing.period_of_report (most recent first)
 		return filings.sort((a, b) => {
-			const dateA = new Date(a.period_of_report).getTime();
-			const dateB = new Date(b.period_of_report).getTime();
+			const dateA = new Date(a.period_of_report || 0).getTime();
+			const dateB = new Date(b.period_of_report || 0).getTime();
 			return dateB - dateA;
 		});
-
-		return filings;
 	} catch (error) {
 		console.error(`Error fetching filings for ticker ${ticker}:`, error);
 		return []; // Return empty array rather than throwing for missing data
+	}
+}
+
+/**
+ * Get filing timeline with nested documents and generated content for a company
+ */
+export async function getFilingsTimeline(
+	ticker: string,
+	limit: number = 20
+): Promise<FilingTimelineResponse[]> {
+	try {
+		const url = buildApiUrl(`/filings/by-ticker/${encodeURIComponent(ticker)}/timeline`, {
+			limit: limit.toString()
+		});
+
+		logApiCall('GET', url);
+
+		return await fetchApi<FilingTimelineResponse[]>(url);
+	} catch (error) {
+		console.error(`Error fetching filing timeline for ticker ${ticker}:`, error);
+		return [];
 	}
 }
 
@@ -371,6 +416,126 @@ export async function getDocumentByAccessionAndHash(
 			return null;
 		}
 		throw error;
+	}
+}
+
+/**
+ * Get all company groups
+ */
+export async function getCompanyGroups(limit: number = 50): Promise<CompanyGroupResponse[]> {
+	try {
+		const params: Record<string, string> = { limit: limit.toString() };
+
+		const url = buildApiUrl('/groups', params);
+		logApiCall('GET', url);
+		return await fetchApi<CompanyGroupResponse[]>(url);
+	} catch (error) {
+		console.error('Error fetching company groups:', error);
+		return [];
+	}
+}
+
+/**
+ * Get a company group by slug
+ */
+export async function getCompanyGroupBySlug(slug: string): Promise<CompanyGroupResponse | null> {
+	try {
+		const url = buildApiUrl(`/groups/${encodeURIComponent(slug)}`);
+		logApiCall('GET', url);
+		return await fetchApi<CompanyGroupResponse>(url);
+	} catch (error) {
+		console.error(`Error fetching company group ${slug}:`, error);
+		if (error instanceof Error && error.message.includes('404')) {
+			return null;
+		}
+		throw error;
+	}
+}
+
+/**
+ * Get analyses for a company group
+ */
+export async function getGroupAnalysis(
+	slug: string,
+	limit: number = 5
+): Promise<GeneratedContentResponse[]> {
+	try {
+		const url = buildApiUrl(`/groups/${encodeURIComponent(slug)}/analysis`, {
+			limit: limit.toString()
+		});
+		logApiCall('GET', url);
+		return await fetchApi<GeneratedContentResponse[]>(url);
+	} catch (error) {
+		console.error(`Error fetching group analysis for ${slug}:`, error);
+		return [];
+	}
+}
+
+/**
+ * Unified search across companies, filings, and generated content
+ */
+export async function search(
+	query: string,
+	options?: {
+		entityTypes?: string[];
+		sic?: string;
+		formType?: string;
+		documentType?: string;
+		dateFrom?: string;
+		dateTo?: string;
+		limit?: number;
+		offset?: number;
+	}
+): Promise<SearchResponse> {
+	try {
+		const params: Record<string, string> = { q: query };
+
+		if (options?.sic) params.sic = options.sic;
+		if (options?.formType) params.form_type = options.formType;
+		if (options?.documentType) params.document_type = options.documentType;
+		if (options?.dateFrom) params.date_from = options.dateFrom;
+		if (options?.dateTo) params.date_to = options.dateTo;
+		if (options?.limit) params.limit = options.limit.toString();
+		if (options?.offset) params.offset = options.offset.toString();
+
+		// Build URL with entity_types as repeated query params
+		let url = buildApiUrl('/search', params);
+		if (options?.entityTypes?.length) {
+			const etParams = options.entityTypes
+				.map((t) => `entity_types=${encodeURIComponent(t)}`)
+				.join('&');
+			url += (url.includes('?') ? '&' : '?') + etParams;
+		}
+
+		logApiCall('GET', url);
+
+		return await fetchApi<SearchResponse>(url);
+	} catch (error) {
+		console.error('Error performing search:', error);
+		throw error;
+	}
+}
+
+/**
+ * Get financial comparison data for a company
+ */
+export async function getFinancialComparison(
+	ticker: string,
+	statementType?: string,
+	periods: number = 5
+): Promise<FinancialComparisonResponse | null> {
+	try {
+		const params: Record<string, string> = { periods: periods.toString() };
+		if (statementType) params.statement_type = statementType;
+
+		const url = buildApiUrl(`/financials/${encodeURIComponent(ticker)}/comparison`, params);
+
+		logApiCall('GET', url);
+
+		return await fetchApi<FinancialComparisonResponse>(url);
+	} catch (error) {
+		console.error(`Error fetching financial comparison for ${ticker}:`, error);
+		return null;
 	}
 }
 

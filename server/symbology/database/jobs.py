@@ -32,6 +32,7 @@ class JobType(str, Enum):
     INGEST_PIPELINE = "ingest_pipeline"
     FULL_PIPELINE = "full_pipeline"
     BULK_INGEST = "bulk_ingest"
+    COMPANY_GROUP_PIPELINE = "company_group_pipeline"
     TEST = "test"
 
 
@@ -44,7 +45,7 @@ class Job(Base):
 
     # Job definition
     job_type: Mapped[JobType] = mapped_column(
-        SQLEnum(JobType, name="job_type_enum"),
+        SQLEnum(JobType, name="job_type_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
     )
     params: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, default=dict)
@@ -52,7 +53,7 @@ class Job(Base):
 
     # Lifecycle
     status: Mapped[JobStatus] = mapped_column(
-        SQLEnum(JobStatus, name="job_status_enum"),
+        SQLEnum(JobStatus, name="job_status_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=JobStatus.PENDING,
     )
@@ -245,6 +246,64 @@ def fail_job(job_id: Union[UUID, str], error: str) -> Optional[Job]:
     except Exception as e:
         session.rollback()
         logger.error("fail_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
+        raise
+
+
+def count_jobs_by_status(status: JobStatus, job_type: Optional[JobType] = None) -> int:
+    """Count jobs with a given status, optionally filtered by type."""
+    try:
+        session = get_db_session()
+        query = session.query(func.count(Job.id)).filter(Job.status == status)
+        if job_type:
+            query = query.filter(Job.job_type == job_type)
+        return query.scalar() or 0
+    except Exception as e:
+        logger.error("count_jobs_by_status_failed", error=str(e), exc_info=True)
+        raise
+
+
+def requeue_failed_jobs(job_type: Optional[JobType] = None) -> List[Job]:
+    """Reset FAILED jobs to PENDING so they can be retried.
+
+    Clears retry_count, worker_id, error, started_at, and completed_at.
+    """
+    try:
+        session = get_db_session()
+        query = session.query(Job).filter(Job.status == JobStatus.FAILED)
+        if job_type:
+            query = query.filter(Job.job_type == job_type)
+        jobs = query.all()
+        for job in jobs:
+            job.status = JobStatus.PENDING
+            job.retry_count = 0
+            job.worker_id = None
+            job.error = None
+            job.started_at = None
+            job.completed_at = None
+        if jobs:
+            session.commit()
+            logger.info("requeued_failed_jobs", count=len(jobs), job_type=job_type)
+        return jobs
+    except Exception as e:
+        session.rollback()
+        logger.error("requeue_failed_jobs_failed", error=str(e), exc_info=True)
+        raise
+
+
+def cancel_failed_jobs(job_type: Optional[JobType] = None) -> int:
+    """Bulk-cancel FAILED jobs (FAILED → CANCELLED). Returns count affected."""
+    try:
+        session = get_db_session()
+        query = session.query(Job).filter(Job.status == JobStatus.FAILED)
+        if job_type:
+            query = query.filter(Job.job_type == job_type)
+        count = query.update({Job.status: JobStatus.CANCELLED})
+        session.commit()
+        logger.info("cancelled_failed_jobs", count=count, job_type=job_type)
+        return count
+    except Exception as e:
+        session.rollback()
+        logger.error("cancel_failed_jobs_failed", error=str(e), exc_info=True)
         raise
 
 

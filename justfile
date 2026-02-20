@@ -3,6 +3,12 @@
 
 set dotenv-load
 
+secrets-local:
+    sops -d secrets/local.env > .env
+
+edit-secrets HOST:
+    sops secrets/{{HOST}}.env
+
 # Run components
 run-api *ARGS:
     just -d server -f server/justfile run {{ARGS}}

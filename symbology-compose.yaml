@@ -4,7 +4,6 @@ services:
     container_name: symbology-ui
     restart: always
     environment:
-      - PUBLIC_SYMBOLOGY_API_HOST=api.symbology.staging.lofi
       - PUBLIC_LOG_LEVEL=INFO
       - PUBLIC_ENVIRONMENT=production
     networks:

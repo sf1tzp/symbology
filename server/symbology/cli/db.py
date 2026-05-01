@@ -1,8 +1,9 @@
-"""CLI commands for database dump and load operations."""
+"""CLI commands for database dump, load, sync, and backfill operations."""
 
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -67,7 +68,7 @@ def _download_from_s3(s3_uri: str, dest_path: Path):
 
 @click.group()
 def db():
-    """Database dump and load commands."""
+    """Database dump, load, sync, and backfill commands."""
     pass
 
 
@@ -204,3 +205,240 @@ def load_cmd(file: str, database_url: str, clean: bool, no_owner: bool):
         # Clean up S3 temp file
         if file.startswith("s3://"):
             local_path.unlink(missing_ok=True)
+
+
+@db.command("sync")
+@click.option("--source", required=True, help="Source environment name (e.g. staging-web)")
+@click.option("--target", required=True, help="Target environment name (e.g. web2.streetfortress.cloud)")
+@click.option("--dry-run", is_flag=True, help="Show what would be synced without writing")
+@click.option("--batch-size", default=500, type=int, help="Rows per commit batch (default: 500)")
+def sync_cmd(source: str, target: str, dry_run: bool, batch_size: int):
+    """Sync data from source to target database using environment names.
+
+    Resolves connections via sops-encrypted secrets/<name>.env files.
+    Deduplicates by natural keys (ticker, content_hash, accession_number, etc.).
+
+    Examples:
+
+      just cli db sync --source staging-web --target web2.streetfortress.cloud --dry-run
+
+      just cli db sync --source staging-web --target local
+    """
+    from symbology.cli.db_sync import resolve_db_url, run_sync
+
+    if source == target:
+        console.print("[red]Source and target environments must be different.[/red]")
+        sys.exit(1)
+
+    console.print(f"[bold blue]Source:[/bold blue] {source}")
+    console.print(f"[bold blue]Target:[/bold blue] {target}")
+
+    source_url = resolve_db_url(source)
+    target_url = resolve_db_url(target)
+
+    run_sync(source_url, target_url, dry_run=dry_run, batch_size=batch_size)
+
+
+# ---------------------------------------------------------------------------
+# Backfill subgroup
+# ---------------------------------------------------------------------------
+
+@db.group("backfill")
+def backfill():
+    """Backfill null columns on existing data."""
+    pass
+
+
+@backfill.command("content-stage")
+@click.option("--dry-run", is_flag=True, help="Show what would be updated without making changes")
+@click.option("--limit", default=1000, type=int, help="Max rows to process (default: 1000)")
+def backfill_content_stage(dry_run: bool, limit: int):
+    """Backfill content_stage from the description field on generated_content rows.
+
+    Parses description strings (e.g. 'risk_factors_aggregate_summary') to
+    populate the structured content_stage, document_type, and form_type fields.
+
+    Examples:
+
+      just cli db backfill content-stage --dry-run
+
+      just cli db backfill content-stage --limit 500
+    """
+    from symbology.database.base import get_db_session, init_db
+    from symbology.database.documents import DocumentType
+    from symbology.database.generated_content import ContentStage, GeneratedContent
+
+    STAGE_SUFFIXES = {
+        "_single_summary": ContentStage.SINGLE_SUMMARY,
+        "_aggregate_summary": ContentStage.AGGREGATE_SUMMARY,
+        "_frontpage_summary": ContentStage.FRONTPAGE_SUMMARY,
+    }
+    EXACT_MATCHES = {
+        "company_group_analysis": ContentStage.COMPANY_GROUP_ANALYSIS,
+        "company_group_frontpage": ContentStage.COMPANY_GROUP_FRONTPAGE,
+        "business_description_frontpage_summary": ContentStage.FRONTPAGE_SUMMARY,
+    }
+    DOC_TYPE_MAP = {dt.value: dt for dt in DocumentType}
+
+    try:
+        init_db(settings.database.url)
+        session = get_db_session()
+
+        rows = (
+            session.query(GeneratedContent)
+            .filter(
+                GeneratedContent.description.is_not(None),
+                GeneratedContent.content_stage.is_(None),
+            )
+            .limit(limit)
+            .all()
+        )
+
+        if not rows:
+            console.print("[green]No rows need backfilling[/green]")
+            return
+
+        console.print(f"Found [cyan]{len(rows)}[/cyan] rows to backfill")
+        if dry_run:
+            console.print("[yellow]DRY RUN — no changes will be made[/yellow]")
+
+        updated = 0
+        skipped = 0
+
+        for row in rows:
+            desc = row.description or ""
+
+            # Check exact matches first
+            detected_stage = EXACT_MATCHES.get(desc)
+            doc_type_prefix = None if detected_stage else desc
+
+            # Check suffix matches
+            if not detected_stage:
+                for suffix, stage in STAGE_SUFFIXES.items():
+                    if desc.endswith(suffix):
+                        detected_stage = stage
+                        doc_type_prefix = desc[: -len(suffix)]
+                        break
+
+            if not detected_stage:
+                skipped += 1
+                continue
+
+            detected_doc_type = DOC_TYPE_MAP.get(doc_type_prefix) if doc_type_prefix else None
+
+            # Infer form_type from source documents
+            detected_form_type = None
+            if row.source_documents:
+                for src_doc in row.source_documents:
+                    if src_doc.filing and src_doc.filing.form:
+                        detected_form_type = src_doc.filing.form
+                        break
+
+            if dry_run:
+                console.print(
+                    f"  {row.content_hash[:12] if row.content_hash else '?'}: "
+                    f"[dim]{desc}[/dim] -> "
+                    f"stage={detected_stage.value}, "
+                    f"doc_type={detected_doc_type.value if detected_doc_type else 'None'}, "
+                    f"form_type={detected_form_type or 'None'}"
+                )
+            else:
+                row.content_stage = detected_stage
+                if detected_doc_type and not row.document_type:
+                    row.document_type = detected_doc_type
+                if detected_form_type and not row.form_type:
+                    row.form_type = detected_form_type
+
+            updated += 1
+
+        if not dry_run:
+            session.commit()
+
+        console.print(f"\n{'Would update' if dry_run else 'Updated'}: [green]{updated}[/green]")
+        if skipped:
+            console.print(f"Skipped (unrecognized description): [yellow]{skipped}[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Backfill content-stage failed")
+        sys.exit(1)
+
+
+@backfill.command("cik")
+@click.option("--dry-run", is_flag=True, help="Show what would be updated without making changes")
+@click.option("--limit", default=100, type=int, help="Max companies to process (default: 100)")
+def backfill_cik(dry_run: bool, limit: int):
+    """Backfill CIK numbers for companies using the SEC EDGAR API.
+
+    Looks up each company's CIK by ticker symbol.
+
+    Examples:
+
+      just cli db backfill cik --dry-run
+
+      just cli db backfill cik --limit 50
+    """
+    from symbology.database.base import get_db_session, init_db
+    from symbology.database.companies import Company
+    from symbology.ingestion.edgar_db.accessors import edgar_login
+
+    try:
+        init_db(settings.database.url)
+        session = get_db_session()
+        edgar_login(settings.edgar_api.edgar_contact)
+
+        from edgar import Company as EdgarCompany
+
+        rows = (
+            session.query(Company)
+            .filter(Company.cik.is_(None))
+            .limit(limit)
+            .all()
+        )
+
+        if not rows:
+            console.print("[green]All companies already have CIK values[/green]")
+            return
+
+        console.print(f"Found [cyan]{len(rows)}[/cyan] companies without CIK")
+        if dry_run:
+            console.print("[yellow]DRY RUN — no changes will be made[/yellow]")
+
+        updated = 0
+        skipped = 0
+
+        for row in rows:
+            try:
+                edgar_company = EdgarCompany(row.ticker)
+                cik = str(edgar_company.cik).zfill(10)
+
+                # Check for duplicate CIK
+                existing = session.query(Company).filter(Company.cik == cik, Company.id != row.id).first()
+                if existing:
+                    console.print(f"  [yellow]{row.ticker}: CIK {cik} already belongs to {existing.ticker}, skipping[/yellow]")
+                    skipped += 1
+                    continue
+
+                if dry_run:
+                    console.print(f"  {row.ticker} -> CIK {cik}")
+                else:
+                    row.cik = cik
+
+                updated += 1
+            except Exception as e:
+                console.print(f"  [yellow]{row.ticker}: not found in EDGAR ({e})[/yellow]")
+                skipped += 1
+
+            time.sleep(0.15)  # Rate limit
+
+        if not dry_run:
+            session.commit()
+
+        console.print(f"\n{'Would update' if dry_run else 'Updated'}: [green]{updated}[/green]")
+        if skipped:
+            console.print(f"Skipped: [yellow]{skipped}[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Backfill CIK failed")
+        sys.exit(1)

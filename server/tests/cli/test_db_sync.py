@@ -185,29 +185,30 @@ class TestBackfillContentStageMapping:
 
 class TestBackfillContentStageCli:
 
-    @patch("symbology.database.base.get_db_session")
-    @patch("symbology.database.base.init_db")
-    def test_no_rows_to_backfill(self, mock_init, mock_session):
-        mock_query = MagicMock()
-        mock_query.query.return_value.filter.return_value.limit.return_value.all.return_value = []
-        mock_session.return_value = mock_query
+    @patch("symbology.cli.db_sync.create_session")
+    @patch("symbology.cli.db_sync.resolve_db_url")
+    def test_no_rows_to_backfill(self, mock_resolve, mock_create):
+        mock_resolve.return_value = "postgresql://x@y:5432/z"
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.limit.return_value.all.return_value = []
+        mock_create.return_value = mock_session
 
-        result = runner.invoke(db, ["backfill", "content-stage", "--dry-run"])
+        result = runner.invoke(db, ["backfill", "content-stage", "--target", "staging-web", "--dry-run"])
         assert result.exit_code == 0
         assert "No rows need backfilling" in result.output
 
 
 class TestBackfillCikCli:
 
-    @patch("edgar.Company")
     @patch("symbology.ingestion.edgar_db.accessors.edgar_login")
-    @patch("symbology.database.base.get_db_session")
-    @patch("symbology.database.base.init_db")
-    def test_no_companies_without_cik(self, mock_init, mock_session, mock_login, mock_edgar):
-        mock_query = MagicMock()
-        mock_query.query.return_value.filter.return_value.limit.return_value.all.return_value = []
-        mock_session.return_value = mock_query
+    @patch("symbology.cli.db_sync.create_session")
+    @patch("symbology.cli.db_sync.resolve_db_url")
+    def test_no_companies_without_cik(self, mock_resolve, mock_create, mock_login):
+        mock_resolve.return_value = "postgresql://x@y:5432/z"
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.limit.return_value.all.return_value = []
+        mock_create.return_value = mock_session
 
-        result = runner.invoke(db, ["backfill", "cik", "--dry-run"])
+        result = runner.invoke(db, ["backfill", "cik", "--target", "staging-web", "--dry-run"])
         assert result.exit_code == 0
         assert "All companies already have CIK" in result.output

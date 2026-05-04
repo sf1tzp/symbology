@@ -250,9 +250,10 @@ def backfill():
 
 
 @backfill.command("content-stage")
+@click.option("--target", required=True, help="Target environment name (e.g. web2.streetfortress.cloud)")
 @click.option("--dry-run", is_flag=True, help="Show what would be updated without making changes")
 @click.option("--limit", default=1000, type=int, help="Max rows to process (default: 1000)")
-def backfill_content_stage(dry_run: bool, limit: int):
+def backfill_content_stage(target: str, dry_run: bool, limit: int):
     """Backfill content_stage from the description field on generated_content rows.
 
     Parses description strings (e.g. 'risk_factors_aggregate_summary') to
@@ -260,11 +261,11 @@ def backfill_content_stage(dry_run: bool, limit: int):
 
     Examples:
 
-      just cli db backfill content-stage --dry-run
+      just cli db backfill content-stage --target staging-web --dry-run
 
-      just cli db backfill content-stage --limit 500
+      just cli db backfill content-stage --target web2.streetfortress.cloud --limit 500
     """
-    from symbology.database.base import get_db_session, init_db
+    from symbology.cli.db_sync import create_session, resolve_db_url
     from symbology.database.documents import DocumentType
     from symbology.database.generated_content import ContentStage, GeneratedContent
 
@@ -281,8 +282,9 @@ def backfill_content_stage(dry_run: bool, limit: int):
     DOC_TYPE_MAP = {dt.value: dt for dt in DocumentType}
 
     try:
-        init_db(settings.database.url)
-        session = get_db_session()
+        console.print(f"[bold blue]Target:[/bold blue] {target}")
+        target_url = resolve_db_url(target)
+        session = create_session(target_url)
 
         rows = (
             session.query(GeneratedContent)
@@ -365,26 +367,28 @@ def backfill_content_stage(dry_run: bool, limit: int):
 
 
 @backfill.command("cik")
+@click.option("--target", required=True, help="Target environment name (e.g. web2.streetfortress.cloud)")
 @click.option("--dry-run", is_flag=True, help="Show what would be updated without making changes")
 @click.option("--limit", default=100, type=int, help="Max companies to process (default: 100)")
-def backfill_cik(dry_run: bool, limit: int):
+def backfill_cik(target: str, dry_run: bool, limit: int):
     """Backfill CIK numbers for companies using the SEC EDGAR API.
 
     Looks up each company's CIK by ticker symbol.
 
     Examples:
 
-      just cli db backfill cik --dry-run
+      just cli db backfill cik --target staging-web --dry-run
 
-      just cli db backfill cik --limit 50
+      just cli db backfill cik --target web2.streetfortress.cloud --limit 50
     """
-    from symbology.database.base import get_db_session, init_db
+    from symbology.cli.db_sync import create_session, resolve_db_url
     from symbology.database.companies import Company
     from symbology.ingestion.edgar_db.accessors import edgar_login
 
     try:
-        init_db(settings.database.url)
-        session = get_db_session()
+        console.print(f"[bold blue]Target:[/bold blue] {target}")
+        target_url = resolve_db_url(target)
+        session = create_session(target_url)
         edgar_login(settings.edgar_api.edgar_contact)
 
         from edgar import Company as EdgarCompany

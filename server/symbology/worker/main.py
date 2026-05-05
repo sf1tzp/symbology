@@ -1,15 +1,25 @@
 """Background job worker — poll loop with graceful shutdown."""
+
 import os
 import signal
 import socket
 import time
 
 from symbology.database.base import init_db
-from symbology.database.jobs import claim_next_job, complete_job, fail_job, mark_stale_jobs_as_failed
+from symbology.database.jobs import (
+    claim_next_job,
+    complete_job,
+    fail_job,
+    mark_stale_jobs_as_failed,
+)
 from symbology.utils.config import settings
 from symbology.utils.logging import configure_logging, get_logger
 from symbology.worker.config import worker_settings
-from symbology.llm.client import ShutdownRequested, set_shutdown_flag, reset_shutdown_flag
+from symbology.llm.client import (
+    ShutdownRequested,
+    set_shutdown_flag,
+    reset_shutdown_flag,
+)
 from symbology.worker.handlers import get_handler, list_handlers
 
 # Import handlers module so decorators run and register themselves
@@ -23,7 +33,9 @@ def _worker_id() -> str:
 
 def run_worker() -> None:
     """Main entry point for the worker process."""
-    configure_logging(log_level=settings.logging.level, json_format=settings.logging.json_format)
+    configure_logging(
+        log_level=settings.logging.level, json_format=settings.logging.json_format
+    )
     init_db(settings.database.url)
 
     wid = _worker_id()
@@ -85,7 +97,7 @@ def run_worker() -> None:
             logger.info("job_interrupted_by_shutdown", job_id=str(job.id))
             fail_job(job.id, error="worker shutdown during execution")
         except Exception as exc:
-            current_job_id = None
+            current_job_id = None  # noqa: F841
             logger.exception("job_execution_failed", job_id=str(job.id))
             fail_job(job.id, error=str(exc))
 

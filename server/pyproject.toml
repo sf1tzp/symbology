@@ -70,6 +70,8 @@ exclude = [
   "dist",
   "*.ipynb",
   "symbology/bin/",
+  "alembic/",
+  "tests/",
 ]
 # Same as Black
 line-length = 160

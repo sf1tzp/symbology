@@ -52,7 +52,7 @@ export function buildApiUrl(endpoint: string, params?: Record<string, string>): 
 /**
  * Log API calls in development
  */
-export function logApiCall(method: string, url: string, data?: any): void {
+export function logApiCall(method: string, url: string, data?: unknown): void {
 	if (config.logging.enabled) {
 		console.log(`[API] ${method} ${url}`, data || '');
 	}

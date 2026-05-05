@@ -52,7 +52,7 @@ class Document(Base):
     # Document details
     title: Mapped[str] = mapped_column(String(255))
     document_type: Mapped[Optional[DocumentType]] = mapped_column(
-        SQLEnum(DocumentType, name="document_type_enum"), nullable=True
+        SQLEnum(DocumentType, name="document_type_enum", values_callable=lambda obj: [e.value for e in obj]), nullable=True
     )
 
     content: Mapped[Optional[str]] = mapped_column(Text, deferred=True)

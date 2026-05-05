@@ -1,4 +1,4 @@
-from symbology.utils.text import normalize_filing_text
+from symbology.utils.text import normalize_filing_text, validate_section_content
 
 
 class TestNormalizeFilingText:
@@ -74,3 +74,78 @@ class TestNormalizeFilingText:
     def test_already_clean_text(self):
         text = "This is clean text.\n\nNew paragraph here."
         assert normalize_filing_text(text) == text
+
+
+class TestValidateSectionContent:
+    """Tests for the section content quality validator."""
+
+    def test_accepts_substantive_prose(self):
+        text = "The company operates in multiple segments. " * 100
+        valid, reason = validate_section_content(text)
+        assert valid is True
+        assert reason == ""
+
+    def test_rejects_empty(self):
+        valid, reason = validate_section_content("")
+        assert valid is False
+        assert reason == "empty"
+
+    def test_rejects_none(self):
+        valid, reason = validate_section_content(None)
+        assert valid is False
+        assert reason == "empty"
+
+    def test_rejects_whitespace_only(self):
+        valid, reason = validate_section_content("   \n\n  ")
+        assert valid is False
+        assert reason == "empty"
+
+    def test_rejects_too_short(self):
+        valid, reason = validate_section_content("A short section.")
+        assert valid is False
+        assert "too_short" in reason
+
+    def test_rejects_toc_with_page_references(self):
+        """Reproduce the Intel TOC pattern."""
+        toc = (
+            "Item Number       Item\n"
+            "Part I\n"
+            "Item 1.           Business:\n"
+            "                  General development of business       Pages 3-5, 18\n"
+            "                  Description of business               Pages 3-24, 33, 52, 72-75\n"
+            "                  Available information                  Page 2\n"
+            "Item 1A.          Risk Factors                          Pages 37-51\n"
+            "Item 1B.          Unresolved Staff Comments             None\n"
+            "Item 1C.          Cybersecurity                         Page 54\n"
+            "Item 2.           Properties                            Pages 11, 32\n"
+            "Item 3.           Legal Proceedings                     Pages 102-105\n"
+            "Item 4.           Mine Safety Disclosures               None\n"
+            "Part II\n"
+            "Item 5.           Market                                Page 55\n"
+            "Item 6.           Reserved                              None\n"
+            "Item 7.           MD&A                                  Pages 56-71\n"
+            "Item 7A.          Market Risk                           Pages 72-75\n"
+            "Item 8.           Financial Statements                  Pages 76-101\n"
+        )
+        # Pad to exceed minimum length so we test the density check, not length
+        toc_padded = toc + ("\n" + " " * 80) * 20
+        valid, reason = validate_section_content(toc_padded)
+        assert valid is False
+        assert "page_ref_density" in reason
+
+    def test_accepts_prose_with_occasional_page_ref(self):
+        """Real prose may mention a page once or twice - that's fine."""
+        # One page ref per ~1200 chars of prose -> well under the density threshold
+        filler = "The company reported strong revenue growth in fiscal year 2025. " * 20
+        prose = filler + "See Page 45 for details. " + filler
+        valid, reason = validate_section_content(prose)
+        assert valid is True
+
+    def test_rejects_short_toc(self):
+        """A short TOC gets rejected (by length or density - either is fine)."""
+        short_toc = (
+            "Item 1. Business  Page 3\n"
+            "Item 2. Properties  Page 10\n"
+        )
+        valid, _ = validate_section_content(short_toc)
+        assert valid is False

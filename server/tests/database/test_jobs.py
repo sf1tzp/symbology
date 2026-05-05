@@ -9,14 +9,17 @@ from symbology.database.jobs import (
     Job,
     JobStatus,
     JobType,
+    cancel_failed_jobs,
     cancel_job,
     claim_next_job,
     complete_job,
+    count_jobs_by_status,
     create_job,
     fail_job,
     get_job,
     list_jobs,
     mark_stale_jobs_as_failed,
+    requeue_failed_jobs,
 )
 
 
@@ -203,3 +206,100 @@ class TestStaleDetection:
             create_job(JobType.TEST)
             stale = mark_stale_jobs_as_failed(stale_threshold_seconds=600)
             assert len(stale) == 0
+
+
+class TestRequeueFailedJobs:
+    """Test requeue and cancel operations on failed jobs."""
+
+    def test_requeue_resets_status_and_fields(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.BULK_INGEST, max_retries=3)
+            job.status = JobStatus.FAILED
+            job.retry_count = 3
+            job.worker_id = "worker-1"
+            job.error = "connection timeout"
+            job.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            job.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db_session.commit()
+
+            requeued = requeue_failed_jobs()
+            assert len(requeued) == 1
+            assert requeued[0].status == JobStatus.PENDING
+            assert requeued[0].retry_count == 0
+            assert requeued[0].worker_id is None
+            assert requeued[0].error is None
+            assert requeued[0].started_at is None
+            assert requeued[0].completed_at is None
+
+    def test_requeue_filters_by_type(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            j1 = create_job(JobType.BULK_INGEST)
+            j1.status = JobStatus.FAILED
+            j2 = create_job(JobType.TEST)
+            j2.status = JobStatus.FAILED
+            db_session.commit()
+
+            requeued = requeue_failed_jobs(job_type=JobType.BULK_INGEST)
+            assert len(requeued) == 1
+            assert requeued[0].job_type == JobType.BULK_INGEST
+            # The TEST job should still be FAILED
+            db_session.refresh(j2)
+            assert j2.status == JobStatus.FAILED
+
+    def test_requeue_no_failed_jobs(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            create_job(JobType.TEST)  # PENDING, not FAILED
+            requeued = requeue_failed_jobs()
+            assert len(requeued) == 0
+
+
+class TestCancelFailedJobs:
+
+    def test_cancel_failed_jobs(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            j1 = create_job(JobType.BULK_INGEST)
+            j1.status = JobStatus.FAILED
+            j2 = create_job(JobType.BULK_INGEST)
+            j2.status = JobStatus.FAILED
+            db_session.commit()
+
+            count = cancel_failed_jobs()
+            assert count == 2
+            db_session.refresh(j1)
+            db_session.refresh(j2)
+            assert j1.status == JobStatus.CANCELLED
+            assert j2.status == JobStatus.CANCELLED
+
+    def test_cancel_filters_by_type(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            j1 = create_job(JobType.BULK_INGEST)
+            j1.status = JobStatus.FAILED
+            j2 = create_job(JobType.TEST)
+            j2.status = JobStatus.FAILED
+            db_session.commit()
+
+            count = cancel_failed_jobs(job_type=JobType.BULK_INGEST)
+            assert count == 1
+            db_session.refresh(j2)
+            assert j2.status == JobStatus.FAILED  # untouched
+
+    def test_cancel_no_failed_jobs(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            count = cancel_failed_jobs()
+            assert count == 0
+
+
+class TestCountJobsByStatus:
+
+    def test_count_failed(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            j1 = create_job(JobType.BULK_INGEST)
+            j1.status = JobStatus.FAILED
+            j2 = create_job(JobType.TEST)
+            j2.status = JobStatus.FAILED
+            create_job(JobType.TEST)  # PENDING
+            db_session.commit()
+
+            assert count_jobs_by_status(JobStatus.FAILED) == 2
+            assert count_jobs_by_status(JobStatus.FAILED, job_type=JobType.BULK_INGEST) == 1
+            assert count_jobs_by_status(JobStatus.PENDING) == 1

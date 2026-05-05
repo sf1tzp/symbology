@@ -136,3 +136,34 @@ class TestPipelineRunsCli:
             status=None,
             limit=20,
         )
+
+
+class TestBackfillCli:
+
+    @patch("symbology.ingestion.bulk_discovery.discover_filings_by_date_range", return_value=[])
+    @patch("symbology.ingestion.edgar_db.accessors.edgar_login")
+    @patch("symbology.cli.pipeline.init_session")
+    def test_sp500_flag_passes_allowed_ciks(self, mock_init, mock_edgar, mock_discover):
+        result = runner.invoke(pipeline, ["backfill", "--start-year", "2024", "--end-year", "2024", "--sp500", "--dry-run"])
+        assert result.exit_code == 0, result.output
+        assert "S&P 500" in result.output
+        # Verify discover was called with allowed_ciks set
+        for call in mock_discover.call_args_list:
+            assert call.kwargs.get("allowed_ciks") is not None
+            assert len(call.kwargs["allowed_ciks"]) >= 7
+
+    @patch("symbology.ingestion.bulk_discovery.discover_filings_by_date_range", return_value=[])
+    @patch("symbology.ingestion.edgar_db.accessors.edgar_login")
+    @patch("symbology.cli.pipeline.init_session")
+    def test_no_filter_passes_none(self, mock_init, mock_edgar, mock_discover):
+        result = runner.invoke(pipeline, ["backfill", "--start-year", "2024", "--end-year", "2024", "--dry-run"])
+        assert result.exit_code == 0, result.output
+        for call in mock_discover.call_args_list:
+            assert call.kwargs.get("allowed_ciks") is None
+
+    @patch("symbology.ingestion.edgar_db.accessors.edgar_login")
+    @patch("symbology.cli.pipeline.init_session")
+    def test_mutually_exclusive_filters(self, mock_init, mock_edgar):
+        result = runner.invoke(pipeline, ["backfill", "--sp500", "--group", "tech"])
+        assert result.exit_code == 1
+        assert "mutually exclusive" in result.output

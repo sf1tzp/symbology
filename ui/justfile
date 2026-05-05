@@ -6,7 +6,7 @@ lint *ARGS:
         npm run lint {{ARGS}} | tee ui-lint.log
 
 generate-api-types:
-  node scripts/generate-api-types.js
+  npx openapi-typescript http://localhost:8000/openapi.json -o src/lib/generated-api-types.ts
 
 
 build:

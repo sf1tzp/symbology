@@ -39,6 +39,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy source code
 COPY symbology/ /app/symbology/
 
+# Copy Alembic migration config and scripts
+COPY alembic.ini /app/alembic.ini
+COPY alembic/ /app/alembic/
+
 # Create non-root user
 RUN addgroup -g 1001 -S apiuser && adduser -u 1001 -S apiuser -G apiuser
 

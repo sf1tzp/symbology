@@ -2,8 +2,8 @@ from datetime import date
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import Date, String
-from sqlalchemy.dialects.postgresql import ARRAY, JSON
+from sqlalchemy import Date, func, String
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, TSVECTOR
 from sqlalchemy.orm import attributes, Mapped, mapped_column, relationship
 from symbology.database.base import Base, get_db_session
 from symbology.utils.logging import get_logger
@@ -41,6 +41,9 @@ class Company(Base):
     sic_description: Mapped[Optional[str]] = mapped_column(String(255))
     fiscal_year_end: Mapped[Optional[date]] = mapped_column(Date)
     former_names: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
+
+    # Full-text search vector (maintained by PostgreSQL trigger)
+    search_vector = mapped_column(TSVECTOR, nullable=True)
 
     def __repr__(self) -> str:
         return f"<Company(id={self.id}, name='{self.name}', ticker='{self.ticker}')>"
@@ -239,6 +242,9 @@ def get_company_by_ticker(ticker: str) -> Optional[Company]:
 def search_companies_by_query(query: str, limit: int = 10) -> List[Company]:
     """Search for companies by partial ticker or name.
 
+    Uses full-text search for queries of 3+ characters and falls back
+    to prefix matching on ticker for very short queries.
+
     Args:
         query: Search string to match against company names or tickers
         limit: Maximum number of results to return
@@ -247,44 +253,51 @@ def search_companies_by_query(query: str, limit: int = 10) -> List[Company]:
         List of matching Company objects
     """
     try:
-
         session = get_db_session()
-        upper_query = query.upper()
+        stripped = query.strip()
 
-        # Search in name (case-insensitive) or ticker (exact match or case-insensitive)
-        companies = session.query(Company).filter(
-            # Search in name (case-insensitive)
-            (Company.name.ilike(f'%{query}%')) |
-            # Search in ticker (case-insensitive)
-            (Company.ticker.ilike(f'%{upper_query}%'))
-        ).limit(limit).all()
+        if len(stripped) < 3:
+            # Short queries: prefix match on ticker (fast with btree index)
+            upper_query = stripped.upper()
+            companies = (
+                session.query(Company)
+                .filter(Company.ticker.ilike(f'{upper_query}%'))
+                .limit(limit)
+                .all()
+            )
+        else:
+            # Full-text search for longer queries
+            ts_query = func.websearch_to_tsquery('english', stripped)
+            companies = (
+                session.query(Company)
+                .filter(Company.search_vector.op('@@')(ts_query))
+                .order_by(func.ts_rank(Company.search_vector, ts_query).desc())
+                .limit(limit)
+                .all()
+            )
+
+            # Fall back to ILIKE if FTS returns no results (e.g. partial words)
+            if not companies:
+                companies = (
+                    session.query(Company)
+                    .filter(
+                        (Company.name.ilike(f'%{stripped}%')) |
+                        (Company.ticker.ilike(f'%{stripped.upper()}%'))
+                    )
+                    .limit(limit)
+                    .all()
+                )
 
         logger.info("search_companies_by_query", query=query, result_count=len(companies))
         return companies
     except Exception as e:
         logger.error("search_companies_by_query_failed", query=query, error=str(e), exc_info=True)
-
-        # Only rollback if we have a session
         try:
             session = get_db_session()
             session.rollback()
         except Exception:
-            # If we can't get a session, there's nothing to rollback
             pass
-
-        # Fallback to searching just by name if the complex query fails
-        try:
-            new_session = get_db_session()
-            companies = new_session.query(Company).filter(
-                Company.name.ilike(f'%{query}%')
-            ).limit(limit).all()
-
-            logger.info("search_companies_by_query_name_only", query=query, result_count=len(companies))
-            return companies
-        except Exception as inner_e:
-            logger.error("search_companies_by_query_all_attempts_failed", query=query, error=str(inner_e), exc_info=True)
-            new_session.rollback()
-            return []
+        return []
 
 
 def list_all_companies(offset: int = 0, limit: int = 50) -> List[Company]:

@@ -253,6 +253,117 @@ def get_financial_values_by_filing(filing_id: UUID) -> List[FinancialValue]:
                     exc_info=True)
         raise
 
+def get_financial_comparison_by_company(
+    company_id: UUID,
+    statement_type: Optional[str] = None,
+    limit_periods: int = 5
+) -> Dict[str, Any]:
+    """Get temporal comparison of financial data for a company.
+
+    Args:
+        company_id: UUID of the company
+        statement_type: Optional filter by statement type (balance_sheet, income_statement, cash_flow)
+        limit_periods: Maximum number of periods to include (newest first)
+
+    Returns:
+        Dict with 'periods' (list of date strings) and 'items' (list of concept comparisons)
+    """
+    try:
+        session = get_db_session()
+        from symbology.database.financial_concepts import FinancialConcept
+
+        # Get distinct value_date periods for this company, newest first
+        periods_query = session.query(FinancialValue.value_date).filter(
+            FinancialValue.company_id == company_id
+        ).distinct().order_by(FinancialValue.value_date.desc()).limit(limit_periods)
+
+        periods = [row[0] for row in periods_query.all()]
+        if not periods:
+            return {'periods': [], 'items': []}
+
+        # Query values with concepts for those periods
+        query = session.query(FinancialValue, FinancialConcept).join(
+            FinancialConcept, FinancialValue.concept_id == FinancialConcept.id
+        ).filter(
+            FinancialValue.company_id == company_id,
+            FinancialValue.value_date.in_(periods)
+        )
+
+        # Filter by statement type if provided
+        if statement_type:
+            query = query.filter(FinancialConcept.labels.any(statement_type))
+
+        results = query.all()
+
+        # Group by concept
+        concept_data: Dict[str, Dict[str, Any]] = {}
+        for fv, fc in results:
+            if fc.name not in concept_data:
+                concept_data[fc.name] = {
+                    'concept_name': fc.name,
+                    'description': fc.description,
+                    'labels': fc.labels or [],
+                    'values': {}
+                }
+            concept_data[fc.name]['values'][fv.value_date.isoformat()] = float(fv.value)
+
+        # Build items with period-over-period changes
+        sorted_periods = sorted(periods, reverse=True)
+        period_strings = [p.isoformat() for p in sorted_periods]
+
+        items = []
+        for concept_name, data in concept_data.items():
+            period_values = []
+            changes = []
+
+            for i, period_str in enumerate(period_strings):
+                current_val = data['values'].get(period_str)
+                period_values.append({
+                    'date': period_str,
+                    'value': current_val
+                })
+
+                # Compute change vs next (older) period
+                if i < len(period_strings) - 1:
+                    prev_str = period_strings[i + 1]
+                    prev_val = data['values'].get(prev_str)
+                    if current_val is not None and prev_val is not None and prev_val != 0:
+                        abs_change = current_val - prev_val
+                        pct_change = (abs_change / abs(prev_val)) * 100
+                        changes.append({
+                            'from_date': prev_str,
+                            'to_date': period_str,
+                            'absolute': round(abs_change, 2),
+                            'percent': round(pct_change, 2)
+                        })
+                    else:
+                        changes.append({
+                            'from_date': prev_str,
+                            'to_date': period_str,
+                            'absolute': None,
+                            'percent': None
+                        })
+
+            items.append({
+                'concept_name': concept_name,
+                'description': data['description'],
+                'labels': data['labels'],
+                'values': period_values,
+                'changes': changes
+            })
+
+        return {
+            'periods': period_strings,
+            'items': items
+        }
+    except Exception as e:
+        logger.error("get_financial_comparison_failed",
+                    company_id=str(company_id),
+                    error=str(e),
+                    exc_info=True)
+        raise
+
+
 def get_financial_values_by_company_and_date(company_id: UUID, value_date: date) -> List[FinancialValue]:
     """Get all financial values for a company on a specific date.
 

@@ -1,5 +1,7 @@
 """Bulk filing discovery — find new filings across ALL EDGAR companies."""
+import csv
 from datetime import date
+from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 from symbology.database.base import get_db_session
@@ -9,8 +11,32 @@ from symbology.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Path to bundled S&P 500 data file
+_SP500_CSV = Path(__file__).resolve().parent.parent / "data" / "sp500.csv"
+
 # Form types including amendments
 BULK_FORM_TYPES = ["10-K", "10-K/A", "10-Q", "10-Q/A"]
+
+
+def load_ciks_from_csv(csv_path: str | Path) -> Set[str]:
+    """Read a CSV with a ``Cik`` column and return normalized CIK strings.
+
+    Normalization strips leading zeros (``str(int(cik))``), matching the
+    format used by EDGAR filing objects.
+    """
+    ciks: Set[str] = set()
+    with open(csv_path, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            raw = row.get("Cik") or row.get("cik") or row.get("CIK")
+            if raw:
+                ciks.add(str(int(raw)))
+    return ciks
+
+
+def get_sp500_ciks() -> Set[str]:
+    """Load CIKs for the bundled S&P 500 constituent list."""
+    return load_ciks_from_csv(_SP500_CSV)
 
 
 def get_known_accession_numbers(form_types: Optional[List[str]] = None) -> Set[str]:
@@ -34,6 +60,7 @@ def discover_filings_by_date_range(
     start_date: date,
     end_date: date,
     form_types: Optional[List[str]] = None,
+    allowed_ciks: Optional[Set[str]] = None,
 ) -> List[Dict]:
     """Discover filings from EDGAR's quarterly index for a date range.
 
@@ -43,6 +70,7 @@ def discover_filings_by_date_range(
         start_date: Start of date range.
         end_date: End of date range.
         form_types: Form types to discover (default: BULK_FORM_TYPES).
+        allowed_ciks: If set, only include filings from these CIKs.
 
     Returns:
         List of filing dicts not yet in the DB: {cik, company_name, accession_number, filing_date, form}
@@ -66,6 +94,8 @@ def discover_filings_by_date_range(
 
             for filing in filings:
                 if filing.accession_number in known:
+                    continue
+                if allowed_ciks is not None and str(filing.cik) not in allowed_ciks:
                     continue
                 new_filings.append({
                     "cik": str(filing.cik),

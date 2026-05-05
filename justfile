@@ -3,6 +3,12 @@
 
 set dotenv-load
 
+secrets-local:
+    sops -d secrets/local.env > .env
+
+edit-secrets HOST:
+    sops secrets/{{HOST}}.env
+
 # Run components
 run-api *ARGS:
     just -d server -f server/justfile run {{ARGS}}
@@ -62,7 +68,9 @@ deploy HOST:
     set -euo pipefail
     ssh {{HOST}} -C "mkdir -p ~/images"
     ssh {{HOST}} -C "mkdir -p ~/caddyfiles"
-    scp Caddyfile {{HOST}}:~/caddyfiles/symbology.caddy
+    ssh {{HOST}} -C "mkdir -p ~/symbology"
+    scp caddyfiles/{{HOST}} {{HOST}}:~/caddyfiles/symbology.caddy
+    sops -d secrets/{{HOST}}.env | ssh {{HOST}} "cat > ~/symbology/.env"
     scp symbology-compose.yaml {{HOST}}:~/symbology-compose.yaml
     scp ui/symbology-ui-latest.tar {{HOST}}:~/images/symbology-ui-latest.tar
     scp server/symbology-api-latest.tar {{HOST}}:~/images/symbology-api-latest.tar

@@ -38,15 +38,11 @@ async def list_all_model_configs():
         response_data = []
         for config in configs:
             config_dict = config.to_dict()
-            # Add computed properties
             config_dict.update({
-                'num_ctx': config.num_ctx,
+                'max_tokens': config.max_tokens,
                 'temperature': config.temperature,
                 'top_k': config.top_k,
                 'top_p': config.top_p,
-                'seed': config.seed,
-                'num_predict': config.num_predict if hasattr(config, 'num_predict') else None,
-                'num_gpu': config.num_gpu if hasattr(config, 'num_gpu') else None,
             })
             response_data.append(ModelConfigResponse(**config_dict))
 
@@ -91,15 +87,11 @@ async def get_model_config_by_id(config_id: UUID):
             )
 
         config_dict = config.to_dict()
-        # Add computed properties
         config_dict.update({
-            'num_ctx': config.num_ctx,
+            'max_tokens': config.max_tokens,
             'temperature': config.temperature,
             'top_k': config.top_k,
             'top_p': config.top_p,
-            'seed': config.seed,
-            'num_predict': config.num_predict if hasattr(config, 'num_predict') else None,
-            'num_gpu': config.num_gpu if hasattr(config, 'num_gpu') else None,
         })
         response = ModelConfigResponse(**config_dict)
 
@@ -147,15 +139,11 @@ async def get_model_config_by_model_name(model_name: str):
             )
 
         config_dict = config.to_dict()
-        # Add computed properties
         config_dict.update({
-            'num_ctx': config.num_ctx,
+            'max_tokens': config.max_tokens,
             'temperature': config.temperature,
             'top_k': config.top_k,
             'top_p': config.top_p,
-            'seed': config.seed,
-            'num_predict': config.num_predict if hasattr(config, 'num_predict') else None,
-            'num_gpu': config.num_gpu if hasattr(config, 'num_gpu') else None,
         })
         response = ModelConfigResponse(**config_dict)
 

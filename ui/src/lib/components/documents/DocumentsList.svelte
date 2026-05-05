@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DocumentResponse, FilingResponse } from '$lib/generated-api-types';
+	import type { DocumentResponse, FilingResponse } from '$lib/api-types';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -9,7 +9,7 @@
 
 	interface Props {
 		documents: DocumentResponse[];
-		filing?: any;
+		filing?: FilingResponse;
 	}
 
 	let { documents, filing }: Props = $props();
@@ -30,8 +30,11 @@
 		return id.length > 8 ? `${id.substring(0, 8)}` : id;
 	}
 
-	function handleDocumentClick(filing: FilingResponse, document: DocumentResponse) {
-		goto(`/d/${filing.accession_number}/${document.short_hash}`);
+	function handleDocumentClick(document: DocumentResponse) {
+		const accession = filing?.accession_number ?? document.filing?.accession_number;
+		if (accession) {
+			goto(`/d/${accession}/${document.short_hash}`);
+		}
 	}
 
 	// Helper function to get analysis type display name
@@ -66,7 +69,7 @@
 		{#each documents as document (document.id)}
 			<Card
 				class="transition-colors hover:bg-muted/50"
-				onclick={() => handleDocumentClick(filing, document)}
+				onclick={() => handleDocumentClick(document)}
 			>
 				<CardHeader class="">
 					<div class="flex items-start justify-between">
@@ -78,13 +81,13 @@
 								</CardTitle>
 							</div>
 							<Badge variant="outline" class="font-mono text-xs">
-								{document.short_hash || formatDocumentId(document.content_hash)}
+								{document.short_hash || formatDocumentId(document.content_hash ?? '')}
 							</Badge>
 						</div>
 						<Button
 							variant="outline"
 							size="sm"
-							onclick={() => handleDocumentClick(filing, document)}
+							onclick={() => handleDocumentClick(document)}
 							class="ml-4"
 						>
 							View

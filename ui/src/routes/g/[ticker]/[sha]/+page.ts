@@ -10,7 +10,7 @@ import {
 
 export const ssr = false;
 
-export const load: PageLoad = async ({ params, fetch }) => {
+export const load: PageLoad = async ({ params }) => {
 	const { ticker, sha } = params;
 
 	try {

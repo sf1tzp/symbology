@@ -15,28 +15,29 @@
 	} from '@lucide/svelte';
 	import type { PageData } from './$types';
 	import type { SearchResultItem } from '$lib/api-types';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 
 	let { data }: { data: PageData } = $props();
 
-	let searchInput = $state(data.query);
+	let searchInput = $derived(data.query);
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Filter state
-	let showCompanies = $state(
+	let showCompanies = $derived(
 		data.filters.entityTypes.length === 0 || data.filters.entityTypes.includes('company')
 	);
-	let showFilings = $state(
+	let showFilings = $derived(
 		data.filters.entityTypes.length === 0 || data.filters.entityTypes.includes('filing')
 	);
-	let showAnalysis = $state(
+	let showAnalysis = $derived(
 		data.filters.entityTypes.length === 0 || data.filters.entityTypes.includes('generated_content')
 	);
-	let formTypeFilter = $state(data.filters.formType || '');
-	let dateFromFilter = $state(data.filters.dateFrom || '');
-	let dateToFilter = $state(data.filters.dateTo || '');
+	let formTypeFilter = $derived(data.filters.formType || '');
+	let dateFromFilter = $derived(data.filters.dateFrom || '');
+	let dateToFilter = $derived(data.filters.dateTo || '');
 
 	function buildSearchUrl(query: string, offset: number = 0) {
-		const params = new URLSearchParams();
+		const params = new SvelteURLSearchParams();
 		if (query) params.set('q', query);
 
 		const entityTypes: string[] = [];
@@ -310,6 +311,7 @@
 											</div>
 											{#if result.headline}
 												<p class="mt-1 text-sm text-muted-foreground">
+													<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 													{@html result.headline}
 												</p>
 											{/if}

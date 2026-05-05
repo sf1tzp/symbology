@@ -53,7 +53,7 @@
 <section class="py-16 md:py-24">
 	<div class="mx-auto max-w-5xl px-4">
 		<div class="grid grid-cols-1 gap-8 md:grid-cols-3">
-			{#each features as feature}
+			{#each features as feature (feature.title)}
 				<Card class="text-center">
 					<CardContent class="pt-6">
 						<div

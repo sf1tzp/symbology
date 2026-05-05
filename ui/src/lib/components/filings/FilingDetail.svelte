@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { FilingResponse, CompanyResponse } from '$lib/api-types';
-	import { Card, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { ExternalLink } from '@lucide/svelte';
@@ -11,36 +10,6 @@
 	}
 
 	let { filing, company }: Props = $props();
-
-	// Helper function to format dates
-	function formatDate(dateString: string): string {
-		return new Date(dateString).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
-
-	// Helper function to get filing type label
-	function getFilingTypeLabel(filingType: string): string {
-		const labels: Record<string, string> = {
-			'10-K': 'Annual Report',
-			'10-Q': 'Quarterly Report',
-			'8-K': 'Current Report',
-			'DEF 14A': 'Proxy Statement',
-			'S-1': 'Registration Statement',
-			'20-F': 'Annual Report (Foreign)'
-		};
-		return labels[filingType] || filingType;
-	}
-
-	function formatYear(dateString: string): string {
-		try {
-			return new Date(dateString).getFullYear().toString();
-		} catch {
-			return dateString;
-		}
-	}
 
 	// Prepare header display text
 	const headerTitle = $derived(() => {

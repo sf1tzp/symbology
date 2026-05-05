@@ -1,5 +1,3 @@
-import type { FilingResponse, CompanyResponse } from '$lib/api-types';
-
 /**
  * Format a filing's period into a human-readable fiscal period label.
  * Handles both 10-K (annual) and 10-Q (quarterly) filings.

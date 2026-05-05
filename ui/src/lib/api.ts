@@ -16,7 +16,7 @@ import type {
 	FinancialComparisonResponse
 } from './api-types';
 import { fetchApi, isApiError } from './api-types';
-import { buildApiUrl, logApiCall, config } from './config';
+import { buildApiUrl, logApiCall } from './config';
 
 /**
  * Search companies by name or ticker

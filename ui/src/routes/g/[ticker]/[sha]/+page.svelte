@@ -1,12 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/components/ui/card';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Calendar, Clock, HandCoins } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge, badgeVariants } from '$lib/components/ui/badge';

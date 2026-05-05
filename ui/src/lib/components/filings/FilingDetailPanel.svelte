@@ -157,7 +157,7 @@
 				<!-- Statement type tabs (always show when financial data exists) -->
 				{#if localFinancials}
 					<div class="mb-4 flex space-x-1 rounded-lg bg-muted p-1">
-						{#each statementTypes as st}
+						{#each statementTypes as st (st.key)}
 							<button
 								class="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors {activeStatementType ===
 								st.key
@@ -183,7 +183,7 @@
 									<th class="py-2 pr-4 text-left text-xs font-medium text-muted-foreground"
 										>Concept</th
 									>
-									{#each filteredFinancials.periods as period}
+									{#each filteredFinancials.periods as period (period)}
 										<th class="px-2 py-2 text-right text-xs font-medium text-muted-foreground"
 											>{formatPeriodDate(period)}</th
 										>
@@ -191,12 +191,12 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each filteredFinancials.items as item}
+								{#each filteredFinancials.items as item (item.concept_name)}
 									<tr class="border-b border-border/50 hover:bg-muted/30">
 										<td class="py-1.5 pr-4 text-xs" title={item.concept_name}>
 											{item.description || formatConceptName(item.concept_name)}
 										</td>
-										{#each item.values as pv, i}
+										{#each item.values as pv, i (i)}
 											<td class="px-2 py-1.5 text-right text-xs tabular-nums">
 												{formatFinancialValue(pv.value)}
 												{#if item.changes[i]?.percent !== null}
@@ -261,7 +261,7 @@
 
 								{#if hasAnalysis}
 									<div class="mt-2 space-y-1 pl-6">
-										{#each doc.generated_content as gc}
+										{#each doc.generated_content as gc (gc.id)}
 											<button
 												class="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10"
 												onclick={() => goto(`/g/${ticker}/${gc.short_hash}`)}

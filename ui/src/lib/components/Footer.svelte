@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Separator } from '$lib/components/ui/separator';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
+	import { resolve } from '$app/paths';
 </script>
 
 <footer class="border-t bg-card">
@@ -15,15 +16,16 @@
 
 			<!-- Nav links -->
 			<nav class="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
-				<a href="/" class="transition-colors hover:text-foreground">Home</a>
+				<a href={resolve('/')} class="transition-colors hover:text-foreground">Home</a>
 				<Separator orientation="vertical" class="h-4" />
-				<a href="/companies" class="transition-colors hover:text-foreground">Companies</a>
+				<a href={resolve('/companies')} class="transition-colors hover:text-foreground">Companies</a
+				>
 				<Separator orientation="vertical" class="h-4" />
-				<a href="/groups" class="transition-colors hover:text-foreground">Groups</a>
+				<a href={resolve('/groups')} class="transition-colors hover:text-foreground">Groups</a>
 				<Separator orientation="vertical" class="h-4" />
-				<a href="/search" class="transition-colors hover:text-foreground">Search</a>
+				<a href={resolve('/search')} class="transition-colors hover:text-foreground">Search</a>
 				<Separator orientation="vertical" class="h-4" />
-				<a href="/faq" class="transition-colors hover:text-foreground">FAQ</a>
+				<a href={resolve('/faq')} class="transition-colors hover:text-foreground">FAQ</a>
 				<Separator orientation="vertical" class="h-4" />
 				<a
 					href="https://github.com/sf1tzp/symbology/"

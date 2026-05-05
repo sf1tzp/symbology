@@ -21,7 +21,6 @@
 	let {
 		placeholder = 'Enter company name or ticker (e.g., AAPL, Apple)',
 		showCompanyList = true,
-		variant = 'default',
 		disabled = false
 	}: Props = $props();
 
@@ -241,7 +240,7 @@
 				<CardContent class="p-0">
 					<div class="max-h-60 overflow-y-auto">
 						{#if useUnifiedSearch}
-							{#each unifiedResults as result, index}
+							{#each unifiedResults as result, index (index)}
 								<button
 									class="w-full border-b p-2 text-left transition-colors last:border-b-0 hover:bg-muted"
 									class:bg-muted={currentFocusIndex === index}
@@ -259,6 +258,7 @@
 									<div class="text-sm text-muted-foreground">
 										{#if result.subtitle}{result.subtitle}{/if}
 										{#if result.headline}
+											<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 											<span class="ml-1">{@html result.headline}</span>
 										{/if}
 									</div>
@@ -274,7 +274,7 @@
 								</button>
 							{/if}
 						{:else}
-							{#each searchResults as company, index}
+							{#each searchResults as company, index (index)}
 								<button
 									class="w-full border-b p-2 text-left transition-colors last:border-b-0 hover:bg-muted"
 									class:bg-muted={currentFocusIndex === index}
@@ -338,7 +338,7 @@
 			</Button>
 		</div>
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-			{#each featuredCompanies.slice(0, 8) as company}
+			{#each featuredCompanies.slice(0, 8) as company (company.id)}
 				<Card class="transition-shadow hover:shadow-md" onclick={() => selectCompany(company)}>
 					<CardContent class="">
 						<div class="flex justify-between">

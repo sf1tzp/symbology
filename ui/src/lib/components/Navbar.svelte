@@ -11,6 +11,7 @@
 	} from '$lib/components/ui/navigation-menu';
 	import Menu from '@lucide/svelte/icons/menu';
 	import X from '@lucide/svelte/icons/x';
+	import { resolve } from '$app/paths';
 
 	let scrollY = $state(0);
 	let mobileMenuOpen = $state(false);
@@ -42,7 +43,7 @@
 >
 	<div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
 		<!-- Left: Logo + brand -->
-		<a href="/" class="flex items-center gap-2">
+		<a href={resolve('/')} class="flex items-center gap-2">
 			<img src="https://i.imgur.com/UeEDuUi.png" alt="Symbology Logo" class="h-8 w-auto rounded" />
 			<span class="text-lg font-semibold tracking-wide text-primary">symbology</span>
 		</a>
@@ -51,7 +52,7 @@
 		<div class="hidden md:flex md:items-center md:gap-1">
 			<NavigationMenu>
 				<NavigationMenuList>
-					{#each navItems as item}
+					{#each navItems as item (item.href)}
 						<NavigationMenuItem>
 							<NavigationMenuLink
 								href={item.href}
@@ -90,7 +91,7 @@
 	{#if mobileMenuOpen}
 		<div class="border-t bg-background px-4 py-2 md:hidden">
 			<nav class="flex flex-col space-y-1">
-				{#each navItems as item}
+				{#each navItems as item (item.href)}
 					<Button
 						variant={isCurrentPath(item.href) ? 'secondary' : 'ghost'}
 						class="justify-start"

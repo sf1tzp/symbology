@@ -17,6 +17,7 @@
 </script>
 
 <div class="prose prose-gray dark:prose-invert max-w-none {className}">
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 	{@html renderMarkdown(content)}
 </div>
 

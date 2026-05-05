@@ -5,7 +5,7 @@
 	import { page } from '$app/state';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import Footer from '$lib/components/Footer.svelte';
-	import {env} from '$env/dynamic/public';
+	import { env } from '$env/dynamic/public';
 	let { children } = $props();
 
 	let isLanding = $derived(page.url.pathname === '/');
@@ -14,15 +14,14 @@
 <svelte:head>
 	<title>Symbology - Investment Analysis Platform</title>
 	<meta name="description" content="Explore LLM-generated insights on publicly traded companies." />
-        <link rel="icon" href={favicon} />
-        <script
-                defer
-                src={env.PUBLIC_UMAMI_SCRIPT_URL}
-                data-website-id={env.PUBLIC_UMAMI_WEBSITE_ID}
-    data-performance="true"
-        ></script>
+	<link rel="icon" href={favicon} />
+	<script
+		defer
+		src={env.PUBLIC_UMAMI_SCRIPT_URL}
+		data-website-id={env.PUBLIC_UMAMI_WEBSITE_ID}
+		data-performance="true"
+	></script>
 </svelte:head>
-
 
 <ModeWatcher />
 

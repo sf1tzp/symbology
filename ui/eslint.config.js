@@ -1,14 +1,13 @@
 import js from '@eslint/js';
 import ts from 'typescript-eslint';
 import svelte from 'eslint-plugin-svelte';
-import prettier from 'eslint-config-prettier';
+import unusedImports from 'eslint-plugin-unused-imports';
 import globals from 'globals';
 
 export default ts.config(
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs['flat/recommended'],
-	prettier,
 	...svelte.configs['flat/prettier'],
 	{
 		languageOptions: {
@@ -19,19 +18,28 @@ export default ts.config(
 		}
 	},
 	{
-		files: ['**/*.svelte', '**/*.svelte.ts'],
+		plugins: {
+			'unused-imports': unusedImports
+		},
+		rules: {
+			'@typescript-eslint/no-unused-vars': 'off',
+			'svelte/no-navigation-without-resolve': 'off',
+			'unused-imports/no-unused-imports': 'error',
+			'unused-imports/no-unused-vars': [
+				'error',
+				{
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_|^\\$\\$(Props|Events|Slots)$'
+				}
+			]
+		}
+	},
+	{
+		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
 		languageOptions: {
 			parserOptions: {
 				parser: ts.parser
 			}
-		}
-	},
-	{
-		rules: {
-			'@typescript-eslint/no-unused-vars': [
-				'warn',
-				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
-			]
 		}
 	},
 	{

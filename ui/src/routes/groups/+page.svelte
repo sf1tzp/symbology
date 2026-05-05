@@ -34,7 +34,7 @@
 
 	{#if groups.length > 0}
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-			{#each groups as group}
+			{#each groups as group (group.id)}
 				<Card
 					class="cursor-pointer transition-shadow hover:shadow-md"
 					onclick={() => handleGroupClick(group.slug)}
@@ -55,7 +55,7 @@
 					<CardContent class="space-y-3">
 						{#if group.sic_codes && group.sic_codes.length > 0}
 							<div class="flex flex-wrap gap-1">
-								{#each group.sic_codes as code}
+								{#each group.sic_codes as code (code)}
 									<span class="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
 										SIC {code}
 									</span>

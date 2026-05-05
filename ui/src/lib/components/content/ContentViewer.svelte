@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Separator } from '$lib/components/ui/separator';
 	import { Eye } from '@lucide/svelte';
 	import type {
 		GeneratedContentResponse,

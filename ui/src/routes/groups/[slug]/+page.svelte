@@ -59,7 +59,7 @@
 				{/if}
 				{#if group.sic_codes && group.sic_codes.length > 0}
 					<div class="flex flex-wrap gap-2">
-						{#each group.sic_codes as code}
+						{#each group.sic_codes as code (code)}
 							<span class="rounded bg-muted px-2 py-1 text-sm text-muted-foreground">
 								SIC {code}
 							</span>
@@ -87,7 +87,7 @@
 			<CardContent>
 				{#if group.companies && group.companies.length > 0}
 					<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-						{#each group.companies as company}
+						{#each group.companies as company (company.id)}
 							<Card
 								class="cursor-pointer transition-shadow hover:bg-muted/50 hover:shadow-md"
 								onclick={() => handleCompanyClick(company.ticker)}
@@ -134,7 +134,7 @@
 			<CardContent>
 				{#if analyses.length > 0}
 					<div class="space-y-6">
-						{#each analyses as analysis}
+						{#each analyses as analysis (analysis.id)}
 							<div class="space-y-2">
 								<div class="text-xs text-muted-foreground">
 									Generated on {formatDate(analysis.created_at)}

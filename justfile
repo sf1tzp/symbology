@@ -83,7 +83,7 @@ deploy HOST:
 
 deploy-prod HOST TAG:
     #!/usr/bin/env bash
-    set -exuo pipefail
+    set -euo pipefail
     REGISTRY="gitea.zen.lofi"
     REPO="sfi/symbology"
     UI_IMAGE="$REGISTRY/$REPO-ui:{{TAG}}"

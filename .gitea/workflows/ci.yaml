@@ -33,11 +33,19 @@ jobs:
             ${{ runner.os }}-npm-
 
       - run: cd ui && npm ci
+
       - uses: extractions/setup-just@v3
         with:
           github-token: ${{ secrets.CONNECTION_PAT }}
+
+      - uses: astral-sh/ruff-action@v3
+        with:
+          version: "0.15"
+          src: "server/"
+          github-token: ${{ secrets.CONNECTION_PAT }}
+
       - name: Run lint
-        run: just lint
+        run: just lint-ui
 
   build-and-push:
     # needs: lint # Don't interrupt the whole run if linting fails

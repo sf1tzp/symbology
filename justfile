@@ -1,38 +1,40 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2035,SC2050,SC2148,SC1083,SC2164
-# set dotenv-load
 
 set dotenv-load
 
-# Development resources
-run component *ARGS:
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    uv run -m src.api.main {{ARGS}}
+secrets-local:
+    sops -d secrets/local.env > .env
 
-  elif [[ "{{component}}" == "cli" ]]; then
-    uv run -m src.cli.main {{ARGS}}
+edit-secrets HOST:
+    sops secrets/{{HOST}}.env
 
-  elif [[ "{{component}}" == "ui" ]]; then
+# Run components
+run-api *ARGS:
+    just -d server -f server/justfile run {{ARGS}}
+
+cli *ARGS:
+    just -d server -f server/justfile cli {{ARGS}}
+
+run-worker *ARGS:
+    just -d server -f server/justfile worker {{ARGS}}
+
+run-scheduler *ARGS:
+    just -d server -f server/justfile scheduler {{ARGS}}
+
+run-pipeline-trigger *ARGS:
+    just -d server -f server/justfile cli pipeline trigger {{ARGS}}
+
+run-ui *ARGS:
     just -d ui -f ui/justfile up {{ARGS}}
 
-  elif [[ "{{component}}" == "db" ]]; then
+run-db:
     just -d infra -f infra/justfile up
 
-  else
-    echo "Error: Unknown component '{{component}}'" && exit 1
-  fi
-
-test component *ARGS:
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    just -d . -f src/justfile test {{ARGS}}
-
-  elif [[ "{{component}}" == "ui" ]]; then
-    echo "no testing for ui yet"
-  else
-    echo "Error: Unknown component '{{component}}'" && exit 1
-  fi
+# Testing
+# just test -m integration (run database tests, requires db availability)
+test *ARGS:
+    just -d server -f server/justfile test {{ARGS}}
 
 # j benchmark production https://symbology.online
 # j benchmark staging 10.0.0.21 --insecure-skip-tls-verify
@@ -40,52 +42,63 @@ benchmark environment TARGET *ARGS:
   #!/usr/bin/env bash
   k6 run --env TARGET={{TARGET}} {{ARGS}} infra/testing/smoke.{{environment}}.ts
 
+# Linting
+lint: lint-api lint-ui
 
-lint component *ARGS:
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    just -d src -f src/justfile lint {{ARGS}}
-  elif [[ "{{component}}" == "ui" ]]; then
+lint-api *ARGS:
+    just -d server -f server/justfile lint {{ARGS}}
+
+lint-ui *ARGS:
     just -d ui -f ui/justfile lint {{ARGS}}
-  else
-    echo "Error: Unknown component '{{component}}'"
-    exit 1
-  fi
 
+# Dependencies
+deps-api:
+    just -d server -f server/justfile deps
 
-deps component *ARGS:
-  #!/usr/bin/env bash
-  if [[ "{{component}}" == "api" ]]; then
-    just -d src -f src/justfile deps
-  elif [[ "{{component}}" == "ui" ]]; then
+deps-ui:
     just -d ui -f ui/justfile deps
-  else
-    echo "Error: Unknown component '{{component}}'"
-    exit 1
-  fi
 
 _generate-api-types:
-  just -d ui -f ui/justfile generate-api-types
+    just -d ui -f ui/justfile generate-api-types
 
 build:
-  just -f ui/justfile build
-  just -f src/justfile build
+    just -f ui/justfile build
+    just -f server/justfile build
 
 deploy HOST:
     #!/usr/bin/env bash
     set -euo pipefail
     ssh {{HOST}} -C "mkdir -p ~/images"
     ssh {{HOST}} -C "mkdir -p ~/caddyfiles"
-    scp Caddyfile {{HOST}}:~/caddyfiles/symbology.caddy
+    ssh {{HOST}} -C "mkdir -p ~/symbology"
+    scp caddyfiles/{{HOST}} {{HOST}}:~/caddyfiles/symbology.caddy
+    sops -d secrets/{{HOST}}.env | ssh {{HOST}} "cat > ~/symbology/.env"
     scp symbology-compose.yaml {{HOST}}:~/symbology-compose.yaml
     scp ui/symbology-ui-latest.tar {{HOST}}:~/images/symbology-ui-latest.tar
-    scp src/symbology-api-latest.tar {{HOST}}:~/images/symbology-api-latest.tar
+    scp server/symbology-api-latest.tar {{HOST}}:~/images/symbology-api-latest.tar
     ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-ui-latest.tar"
     ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-api-latest.tar"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/symbology/.env"
 
+deploy-prod HOST TAG:
+    #!/usr/bin/env bash
+    set -exuo pipefail
+    REGISTRY="gitea.zen.lofi"
+    REPO="sfi/symbology"
+    UI_IMAGE="$REGISTRY/$REPO-ui:{{TAG}}"
+    API_IMAGE="$REGISTRY/$REPO-api:{{TAG}}"
+    ssh {{HOST}} -C "mkdir -p ~/caddyfiles ~/symbology"
+    scp caddyfiles/{{HOST}} {{HOST}}:~/caddyfiles/symbology.caddy
+    sops -d secrets/{{HOST}}.env | ssh {{HOST}} "cat > ~/symbology/.env"
+    scp symbology-compose.yaml {{HOST}}:~/symbology-compose.yaml
+    ssh {{HOST}} -C "~/.local/bin/nerdctl pull $UI_IMAGE"
+    ssh {{HOST}} -C "~/.local/bin/nerdctl pull $API_IMAGE"
+    ssh {{HOST}} -C "SYMBOLOGY_UI_IMAGE=$UI_IMAGE SYMBOLOGY_API_IMAGE=$API_IMAGE \
+        ~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
+    ssh {{HOST}} -C "SYMBOLOGY_UI_IMAGE=$UI_IMAGE SYMBOLOGY_API_IMAGE=$API_IMAGE \
+        ~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/symbology/.env"
+
 bounce HOST:
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/symbology/.env"
-

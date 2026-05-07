@@ -1,12 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/components/ui/card';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Calendar, Clock, HandCoins } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge, badgeVariants } from '$lib/components/ui/badge';
@@ -101,9 +95,7 @@
 					<CardTitle class="text-lg">Model Configuration</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{#if data.content?.modelConfig}
-						<ModelConfig config={data.content.modelConfig} />
-					{/if}
+					<ModelConfig config={data.content?.modelConfig ?? null} />
 				</CardContent>
 			</Card>
 
@@ -122,10 +114,18 @@
 			<Card>
 				<CardHeader>
 					<CardTitle class="text-lg">Generated Content</CardTitle>
-					{#if data.content?.content}
+					{#if data.content?.input_tokens || data.content?.output_tokens}
 						<div class="flex text-sm text-muted-foreground">
 							<HandCoins class="mr-2 h-4 w-4" />
-							~{estimateTokens(data.content.content || '')} tokens
+							{#if data.content.input_tokens}{data.content.input_tokens.toLocaleString()} input{/if}{#if data.content.input_tokens && data.content.output_tokens}
+								/
+							{/if}{#if data.content.output_tokens}{data.content.output_tokens.toLocaleString()} output{/if}
+							tokens
+						</div>
+					{:else if data.content?.content}
+						<div class="flex text-sm text-muted-foreground">
+							<HandCoins class="mr-2 h-4 w-4" />
+							~{estimateTokens(data.content.content || '')} tokens (estimated)
 						</div>
 					{/if}
 

@@ -3,33 +3,29 @@
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 
 	let content = `
-## What's symbology?
+## What is Symbology?
 
-Symbology is the study of symbols.
+In finance, a stock symbol represents a company's identity in the market. Symbology takes that idea further — turning raw SEC filings into clear, structured intelligence you can actually use.
 
-Stock tickers are sometimes referred to as symbols, so symbolgy.online aims to make the study of symbols easier for everyone.
+## How does it work?
 
-## How's it work?
+Symbology retrieves public filings directly from the SEC using the [edgartools](https://github.com/dgunning/edgartools) library. Each filing is broken into its component sections — often thousands of lines of dense, unstructured text.
 
-The short answer is: We use LLMs to compare years of financial reporting and summarize the contents within.
+We then use large language models to distill each section into a consistent, readable format. By repeating this process across multiple reporting periods, Symbology can surface meaningful changes in a company's disclosures over time — automatically.
 
-### A slightly longer answer
+## Why build this?
 
-Filings are retrieved from the S.E.C. by utilizing the amazing [edgartools library](https://github.com/dgunning/edgartools). These filings are comprised of various sections, which can be quite tedious and lengthy reads on their own (Several thousand lines of unstructured plaintext with all manner of formatting inconsistencies).
+SEC filings are one of the most valuable sources of information about public companies, and one of the least accessible. They're long, inconsistent, and difficult to compare across years without significant manual effort.
 
-Leveraging [ollama](https://ollama.com), we try to condense these sections down while producing a consistent output format. By repeating this process year after year, we're able to use the LLM to summarize changes in those sections over time.
+Symbology automates that work. No third-party data providers, no editorial interpretation — just structured analysis derived directly from primary sources.
 
-## Why?
+- Thousands of participating companies
+- New filings published on a regular cadence
+- Standardized reporting that enables meaningful comparison over time
 
-By combining structured, "hands off" inference with long-term observation and summarization, we hope to produce a trustworthy resource for research automatically - without involving 3rd parties.
+---
 
-S.E.C. Filings are a great dataset to practice with:
-- Many participating companies
-- New data released at regular intervals
-- Reporting guidelines make correlation possible, though difficult to do programatically without some form of [NLP](https://en.wikipedia.org/wiki/Natural_language_processing).
-
-
-#### _Questions unanswered?_ Start a discussion [on github](https://github.com/sf1tzp/symbology/discussions)
+Have a question? Start a [discussion on GitHub](https://github.com/sf1tzp/symbology/discussions).
 `;
 </script>
 

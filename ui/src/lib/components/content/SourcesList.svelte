@@ -2,9 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
-	import { Separator } from '$lib/components/ui/separator';
-	import { FileText, ExternalLink, File, Folder, Bot } from '@lucide/svelte';
-	import type { DocumentResponse, GeneratedContentResponse } from '$lib/generated-api-types';
+	import { FileText, File, Folder, Bot } from '@lucide/svelte';
+	import type { DocumentResponse, GeneratedContentResponse } from '$lib/api-types';
 	import Card from '../ui/card/card.svelte';
 	import { titleCase } from 'title-case';
 	import CardContent from '../ui/card/card-content.svelte';
@@ -50,12 +49,13 @@
 			// This is a document
 			const docSource = source as DocumentResponse;
 			const name = docSource.title.toLowerCase();
+			if (name.includes('mda') || name.includes('management'))
+				return 'Management Discussion & Analysis';
+			if (name.includes('risk')) return 'Risk Factors';
+			if (name.includes('business')) return 'Business';
 			if (name.includes('10-k')) return '10-K';
 			if (name.includes('10-q')) return '10-Q';
 			if (name.includes('8-k')) return '8-K';
-			if (name.includes('mda') || name.includes('management')) return 'MD&A';
-			if (name.includes('risk')) return 'Risk Factors';
-			if (name.includes('business')) return 'Business';
 			return 'Document';
 		} else {
 			// This is generated content
@@ -109,7 +109,7 @@
 		</div>
 	</div>
 
-	{#each sources as source, index}
+	{#each sources as source (source.id)}
 		<Card onclick={() => handleSourceClick(source)} class="mb-4 last:mb-auto">
 			<CardContent>
 				<!-- Document Name -->
@@ -124,6 +124,11 @@
 							<p class="text-sm leading-tight font-medium">
 								{truncateSourceName(getSourceName(source))}
 							</p>
+							{#if source.document_type}
+								<p class="text-sm">
+									{getSourceTypeDisplay(source)}
+								</p>
+							{/if}
 							<span class="font-mono text-xs text-muted-foreground">
 								{source.short_hash}
 							</span>

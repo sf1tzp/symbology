@@ -1,6 +1,8 @@
 import type { PageLoad } from './$types';
 import { getDocumentByAccessionAndHash } from '$lib/api';
 
+export const ssr = false;
+
 export const load: PageLoad = async ({ params }) => {
 	const { accession_number, content_hash } = params;
 

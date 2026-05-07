@@ -1,21 +1,14 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/components/ui/card';
+
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import DocumentDetail from '$lib/components/documents/DocumentDetail.svelte';
-	import type { DocumentResponse } from '$lib/generated-api-types';
+	import type { DocumentResponse } from '$lib/api-types';
 	import { badgeVariants } from '$lib/components/ui/badge/index.js';
-	import { ExternalLink, HandCoins } from '@lucide/svelte';
+	import type { PageData } from './$types';
 
-	let { data }: { data: any } = $props();
+	let { data }: { data: PageData } = $props();
 
 	function handleBackToFiling() {
 		if (data.document.filing && data.document.filing.accession_number) {
@@ -42,10 +35,6 @@
 			return dateString;
 		}
 	}
-	function estimateTokens(content: string) {
-		// Rough estimation: ~4 characters per token for English text
-		return Math.ceil(content.length / 4);
-	}
 
 	// Helper function to get analysis type display name
 	function getAnalysisTypeDisplay(documentType: string): string {
@@ -63,7 +52,9 @@
 
 	function formatTitle(document: DocumentResponse): string {
 		const type = getAnalysisTypeDisplay(document.document_type);
-		const year = formatYear(document.filing.period_of_report);
+		const year = document.filing?.period_of_report
+			? formatYear(document.filing.period_of_report)
+			: '';
 		return `${document.company_ticker}. ${year} ${type}`;
 	}
 
@@ -72,7 +63,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.document.document_name} - Symbology</title>
+	<title>{data.document.title} - Symbology</title>
 	<meta name="description" content="SEC document details and content" />
 </svelte:head>
 

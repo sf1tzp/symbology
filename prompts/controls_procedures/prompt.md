@@ -1,1 +1,0 @@
-Review this report on financial reporting controls procedutres, and summarize they key componets - especially if something is mentioned as new or noteworthy.

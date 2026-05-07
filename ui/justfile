@@ -2,11 +2,15 @@ up:
   npm run dev -- --open --host 0.0.0.0
 
 
-lint *ARGS:
-        npm run lint {{ARGS}} | tee ui-lint.log
+lint:
+  npm run lint
+
+format:
+  npm run format
+
 
 generate-api-types:
-  node scripts/generate-api-types.js
+  npx openapi-typescript http://localhost:8000/openapi.json -o src/lib/generated-api-types.ts
 
 
 build:

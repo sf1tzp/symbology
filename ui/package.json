@@ -13,7 +13,7 @@
 	"devDependencies": {
 		"@eslint/js": "^9.39.2",
 		"@internationalized/date": "^3.10.1",
-		"@lucide/svelte": "^0.562.0",
+		"@lucide/svelte": "^0.577.0",
 		"@sveltejs/adapter-auto": "^7.0.0",
 		"@sveltejs/adapter-node": "^5.5.1",
 		"@sveltejs/adapter-static": "^3.0.10",
@@ -37,7 +37,7 @@
 		"paneforge": "^1.0.2",
 		"prettier": "^3.8.0",
 		"prettier-plugin-svelte": "^3.4.1",
-		"prettier-plugin-tailwindcss": "^0.7.2",
+		"prettier-plugin-tailwindcss": "^0.8.0",
 		"svelte": "^5.46.4",
 		"svelte-check": "^4.3.5",
 		"svelte-sonner": "^1.0.7",

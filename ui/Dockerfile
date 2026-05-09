@@ -5,7 +5,7 @@ run npm ci
 copy . .
 run npm run build
 
-from node:20-alpine
+from node:24-alpine
 env NODE_ENV=production
 workdir /app
 copy package*.json ./

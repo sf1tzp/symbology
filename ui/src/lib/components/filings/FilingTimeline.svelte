@@ -41,7 +41,7 @@
 	{/if}
 
 	<!-- Timeline container -->
-	<div class="scrollbar-thin flex-1 overflow-x-auto" bind:this={scrollContainer}>
+	<div class="flex-1 scrollbar-thin overflow-x-auto" bind:this={scrollContainer}>
 		<div class="flex items-center gap-0 px-2 py-4" style="min-width: max-content;">
 			{#each filings as filing, i (filing.id)}
 				{@const isSelected = filing.id === selectedId}

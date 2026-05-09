@@ -1,6 +1,6 @@
 import type { PageLoad } from './$types';
 import { getFilingByAccession, getDocumentsByAccession, getCompanyByAccession } from '$lib/api';
-import { error } from '@sveltejs/kit';
+import { error, isHttpError } from '@sveltejs/kit';
 
 export const ssr = false;
 
@@ -14,9 +14,8 @@ export const load: PageLoad = async ({ params }) => {
 			getCompanyByAccession(accession_number)
 		]);
 
-		// Ensure we have at least a filing to display the page
 		if (!filing) {
-			throw error(404, 'Filing not found');
+			error(404, 'Filing not found');
 		}
 
 		return {
@@ -25,7 +24,8 @@ export const load: PageLoad = async ({ params }) => {
 			company,
 			accession_number
 		};
-	} catch (error) {
-		throw new Error(`Failed to load filing: ${error}`);
+	} catch (e) {
+		if (isHttpError(e)) throw e;
+		error(500, `Failed to load filing: ${e}`);
 	}
 };

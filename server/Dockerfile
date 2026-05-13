@@ -1,5 +1,5 @@
 # Build stage
-FROM python:3.13-alpine AS builder
+FROM python:3.14-alpine AS builder
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN uv pip install --no-cache-dir .
 
 # Production stage
-FROM python:3.13-alpine AS production
+FROM python:3.14-alpine AS production
 
 WORKDIR /app
 

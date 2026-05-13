@@ -12,7 +12,7 @@ dependencies = [
   "pydantic-settings==2.9.0",
   "sqlalchemy==2.0.40",
   "psycopg2==2.9.10",
-  "structlog==24.1.0",
+  "structlog==25.5.0",
   "python-dotenv==1.0.0",
   "uuid7==0.1.0",
   "safe-result",

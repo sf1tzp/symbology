@@ -34,7 +34,7 @@ jobs:
 
       - run: cd ui && npm ci
 
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
         with:
           github-token: ${{ secrets.CONNECTION_PAT }}
 

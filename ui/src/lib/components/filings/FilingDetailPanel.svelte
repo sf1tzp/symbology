@@ -5,10 +5,7 @@
 		FinancialComparisonResponse,
 		PeriodChange
 	} from '$lib/api-types';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
-	import { Badge } from '$lib/components/ui/badge';
-	import { Button } from '$lib/components/ui/button';
-	import { ExternalLink, FileText, Sparkles } from '@lucide/svelte';
+	import { ExternalLink, Sparkles } from '@lucide/svelte';
 	import { formatFilingPeriodLong, formatDate, getAnalysisTypeDisplay } from '$lib/utils/filings';
 	async function getFinancialComparison(
 		ticker: string,
@@ -134,34 +131,36 @@
 	const ticker = $derived(company?.ticker ?? '');
 </script>
 
-<div class="space-y-4">
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
 	<!-- Header -->
-	<div class="flex flex-wrap items-start justify-between gap-4">
+	<div class="flex-between" style="align-items: flex-start;">
 		<div>
-			<h2 class="text-xl font-semibold">
+			<h3 class="section-heading" style="font-size: 1.5rem;">
 				{formatFilingPeriodLong(filing, company)}
-			</h2>
-			<div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-				<Badge variant="secondary">{filing.form}</Badge>
-				<span>Filed {formatDate(filing.filing_date)}</span>
+			</h3>
+			<div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+				<span class="tag">{filing.form}</span>
+				<span class="meta" style="color: var(--ink-3);">Filed {formatDate(filing.filing_date)}</span>
 			</div>
 		</div>
 		{#if filing.url}
-			<Button variant="outline" size="sm" href={filing.url} target="_blank">
-				<ExternalLink class="mr-2 h-4 w-4" />
+			<a
+				href={filing.url}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
+			>
+				<ExternalLink class="h-3.5 w-3.5" />
 				View on SEC.gov
-			</Button>
+			</a>
 		{/if}
 	</div>
 
 	<!-- Two-column layout -->
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 		<!-- Left: Financial Snapshot -->
-		<Card>
-			<CardHeader>
-				<CardTitle class="text-base">Financial Snapshot</CardTitle>
-			</CardHeader>
-			<CardContent>
+		<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
+			<h4 class="sub" style="font-size: 12px; color: var(--ink-2); margin-bottom: 1rem;">Financial Snapshot</h4>
 				<!-- Statement type tabs (always show when financial data exists) -->
 				{#if localFinancials}
 					<div class="mb-4 flex space-x-1 rounded-lg bg-muted p-1">
@@ -233,64 +232,59 @@
 						No financial data available for this period.
 					</p>
 				{/if}
-			</CardContent>
-		</Card>
+		</div>
 
 		<!-- Right: Documents & Analysis -->
-		<Card>
-			<CardHeader>
-				<CardTitle class="text-base">Documents & Analysis</CardTitle>
-			</CardHeader>
-			<CardContent>
-				{#if filing.documents.length > 0}
-					<div class="space-y-3">
-						{#each filing.documents as doc (doc.id)}
-							{@const hasAnalysis = doc.generated_content.length > 0}
-
-							<div class="rounded-lg border p-3 transition-colors hover:bg-muted/50">
-								<div class="flex items-start justify-between gap-2">
-									<div class="flex items-start gap-2">
-										<FileText class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-										<div>
-											<button
-												class="text-left text-sm font-medium hover:underline"
-												onclick={() => goto(`/d/${filing.accession_number}/${doc.short_hash}`)}
-											>
-												{getAnalysisTypeDisplay(doc.document_type || doc.title)}
-											</button>
-											{#if doc.short_hash}
-												<div class="font-mono text-[10px] text-muted-foreground">
-													{doc.short_hash}
-												</div>
-											{/if}
-										</div>
+		<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
+			<h4 class="sub" style="font-size: 12px; color: var(--ink-2); margin-bottom: 1rem;">Documents & Analysis</h4>
+			{#if filing.documents.length > 0}
+				<div>
+					{#each filing.documents as doc (doc.id)}
+						{@const hasAnalysis = doc.generated_content.length > 0}
+						<div class="docrow">
+							<div>
+								<button
+									class="text-left text-sm font-medium transition-colors hover:text-teal-2"
+									style="cursor: pointer; background: none; border: none; padding: 0; font-family: var(--sans);"
+									onclick={() => goto(`/d/${filing.accession_number}/${doc.short_hash}`)}
+								>
+									{getAnalysisTypeDisplay(doc.document_type || doc.title)}
+								</button>
+								{#if doc.short_hash}
+									<div class="meta" style="margin-top: 2px; color: var(--ink-4);">
+										{doc.short_hash}
 									</div>
-								</div>
-
-								{#if hasAnalysis}
-									<div class="mt-2 space-y-1 pl-6">
-										{#each doc.generated_content as gc (gc.id)}
-											<button
-												class="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10"
-												onclick={() => goto(`/g/${ticker}/${gc.short_hash}`)}
-											>
-												<Sparkles class="h-3 w-3" />
-												AI Analysis available
-											</button>
-										{/each}
-									</div>
-								{:else}
-									<div class="mt-1 pl-6 text-xs text-muted-foreground">No analysis yet</div>
 								{/if}
 							</div>
-						{/each}
-					</div>
-				{:else}
-					<p class="py-4 text-center text-sm text-muted-foreground">
-						No documents found in this filing.
-					</p>
-				{/if}
-			</CardContent>
-		</Card>
+							<div>
+								{#if hasAnalysis}
+									{#each doc.generated_content as gc (gc.id)}
+										<button
+											class="tag-new tag"
+											style="cursor: pointer; font-size: 10px; gap: 4px;"
+											onclick={() => goto(`/g/${ticker}/${gc.short_hash}`)}
+										>
+											<Sparkles class="h-2.5 w-2.5" />
+											Analysis
+										</button>
+									{/each}
+								{:else}
+									<span class="meta" style="color: var(--ink-4);">No analysis</span>
+								{/if}
+							</div>
+							<div>
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--ink-4);">
+									<path d="m9 6 6 6-6 6"/>
+								</svg>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">
+					No documents found in this filing.
+				</p>
+			{/if}
+		</div>
 	</div>
 </div>

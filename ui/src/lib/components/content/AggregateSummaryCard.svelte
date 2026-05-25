@@ -1,9 +1,5 @@
 <script lang="ts">
 	import type { GeneratedContentResponse } from '$lib/api-types';
-	import { Card, CardContent } from '$lib/components/ui/card';
-	import { Badge } from '$lib/components/ui/badge';
-	import { Button } from '$lib/components/ui/button';
-	import { Sparkles } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { getAnalysisTypeDisplay, formatDate, cleanContent } from '$lib/utils/filings';
 
@@ -17,8 +13,8 @@
 	function getPreview(content: string | null | undefined): string {
 		if (!content) return '';
 		const cleaned = cleanContent(content) ?? '';
-		if (cleaned.length <= 200) return cleaned;
-		return cleaned.substring(0, 200) + '...';
+		if (cleaned.length <= 180) return cleaned;
+		return cleaned.substring(0, 180) + '...';
 	}
 
 	function handleClick(summary: GeneratedContentResponse) {
@@ -27,49 +23,42 @@
 			goto(`/g/${ticker}/${hash}`);
 		}
 	}
+
+	function getCardKind(summary: GeneratedContentResponse): string {
+		const docType = summary.description || summary.document_type || '';
+		const lower = docType.toLowerCase();
+		if (lower.includes('risk')) return 'warn';
+		if (lower.includes('control') || lower.includes('procedure')) return 'down';
+		return '';
+	}
 </script>
 
 {#if summaries.length > 0}
-	<div class="space-y-4">
-		<div class="flex items-center gap-2">
-			<Sparkles class="h-5 w-5 text-primary" />
-			<h2 class="text-lg font-semibold">Change Analysis Reports</h2>
-		</div>
-		<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-			{#each summaries as summary (summary.id)}
-				<Card
-					class="border-primary/20 bg-primary/[0.02] transition-shadow hover:shadow-md"
-					onclick={() => handleClick(summary)}
-				>
-					<CardContent class="space-y-2">
-						<div class="flex items-start justify-between gap-2">
-							<div class="flex items-center gap-2">
-								<Badge variant="outline" class="text-xs">
-									{getAnalysisTypeDisplay(
-										summary.description || summary.document_type || 'Analysis'
-									)}
-								</Badge>
-								{#if summary.form_type}
-									<Badge variant="secondary" class="text-[10px]">
-										{summary.form_type}
-									</Badge>
-								{/if}
-							</div>
-							<span class="shrink-0 text-xs text-muted-foreground">
-								{formatDate(summary.created_at)}
-							</span>
-						</div>
-						{#if summary.summary}
-							<p class="line-clamp-3 text-sm text-muted-foreground">
-								{getPreview(summary.summary)}
-							</p>
+	<div class={summaries.length >= 3 ? 'grid-3' : 'grid-2'}>
+		{#each summaries as summary (summary.id)}
+			<button
+				class="change-card {getCardKind(summary)}"
+				onclick={() => handleClick(summary)}
+				style="cursor: pointer; text-align: left; background: none;"
+			>
+				<div class="flex-between">
+					<span class="eyebrow" style="font-size: 10px;">
+						{getAnalysisTypeDisplay(summary.description || summary.document_type || 'Analysis')}
+						{#if summary.form_type}
+							&middot; {summary.form_type}
 						{/if}
-						<Button variant="ghost" size="sm" class="h-auto p-0 text-xs text-primary">
-							Read full analysis →
-						</Button>
-					</CardContent>
-				</Card>
-			{/each}
-		</div>
+					</span>
+					<span class="meta" style="color: var(--ink-4);">{formatDate(summary.created_at)}</span>
+				</div>
+				{#if summary.summary}
+					<p style="font-family: var(--serif); font-size: 15px; line-height: 1.5; color: var(--ink-2); margin: 0.25rem 0;">
+						{getPreview(summary.summary)}
+					</p>
+				{/if}
+				<div class="meta" style="color: var(--teal-2); margin-top: auto;">
+					Read full analysis &rarr;
+				</div>
+			</button>
+		{/each}
 	</div>
 {/if}

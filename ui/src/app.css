@@ -296,12 +296,70 @@
 		color: var(--warn);
 	}
 
+	/* ── Two-column sidebar layout ── */
+	.two-col {
+		display: grid;
+		grid-template-columns: 280px 1fr;
+		gap: 4rem;
+		align-items: start;
+	}
+
+	/* ── Change card ── */
+	.change-card {
+		border: 1px solid var(--rule);
+		border-left: 3px solid var(--teal-2);
+		border-radius: 0 8px 8px 0;
+		padding: 1.25rem 1.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		transition: border-color 0.15s;
+	}
+	.change-card:hover {
+		border-color: var(--rule-2);
+	}
+	.change-card.warn {
+		border-left-color: var(--warn);
+	}
+	.change-card.down {
+		border-left-color: var(--ink-4);
+	}
+
+	/* ── Document rows ── */
+	.docrow {
+		display: grid;
+		grid-template-columns: 1fr auto auto;
+		gap: 1rem;
+		align-items: center;
+		padding: 0.875rem 0;
+		border-bottom: 1px solid var(--rule);
+	}
+
+	/* ── Analysis body (serif prose) ── */
+	.analysis-body {
+		font-family: var(--serif);
+		font-size: 1.0625rem;
+		line-height: 1.7;
+		color: var(--ink-2);
+	}
+	.analysis-body p {
+		margin-bottom: 1.25rem;
+	}
+	.analysis-body strong {
+		color: var(--ink);
+		font-weight: 500;
+	}
+
 	/* ── Responsive grid fallbacks ── */
 	@media (max-width: 768px) {
 		.grid-2,
 		.grid-3,
 		.grid-4 {
 			grid-template-columns: 1fr;
+		}
+		.two-col {
+			grid-template-columns: 1fr;
+			gap: 2rem;
 		}
 	}
 	@media (min-width: 769px) and (max-width: 1024px) {

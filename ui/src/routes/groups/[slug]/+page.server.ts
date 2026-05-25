@@ -1,7 +1,7 @@
-import type { PageLoad } from './$types';
-import { getCompanyGroupBySlug, getGroupAnalysis, getGroupFrontpageSummary } from '$lib/api';
+import type { PageServerLoad } from './$types';
+import { getCompanyGroupBySlug, getGroupAnalysis, getGroupFrontpageSummary } from '$lib/server/db/groups';
 
-export const load: PageLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params }) => {
 	const { slug } = params;
 
 	try {

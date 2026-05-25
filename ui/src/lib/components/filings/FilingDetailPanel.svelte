@@ -10,7 +10,13 @@
 	import { Button } from '$lib/components/ui/button';
 	import { ExternalLink, FileText, Sparkles } from '@lucide/svelte';
 	import { formatFilingPeriodLong, formatDate, getAnalysisTypeDisplay } from '$lib/utils/filings';
-	import { getFinancialComparison } from '$lib/api';
+	async function getFinancialComparison(ticker: string, statementType?: string): Promise<FinancialComparisonResponse | null> {
+		const params = new URLSearchParams();
+		if (statementType) params.set('statement_type', statementType);
+		const res = await fetch(`/api/financials/${encodeURIComponent(ticker)}?${params}`);
+		if (!res.ok) return null;
+		return res.json();
+	}
 	import { goto } from '$app/navigation';
 
 	interface Props {

@@ -1,5 +1,10 @@
 import { db } from '../db';
-import type { GeneratedContentResponse, GeneratedContentSummaryResponse } from '$lib/api-types';
+import type {
+	DocumentResponse,
+	GeneratedContentResponse,
+	GeneratedContentSummaryResponse,
+	ModelConfigResponse
+} from '$lib/api-types';
 
 export async function getAggregateSummariesByTicker(
 	ticker: string,
@@ -96,7 +101,118 @@ async function toGeneratedContentResponse(row: any): Promise<GeneratedContentRes
 	};
 }
 
+export async function getGeneratedContentByTickerAndHash(
+	ticker: string,
+	hash: string
+): Promise<GeneratedContentResponse | null> {
+	const row = await db
+		.selectFrom('generated_content as gc')
+		.innerJoin('companies as c', 'c.id', 'gc.company_id')
+		.selectAll('gc')
+		.where('c.ticker', '=', ticker.toUpperCase())
+		.where('gc.content_hash', 'like', `${hash}%`)
+		.executeTakeFirst();
+
+	if (!row) return null;
+
+	return toGeneratedContentResponse(row);
+}
+
+export async function getGeneratedContentById(
+	id: string
+): Promise<GeneratedContentResponse | null> {
+	const row = await db
+		.selectFrom('generated_content')
+		.selectAll()
+		.where('id', '=', id)
+		.executeTakeFirst();
+
+	if (!row) return null;
+
+	return toGeneratedContentResponse(row);
+}
+
+export async function getModelConfigById(id: string): Promise<ModelConfigResponse | null> {
+	const row = await db
+		.selectFrom('model_configs')
+		.selectAll()
+		.where('id', '=', id)
+		.executeTakeFirst();
+
+	if (!row) return null;
+
+	const options = row.options_json ? JSON.parse(row.options_json) : null;
+
+	return {
+		id: row.id,
+		model: row.model,
+		created_at: toISOString(row.created_at),
+		options,
+		max_tokens: options?.max_tokens ?? null,
+		temperature: options?.temperature ?? null,
+		top_k: options?.top_k ?? null,
+		top_p: options?.top_p ?? null
+	};
+}
+
+export async function getDocumentById(id: string): Promise<DocumentResponse | null> {
+	const doc = await db
+		.selectFrom('documents')
+		.innerJoin('companies', 'companies.id', 'documents.company_id')
+		.select([
+			'documents.id',
+			'documents.filing_id',
+			'documents.title',
+			'documents.document_type',
+			'documents.content',
+			'documents.content_hash',
+			'companies.ticker as company_ticker'
+		])
+		.where('documents.id', '=', id)
+		.executeTakeFirst();
+
+	if (!doc) return null;
+
+	// Fetch filing info if available
+	let filing = null;
+	if (doc.filing_id) {
+		const f = await db
+			.selectFrom('filings')
+			.selectAll()
+			.where('id', '=', doc.filing_id)
+			.executeTakeFirst();
+		if (f) {
+			filing = {
+				id: f.id,
+				company_id: f.company_id,
+				accession_number: f.accession_number,
+				form: f.form,
+				filing_date: toDateString(f.filing_date),
+				url: f.url,
+				period_of_report: f.period_of_report ? toDateString(f.period_of_report) : null
+			};
+		}
+	}
+
+	return {
+		id: doc.id,
+		filing_id: doc.filing_id,
+		company_ticker: doc.company_ticker,
+		title: doc.title,
+		document_type: doc.document_type ?? 'unknown',
+		content: doc.content,
+		content_hash: doc.content_hash,
+		short_hash: doc.content_hash?.slice(0, 12) ?? null,
+		filing
+	};
+}
+
 function toISOString(val: unknown): string {
 	if (val instanceof Date) return val.toISOString();
 	return String(val);
+}
+
+function toDateString(val: unknown): string {
+	if (val instanceof Date) return val.toISOString().split('T')[0];
+	return String(val).split('T')[0];
 }

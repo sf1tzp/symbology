@@ -1,7 +1,7 @@
-import type { PageLoad } from './$types';
-import { search } from '$lib/api';
+import type { PageServerLoad } from './$types';
+import { unifiedSearch } from '$lib/server/db/search';
 
-export const load: PageLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url }) => {
 	const q = url.searchParams.get('q') || '';
 	const entityTypes = url.searchParams.getAll('entity_types');
 	const sic = url.searchParams.get('sic') || undefined;
@@ -24,7 +24,7 @@ export const load: PageLoad = async ({ url }) => {
 	}
 
 	try {
-		const response = await search(q, {
+		const response = await unifiedSearch(q, {
 			entityTypes: entityTypes.length > 0 ? entityTypes : undefined,
 			sic,
 			formType,

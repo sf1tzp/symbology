@@ -5,8 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
-	import type { CompanyResponse, SearchResultItem } from '$lib/api-types';
-	import { searchCompanies, getCompanies, search, handleApiError } from '$lib/api';
+	import type { CompanyResponse, SearchResultItem, SearchResponse } from '$lib/api-types';
 	import { RefreshCcw } from '@lucide/svelte';
 	import { titleCase } from 'title-case';
 
@@ -38,6 +37,30 @@
 	// Featured companies - loaded from API on mount
 	let featuredCompanies = $state<CompanyResponse[]>([]);
 	let isShuffling = $state(false);
+
+	// Local API helpers (use SvelteKit server endpoints instead of FastAPI)
+	async function getCompanies(skip: number, limit: number): Promise<CompanyResponse[]> {
+		const res = await fetch(`/api/companies?skip=${skip}&limit=${limit}`);
+		if (!res.ok) throw new Error('Failed to fetch companies');
+		return res.json();
+	}
+
+	async function searchCompanies(query: string, limit: number): Promise<CompanyResponse[]> {
+		const res = await fetch(`/api/companies?search=${encodeURIComponent(query)}&limit=${limit}`);
+		if (!res.ok) throw new Error('Failed to search companies');
+		return res.json();
+	}
+
+	async function searchUnified(query: string, limit: number): Promise<SearchResponse> {
+		const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+		if (!res.ok) throw new Error('Search failed');
+		return res.json();
+	}
+
+	function handleApiError(error: unknown): string {
+		if (error instanceof Error) return error.message;
+		return 'An unexpected error occurred';
+	}
 
 	// Load featured companies on mount
 	async function loadFeaturedCompanies() {
@@ -84,7 +107,7 @@
 			try {
 				if (searchTerm.trim().length >= 3) {
 					// Use unified search for longer queries
-					const response = await search(searchTerm, { limit: 10 });
+					const response = await searchUnified(searchTerm, 10);
 					unifiedResults = response.results ?? [];
 					searchResults = [];
 					useUnifiedSearch = true;

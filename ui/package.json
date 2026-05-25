@@ -24,6 +24,7 @@
 		"@tailwindcss/vite": "^4.1.18",
 		"@tanstack/table-core": "^8.21.3",
 		"@types/node": "^25.0.9",
+		"@types/pg": "^8.20.0",
 		"bits-ui": "^2.15.4",
 		"clsx": "^2.1.1",
 		"embla-carousel-svelte": "^8.6.0",
@@ -32,6 +33,7 @@
 		"eslint-plugin-svelte": "^3.15.0",
 		"formsnap": "^2.0.1",
 		"globals": "^17.3.0",
+		"kysely-codegen": "^0.20.0",
 		"layerchart": "^2.0.0-next.27",
 		"openapi-typescript": "^7.10.1",
 		"paneforge": "^1.0.2",
@@ -55,7 +57,9 @@
 	"dependencies": {
 		"dotenv": "^17.2.3",
 		"eslint-plugin-unused-imports": "^4.4.1",
+		"kysely": "^0.29.2",
 		"marked": "^18.0.0",
-		"mode-watcher": "^1.1.0"
+		"mode-watcher": "^1.1.0",
+		"pg": "^8.21.0"
 	}
 }

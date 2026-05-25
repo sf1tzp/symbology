@@ -1,1 +1,0 @@
-"""Symbology REST API package."""

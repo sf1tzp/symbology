@@ -6,22 +6,16 @@ services:
     environment:
       - PUBLIC_LOG_LEVEL=INFO
       - PUBLIC_ENVIRONMENT=production
-    networks:
-      - caddy_network
-
-  symbology-api:
-    image: ${SYMBOLOGY_API_IMAGE:-symbology-api:latest}
-    container_name: symbology-api
-    restart: always
-    environment:
-      SYMBOLOGY_API_HOST: 0.0.0.0 # may not be necessary with our caddy config
-      SYMBOLOGY_API_PORT: 3001
-      DATABASE_HOST: ${DATABASE_HOST:-localhost}
+      - DATABASE_HOST=${DATABASE_HOST:-localhost}
+      - DATABASE_PORT=${DATABASE_PORT:-5432}
+      - DATABASE_USER=${DATABASE_USER:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
+      - DATABASE_NAME=${DATABASE_NAME:-symbology}
     networks:
       - caddy_network
 
   # symbology-worker:
-  #   image: symbology-api
+  #   image: symbology-server:latest
   #   container_name: symbology-worker
   #   restart: always
   #   command: ["python", "-m", "symbology.worker.main"]
@@ -34,7 +28,7 @@ services:
   #     - caddy_network
 
   # symbology-scheduler:
-  #   image: symbology-api
+  #   image: symbology-server:latest
   #   container_name: symbology-scheduler
   #   restart: always
   #   command: ["python", "-m", "symbology.scheduler.main"]

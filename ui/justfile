@@ -13,6 +13,10 @@ generate-api-types:
   npx openapi-typescript http://localhost:8000/openapi.json -o src/lib/generated-api-types.ts
 
 
+generate-db-types:
+  npx kysely-codegen --url "postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}@${DATABASE_HOST:-localhost}:${DATABASE_PORT:-5432}/${DATABASE_NAME:-symbology}" --out-file src/lib/server/db/types.ts --dialect postgres
+
+
 build:
   ~/.local/bin/nerdctl build . -t symbology-ui:latest
   ~/.local/bin/nerdctl save symbology-ui:latest -o symbology-ui-latest.tar

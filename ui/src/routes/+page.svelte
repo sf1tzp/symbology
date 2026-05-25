@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { CompanyListItem } from '$lib/api-types';
 	import { titleCase } from 'title-case';
-	import { cleanContent, formatDate } from '$lib/utils/filings';
+	import { cleanContent } from '$lib/utils/filings';
 	import { ArrowRight } from '@lucide/svelte';
 
 	interface PlatformStats {
@@ -82,7 +82,7 @@
 </script>
 
 <!-- Hero -->
-<section style="padding-top: 5rem; padding-bottom: 5rem;">
+<section style="padding-top: 2rem; padding-bottom: 2rem;">
 	<div class="eyebrow" style="margin-bottom: 28px;">
 		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SYMBOLOGY &middot; INDEPENDENT SEC
 		FILING INTELLIGENCE
@@ -146,9 +146,7 @@
 				</div>
 				<h2 class="section-heading">
 					{titleCase((exampleCompany.display_name || exampleCompany.name).toLowerCase())}
-					{#if exampleCompany.last_filing_form}
-						&middot; {exampleCompany.last_filing_form}
-					{/if}
+					&middot; Year-Over-Year Analysis
 				</h2>
 			</div>
 			<a
@@ -165,7 +163,7 @@
 			class="hover-card"
 		>
 			<div class="flex-between" style="padding: 20px 28px; border-bottom: 1px solid var(--rule);">
-				<div style="display: flex; align-items: center; gap: 14px;">
+				<div style="display: flex; align-items: baseline; gap: 14px;">
 					<span class="tag" style="font-weight: 500; color: var(--ink);">
 						{exampleCompany.ticker}
 					</span>
@@ -174,9 +172,8 @@
 					</span>
 					{#if exampleCompany.last_filing_form && exampleCompany.last_filing_date}
 						<span class="meta" style="color: var(--ink-4);">
-							{exampleCompany.last_filing_form} &middot; Filed {formatDate(
-								exampleCompany.last_filing_date
-							)}
+							Sourced from Form
+							{exampleCompany.last_filing_form}'s
 						</span>
 					{/if}
 				</div>

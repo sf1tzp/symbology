@@ -7,11 +7,11 @@
 	interface Props {
 		filings: FilingTimelineResponse[];
 		company: CompanyResponse | null;
-		selectedId: string;
-		onselect: (filing: FilingTimelineResponse) => void;
+		selectedId?: string;
+		onselect?: (filing: FilingTimelineResponse) => void;
 	}
 
-	let { filings, company, selectedId, onselect }: Props = $props();
+	let { filings, company, selectedId = '', onselect }: Props = $props();
 
 	let scrollContainer = $state<HTMLDivElement | null>(null);
 
@@ -22,6 +22,17 @@
 	function scrollRight() {
 		scrollContainer?.scrollBy({ left: 200, behavior: 'smooth' });
 	}
+
+	// Scroll to the right (newest filings) on mount
+	$effect(() => {
+		if (scrollContainer) {
+			requestAnimationFrame(() => {
+				if (scrollContainer) {
+					scrollContainer.scrollLeft = scrollContainer.scrollWidth;
+				}
+			});
+		}
+	});
 
 	function isAnnual(form: string): boolean {
 		return form.includes('10-K');
@@ -53,13 +64,13 @@
 				{/if}
 
 				<!-- Filing node -->
-				<button
-					class="group flex flex-col items-center gap-1.5 rounded-lg px-3 py-2 transition-colors {isSelected
+				<a
+					href="/f/{filing.accession_number}"
+					class="group flex flex-col items-center gap-1.5 rounded-lg px-3 py-2 no-underline transition-colors {isSelected
 						? 'bg-accent'
 						: 'hover:bg-muted/50'}"
-					onclick={() => onselect(filing)}
-					aria-label="Select {filing.form} filing for {formatFilingPeriod(filing, company)}"
-					aria-pressed={isSelected}
+					onclick={() => onselect?.(filing)}
+					aria-label="{filing.form} filing for {formatFilingPeriod(filing, company)}"
 				>
 					<!-- Dot marker -->
 					<div
@@ -84,7 +95,7 @@
 					>
 						{formatFilingPeriod(filing, company)}
 					</span>
-				</button>
+				</a>
 			{/each}
 		</div>
 	</div>

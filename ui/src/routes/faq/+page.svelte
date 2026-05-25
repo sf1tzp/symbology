@@ -138,14 +138,15 @@
 			{/if}
 		</div>
 	{/if}
-	<div class="flex meta text-ink-3 my-4 justify-end ">
-		<p>Have a question? Start a
-		<a
-			href="https://github.com/sf1tzp/symbology/discussions"
-			target="_blank"
-			rel="noopener noreferrer"
-			style="color: var(--teal-2); text-decoration: none;">discussion on GitHub</a
-		>.</p>
+	<div class="meta my-4 flex justify-end text-ink-3">
+		<p>
+			Have a question? Start a
+			<a
+				href="https://github.com/sf1tzp/symbology/discussions"
+				target="_blank"
+				rel="noopener noreferrer"
+				style="color: var(--teal-2); text-decoration: none;">discussion on GitHub</a
+			>.
+		</p>
 	</div>
 </article>
-

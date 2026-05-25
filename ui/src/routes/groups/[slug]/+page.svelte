@@ -28,7 +28,7 @@
 </script>
 
 <svelte:head>
-	<title>{group?.name || data.slug} - Groups - Symbology</title>
+	<title>{group?.name || data.slug} - Sector - Symbology</title>
 	<meta name="description" content="Cross-company analysis for {group?.name || data.slug}" />
 </svelte:head>
 
@@ -39,7 +39,7 @@
 		class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
 	>
 		<ChevronLeft class="h-3 w-3" />
-		All groups
+		All Sectors
 	</a>
 </div>
 
@@ -47,9 +47,9 @@
 	<div
 		style="border-left: 3px solid var(--danger); padding: 1rem 1.25rem; margin-bottom: 2rem; background: color-mix(in oklch, var(--danger) 8%, var(--paper));"
 	>
-		<p class="meta" style="color: var(--danger); font-weight: 500;">Group not found</p>
+		<p class="meta" style="color: var(--danger); font-weight: 500;">Sector not found</p>
 		<p class="meta" style="margin-top: 4px; color: var(--ink-3);">
-			No group found for "{data.slug}"
+			No Sector found for "{data.slug}"
 		</p>
 	</div>
 {:else}
@@ -57,8 +57,7 @@
 	<header style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: end;">
 		<div>
 			<div class="eyebrow" style="margin-bottom: 1rem;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;GROUP &middot;
-				{group.member_count} COMPANIES
+				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SECTOR
 			</div>
 			<h1 class="display" style="margin-bottom: 0.75rem;">
 				{group.name}
@@ -89,7 +88,7 @@
 		<section class="hairline-section">
 			<div class="two-col">
 				<div>
-					<h3 class="sub" style="margin-bottom: 14px;">Group Synthesis</h3>
+					<h3 class="sub" style="margin-bottom: 14px;">Sector Synthesis</h3>
 					<p class="meta" style="color: var(--ink-4); line-height: 1.6; max-width: 30ch;">
 						Generated from aggregate analyses of every member in the group.
 					</p>

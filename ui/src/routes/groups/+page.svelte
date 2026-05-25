@@ -22,15 +22,15 @@
 <!-- Masthead -->
 <header>
 	<div class="eyebrow" style="margin-bottom: 1rem;">
-		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;GROUPS &middot; CROSS-COMPANY
+		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SECTORS &middot; CROSS-COMPANY
 		ANALYSIS
 	</div>
 	<h1 class="display" style="margin-bottom: 1rem;">
-		{groups.length} group{groups.length !== 1 ? 's' : ''}.<br />
+		{groups.length} sector{groups.length !== 1 ? 's' : ''}.<br />
 		<em>One synthesized view.</em>
 	</h1>
 	<p class="lede" style="color: var(--ink-2); max-width: 56ch;">
-		A Group bundles a handful of comparable companies. Symbology generates a cross-company analysis
+		A Sector bundles a handful of comparable companies. Symbology generates a cross-company analysis
 		from their aggregate filings — what's true across the sector, what one player is doing
 		differently, and what's quietly changed since last quarter.
 	</p>

@@ -4,12 +4,16 @@
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import FilingTimeline from '$lib/components/filings/FilingTimeline.svelte';
-	import FilingDetailPanel from '$lib/components/filings/FilingDetailPanel.svelte';
 	import AggregateSummaryCard from '$lib/components/content/AggregateSummaryCard.svelte';
 	import GeneratedContentTable from '$lib/components/content/GeneratedContentTable.svelte';
 	import type { PageData } from './$types';
-	import type { FilingTimelineResponse } from '$lib/api-types';
 	import { cleanContent, formatDate, formatFilingPeriod } from '$lib/utils/filings';
+	import {
+		formatFinancialValue,
+		findConcept,
+		getLatestValue,
+		getPeriodsRange
+	} from '$lib/utils/financials';
 
 	let { data }: { data: PageData } = $props();
 
@@ -24,13 +28,41 @@
 
 	const financialComparison = $derived(data.financialComparison || null);
 
-	let selectedFiling: FilingTimelineResponse | null = $derived(
-		filings.length > 0 ? filings[filings.length - 1] : null
+	// Derive a headline financial metric for the stats strip
+	const revenueItem = $derived(
+		financialComparison
+			? findConcept(
+					financialComparison.items,
+					['Revenue', 'Net Sales', 'Sales'],
+					'income_statement'
+				)
+			: null
 	);
+	const revenueLatest = $derived(revenueItem ? getLatestValue(revenueItem) : null);
+	const revenueChange = $derived(revenueItem?.changes.find((c) => c.percent !== null) ?? null);
 
-	function handleFilingSelect(filing: FilingTimelineResponse) {
-		selectedFiling = filing;
-	}
+	const netIncomeItem = $derived(
+		financialComparison
+			? findConcept(financialComparison.items, ['NetIncome', 'Net Income'], 'income_statement')
+			: null
+	);
+	const netIncomeLatest = $derived(netIncomeItem ? getLatestValue(netIncomeItem) : null);
+	const netIncomeChange = $derived(netIncomeItem?.changes.find((c) => c.percent !== null) ?? null);
+
+	const totalAssetsItem = $derived(
+		financialComparison ? findConcept(financialComparison.items, ['Assets'], 'balance_sheet') : null
+	);
+	const totalAssetsLatest = $derived(totalAssetsItem ? getLatestValue(totalAssetsItem) : null);
+
+	const epsItem = $derived(
+		financialComparison
+			? findConcept(financialComparison.items, ['EarningsPerShare', 'Earnings Per Share'])
+			: null
+	);
+	const epsLatest = $derived(epsItem ? getLatestValue(epsItem) : null);
+	const epsChange = $derived(epsItem?.changes.find((c) => c.percent !== null) ?? null);
+
+	const periodsRange = $derived(financialComparison ? getPeriodsRange(financialComparison) : null);
 
 	const displayCompany = $derived(
 		company || {
@@ -149,23 +181,25 @@
 		class="grid-4"
 		style="margin-top: 2.5rem; padding: 1.5rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);"
 	>
+		{#if revenueLatest}
+			<div class="stat">
+				<span class="stat-value">${formatFinancialValue(revenueLatest.value)}</span>
+				<span class="stat-label">Net Revenue</span>
+			</div>
+		{/if}
 		<div class="stat">
 			<span class="stat-value">{filings.length}</span>
 			<span class="stat-label">Filings Tracked</span>
 		</div>
-		<div class="stat">
-			<span class="stat-value">{allGeneratedContent.length}</span>
-			<span class="stat-label">Analyses Generated</span>
-		</div>
 		{#if lastFiling}
 			<div class="stat">
-				<span class="stat-value" style="font-size: 1.75rem;">{lastFiling.form}</span>
+				<span class="stat-value">{lastFiling.form}</span>
 				<span class="stat-label">Last Filing &middot; {formatDate(lastFiling.filing_date)}</span>
 			</div>
 		{/if}
 		{#if trackingSince}
 			<div class="stat">
-				<span class="stat-value" style="font-size: 1.75rem;">{trackingSince}</span>
+				<span class="stat-value">{trackingSince}</span>
 				<span class="stat-label">Earliest Filing</span>
 			</div>
 		{/if}
@@ -174,7 +208,7 @@
 
 <!-- Analyst Brief -->
 {#if cleanedSummary}
-	<section style="margin-top: 3.5rem;">
+	<section style="margin-top: 3rem;">
 		<div class="two-col">
 			<div>
 				<h3 class="sub" style="margin-bottom: 14px;">The Brief</h3>
@@ -213,9 +247,90 @@
 
 <!-- Change Analysis Reports -->
 {#if aggregateSummaries.length > 0}
-	<section id="change-analysis" class="hairline-section">
+	<section id="change-analysis" class="hairline-section" style="scroll-margin-top: 2rem;">
 		<SectionHead eyebrow="CHANGES SINCE LAST FILING" heading="What's changed in recent filings" />
 		<AggregateSummaryCard summaries={aggregateSummaries} {ticker} />
+	</section>
+{/if}
+
+<!-- Financial Metrics -->
+{#if financialComparison && financialComparison.items.length > 0}
+	<section class="hairline-section">
+		<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: end;">
+			<div>
+				<div class="eyebrow" style="margin-bottom: 1.125rem;">
+					<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{ticker}
+					&middot; FINANCIAL METRICS
+					{#if periodsRange}&middot; {periodsRange}{/if}
+				</div>
+				<h2 class="section-heading" style="margin-bottom: 1.125rem;">Financial overview</h2>
+				<p class="body-text" style="color: var(--ink-2);">
+					{financialComparison.periods.length} reporting periods tracked across income statement, balance
+					sheet, and cash flow data.
+				</p>
+				<div style="margin-top: 1.5rem;">
+					<a href="/c/{ticker}/financials" class="meta no-underline" style="color: var(--teal-2);">
+						View detailed financials &rarr;
+					</a>
+				</div>
+			</div>
+			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
+				{#if revenueLatest}
+					<div class="stat" style="">
+						<span class="stat-label">Net Revenue</span>
+						<span class="stat-value">${formatFinancialValue(revenueLatest.value)}</span>
+						{#if revenueChange?.percent}
+							<span
+								class="meta"
+								style="color: {revenueChange.percent > 0 ? 'var(--teal-2)' : 'var(--danger)'};"
+							>
+								{revenueChange.percent > 0 ? '+' : ''}{revenueChange.percent.toFixed(1)}% YoY
+							</span>
+						{/if}
+					</div>
+				{/if}
+				{#if netIncomeLatest}
+					<div class="stat" style="">
+						<span class="stat-label">Net Income</span>
+						<span class="stat-value">${formatFinancialValue(netIncomeLatest.value)}</span>
+						{#if netIncomeChange?.percent}
+							<span
+								class="meta"
+								style="color: {netIncomeChange.percent > 0 ? 'var(--teal-2)' : 'var(--danger)'};"
+							>
+								{netIncomeChange.percent > 0 ? '+' : ''}{netIncomeChange.percent.toFixed(1)}% YoY
+							</span>
+						{/if}
+					</div>
+				{/if}
+				{#if totalAssetsLatest}
+					<div
+						class="stat"
+						style="padding: 1rem 0; margin: 1rem 0; border-top: 1px solid var(--rule);"
+					>
+						<span class="stat-label">Total Assets</span>
+						<span class="stat-value">${formatFinancialValue(totalAssetsLatest.value)}</span>
+					</div>
+				{/if}
+				{#if epsLatest}
+					<div
+						class="stat"
+						style="padding: 1rem 0; margin: 1rem 0; border-top: 1px solid var(--rule);"
+					>
+						<span class="stat-label">EPS (Diluted)</span>
+						<span class="stat-value">${epsLatest.value.toFixed(2)}</span>
+						{#if epsChange?.percent}
+							<span
+								class="meta"
+								style="color: {epsChange.percent > 0 ? 'var(--teal-2)' : 'var(--danger)'};"
+							>
+								{epsChange.percent > 0 ? '+' : ''}{epsChange.percent.toFixed(1)}% YoY
+							</span>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		</div>
 	</section>
 {/if}
 
@@ -224,19 +339,8 @@
 	<section class="hairline-section">
 		<SectionHead eyebrow="FILING HISTORY" heading="{filings.length} filings tracked" />
 		<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
-			<FilingTimeline
-				{filings}
-				{company}
-				selectedId={selectedFiling?.id ?? ''}
-				onselect={handleFilingSelect}
-			/>
+			<FilingTimeline {filings} {company} />
 		</div>
-
-		{#if selectedFiling}
-			<div style="margin-top: 2rem;">
-				<FilingDetailPanel filing={selectedFiling} {company} {financialComparison} />
-			</div>
-		{/if}
 	</section>
 {:else}
 	<section class="hairline-section">

@@ -6,7 +6,6 @@
 	import Mark from '$lib/components/Mark.svelte';
 	import Menu from '@lucide/svelte/icons/menu';
 	import X from '@lucide/svelte/icons/x';
-	import Search from '@lucide/svelte/icons/search';
 	import { resolve } from '$app/paths';
 
 	let scrollY = $state(0);
@@ -15,8 +14,8 @@
 	const navItems = [
 		{ href: '/', label: 'Home' },
 		{ href: '/companies', label: 'Companies' },
-		{ href: '/groups', label: 'Groups' },
-		{ href: '/search', label: 'Search' },
+		{ href: '/groups', label: 'Sectors' },
+		// { href: '/search', label: 'Search' },
 		{ href: '/faq', label: 'FAQ' }
 	];
 
@@ -35,40 +34,42 @@
 		? 'border-b border-border bg-background/80 backdrop-blur-md'
 		: 'border-b border-border bg-background'}"
 >
-	<div class="page flex-between h-14">
+	<div class="page flex-between my-2 h-14">
 		<!-- Left: Logo mark + brand -->
-		<a href={resolve('/')} class="flex items-center gap-2 text-ink">
-			<Mark size={22} />
-			<span class="font-serif text-lg tracking-tight">Symbology</span>
-		</a>
+		<div class="flex gap-8 align-baseline">
+			<a href={resolve('/')} class="flex items-center gap-2 text-ink">
+				<Mark size={22} />
+				<span class="font-serif text-lg tracking-tight">Symbology</span>
+			</a>
 
-		<!-- Center: Desktop nav links -->
-		<div class="hidden items-center gap-6 md:flex">
-			{#each navItems as item (item.href)}
-				<a
-					href={resolve(item.href)}
-					class="text-sm transition-colors {isCurrentPath(item.href)
-						? 'font-medium text-ink'
-						: 'text-ink-3 hover:text-ink'}"
-				>
-					{item.label}
-				</a>
-			{/each}
+			<!-- Center: Desktop nav links -->
+			<div class="hidden items-center gap-6 md:flex">
+				{#each navItems as item (item.href)}
+					<a
+						href={resolve(item.href)}
+						class="text-sm transition-colors {isCurrentPath(item.href)
+							? 'font-medium text-ink'
+							: 'text-ink-3 hover:text-ink'}"
+					>
+						{item.label}
+					</a>
+				{/each}
+			</div>
 		</div>
 
 		<!-- Right: Search button + dark mode + mobile hamburger -->
 		<div class="flex items-center gap-3">
-			<a
-				href={resolve('/search')}
-				class="hidden items-center gap-2 rounded-md border border-rule bg-paper-2 px-3 py-1.5 text-sm text-ink-3 no-underline transition-colors hover:border-rule-2 hover:text-ink-2 md:flex"
-			>
-				<Search class="h-3.5 w-3.5" />
-				<span>Search companies, filings&hellip;</span>
-				<kbd
-					class="ml-2 rounded border border-rule bg-background px-1.5 py-0.5 font-mono text-[10px] text-ink-4"
-					>&#8984;K</kbd
-				>
-			</a>
+			<!-- <a -->
+			<!-- 	href={resolve('/search')} -->
+			<!-- 	class="hidden items-center gap-2 rounded-md border border-rule bg-paper-2 px-3 py-1.5 text-sm text-ink-3 no-underline transition-colors hover:border-rule-2 hover:text-ink-2 md:flex" -->
+			<!-- > -->
+			<!-- 	<Search class="h-3.5 w-3.5" /> -->
+			<!-- 	<span>Search companies, filings&hellip;</span> -->
+			<!-- 	<kbd -->
+			<!-- 		class="ml-2 rounded border border-rule bg-background px-1.5 py-0.5 font-mono text-[10px] text-ink-4" -->
+			<!-- 		>&#8984;K</kbd -->
+			<!-- 	> -->
+			<!-- </a> -->
 			<DarkmodeToggle />
 			<Button
 				variant="ghost"

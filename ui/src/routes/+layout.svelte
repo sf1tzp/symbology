@@ -33,7 +33,7 @@
 			{@render children?.()}
 		</main>
 	{:else}
-		<main class="container mx-auto flex-1 px-4 py-8 lg:max-w-7xl">
+		<main class="page flex-1 py-8">
 			{@render children?.()}
 		</main>
 	{/if}

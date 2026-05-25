@@ -5,7 +5,10 @@
 
 <footer class="border-t border-border">
 	<div class="page flex-between py-8">
-		<a href={resolve('/')} class="flex items-center gap-2 text-ink-3 transition-colors hover:text-ink">
+		<a
+			href={resolve('/')}
+			class="flex items-center gap-2 text-ink-3 transition-colors hover:text-ink"
+		>
 			<Mark size={18} />
 			<span class="font-serif text-sm">Symbology</span>
 		</a>

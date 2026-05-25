@@ -10,7 +10,10 @@
 	let { eyebrow, heading, aside, class: className = '' }: Props = $props();
 </script>
 
-<header class="flex-between {className}" style="align-items: flex-end; gap: 24px; margin-bottom: 28px;">
+<header
+	class="flex-between {className}"
+	style="align-items: flex-end; gap: 24px; margin-bottom: 28px;"
+>
 	<div>
 		{#if eyebrow}
 			<div class="eyebrow" style="margin-bottom: 10px;">

@@ -31,8 +31,8 @@
 <!-- Hero -->
 <section class="page" style="padding-top: 5rem; padding-bottom: 5rem;">
 	<div class="eyebrow" style="margin-bottom: 28px;">
-		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SYMBOLOGY &middot; INDEPENDENT
-		SEC FILING INTELLIGENCE
+		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SYMBOLOGY &middot; INDEPENDENT SEC
+		FILING INTELLIGENCE
 	</div>
 	<h1 class="display" style="max-width: 14ch; margin-bottom: 2rem;">
 		Read every filing.<br />

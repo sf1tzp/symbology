@@ -51,7 +51,9 @@
 					<span class="meta" style="color: var(--ink-4);">{formatDate(summary.created_at)}</span>
 				</div>
 				{#if summary.summary}
-					<p style="font-family: var(--serif); font-size: 15px; line-height: 1.5; color: var(--ink-2); margin: 0.25rem 0;">
+					<p
+						style="font-family: var(--serif); font-size: 15px; line-height: 1.5; color: var(--ink-2); margin: 0.25rem 0;"
+					>
 						{getPreview(summary.summary)}
 					</p>
 				{/if}

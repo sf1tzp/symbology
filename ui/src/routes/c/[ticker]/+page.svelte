@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto, afterNavigate } from '$app/navigation';
+	import { afterNavigate } from '$app/navigation';
 	import { ChevronLeft, ExternalLink, ChevronRight } from '@lucide/svelte';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
@@ -24,12 +24,9 @@
 
 	const financialComparison = $derived(data.financialComparison || null);
 
-	let selectedFiling = $state<FilingTimelineResponse | null>(null);
-
-	// Reset selected filing when filings change (new company loaded)
-	$effect(() => {
-		selectedFiling = filings.length > 0 ? filings[filings.length - 1] : null;
-	});
+	let selectedFiling: FilingTimelineResponse | null = $derived(
+		filings.length > 0 ? filings[filings.length - 1] : null
+	);
 
 	function handleFilingSelect(filing: FilingTimelineResponse) {
 		selectedFiling = filing;
@@ -79,9 +76,7 @@
 	// Derive stats from loaded data
 	const lastFiling = $derived(filings.length > 0 ? filings[filings.length - 1] : null);
 	const firstFiling = $derived(filings.length > 0 ? filings[0] : null);
-	const trackingSince = $derived(
-		firstFiling ? formatFilingPeriod(firstFiling, company) : null
-	);
+	const trackingSince = $derived(firstFiling ? formatFilingPeriod(firstFiling, company) : null);
 
 	// Clean summary for the analyst brief
 	const cleanedSummary = $derived(
@@ -119,12 +114,11 @@
 {/if}
 
 <!-- Masthead -->
-<header
-	style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: end;"
->
+<header style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: end;">
 	<div>
 		<div class="eyebrow" style="margin-bottom: 1rem;">
-			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{#if exchangeLabel}{exchangeLabel}
+			<span style="color: var(--teal-2);">&#9679;</span
+			>&nbsp;&nbsp;{#if exchangeLabel}{exchangeLabel}
 				&middot;{/if}
 			{displayCompany.sic_description || 'Public Company'}
 			{#if trackingSince}&middot; TRACKED SINCE {trackingSince}{/if}
@@ -151,7 +145,10 @@
 
 <!-- Stats Strip -->
 {#if filings.length > 0}
-	<div class="grid-4" style="margin-top: 2.5rem; padding: 1.5rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);">
+	<div
+		class="grid-4"
+		style="margin-top: 2.5rem; padding: 1.5rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);"
+	>
 		<div class="stat">
 			<span class="stat-value">{filings.length}</span>
 			<span class="stat-label">Filings Tracked</span>
@@ -189,7 +186,8 @@
 					{/if}.
 					{#if aggregateSummaries.length > 0}
 						Updated
-						<span style="color: var(--teal-2);">{formatDate(aggregateSummaries[0].created_at)}</span>.
+						<span style="color: var(--teal-2);">{formatDate(aggregateSummaries[0].created_at)}</span
+						>.
 					{/if}
 				</p>
 				{#if aggregateSummaries.length > 0}
@@ -225,9 +223,7 @@
 {#if filings.length > 0}
 	<section class="hairline-section">
 		<SectionHead eyebrow="FILING HISTORY" heading="{filings.length} filings tracked" />
-		<div
-			style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;"
-		>
+		<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
 			<FilingTimeline
 				{filings}
 				{company}
@@ -267,17 +263,16 @@
 					</p>
 				{/if}
 				<div style="margin-top: 1.5rem;">
-					<a
-						href="/groups/{group.slug}"
-						class="meta no-underline"
-						style="color: var(--teal-2);"
-					>
+					<a href="/groups/{group.slug}" class="meta no-underline" style="color: var(--teal-2);">
 						Open group &rarr;
 					</a>
 				</div>
 			</div>
 			<div style="border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;">
-				<div class="flex-between" style="padding: 0.875rem 1.5rem; border-bottom: 1px solid var(--rule);">
+				<div
+					class="flex-between"
+					style="padding: 0.875rem 1.5rem; border-bottom: 1px solid var(--rule);"
+				>
 					<h4 class="sub" style="font-size: 12px; color: var(--ink-2);">Members</h4>
 					<span class="meta" style="color: var(--ink-4);">{group.member_count} companies</span>
 				</div>
@@ -287,7 +282,9 @@
 							<a
 								href="/c/{member.ticker}"
 								class="docrow no-underline"
-								style="color: inherit; {member.ticker === ticker ? 'background: var(--sage-2); margin: 0 -1.5rem; padding-left: 1.5rem; padding-right: 1.5rem;' : ''}"
+								style="color: inherit; {member.ticker === ticker
+									? 'background: var(--sage-2); margin: 0 -1.5rem; padding-left: 1.5rem; padding-right: 1.5rem;'
+									: ''}"
 							>
 								<div>
 									<div style="font-size: 14px; font-weight: 500; color: var(--ink);">

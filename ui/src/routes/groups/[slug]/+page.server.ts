@@ -1,5 +1,9 @@
 import type { PageServerLoad } from './$types';
-import { getCompanyGroupBySlug, getGroupAnalysis, getGroupFrontpageSummary } from '$lib/server/db/groups';
+import {
+	getCompanyGroupBySlug,
+	getGroupAnalysis,
+	getGroupFrontpageSummary
+} from '$lib/server/db/groups';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const { slug } = params;

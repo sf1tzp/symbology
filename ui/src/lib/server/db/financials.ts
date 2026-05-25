@@ -30,16 +30,10 @@ export async function getFinancialComparison(
 	const periodValues = periodRows.map((r) => r.value_date);
 
 	// Query values joined with concepts for those periods
-	let query = db
+	const query = db
 		.selectFrom('financial_values as fv')
 		.innerJoin('financial_concepts as fc', 'fc.id', 'fv.concept_id')
-		.select([
-			'fc.name as concept_name',
-			'fc.description',
-			'fc.labels',
-			'fv.value_date',
-			'fv.value'
-		])
+		.select(['fc.name as concept_name', 'fc.description', 'fc.labels', 'fv.value_date', 'fv.value'])
 		.where('fv.company_id', '=', company.id)
 		.where('fv.value_date', 'in', periodValues);
 
@@ -96,7 +90,13 @@ export async function getFinancialComparison(
 			}
 		}
 
-		return { concept_name: conceptName, description: data.description, labels: data.labels, values, changes };
+		return {
+			concept_name: conceptName,
+			description: data.description,
+			labels: data.labels,
+			values,
+			changes
+		};
 	});
 
 	return { periods: periodDates, items };

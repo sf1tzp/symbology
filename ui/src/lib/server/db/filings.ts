@@ -1,5 +1,10 @@
 import { db } from '../db';
-import type { FilingResponse, FilingTimelineResponse, DocumentResponse, CompanyResponse } from '$lib/api-types';
+import type {
+	FilingResponse,
+	FilingTimelineResponse,
+	DocumentResponse,
+	CompanyResponse
+} from '$lib/api-types';
 
 export async function getFilingsTimeline(
 	ticker: string,
@@ -37,17 +42,20 @@ export async function getFilingsTimeline(
 	const allDocIds = documents.map((d) => d.id);
 
 	// 4. Batch-fetch generated content for all document IDs (avoids N+1)
-	const gcByDocId = new Map<string, Array<{
-		id: string;
-		content_hash: string | null;
-		short_hash: string | null;
-		description: string | null;
-		document_type: string | null;
-		form_type: string | null;
-		content_stage: string | null;
-		summary: string | null;
-		created_at: string;
-	}>>();
+	const gcByDocId = new Map<
+		string,
+		Array<{
+			id: string;
+			content_hash: string | null;
+			short_hash: string | null;
+			description: string | null;
+			document_type: string | null;
+			form_type: string | null;
+			content_stage: string | null;
+			summary: string | null;
+			created_at: string;
+		}>
+	>();
 
 	if (allDocIds.length > 0) {
 		const gcRows = await db
@@ -116,7 +124,9 @@ export async function getFilingsTimeline(
 	}));
 }
 
-export async function getFilingByAccession(accessionNumber: string): Promise<FilingResponse | null> {
+export async function getFilingByAccession(
+	accessionNumber: string
+): Promise<FilingResponse | null> {
 	const filing = await db
 		.selectFrom('filings')
 		.selectAll()
@@ -136,10 +146,20 @@ export async function getFilingByAccession(accessionNumber: string): Promise<Fil
 	};
 }
 
-export async function getDocumentsByAccession(accessionNumber: string): Promise<DocumentResponse[]> {
+export async function getDocumentsByAccession(
+	accessionNumber: string
+): Promise<DocumentResponse[]> {
 	const filing = await db
 		.selectFrom('filings')
-		.select(['id', 'company_id', 'accession_number', 'form', 'filing_date', 'url', 'period_of_report'])
+		.select([
+			'id',
+			'company_id',
+			'accession_number',
+			'form',
+			'filing_date',
+			'url',
+			'period_of_report'
+		])
 		.where('accession_number', '=', accessionNumber)
 		.executeTakeFirst();
 
@@ -183,7 +203,9 @@ export async function getDocumentsByAccession(accessionNumber: string): Promise<
 	}));
 }
 
-export async function getCompanyByAccession(accessionNumber: string): Promise<CompanyResponse | null> {
+export async function getCompanyByAccession(
+	accessionNumber: string
+): Promise<CompanyResponse | null> {
 	const filing = await db
 		.selectFrom('filings')
 		.select('company_id')

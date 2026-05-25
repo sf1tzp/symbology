@@ -1,6 +1,10 @@
 import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
-import { getFilingByAccession, getDocumentsByAccession, getCompanyByAccession } from '$lib/server/db/filings';
+import {
+	getFilingByAccession,
+	getDocumentsByAccession,
+	getCompanyByAccession
+} from '$lib/server/db/filings';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const { accession_number } = params;

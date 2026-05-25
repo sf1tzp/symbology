@@ -13,7 +13,10 @@ interface SearchOptions {
 	offset?: number;
 }
 
-export async function unifiedSearch(query: string, options: SearchOptions = {}): Promise<SearchResponse> {
+export async function unifiedSearch(
+	query: string,
+	options: SearchOptions = {}
+): Promise<SearchResponse> {
 	const {
 		entityTypes = ['company', 'filing', 'generated_content', 'company_group'],
 		sic,
@@ -110,9 +113,10 @@ export async function unifiedSearch(query: string, options: SearchOptions = {}):
 	}
 
 	// Build UNION ALL by joining the compiled parts
-	const combined = parts.length === 1
-		? parts[0]
-		: parts.reduce((acc, part, i) => i === 0 ? part : sql`${acc} UNION ALL ${part}`);
+	const combined =
+		parts.length === 1
+			? parts[0]
+			: parts.reduce((acc, part, i) => (i === 0 ? part : sql`${acc} UNION ALL ${part}`));
 
 	// Count total
 	const countResult = await sql<{ count: string }>`

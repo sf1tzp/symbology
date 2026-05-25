@@ -1,7 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import type { Selectable } from 'kysely';
 import { db } from '$lib/server/db';
 import { sql } from 'kysely';
+import type { Companies } from '$lib/server/db/types';
 
 export const GET: RequestHandler = async ({ url }) => {
 	const search = url.searchParams.get('search');
@@ -46,12 +48,7 @@ async function searchCompanies(query: string, limit: number) {
 		const results = await db
 			.selectFrom('companies')
 			.selectAll()
-			.where((eb) =>
-				eb.or([
-					eb('ticker', 'ilike', `${query}%`),
-					eb('name', 'ilike', `${query}%`)
-				])
-			)
+			.where((eb) => eb.or([eb('ticker', 'ilike', `${query}%`), eb('name', 'ilike', `${query}%`)]))
 			.orderBy('ticker', 'asc')
 			.limit(limit)
 			.execute();
@@ -74,10 +71,7 @@ async function searchCompanies(query: string, limit: number) {
 			.selectFrom('companies')
 			.selectAll()
 			.where((eb) =>
-				eb.or([
-					eb('ticker', 'ilike', `%${query}%`),
-					eb('name', 'ilike', `%${query}%`)
-				])
+				eb.or([eb('ticker', 'ilike', `%${query}%`), eb('name', 'ilike', `%${query}%`)])
 			)
 			.orderBy('ticker', 'asc')
 			.limit(limit)
@@ -87,7 +81,7 @@ async function searchCompanies(query: string, limit: number) {
 	return results.map(toCompanyResponse);
 }
 
-function toCompanyResponse(c: any) {
+function toCompanyResponse(c: Selectable<Companies>) {
 	return {
 		id: c.id,
 		name: c.name,

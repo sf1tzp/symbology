@@ -1,5 +1,11 @@
 import { db } from '../db';
-import type { CompanyGroupResponse, CompanyResponse, GeneratedContentResponse } from '$lib/api-types';
+import type { Selectable } from 'kysely';
+import type {
+	CompanyGroupResponse,
+	CompanyResponse,
+	GeneratedContentResponse
+} from '$lib/api-types';
+import type { CompanyGroups } from './types';
 
 export async function getCompanyGroups(limit: number = 50): Promise<CompanyGroupResponse[]> {
 	const groups = await db
@@ -108,7 +114,7 @@ export async function getGroupAnalysis(
 }
 
 async function toGroupResponse(
-	group: any,
+	group: Selectable<CompanyGroups>,
 	includeCompanies: boolean
 ): Promise<CompanyGroupResponse> {
 	// Get member count

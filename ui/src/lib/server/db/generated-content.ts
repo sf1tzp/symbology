@@ -1,10 +1,12 @@
 import { db } from '../db';
+import type { Selectable } from 'kysely';
 import type {
 	DocumentResponse,
 	GeneratedContentResponse,
 	GeneratedContentSummaryResponse,
 	ModelConfigResponse
 } from '$lib/api-types';
+import type { GeneratedContent } from './types';
 
 export async function getAggregateSummariesByTicker(
 	ticker: string,
@@ -63,7 +65,7 @@ export async function getAllGeneratedContentByTicker(
 	}));
 }
 
-async function toGeneratedContentResponse(row: any): Promise<GeneratedContentResponse> {
+async function toGeneratedContentResponse(row: Selectable<GeneratedContent>): Promise<GeneratedContentResponse> {
 	const [docIds, contentIds] = await Promise.all([
 		db
 			.selectFrom('generated_content_document_association')

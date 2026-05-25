@@ -14,6 +14,28 @@ export type GeneratedContentResponse = components['schemas']['GeneratedContentRe
 export type ModelConfigResponse = components['schemas']['ModelConfigResponse'];
 export type PromptResponse = components['schemas']['PromptResponse'];
 
+// Company list types (enhanced with filing metadata)
+export interface CompanyListItem {
+	id: string;
+	name: string;
+	display_name: string | null;
+	ticker: string;
+	exchanges: string[];
+	sic: string | null;
+	sic_description: string | null;
+	fiscal_year_end: string | null;
+	former_names: Array<{ name: string; date_changed: string }>;
+	summary: string | null;
+	filing_count: number;
+	last_filing_date: string | null;
+	last_filing_form: string | null;
+}
+
+export interface CompanyListResponse {
+	companies: CompanyListItem[];
+	total: number;
+}
+
 // Company Group types
 // Manually defined until API types are regenerated via `just -f ui/justfile generate-api-types`
 export interface CompanyGroupResponse {

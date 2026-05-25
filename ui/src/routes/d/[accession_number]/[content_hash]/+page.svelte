@@ -1,95 +1,101 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-
-	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
-	import DocumentDetail from '$lib/components/documents/DocumentDetail.svelte';
-	import type { DocumentResponse } from '$lib/api-types';
-	import { badgeVariants } from '$lib/components/ui/badge/index.js';
+	import { ChevronLeft, ExternalLink } from '@lucide/svelte';
+	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
+	import { formatDate, getAnalysisTypeDisplay } from '$lib/utils/filings';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	function handleBackToFiling() {
-		if (data.document.filing && data.document.filing.accession_number) {
-			goto(`/f/${data.document.filing.accession_number}`);
-		} else {
-			goto('/filings');
-		}
-	}
-
-	function handleBackToCompany() {
-		if (data.document.filing && data.document.company_ticker) {
-			// Note: We'd need to fetch company details or include ticker in the response
-			// For now, navigate to companies list
-			goto(`/c/${data.document.company_ticker}`);
-		} else {
-			goto('/companies');
-		}
-	}
-
-	function formatYear(dateString: string): string {
-		try {
-			return new Date(dateString).getFullYear().toString();
-		} catch {
-			return dateString;
-		}
-	}
-
-	// Helper function to get analysis type display name
-	function getAnalysisTypeDisplay(documentType: string): string {
-		switch (documentType?.toUpperCase()) {
-			case 'MANAGEMENT_DISCUSSION':
-				return 'Management Discussion';
-			case 'RISK_FACTORS':
-				return 'Risk Factors';
-			case 'BUSINESS_DESCRIPTION':
-				return 'Business Description';
-			default:
-				return documentType;
-		}
-	}
-
-	function formatTitle(document: DocumentResponse): string {
-		const type = getAnalysisTypeDisplay(document.document_type);
-		const year = document.filing?.period_of_report
-			? formatYear(document.filing.period_of_report)
-			: '';
-		return `${document.company_ticker}. ${year} ${type}`;
-	}
-
-	// Get short hash for display
-	const shortHash = data.document.short_hash || data.content_hash.substring(0, 8);
+	const doc = $derived(data.document);
+	const filing = $derived(doc.filing);
+	const ticker = $derived(doc.company_ticker);
+	const shortHash = $derived(doc.short_hash || data.content_hash.substring(0, 8));
+	const typeDisplay = $derived(getAnalysisTypeDisplay(doc.document_type));
 </script>
 
 <svelte:head>
-	<title>{data.document.title} - Symbology</title>
-	<meta name="description" content="SEC document details and content" />
+	<title>{typeDisplay} - {ticker} - Symbology</title>
+	<meta name="description" content="{typeDisplay} from {ticker} SEC filing" />
 </svelte:head>
 
-<div class="space-y-8">
-	<!-- Header with navigation -->
-	<div class="flex items-center justify-between">
-		<div class="flex space-x-2">
-			<Button variant="ghost" onclick={handleBackToFiling}>← Back to Filing</Button>
-			<Button variant="ghost" onclick={handleBackToCompany}>← Back to Company</Button>
-		</div>
-	</div>
-
-	<!-- Document Title -->
-	<h1 class="text-2xl font-bold">{formatTitle(data.document)}</h1>
-	<div class="flex space-x-4">
-		<Badge variant="secondary" class="bg-muted-foreground p-2 text-white"
-			>{data.document.company_ticker}</Badge
-		>
+<!-- Back link -->
+<div style="margin-bottom: 3rem;">
+	{#if filing}
 		<a
-			href="/d/{data.accession_number}/{shortHash}"
-			class={badgeVariants({ variant: 'secondary', class: 'rounded-md p-2' })}
+			href="/f/{filing.accession_number}"
+			class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
 		>
-			<span class="font-mono">{shortHash}</span>
+			<ChevronLeft class="h-3 w-3" />
+			{ticker} &middot; {filing.form}
+			{#if filing.period_of_report}&middot; {formatDate(filing.period_of_report)}{/if}
 		</a>
-	</div>
-
-	<!-- Document Content -->
-	<DocumentDetail document={data.document} />
+	{:else}
+		<a
+			href="/c/{ticker}"
+			class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
+		>
+			<ChevronLeft class="h-3 w-3" />
+			{ticker}
+		</a>
+	{/if}
 </div>
+
+<!-- Masthead -->
+<header style="max-width: 720px;">
+	<div class="eyebrow" style="margin-bottom: 1rem;">
+		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;DOCUMENT &middot;
+		{doc.document_type.toUpperCase().replace(/_/g, ' ')}
+	</div>
+	<h1 class="display" style="margin-bottom: 1rem;">
+		{typeDisplay}
+	</h1>
+	<p class="lede" style="color: var(--ink-2); max-width: 52ch;">
+		{doc.title}
+	</p>
+	<div style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+		<span class="tag" style="font-weight: 500; color: var(--ink);">{ticker}</span>
+		{#if filing}
+			<span class="tag">{filing.form}</span>
+			<span class="tag">{formatDate(filing.filing_date)}</span>
+		{/if}
+		<span class="tag" style="font-family: var(--mono);">{shortHash}</span>
+	</div>
+</header>
+
+<!-- Article body -->
+<article style="margin-top: 5rem; max-width: 720px;">
+	{#if doc.content}
+		<div class="analysis-body">
+			<MarkdownContent content={doc.content} />
+		</div>
+	{:else}
+		<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">
+			No content available for this document.
+		</p>
+	{/if}
+</article>
+
+<!-- Footer -->
+{#if filing}
+	<footer
+		style="margin-top: 5rem; padding-top: 1.75rem; border-top: 1px solid var(--rule); max-width: 720px; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;"
+	>
+		<span class="meta" style="color: var(--ink-4);">
+			Source: {filing.form}
+			{#if filing.period_of_report}&middot; Period ending {formatDate(filing.period_of_report)}{/if}
+			&middot; Filed {formatDate(filing.filing_date)}
+		</span>
+		{#if filing.url}
+			<a
+				href={filing.url}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="meta no-underline"
+				style="color: var(--teal-2); margin-left: auto; display: inline-flex; align-items: center; gap: 4px;"
+			>
+				View on SEC.gov
+				<ExternalLink class="h-3 w-3" />
+			</a>
+		{/if}
+	</footer>
+{/if}

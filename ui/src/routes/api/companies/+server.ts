@@ -1,87 +1,192 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import type { Selectable } from 'kysely';
 import { db } from '$lib/server/db';
 import { sql } from 'kysely';
-import type { Companies } from '$lib/server/db/types';
 
 export const GET: RequestHandler = async ({ url }) => {
 	const search = url.searchParams.get('search');
 	const skip = Number(url.searchParams.get('skip')) || 0;
 	const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 100);
+	const sort = url.searchParams.get('sort') || 'ticker';
 
 	if (search && search.trim().length > 0) {
-		const results = await searchCompanies(search.trim(), limit);
-		return json(results);
+		const [results, total] = await Promise.all([
+			searchCompanies(search.trim(), limit, skip),
+			countSearchResults(search.trim())
+		]);
+		return json({ companies: results, total });
 	}
 
-	// List all companies with pagination
-	const companies = await db
-		.selectFrom('companies')
-		.selectAll()
-		.orderBy('ticker', 'asc')
+	// Build base query with filing metadata
+	let query = db
+		.selectFrom('companies as c')
+		.leftJoin('filings as f', 'f.company_id', 'c.id')
+		.select([
+			'c.id',
+			'c.name',
+			'c.display_name',
+			'c.ticker',
+			'c.exchanges',
+			'c.sic',
+			'c.sic_description',
+			'c.fiscal_year_end',
+			'c.former_names',
+			sql<number>`count(f.id)::int`.as('filing_count'),
+			sql<string>`max(f.filing_date)`.as('last_filing_date'),
+			sql<string>`(SELECT f2.form FROM filings f2 WHERE f2.company_id = c.id ORDER BY f2.filing_date DESC LIMIT 1)`.as(
+				'last_filing_form'
+			)
+		])
+		.groupBy('c.id');
+
+	// Apply sort
+	if (sort === 'name') {
+		query = query.orderBy('c.name', 'asc');
+	} else if (sort === 'recent') {
+		query = query.orderBy(sql`max(f.filing_date)`, sql`desc nulls last`);
+	} else {
+		query = query.orderBy('c.ticker', 'asc');
+	}
+
+	const [companies, countResult] = await Promise.all([
+		query.offset(skip).limit(limit).execute(),
+		db
+			.selectFrom('companies')
+			.select(sql<number>`count(*)::int`.as('total'))
+			.executeTakeFirstOrThrow()
+	]);
+
+	return json({
+		companies: companies.map((c) => toCompanyListItem(c)),
+		total: countResult.total
+	});
+};
+
+async function searchCompanies(query: string, limit: number, skip: number = 0) {
+	if (query.length < 3) {
+		const results = await db
+			.selectFrom('companies as c')
+			.leftJoin('filings as f', 'f.company_id', 'c.id')
+			.select([
+				'c.id',
+				'c.name',
+				'c.display_name',
+				'c.ticker',
+				'c.exchanges',
+				'c.sic',
+				'c.sic_description',
+				'c.fiscal_year_end',
+				'c.former_names',
+				sql<number>`count(f.id)::int`.as('filing_count'),
+				sql<string>`max(f.filing_date)`.as('last_filing_date'),
+				sql<string>`(SELECT f2.form FROM filings f2 WHERE f2.company_id = c.id ORDER BY f2.filing_date DESC LIMIT 1)`.as(
+					'last_filing_form'
+				)
+			])
+			.where((eb) =>
+				eb.or([eb('c.ticker', 'ilike', `${query}%`), eb('c.name', 'ilike', `${query}%`)])
+			)
+			.groupBy('c.id')
+			.orderBy('c.ticker', 'asc')
+			.offset(skip)
+			.limit(limit)
+			.execute();
+
+		return results.map(toCompanyListItem);
+	}
+
+	// Full-text search
+	let results = await db
+		.selectFrom('companies as c')
+		.leftJoin('filings as f', 'f.company_id', 'c.id')
+		.select([
+			'c.id',
+			'c.name',
+			'c.display_name',
+			'c.ticker',
+			'c.exchanges',
+			'c.sic',
+			'c.sic_description',
+			'c.fiscal_year_end',
+			'c.former_names',
+			sql<number>`count(f.id)::int`.as('filing_count'),
+			sql<string>`max(f.filing_date)`.as('last_filing_date'),
+			sql<string>`(SELECT f2.form FROM filings f2 WHERE f2.company_id = c.id ORDER BY f2.filing_date DESC LIMIT 1)`.as(
+				'last_filing_form'
+			)
+		])
+		.where(sql<boolean>`c.search_vector @@ websearch_to_tsquery('english', ${query})`)
+		.groupBy('c.id')
+		.orderBy(sql`ts_rank(c.search_vector, websearch_to_tsquery('english', ${query}))`, 'desc')
 		.offset(skip)
 		.limit(limit)
 		.execute();
 
-	return json(
-		companies.map((c) => ({
-			id: c.id,
-			name: c.name,
-			display_name: c.display_name,
-			ticker: c.ticker,
-			exchanges: c.exchanges ?? [],
-			sic: c.sic,
-			sic_description: c.sic_description,
-			fiscal_year_end: c.fiscal_year_end
-				? new Date(c.fiscal_year_end as unknown as string).toISOString().split('T')[0]
-				: null,
-			former_names: c.former_names ?? [],
-			summary: null
-		}))
-	);
-};
-
-async function searchCompanies(query: string, limit: number) {
-	if (query.length < 3) {
-		// Short queries: ticker prefix match
-		const results = await db
-			.selectFrom('companies')
-			.selectAll()
-			.where((eb) => eb.or([eb('ticker', 'ilike', `${query}%`), eb('name', 'ilike', `${query}%`)]))
-			.orderBy('ticker', 'asc')
-			.limit(limit)
-			.execute();
-
-		return results.map(toCompanyResponse);
-	}
-
-	// Longer queries: full-text search
-	let results = await db
-		.selectFrom('companies')
-		.selectAll()
-		.where(sql<boolean>`search_vector @@ websearch_to_tsquery('english', ${query})`)
-		.orderBy(sql`ts_rank(search_vector, websearch_to_tsquery('english', ${query}))`, 'desc')
-		.limit(limit)
-		.execute();
-
-	// Fallback to ILIKE if FTS returns nothing
+	// Fallback to ILIKE
 	if (results.length === 0) {
 		results = await db
+			.selectFrom('companies as c')
+			.leftJoin('filings as f', 'f.company_id', 'c.id')
+			.select([
+				'c.id',
+				'c.name',
+				'c.display_name',
+				'c.ticker',
+				'c.exchanges',
+				'c.sic',
+				'c.sic_description',
+				'c.fiscal_year_end',
+				'c.former_names',
+				sql<number>`count(f.id)::int`.as('filing_count'),
+				sql<string>`max(f.filing_date)`.as('last_filing_date'),
+				sql<string>`(SELECT f2.form FROM filings f2 WHERE f2.company_id = c.id ORDER BY f2.filing_date DESC LIMIT 1)`.as(
+					'last_filing_form'
+				)
+			])
+			.where((eb) =>
+				eb.or([eb('c.ticker', 'ilike', `%${query}%`), eb('c.name', 'ilike', `%${query}%`)])
+			)
+			.groupBy('c.id')
+			.orderBy('c.ticker', 'asc')
+			.offset(skip)
+			.limit(limit)
+			.execute();
+	}
+
+	return results.map(toCompanyListItem);
+}
+
+async function countSearchResults(query: string): Promise<number> {
+	if (query.length < 3) {
+		const result = await db
 			.selectFrom('companies')
-			.selectAll()
+			.select(sql<number>`count(*)::int`.as('total'))
+			.where((eb) => eb.or([eb('ticker', 'ilike', `${query}%`), eb('name', 'ilike', `${query}%`)]))
+			.executeTakeFirstOrThrow();
+		return result.total;
+	}
+
+	let result = await db
+		.selectFrom('companies')
+		.select(sql<number>`count(*)::int`.as('total'))
+		.where(sql<boolean>`search_vector @@ websearch_to_tsquery('english', ${query})`)
+		.executeTakeFirstOrThrow();
+
+	if (result.total === 0) {
+		result = await db
+			.selectFrom('companies')
+			.select(sql<number>`count(*)::int`.as('total'))
 			.where((eb) =>
 				eb.or([eb('ticker', 'ilike', `%${query}%`), eb('name', 'ilike', `%${query}%`)])
 			)
-			.orderBy('ticker', 'asc')
-			.limit(limit)
-			.execute();
+			.executeTakeFirstOrThrow();
 	}
 
-	return results.map(toCompanyResponse);
+	return result.total;
 }
 
-function toCompanyResponse(c: Selectable<Companies>) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toCompanyListItem(c: any) {
 	return {
 		id: c.id,
 		name: c.name,
@@ -94,6 +199,11 @@ function toCompanyResponse(c: Selectable<Companies>) {
 			? new Date(c.fiscal_year_end as unknown as string).toISOString().split('T')[0]
 			: null,
 		former_names: c.former_names ?? [],
-		summary: null
+		summary: null,
+		filing_count: c.filing_count ?? 0,
+		last_filing_date: c.last_filing_date
+			? new Date(c.last_filing_date as unknown as string).toISOString().split('T')[0]
+			: null,
+		last_filing_form: c.last_filing_form ?? null
 	};
 }

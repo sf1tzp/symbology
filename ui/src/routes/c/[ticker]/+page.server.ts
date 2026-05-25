@@ -6,6 +6,7 @@ import {
 } from '$lib/server/db/generated-content';
 import { getFilingsTimeline } from '$lib/server/db/filings';
 import { getFinancialComparison } from '$lib/server/db/financials';
+import { getGroupsForCompany } from '$lib/server/db/groups';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const ticker = params.ticker.toUpperCase();
@@ -20,13 +21,16 @@ export const load: PageServerLoad = async ({ params }) => {
 				getAllGeneratedContentByTicker(ticker)
 			]);
 
+		const companyGroups = company ? await getGroupsForCompany(company.id) : [];
+
 		return {
 			ticker,
 			company,
 			aggregateSummaries,
 			filings,
 			financialComparison,
-			allGeneratedContent
+			allGeneratedContent,
+			companyGroups
 		};
 	} catch (error) {
 		console.error(`Failed to load data for ${ticker}:`, error);
@@ -38,6 +42,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			filings: [],
 			financialComparison: null,
 			allGeneratedContent: [],
+			companyGroups: [],
 			error: error instanceof Error ? error.message : 'Unknown error'
 		};
 	}

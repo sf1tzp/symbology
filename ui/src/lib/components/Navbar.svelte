@@ -3,14 +3,10 @@
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import DarkmodeToggle from '$lib/components/DarkmodeToggle.svelte';
-	import {
-		NavigationMenuRoot as NavigationMenu,
-		NavigationMenuItem,
-		NavigationMenuLink,
-		NavigationMenuList
-	} from '$lib/components/ui/navigation-menu';
+	import Mark from '$lib/components/Mark.svelte';
 	import Menu from '@lucide/svelte/icons/menu';
 	import X from '@lucide/svelte/icons/x';
+	import Search from '@lucide/svelte/icons/search';
 	import { resolve } from '$app/paths';
 
 	let scrollY = $state(0);
@@ -25,9 +21,7 @@
 	];
 
 	function isCurrentPath(href: string): boolean {
-		if (href === '/') {
-			return page.url.pathname === '/';
-		}
+		if (href === '/') return page.url.pathname === '/';
 		return page.url.pathname.startsWith(href);
 	}
 
@@ -37,39 +31,44 @@
 <svelte:window bind:scrollY />
 
 <nav
-	class="fixed top-0 right-0 left-0 z-50 transition-all duration-200 {scrolled
+	class="page fixed top-0 right-0 left-0 z-50 transition-all duration-200 {scrolled
 		? 'border-b border-border bg-background/80 backdrop-blur-md'
-		: 'border-b border-border bg-card'}"
+		: 'border-b border-border bg-background'}"
 >
-	<div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-		<!-- Left: Logo + brand -->
-		<a href={resolve('/')} class="flex items-center gap-2">
-			<img src="https://i.imgur.com/UeEDuUi.png" alt="Symbology Logo" class="h-8 w-auto rounded" />
-			<span class="text-lg font-semibold tracking-wide text-primary">symbology</span>
+	<div class="page flex-between h-14">
+		<!-- Left: Logo mark + brand -->
+		<a href={resolve('/')} class="flex items-center gap-2 text-ink">
+			<Mark size={22} />
+			<span class="font-serif text-lg tracking-tight">Symbology</span>
 		</a>
 
-		<!-- Center-right: Desktop nav links -->
-		<div class="hidden md:flex md:items-center md:gap-1">
-			<NavigationMenu>
-				<NavigationMenuList>
-					{#each navItems as item (item.href)}
-						<NavigationMenuItem>
-							<NavigationMenuLink
-								href={item.href}
-								class="font-medium transition-colors focus:outline-none {isCurrentPath(item.href)
-									? 'font-semibold text-foreground'
-									: 'text-muted-foreground'}"
-							>
-								{item.label}
-							</NavigationMenuLink>
-						</NavigationMenuItem>
-					{/each}
-				</NavigationMenuList>
-			</NavigationMenu>
+		<!-- Center: Desktop nav links -->
+		<div class="hidden items-center gap-6 md:flex">
+			{#each navItems as item (item.href)}
+				<a
+					href={resolve(item.href)}
+					class="text-sm transition-colors {isCurrentPath(item.href)
+						? 'font-medium text-ink'
+						: 'text-ink-3 hover:text-ink'}"
+				>
+					{item.label}
+				</a>
+			{/each}
 		</div>
 
-		<!-- Right: Dark mode toggle + mobile hamburger -->
-		<div class="flex items-center gap-2">
+		<!-- Right: Search button + dark mode + mobile hamburger -->
+		<div class="flex items-center gap-3">
+			<a
+				href={resolve('/search')}
+				class="hidden items-center gap-2 rounded-md border border-rule bg-paper-2 px-3 py-1.5 text-sm text-ink-3 no-underline transition-colors hover:border-rule-2 hover:text-ink-2 md:flex"
+			>
+				<Search class="h-3.5 w-3.5" />
+				<span>Search companies, filings&hellip;</span>
+				<kbd
+					class="ml-2 rounded border border-rule bg-background px-1.5 py-0.5 font-mono text-[10px] text-ink-4"
+					>&#8984;K</kbd
+				>
+			</a>
 			<DarkmodeToggle />
 			<Button
 				variant="ghost"
@@ -87,9 +86,9 @@
 		</div>
 	</div>
 
-	<!-- Mobile dropdown menu -->
+	<!-- Mobile dropdown -->
 	{#if mobileMenuOpen}
-		<div class="border-t bg-background px-4 py-2 md:hidden">
+		<div class="border-t border-border bg-background px-4 py-2 md:hidden">
 			<nav class="flex flex-col space-y-1">
 				{#each navItems as item (item.href)}
 					<Button
@@ -109,4 +108,4 @@
 </nav>
 
 <!-- Spacer to offset fixed navbar -->
-<div class="h-16"></div>
+<div class="h-14"></div>

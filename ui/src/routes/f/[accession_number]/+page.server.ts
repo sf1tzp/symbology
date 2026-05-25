@@ -3,7 +3,8 @@ import { error } from '@sveltejs/kit';
 import {
 	getFilingByAccession,
 	getDocumentsByAccession,
-	getCompanyByAccession
+	getCompanyByAccession,
+	getFilingsByCompanyId
 } from '$lib/server/db/filings';
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -19,10 +20,15 @@ export const load: PageServerLoad = async ({ params }) => {
 		error(404, 'Filing not found');
 	}
 
+	const otherFilings = filing.company_id
+		? await getFilingsByCompanyId(filing.company_id, accession_number, 10)
+		: [];
+
 	return {
 		filing,
 		documents,
 		company,
+		otherFilings,
 		accession_number
 	};
 };

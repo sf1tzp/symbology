@@ -245,6 +245,7 @@ export async function getCompanyByAccession(
 		name: company.name,
 		display_name: company.display_name,
 		ticker: company.ticker,
+		cik: company.cik,
 		exchanges: company.exchanges ?? [],
 		sic: company.sic,
 		sic_description: company.sic_description,
@@ -254,6 +255,35 @@ export async function getCompanyByAccession(
 		former_names: (company.former_names as Array<{ name: string; date_changed: string }>) ?? [],
 		summary: summaryRow?.content ?? null
 	};
+}
+
+export async function getFilingsByCompanyId(
+	companyId: string,
+	excludeAccession?: string,
+	limit: number = 10
+): Promise<FilingResponse[]> {
+	let query = db
+		.selectFrom('filings')
+		.selectAll()
+		.where('company_id', '=', companyId)
+		.orderBy('period_of_report', 'desc')
+		.limit(limit);
+
+	if (excludeAccession) {
+		query = query.where('accession_number', '!=', excludeAccession);
+	}
+
+	const filings = await query.execute();
+
+	return filings.map((f) => ({
+		id: f.id,
+		company_id: f.company_id,
+		accession_number: f.accession_number,
+		form: f.form,
+		filing_date: toDateString(f.filing_date),
+		url: f.url,
+		period_of_report: f.period_of_report ? toDateString(f.period_of_report) : null
+	}));
 }
 
 function toISOString(val: unknown): string {

@@ -1,57 +1,151 @@
 <script lang="ts">
-	import { Card, CardContent } from '$lib/components/ui/card';
-	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
+	import { ChevronLeft } from '@lucide/svelte';
+	import { onMount } from 'svelte';
 
-	let content = `
-## What is Symbology?
+	interface PlatformStats {
+		companies: number;
+		filings: number;
+		documents: number;
+		earliest_year: number | null;
+	}
 
-In finance, a stock symbol represents a company's identity in the market. Symbology takes that idea further — turning raw SEC filings into clear, structured intelligence you can actually use.
+	let stats = $state<PlatformStats | null>(null);
 
-## How does it work?
+	function formatStatValue(n: number): string {
+		if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+		if (n >= 1_000) return n.toLocaleString();
+		return String(n);
+	}
 
-Symbology retrieves public filings directly from the SEC using the [edgartools](https://github.com/dgunning/edgartools) library. Each filing is broken into its component sections — often thousands of lines of dense, unstructured text.
-
-We then use large language models to distill each section into a consistent, readable format. By repeating this process across multiple reporting periods, Symbology can surface meaningful changes in a company's disclosures over time — automatically.
-
-## Why build this?
-
-SEC filings are one of the most valuable sources of information about public companies, and one of the least accessible. They're long, inconsistent, and difficult to compare across years without significant manual effort.
-
-Symbology automates that work. No third-party data providers, no editorial interpretation — just structured analysis derived directly from primary sources.
-
-- Thousands of participating companies
-- New filings published on a regular cadence
-- Standardized reporting that enables meaningful comparison over time
-
----
-
-Have a question? Start a [discussion on GitHub](https://github.com/sf1tzp/symbology/discussions).
-`;
+	onMount(async () => {
+		const res = await fetch('/api/stats');
+		if (res.ok) {
+			stats = await res.json();
+		}
+	});
 </script>
 
 <svelte:head>
-	<title>FAQ - Symbology</title>
+	<title>How it works - Symbology</title>
 	<meta
 		name="description"
-		content="Frequently Asked Questions about Symbology Financial Analysis Platform"
+		content="How Symbology turns raw SEC filings into structured financial intelligence"
 	/>
 </svelte:head>
 
-<div class="space-y-8">
-	<!-- Page Header -->
-	<section class="space-y-4 text-center">
-		<h1 class="text-4xl font-bold tracking-tight">Frequently Asked Questions</h1>
-		<p class="mx-auto max-w-2xl text-xl text-muted-foreground">
-			Everything you need to know about Symbology
-		</p>
-	</section>
-
-	<!-- FAQ Content -->
-	<section class="mx-auto max-w-4xl">
-		<Card>
-			<CardContent>
-				<MarkdownContent {content} />
-			</CardContent>
-		</Card>
-	</section>
+<!-- Back link -->
+<div style="margin-bottom: 3rem;">
+	<a
+		href="/"
+		class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
+	>
+		<ChevronLeft class="h-3 w-3" />
+		Home
+	</a>
 </div>
+
+<!-- Masthead -->
+<header style="max-width: 720px;">
+	<div class="eyebrow" style="margin-bottom: 1rem;">
+		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;HOW IT WORKS
+	</div>
+	<h1 class="display" style="margin-bottom: 1rem;">
+		From filings<br />
+		<em>to insight.</em>
+	</h1>
+	<p class="lede" style="color: var(--ink-2); max-width: 52ch;">
+		Symbology turns raw SEC filings into structured, comparable intelligence — automatically, from
+		primary sources.
+	</p>
+</header>
+
+<!-- Content -->
+<article style="margin-top: 5rem;">
+	<div class="analysis-body">
+		<h2
+			style="font-family: var(--serif); font-size: 1.5rem; font-weight: 400; margin-bottom: 0.75rem; color: var(--ink);"
+		>
+			What is Symbology?
+		</h2>
+		<p>
+			In finance, a stock symbol represents a company's identity in the market. Symbology takes that
+			idea further — turning raw SEC filings into clear, structured intelligence you can actually
+			use.
+		</p>
+
+		<h2
+			style="font-family: var(--serif); font-size: 1.5rem; font-weight: 400; margin-top: 2.5rem; margin-bottom: 0.75rem; color: var(--ink);"
+		>
+			How does it work?
+		</h2>
+		<p>
+			Symbology retrieves public filings directly from the SEC using the
+			<a
+				href="https://github.com/dgunning/edgartools"
+				target="_blank"
+				rel="noopener noreferrer"
+				style="color: var(--teal-2); text-decoration: underline; text-underline-offset: 3px;"
+				>edgartools</a
+			>
+			library. Each filing is broken into its component sections — often thousands of lines of dense,
+			unstructured text.
+		</p>
+		<p>
+			We then use large language models to distill each section into a consistent, readable format.
+			By repeating this process across multiple reporting periods, Symbology can surface meaningful
+			changes in a company's disclosures over time — automatically.
+		</p>
+
+		<h2
+			style="font-family: var(--serif); font-size: 1.5rem; font-weight: 400; margin-top: 2.5rem; margin-bottom: 0.75rem; color: var(--ink);"
+		>
+			Why build this?
+		</h2>
+		<p>
+			SEC filings are one of the most valuable sources of information about public companies, and
+			one of the least accessible. They're long, inconsistent, and difficult to compare across years
+			without significant manual effort.
+		</p>
+		<p>
+			Symbology automates that work. No third-party data providers, no editorial interpretation —
+			just structured analysis derived directly from primary sources.
+		</p>
+	</div>
+
+	<!-- Stats -->
+	{#if stats}
+		<div
+			class="grid-4"
+			style="margin-top: 3rem; padding: 1.5rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);"
+		>
+			<div class="stat">
+				<span class="stat-value">{formatStatValue(stats.companies)}</span>
+				<span class="stat-label">Public Companies Indexed</span>
+			</div>
+			<div class="stat">
+				<span class="stat-value">{formatStatValue(stats.filings)}</span>
+				<span class="stat-label">Filings Parsed</span>
+			</div>
+			<div class="stat">
+				<span class="stat-value">{formatStatValue(stats.documents)}</span>
+				<span class="stat-label">Sections Analysed</span>
+			</div>
+			{#if stats.earliest_year}
+				<div class="stat">
+					<span class="stat-value">FY{stats.earliest_year}</span>
+					<span class="stat-label">Earliest Filing</span>
+				</div>
+			{/if}
+		</div>
+	{/if}
+	<div class="flex meta text-ink-3 my-4 justify-end ">
+		<p>Have a question? Start a
+		<a
+			href="https://github.com/sf1tzp/symbology/discussions"
+			target="_blank"
+			rel="noopener noreferrer"
+			style="color: var(--teal-2); text-decoration: none;">discussion on GitHub</a
+		>.</p>
+	</div>
+</article>
+

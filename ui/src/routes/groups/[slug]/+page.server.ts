@@ -4,6 +4,7 @@ import {
 	getGroupAnalysis,
 	getGroupFrontpageSummary
 } from '$lib/server/db/groups';
+import { getModelConfigById } from '$lib/server/db/generated-content';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const { slug } = params;
@@ -15,11 +16,18 @@ export const load: PageServerLoad = async ({ params }) => {
 			getGroupFrontpageSummary(slug)
 		]);
 
+		// Fetch model config for the most recent analysis
+		const latestAnalysis = analyses.length > 0 ? analyses[0] : null;
+		const modelConfig = latestAnalysis?.model_config_id
+			? await getModelConfigById(latestAnalysis.model_config_id)
+			: null;
+
 		return {
 			slug,
 			group,
 			analyses,
-			frontpageSummary
+			frontpageSummary,
+			modelConfig
 		};
 	} catch (error) {
 		console.error(`Failed to load group ${slug}:`, error);
@@ -28,6 +36,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			group: null,
 			analyses: [],
 			frontpageSummary: null,
+			modelConfig: null,
 			error: error instanceof Error ? error.message : 'Unknown error'
 		};
 	}

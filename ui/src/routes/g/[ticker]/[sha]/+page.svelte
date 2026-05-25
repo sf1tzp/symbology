@@ -1,30 +1,24 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
-	import { Calendar, Clock, HandCoins } from '@lucide/svelte';
-	import { Button } from '$lib/components/ui/button';
-	import { Badge, badgeVariants } from '$lib/components/ui/badge';
-	import ContentViewer from '$lib/components/content/ContentViewer.svelte';
-	import SourcesList from '$lib/components/content/SourcesList.svelte';
-	import ModelConfig from '$lib/components/content/ModelConfig.svelte';
+	import { ChevronLeft, FileText, Bot } from '@lucide/svelte';
+	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
+	import { formatDate, getAnalysisTypeDisplay, cleanContent } from '$lib/utils/filings';
+	import type { DocumentResponse, GeneratedContentResponse } from '$lib/api-types';
 	import type { PageData } from './$types';
-	import Separator from '$lib/components/ui/separator/separator.svelte';
+	import { titleCase } from 'title-case';
 
 	let { data }: { data: PageData } = $props();
 
-	function handleBackToCompany() {
-		goto(`/c/${data.ticker}`);
-	}
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
+	const content = $derived(data.content);
+	const company = $derived(data.company);
+	const modelConfig = $derived(content?.modelConfig ?? null);
+	const sources = $derived(content?.sources ?? []);
+
+	const companyName = $derived(company?.display_name || company?.name || data.ticker);
+	const typeDisplay = $derived(
+		content?.document_type ? getAnalysisTypeDisplay(content.document_type) : null
+	);
+	const contentTitle = $derived(typeDisplay ? `${typeDisplay} Analysis` : 'Generated Analysis');
+	const cleanedContent = $derived(cleanContent(content?.content ?? undefined));
 
 	function formatDuration(duration: number | null): string {
 		if (!duration) return 'N/A';
@@ -34,119 +28,221 @@
 		return `${minutes}m ${seconds}s`;
 	}
 
-	function estimateTokens(content: string) {
-		// Rough estimation: ~4 characters per token for English text
-		return Math.ceil(content.length / 4);
-	}
-
-	function getContentTitle(): string {
-		if (data.content.document_type) {
-			return `${getAnalysisTypeDisplay(data.content.document_type)} Analysis`;
+	function getSourceName(source: DocumentResponse | GeneratedContentResponse): string {
+		if ('title' in source) {
+			return (source as DocumentResponse).title;
 		}
-		return 'Generated Analysis';
+		const gc = source as GeneratedContentResponse;
+		return gc.description ? titleCase(gc.description.replace(/_/g, ' ')) : 'Generated Content';
 	}
 
-	// Helper function to get analysis type display name
-	function getAnalysisTypeDisplay(documentType: string): string {
-		const type = documentType?.toLowerCase() ?? '';
+	function getSourceHref(source: DocumentResponse | GeneratedContentResponse): string | null {
+		if ('title' in source) {
+			const doc = source as DocumentResponse;
+			if (doc.filing?.accession_number && (doc.short_hash || doc.content_hash)) {
+				return `/d/${doc.filing.accession_number}/${doc.short_hash || doc.content_hash?.substring(0, 12)}`;
+			}
+			return null;
+		}
+		const gc = source as GeneratedContentResponse;
+		const hash = gc.short_hash || gc.content_hash?.substring(0, 12);
+		return hash ? `/g/${data.ticker}/${hash}` : null;
+	}
 
-		// Core document types
-		if (type.includes('management_discussion')) return 'Management Discussion';
-		if (type.includes('risk_factors')) return 'Risk Factors';
-		if (type.includes('business_description')) return 'Business Description';
-
-		// Additional document sections
-		if (type.includes('controls_procedures')) return 'Controls & Procedures';
-		if (type.includes('legal_proceedings')) return 'Legal Proceedings';
-		if (type.includes('market_risk')) return 'Market Risk';
-		if (type.includes('executive_compensation')) return 'Executive Compensation';
-		if (type.includes('directors_officers')) return 'Directors & Officers';
-
-		return documentType;
+	function isDocument(source: DocumentResponse | GeneratedContentResponse): boolean {
+		return 'title' in source;
 	}
 </script>
 
 <svelte:head>
-	<title>{getContentTitle()} - {data.company.name} - Symbology</title>
-	<meta name="description" content="LLM-generated analysis for {data.company.name}" />
+	<title>{contentTitle} - {companyName} - Symbology</title>
+	<meta name="description" content="{contentTitle} for {companyName}" />
 </svelte:head>
 
-<div class="space-y-8">
-	<!-- Header with navigation -->
-	<div class="flex items-center justify-between">
-		<Button variant="ghost" onclick={handleBackToCompany}>
-			← Back to {data.company.name}
-		</Button>
-	</div>
-
-	<div class="flex items-center space-x-4">
-		<h1 class="text-2xl font-bold">{getContentTitle()}</h1>
-		<Badge variant="secondary" class="bg-gray-500 text-white">{data.ticker}</Badge>
-		<a href="/g/{data.ticker}/{data.sha}" class={badgeVariants({ variant: 'secondary' })}>
-			<span class="font-mono">{data.sha}</span>
-		</a>
-	</div>
-
-	<div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-		<div class="space-y-4">
-			<!-- Model Configuration -->
-			<Card>
-				<CardHeader>
-					<CardTitle class="text-lg">Model Configuration</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<ModelConfig config={data.content?.modelConfig ?? null} />
-				</CardContent>
-			</Card>
-
-			<!-- Sources -->
-			<Card>
-				<CardContent>
-					{#if data.content?.sources}
-						<SourcesList sources={data.content.sources} ticker={data.ticker} />
-					{/if}
-				</CardContent>
-			</Card>
-		</div>
-
-		<!-- Main Content -->
-		<div class="lg:col-span-2">
-			<Card>
-				<CardHeader>
-					<CardTitle class="text-lg">Generated Content</CardTitle>
-					{#if data.content?.input_tokens || data.content?.output_tokens}
-						<div class="flex text-sm text-muted-foreground">
-							<HandCoins class="mr-2 h-4 w-4" />
-							{#if data.content.input_tokens}{data.content.input_tokens.toLocaleString()} input{/if}{#if data.content.input_tokens && data.content.output_tokens}
-								/
-							{/if}{#if data.content.output_tokens}{data.content.output_tokens.toLocaleString()} output{/if}
-							tokens
-						</div>
-					{:else if data.content?.content}
-						<div class="flex text-sm text-muted-foreground">
-							<HandCoins class="mr-2 h-4 w-4" />
-							~{estimateTokens(data.content.content || '')} tokens (estimated)
-						</div>
-					{/if}
-
-					{#if data.content?.content}
-						<div class="flex text-sm text-muted-foreground">
-							<Calendar class="mr-2 h-4 w-4" />
-							Generated {formatDate(data.content.created_at)}
-						</div>
-					{/if}
-					{#if data.content.total_duration}
-						<div class="flex text-sm text-muted-foreground">
-							<Clock class="mr-2 h-4 w-4" />
-							Completed in {formatDuration(data.content.total_duration)}
-						</div>
-					{/if}
-				</CardHeader>
-				<CardContent>
-					<Separator class="mb-8" />
-					<ContentViewer content={data.content} />
-				</CardContent>
-			</Card>
-		</div>
-	</div>
+<!-- Back link -->
+<div style="margin-bottom: 3rem;">
+	<a
+		href="/c/{data.ticker}"
+		class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
+	>
+		<ChevronLeft class="h-3 w-3" />
+		{companyName}
+	</a>
 </div>
+
+<!-- Masthead -->
+<header>
+	<div class="eyebrow" style="margin-bottom: 1rem;">
+		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;CHANGE ANALYSIS
+		{#if typeDisplay}&middot; {typeDisplay.toUpperCase()}{/if}
+		{#if content?.form_type}&middot; {content.form_type.toUpperCase()}{/if}
+	</div>
+	<h1 class="display" style="margin-bottom: 1rem; max-width: 720px;">
+		{contentTitle}
+	</h1>
+	<p class="lede" style="color: var(--ink-2); max-width: 62ch;">
+		AI-generated synthesis for {companyName}{#if content?.form_type}
+			based on {content.form_type} filings{/if}. Every claim references the source document it came
+		from.
+	</p>
+	<div style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+		{#if content?.form_type}
+			<span class="tag">{content.form_type}</span>
+		{/if}
+		{#if sources.length > 0}
+			<span class="tag">{sources.length} source{sources.length !== 1 ? 's' : ''}</span>
+		{/if}
+		{#if content?.content_hash}
+			<span class="tag" style="font-family: var(--mono);"
+				>{content.short_hash || content.content_hash.substring(0, 12)}</span
+			>
+		{/if}
+		<span class="meta" style="margin-left: auto; color: var(--ink-4);">
+			Generated {formatDate(content.created_at)}
+			{#if modelConfig}&middot; {modelConfig.model}{/if}
+		</span>
+	</div>
+</header>
+
+<!-- Two-column article -->
+<div class="article-grid" style="margin-top: 5rem;">
+	<!-- Sticky sidebar -->
+	<aside class="content-sidebar">
+		<h3 class="sub" style="margin-bottom: 1rem;">Generation</h3>
+		<div style="display: flex; flex-direction: column; gap: 0.75rem;">
+			{#if modelConfig}
+				<div>
+					<div class="meta" style="color: var(--ink-4);">Model</div>
+					<div class="meta" style="color: var(--ink-2); margin-top: 2px;">{modelConfig.model}</div>
+				</div>
+			{/if}
+			{#if content?.input_tokens || content?.output_tokens}
+				<div>
+					<div class="meta" style="color: var(--ink-4);">Tokens</div>
+					<div class="meta" style="color: var(--ink-2); margin-top: 2px;">
+						{#if content.input_tokens}{content.input_tokens.toLocaleString()} in{/if}
+						{#if content.input_tokens && content.output_tokens}
+							/
+						{/if}
+						{#if content.output_tokens}{content.output_tokens.toLocaleString()} out{/if}
+					</div>
+				</div>
+			{/if}
+			{#if content?.total_duration}
+				<div>
+					<div class="meta" style="color: var(--ink-4);">Duration</div>
+					<div class="meta" style="color: var(--ink-2); margin-top: 2px;">
+						{formatDuration(content.total_duration)}
+					</div>
+				</div>
+			{/if}
+			<div>
+				<div class="meta" style="color: var(--ink-4);">Generated</div>
+				<div class="meta" style="color: var(--ink-2); margin-top: 2px;">
+					{formatDate(content.created_at)}
+				</div>
+			</div>
+		</div>
+
+		{#if sources.length > 0}
+			<hr style="border: none; border-top: 1px solid var(--rule); margin: 1.75rem 0;" />
+			<h3 class="sub" style="margin-bottom: 1rem;">Sources</h3>
+			<div style="display: flex; flex-direction: column; gap: 0.75rem;">
+				{#each sources as source (source.id)}
+					{@const href = getSourceHref(source)}
+					{#if href}
+						<a {href} class="sidebar-source">
+							<div style="display: flex; align-items: center; gap: 6px;">
+								{#if isDocument(source)}
+									<FileText class="h-3 w-3" style="color: var(--ink-4); flex-shrink: 0;" />
+								{:else}
+									<Bot class="h-3 w-3" style="color: var(--ink-4); flex-shrink: 0;" />
+								{/if}
+								<span style="font-size: 13px; color: var(--ink);">
+									{getSourceName(source)}
+								</span>
+							</div>
+							{#if source.document_type}
+								<div class="meta" style="color: var(--ink-4); margin-top: 2px; padding-left: 18px;">
+									{getAnalysisTypeDisplay(source.document_type)}
+								</div>
+							{/if}
+						</a>
+					{:else}
+						<div>
+							<div style="display: flex; align-items: center; gap: 6px;">
+								{#if isDocument(source)}
+									<FileText class="h-3 w-3" style="color: var(--ink-4); flex-shrink: 0;" />
+								{:else}
+									<Bot class="h-3 w-3" style="color: var(--ink-4); flex-shrink: 0;" />
+								{/if}
+								<span style="font-size: 13px; color: var(--ink-3);">
+									{getSourceName(source)}
+								</span>
+							</div>
+						</div>
+					{/if}
+				{/each}
+			</div>
+		{/if}
+	</aside>
+
+	<!-- Article body -->
+	<article>
+		{#if cleanedContent}
+			<div class="analysis-body">
+				<MarkdownContent content={cleanedContent} />
+			</div>
+		{:else}
+			<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">
+				No content available.
+			</p>
+		{/if}
+	</article>
+</div>
+
+<!-- Footer -->
+<footer style="margin-top: 5rem; padding-top: 1.75rem; border-top: 1px solid var(--rule);">
+	<span class="meta" style="color: var(--ink-4);">
+		Generated from {content?.source_type === 'documents'
+			? 'source documents'
+			: content?.source_type === 'generated_content'
+				? 'prior analyses'
+				: 'source materials'}
+		{#if modelConfig}&middot; {modelConfig.model}{/if}
+		{#if content?.content_hash}&middot; {content.short_hash ||
+				content.content_hash.substring(0, 12)}{/if}
+	</span>
+</footer>
+
+<style>
+	.article-grid {
+		display: grid;
+		grid-template-columns: 220px 1fr;
+		gap: 80px;
+		align-items: start;
+	}
+	@media (max-width: 768px) {
+		.article-grid {
+			grid-template-columns: 1fr;
+			gap: 2rem;
+		}
+	}
+
+	.content-sidebar {
+		position: sticky;
+		top: 100px;
+		align-self: start;
+	}
+
+	.sidebar-source {
+		text-decoration: none;
+		color: inherit;
+		display: block;
+		padding: 6px 0;
+		transition: color 0.1s;
+	}
+	.sidebar-source:hover span {
+		color: var(--teal-2);
+	}
+</style>

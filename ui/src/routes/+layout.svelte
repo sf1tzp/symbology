@@ -2,13 +2,10 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { ModeWatcher } from 'mode-watcher';
-	import { page } from '$app/state';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import { env } from '$env/dynamic/public';
 	let { children } = $props();
-
-	let isLanding = $derived(page.url.pathname === '/');
 </script>
 
 <svelte:head>
@@ -25,18 +22,12 @@
 
 <ModeWatcher />
 
-<div class="flex min-h-screen flex-col bg-background">
+<div class="page flex min-h-screen flex-col bg-background">
 	<Navbar />
 
-	{#if isLanding}
-		<main class="flex-1">
-			{@render children?.()}
-		</main>
-	{:else}
-		<main class="container mx-auto flex-1 px-4 py-8 lg:max-w-7xl">
-			{@render children?.()}
-		</main>
-	{/if}
+	<main class="page flex-1 py-8">
+		{@render children?.()}
+	</main>
 
 	<Footer />
 </div>

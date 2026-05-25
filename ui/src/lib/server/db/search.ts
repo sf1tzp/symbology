@@ -122,7 +122,7 @@ export async function unifiedSearch(
 	const countResult = await sql<{ count: string }>`
 		SELECT count(*) as count FROM (${combined}) as combined
 	`.execute(db);
-	const total = Number(countResult.rows[0]?.count ?? 0);
+	let total = Number(countResult.rows[0]?.count ?? 0);
 
 	// Fetch paginated results
 	const results = await sql<{
@@ -138,6 +138,64 @@ export async function unifiedSearch(
 		ORDER BY rank DESC
 		LIMIT ${limit} OFFSET ${offset}
 	`.execute(db);
+
+	// Supplement FTS with ILIKE prefix/substring matches on companies to catch
+	// partial-word queries like "Micro" → Microsoft, Micron, etc.
+	if (query.length >= 2 && entityTypes.includes('company')) {
+		const ftsCompanyIds = new Set(
+			results.rows.filter((r) => r.entity_type === 'company').map((r) => r.id)
+		);
+
+		const fuzzy = await sql<{
+			entity_type: string;
+			id: string;
+			rank: number;
+			headline: string | null;
+			title: string | null;
+			subtitle: string | null;
+			date_value: string | null;
+		}>`
+			SELECT 'company' as entity_type, id::text,
+				0.5 as rank,
+				null as headline,
+				name as title, ticker as subtitle, null::text as date_value
+			FROM companies
+			WHERE (ticker ILIKE ${query + '%'} OR name ILIKE ${'%' + query + '%'})
+				AND NOT (search_vector @@ websearch_to_tsquery('english', ${query}))
+			ORDER BY ticker ASC
+			LIMIT ${limit}
+		`.execute(db);
+
+		if (fuzzy.rows.length > 0) {
+			// Append fuzzy matches that aren't already in FTS results
+			const extras = fuzzy.rows.filter((r) => !ftsCompanyIds.has(r.id));
+			if (extras.length > 0) {
+				// Merge: FTS results first (higher rank), then fuzzy extras
+				const merged = [...results.rows, ...extras];
+				// Re-count: original FTS total + number of extra fuzzy matches
+				const fuzzyCount = await sql<{ count: string }>`
+					SELECT count(*) as count FROM companies
+					WHERE (ticker ILIKE ${query + '%'} OR name ILIKE ${'%' + query + '%'})
+						AND NOT (search_vector @@ websearch_to_tsquery('english', ${query}))
+				`.execute(db);
+				total += Number(fuzzyCount.rows[0]?.count ?? 0);
+
+				return {
+					results: merged.slice(offset, offset + limit).map((r) => ({
+						entity_type: r.entity_type,
+						id: r.id,
+						rank: Number(r.rank),
+						headline: r.headline,
+						title: r.title,
+						subtitle: r.subtitle,
+						date_value: r.date_value ? String(r.date_value).split('T')[0] : null
+					})),
+					total,
+					query
+				};
+			}
+		}
+	}
 
 	return {
 		results: results.rows.map((r) => ({

@@ -113,6 +113,25 @@ export async function getGroupAnalysis(
 	);
 }
 
+export async function getGroupsForCompany(companyId: string): Promise<CompanyGroupResponse[]> {
+	const memberships = await db
+		.selectFrom('company_group_membership')
+		.select('company_group_id')
+		.where('company_id', '=', companyId)
+		.execute();
+
+	if (memberships.length === 0) return [];
+
+	const groupIds = memberships.map((m) => m.company_group_id);
+	const groups = await db
+		.selectFrom('company_groups')
+		.selectAll()
+		.where('id', 'in', groupIds)
+		.execute();
+
+	return Promise.all(groups.map((g) => toGroupResponse(g, true)));
+}
+
 async function toGroupResponse(
 	group: Selectable<CompanyGroups>,
 	includeCompanies: boolean

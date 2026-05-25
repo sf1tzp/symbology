@@ -1,87 +1,97 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { Input } from '$lib/components/ui/input';
-	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
-	import Separator from '$lib/components/ui/separator/separator.svelte';
-	import {
-		Search,
-		Building2,
-		FileText,
-		BrainCircuit,
-		ChevronLeft,
-		ChevronRight
-	} from '@lucide/svelte';
-	import type { PageData } from './$types';
-	import type { SearchResultItem } from '$lib/api-types';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
+	import type { PageData } from './$types';
+	import type { SearchResultItem, SearchResponse } from '$lib/api-types';
 
 	let { data }: { data: PageData } = $props();
 
-	let searchInput = $derived(data.query);
+	// Local state — NOT derived from data, so typing doesn't cause re-renders
+	let searchInput = $state(data.query);
+	let results = $state<SearchResultItem[]>(data.results);
+	let total = $state(data.total);
+	let searchOffset = $state(data.offset);
+	let searchLimit = $state(data.limit);
+	let loading = $state(false);
+	let error = $state<string | undefined>(data.error);
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let activeQuery = $state(data.query);
 
 	// Filter state
-	let showCompanies = $derived(
-		data.filters.entityTypes.length === 0 || data.filters.entityTypes.includes('company')
-	);
-	let showFilings = $derived(
-		data.filters.entityTypes.length === 0 || data.filters.entityTypes.includes('filing')
-	);
-	let showAnalysis = $derived(
-		data.filters.entityTypes.length === 0 || data.filters.entityTypes.includes('generated_content')
-	);
-	let formTypeFilter = $derived(data.filters.formType || '');
-	let dateFromFilter = $derived(data.filters.dateFrom || '');
-	let dateToFilter = $derived(data.filters.dateTo || '');
+	let showCompanies = $state(true);
+	let showFilings = $state(true);
+	let showAnalysis = $state(true);
+	let formTypeFilter = $state(data.filters.formType || '');
 
-	function buildSearchUrl(query: string, offset: number = 0) {
+	function buildApiUrl(query: string, offset: number = 0): string {
 		const params = new SvelteURLSearchParams();
-		if (query) params.set('q', query);
+		params.set('q', query);
+		params.set('limit', String(searchLimit));
+		if (offset > 0) params.set('offset', String(offset));
 
 		const entityTypes: string[] = [];
 		if (showCompanies) entityTypes.push('company');
 		if (showFilings) entityTypes.push('filing');
 		if (showAnalysis) entityTypes.push('generated_content');
-
-		// Only add entity_types if not all are selected
 		if (entityTypes.length > 0 && entityTypes.length < 3) {
 			entityTypes.forEach((t) => params.append('entity_types', t));
 		}
 
 		if (formTypeFilter) params.set('form_type', formTypeFilter);
-		if (dateFromFilter) params.set('date_from', dateFromFilter);
-		if (dateToFilter) params.set('date_to', dateToFilter);
-		if (offset > 0) params.set('offset', offset.toString());
 
-		return `/search?${params.toString()}`;
+		return `/api/search?${params}`;
 	}
 
-	function performSearch() {
-		if (!searchInput.trim()) return;
-		goto(buildSearchUrl(searchInput));
+	function updateUrl(query: string) {
+		const params = new SvelteURLSearchParams();
+		if (query) params.set('q', query);
+		const url = `/search${params.toString() ? '?' + params : ''}`;
+		history.replaceState({}, '', url);
 	}
 
-	function handleInputKeydown(event: KeyboardEvent) {
-		if (event.key === 'Enter') {
-			if (debounceTimer) clearTimeout(debounceTimer);
-			performSearch();
+	async function performSearch(query: string, offset: number = 0) {
+		if (!query.trim()) {
+			results = [];
+			total = 0;
+			activeQuery = '';
+			error = undefined;
+			updateUrl('');
+			return;
+		}
+
+		loading = true;
+		error = undefined;
+		activeQuery = query;
+		updateUrl(query);
+
+		try {
+			const res = await fetch(buildApiUrl(query, offset));
+			if (!res.ok) throw new Error('Search failed');
+			const data: SearchResponse = await res.json();
+			results = data.results ?? [];
+			total = data.total;
+			searchOffset = offset;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Search failed';
+			results = [];
+			total = 0;
+		} finally {
+			loading = false;
 		}
 	}
 
 	function handleInput() {
 		if (debounceTimer) clearTimeout(debounceTimer);
 		debounceTimer = setTimeout(() => {
-			if (searchInput.trim()) {
-				performSearch();
-			}
-		}, 500);
+			performSearch(searchInput);
+		}, 350);
 	}
 
-	function applyFilters() {
-		if (data.query) {
-			goto(buildSearchUrl(data.query));
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			if (debounceTimer) clearTimeout(debounceTimer);
+			performSearch(searchInput);
 		}
 	}
 
@@ -91,21 +101,7 @@
 		} else if (result.entity_type === 'filing' && result.subtitle) {
 			goto(`/f/${result.subtitle}`);
 		} else if (result.entity_type === 'generated_content' && result.subtitle) {
-			// subtitle is "TICKER" format, need to navigate with the result ID
 			goto(`/c/${result.subtitle}`);
-		}
-	}
-
-	function getEntityIcon(type: string) {
-		switch (type) {
-			case 'company':
-				return Building2;
-			case 'filing':
-				return FileText;
-			case 'generated_content':
-				return BrainCircuit;
-			default:
-				return Search;
 		}
 	}
 
@@ -117,250 +113,261 @@
 				return 'Filing';
 			case 'generated_content':
 				return 'Analysis';
+			case 'company_group':
+				return 'Group';
 			default:
 				return type;
 		}
 	}
 
-	function getEntityVariant(type: string): 'default' | 'secondary' | 'outline' | 'destructive' {
+	function getTagClass(type: string): string {
 		switch (type) {
-			case 'company':
-				return 'default';
-			case 'filing':
-				return 'secondary';
 			case 'generated_content':
-				return 'outline';
+				return 'tag-new';
 			default:
-				return 'secondary';
+				return '';
 		}
 	}
 
 	function formatDate(dateString: string | null | undefined): string {
 		if (!dateString) return '';
 		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
+		return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 	}
 
-	// Pagination
-	$effect(() => {
-		searchInput = data.query;
-	});
-
-	const currentPage = $derived(Math.floor(data.offset / data.limit) + 1);
-	const totalPages = $derived(Math.ceil(data.total / data.limit));
+	const currentPage = $derived(Math.floor(searchOffset / searchLimit) + 1);
+	const totalPages = $derived(Math.ceil(total / searchLimit));
 
 	function goToPage(pageNum: number) {
-		const newOffset = (pageNum - 1) * data.limit;
-		goto(buildSearchUrl(data.query, newOffset));
+		const newOffset = (pageNum - 1) * searchLimit;
+		performSearch(activeQuery, newOffset);
 	}
+
+	const formTypes = ['10-K', '10-Q', '8-K', 'DEF 14A', '20-F'];
 </script>
 
 <svelte:head>
-	<title>{data.query ? `"${data.query}" - Search` : 'Search'} - Symbology</title>
+	<title>{activeQuery ? `"${activeQuery}" - Search` : 'Search'} - Symbology</title>
 	<meta name="description" content="Search companies, filings, and analyses" />
 </svelte:head>
 
-<div class="space-y-6">
-	<div>
-		<h1 class="text-2xl font-bold">Search</h1>
-		<p class="text-muted-foreground">Search across companies, filings, and generated analyses</p>
+<!-- Masthead -->
+<section>
+	<div class="eyebrow" style="margin-bottom: 14px;">
+		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SEARCH
 	</div>
+	<h1 class="display" style="font-size: clamp(2rem, 4vw, 3rem); margin-bottom: 28px;">
+		Search across <em>everything</em>.
+	</h1>
 
-	<!-- Search bar -->
-	<div class="flex gap-2">
-		<div class="relative flex-1">
-			<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-			<Input
-				bind:value={searchInput}
-				placeholder="Search companies, filings, analyses..."
-				class="pl-10"
-				oninput={handleInput}
-				onkeydown={handleInputKeydown}
-			/>
-		</div>
-		<Button onclick={performSearch} disabled={!searchInput.trim()}>Search</Button>
+	<!-- Search input -->
+	<div
+		style="display: flex; align-items: center; gap: 10px; padding: 16px 22px;
+		       border: 1px solid var(--rule-2); border-radius: 8px; background: var(--paper);"
+	>
+		<SearchIcon style="width: 18px; height: 18px; color: var(--ink-4); flex-shrink: 0;" />
+		<input
+			type="text"
+			bind:value={searchInput}
+			oninput={handleInput}
+			onkeydown={handleKeydown}
+			placeholder="Companies, filings, analyses..."
+			style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--sans);
+			       font-size: 15px; color: var(--ink); padding: 0;"
+		/>
+		{#if loading}
+			<span class="meta" style="color: var(--ink-4);">searching...</span>
+		{:else}
+			<span class="meta" style="color: var(--ink-4); white-space: nowrap;">&#8629; to search</span>
+		{/if}
 	</div>
+</section>
 
-	<div class="grid grid-cols-1 gap-6 lg:grid-cols-4">
-		<!-- Filter sidebar -->
-		<div class="space-y-6">
-			<Card>
-				<CardHeader>
-					<CardTitle class="text-sm font-medium">Filters</CardTitle>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					<div class="space-y-3">
-						<p class="text-sm font-medium">Entity Types</p>
-						<label class="flex items-center space-x-2 text-sm">
-							<input
-								type="checkbox"
-								bind:checked={showCompanies}
-								onchange={applyFilters}
-								class="rounded"
-							/>
-							<span>Companies</span>
-						</label>
-						<label class="flex items-center space-x-2 text-sm">
-							<input
-								type="checkbox"
-								bind:checked={showFilings}
-								onchange={applyFilters}
-								class="rounded"
-							/>
-							<span>Filings</span>
-						</label>
-						<label class="flex items-center space-x-2 text-sm">
-							<input
-								type="checkbox"
-								bind:checked={showAnalysis}
-								onchange={applyFilters}
-								class="rounded"
-							/>
-							<span>Analyses</span>
-						</label>
-					</div>
+<!-- Two-column: filters + results -->
+<section
+	style="margin-top: 3rem; display: grid; grid-template-columns: 240px 1fr; gap: 4rem; align-items: start;"
+>
+	<!-- Sidebar filters -->
+	<aside style="position: sticky; top: 100px;">
+		<h3 class="sub" style="margin-bottom: 18px;">Filters</h3>
 
-					<Separator />
-
-					<div class="space-y-2">
-						<label for="filter-form-type" class="text-sm font-medium">Form Type</label>
-						<Input
-							id="filter-form-type"
-							bind:value={formTypeFilter}
-							placeholder="e.g., 10-K, 10-Q"
-							onchange={applyFilters}
-						/>
-					</div>
-
-					<Separator />
-
-					<div class="space-y-2">
-						<p class="text-sm font-medium">Date Range</p>
-						<div class="space-y-1">
-							<label for="filter-date-from" class="text-xs text-muted-foreground">From</label>
-							<Input
-								id="filter-date-from"
-								type="date"
-								bind:value={dateFromFilter}
-								onchange={applyFilters}
-							/>
-						</div>
-						<div class="space-y-1">
-							<label for="filter-date-to" class="text-xs text-muted-foreground">To</label>
-							<Input
-								id="filter-date-to"
-								type="date"
-								bind:value={dateToFilter}
-								onchange={applyFilters}
-							/>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-
-		<!-- Results -->
-		<div class="lg:col-span-3">
-			{#if data.error}
-				<div
-					class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400"
+		<!-- Entity type checkboxes -->
+		<div class="meta" style="margin-bottom: 8px; color: var(--ink-3);">Entity type</div>
+		<div style="display: flex; flex-direction: column; gap: 6px;">
+			{#each [{ label: 'Companies', checked: showCompanies, toggle: () => {
+						showCompanies = !showCompanies;
+						if (activeQuery) performSearch(activeQuery);
+					} }, { label: 'Filings', checked: showFilings, toggle: () => {
+						showFilings = !showFilings;
+						if (activeQuery) performSearch(activeQuery);
+					} }, { label: 'Analyses', checked: showAnalysis, toggle: () => {
+						showAnalysis = !showAnalysis;
+						if (activeQuery) performSearch(activeQuery);
+					} }] as filter (filter.label)}
+				<label
+					style="display: flex; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; font-size: 14px; color: {filter.checked
+						? 'var(--ink)'
+						: 'var(--ink-3)'};"
 				>
-					Search error: {data.error}
-				</div>
-			{:else if data.query && data.results.length === 0}
-				<div class="flex flex-col items-center justify-center py-12 text-center">
-					<Search class="mb-4 h-12 w-12 text-muted-foreground" />
-					<p class="text-lg font-medium">No results found</p>
-					<p class="text-muted-foreground">Try adjusting your search terms or filters</p>
-				</div>
-			{:else if data.results.length > 0}
-				<div class="space-y-2">
-					<p class="text-sm text-muted-foreground">
-						{data.total} result{data.total === 1 ? '' : 's'} for "{data.query}"
-					</p>
-
-					<div class="space-y-3">
-						{#each data.results as result (result.id)}
-							{@const Icon = getEntityIcon(result.entity_type)}
-							<Card
-								class="cursor-pointer transition-colors hover:bg-muted/50"
-								onclick={() => navigateToResult(result)}
+					<input
+						type="checkbox"
+						checked={filter.checked}
+						onchange={filter.toggle}
+						style="display: none;"
+					/>
+					<span
+						style="width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid {filter.checked
+							? 'var(--teal-2)'
+							: 'var(--ink-4)'}; background: {filter.checked
+							? 'var(--teal-2)'
+							: 'transparent'}; display: inline-flex; align-items: center; justify-content: center;"
+					>
+						{#if filter.checked}
+							<svg
+								width="10"
+								height="10"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="#fff"
+								stroke-width="3.5"><path d="m5 12 5 5 9-9" /></svg
 							>
-								<CardContent class="py-4">
-									<div class="flex items-start gap-3">
-										<div class="mt-0.5 rounded-md bg-muted p-2">
-											<Icon class="h-4 w-4 text-muted-foreground" />
-										</div>
-										<div class="min-w-0 flex-1">
-											<div class="flex items-center gap-2">
-												<span class="font-medium">
-													{result.title || 'Untitled'}
-												</span>
-												<Badge variant={getEntityVariant(result.entity_type)}>
-													{getEntityLabel(result.entity_type)}
-												</Badge>
-												{#if result.subtitle}
-													<span class="font-mono text-xs text-muted-foreground">
-														{result.subtitle}
-													</span>
-												{/if}
-											</div>
-											{#if result.headline}
-												<p class="mt-1 text-sm text-muted-foreground">
-													<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-													{@html result.headline}
-												</p>
-											{/if}
-											{#if result.date_value}
-												<p class="mt-1 text-xs text-muted-foreground">
-													{formatDate(result.date_value)}
-												</p>
-											{/if}
-										</div>
-									</div>
-								</CardContent>
-							</Card>
-						{/each}
-					</div>
+						{/if}
+					</span>
+					{filter.label}
+				</label>
+			{/each}
+		</div>
 
-					<!-- Pagination -->
-					{#if totalPages > 1}
-						<div class="flex items-center justify-center gap-2 pt-4">
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={currentPage <= 1}
-								onclick={() => goToPage(currentPage - 1)}
-							>
-								<ChevronLeft class="h-4 w-4" />
-							</Button>
-							<span class="text-sm text-muted-foreground">
-								Page {currentPage} of {totalPages}
+		<hr style="border: none; border-top: 1px solid var(--rule); margin: 24px 0;" />
+
+		<!-- Form type tags -->
+		<div class="meta" style="margin-bottom: 8px; color: var(--ink-3);">Form type</div>
+		<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+			{#each formTypes as f (f)}
+				<button
+					class="tag"
+					style="cursor: pointer; {formTypeFilter === f
+						? 'background: var(--ink); color: var(--paper); border-color: var(--ink);'
+						: ''}"
+					onclick={() => {
+						formTypeFilter = formTypeFilter === f ? '' : f;
+						if (activeQuery) performSearch(activeQuery);
+					}}
+				>
+					{f}
+				</button>
+			{/each}
+		</div>
+	</aside>
+
+	<!-- Results -->
+	<main class="min-w-5xl">
+		{#if error}
+			<div
+				style="border-left: 3px solid var(--danger); padding: 1rem 1.25rem; background: color-mix(in oklch, var(--danger) 8%, var(--paper));"
+			>
+				<p class="meta" style="color: var(--danger);">Search error: {error}</p>
+			</div>
+		{:else if activeQuery && results.length === 0 && !loading}
+			<div style="padding: 3rem 0; text-align: center;">
+				<p class="body-text" style="color: var(--ink-3);">
+					No results found for "{activeQuery}". Try a different query or adjust filters.
+				</p>
+			</div>
+		{:else if results.length > 0}
+			<div class="flex-between" style="margin-bottom: 28px;">
+				<span class="meta" style="color: var(--ink-3);">
+					{total} result{total === 1 ? '' : 's'} for
+					<span style="color: var(--ink); font-family: var(--serif); font-style: italic;">
+						"{activeQuery}"
+					</span>
+				</span>
+			</div>
+
+			<div style="opacity: {loading ? 0.5 : 1}; transition: opacity 0.15s;">
+				{#each results as result (result.id)}
+					<button
+						onclick={() => navigateToResult(result)}
+						style="display: block; width: 100%; text-align: left; text-decoration: none; padding: 20px 0;
+						       border: none; background: none; border-bottom: 1px solid var(--rule); cursor: pointer; color: inherit;"
+					>
+						<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+							<span class="tag {getTagClass(result.entity_type)}" style="font-size: 11px;">
+								{getEntityLabel(result.entity_type)}
 							</span>
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={currentPage >= totalPages}
-								onclick={() => goToPage(currentPage + 1)}
-							>
-								<ChevronRight class="h-4 w-4" />
-							</Button>
+							{#if result.date_value}
+								<span class="meta" style="color: var(--ink-4);">
+									{formatDate(result.date_value)}
+								</span>
+							{/if}
+							{#if result.subtitle}
+								<span class="meta" style="color: var(--ink-4);">
+									{result.subtitle}
+								</span>
+							{/if}
 						</div>
-					{/if}
-				</div>
-			{:else if !data.query}
-				<div class="flex flex-col items-center justify-center py-12 text-center">
-					<Search class="mb-4 h-12 w-12 text-muted-foreground" />
-					<p class="text-lg font-medium">Enter a search query</p>
-					<p class="text-muted-foreground">
-						Search across companies, SEC filings, and AI-generated analyses
-					</p>
+						<div
+							style="font-family: var(--serif); font-size: 22px; color: var(--ink);
+							       letter-spacing: -0.015em; margin-bottom: 6px; line-height: 1.25;"
+						>
+							{result.title || 'Untitled'}
+						</div>
+						{#if result.headline}
+							<div style="font-size: 14px; color: var(--ink-2); line-height: 1.55;">
+								<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+								{@html result.headline}
+							</div>
+						{/if}
+					</button>
+				{/each}
+			</div>
+
+			<!-- Pagination -->
+			{#if totalPages > 1}
+				<div
+					class="flex-between"
+					style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule);"
+				>
+					<button
+						class="meta"
+						style="cursor: pointer; background: none; border: none; padding: 0; color: {currentPage >
+						1
+							? 'var(--teal-2)'
+							: 'var(--ink-4)'};"
+						disabled={currentPage <= 1}
+						onclick={() => goToPage(currentPage - 1)}
+					>
+						&larr; Previous
+					</button>
+					<span class="meta" style="color: var(--ink-4);">
+						Page {currentPage} of {totalPages}
+					</span>
+					<button
+						class="meta"
+						style="cursor: pointer; background: none; border: none; padding: 0; color: {currentPage <
+						totalPages
+							? 'var(--teal-2)'
+							: 'var(--ink-4)'};"
+						disabled={currentPage >= totalPages}
+						onclick={() => goToPage(currentPage + 1)}
+					>
+						Next &rarr;
+					</button>
 				</div>
 			{/if}
-		</div>
-	</div>
-</div>
+		{:else if !activeQuery}
+			<!-- Empty state — shown inline in the results column -->
+			<div class="mr-24 text-center">
+				<SearchIcon
+					style="width: 48px; height: 48px; color: var(--ink-4); margin: 0 auto 1.5rem;"
+				/>
+				<p class="section-heading" style="font-size: 1.5rem; margin-bottom: 0.5rem;">
+					Enter a search query
+				</p>
+				<p class="body-text" style="color: var(--ink-3);">
+					Search across companies, SEC filings, and AI-generated analyses
+				</p>
+			</div>
+		{/if}
+	</main>
+</section>

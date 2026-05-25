@@ -46,7 +46,7 @@ lint-server *ARGS:
     just -d server -f server/justfile lint {{ARGS}}
 
 lint-ui *ARGS:
-    just -d ui -f ui/justfile lint {{ARGS}}
+    just -d ui -f ui/justfile format {{ARGS}}
 
 # Dependencies
 deps-server:

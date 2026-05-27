@@ -15,6 +15,7 @@
 		{ href: '/', label: 'Home' },
 		{ href: '/companies', label: 'Companies' },
 		{ href: '/groups', label: 'Sectors' },
+		{ href: '/status', label: 'Status' },
 		// { href: '/search', label: 'Search' },
 		{ href: '/faq', label: 'FAQ' }
 	];

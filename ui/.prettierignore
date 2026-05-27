@@ -10,3 +10,5 @@ bun.lockb
 
 # Generated
 src/lib/server/db/types.ts
+
+*.tar

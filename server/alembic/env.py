@@ -24,6 +24,8 @@ import symbology.database.filings  # noqa: F401
 import symbology.database.financial_concepts  # noqa: F401
 import symbology.database.financial_values  # noqa: F401
 import symbology.database.generated_content  # noqa: F401
+import symbology.database.document_chunks  # noqa: F401
+import symbology.database.generated_content_chunks  # noqa: F401
 import symbology.database.model_configs  # noqa: F401
 import symbology.database.prompts  # noqa: F401
 import symbology.database.ratings  # noqa: F401

@@ -100,6 +100,22 @@ from symbology.database.generated_content import (
     update_generated_content,
 )
 
+# Chunk models (vector embeddings)
+from symbology.database.document_chunks import (
+    delete_chunks_for_document,
+    DocumentChunk,
+    get_chunks_by_document,
+    replace_document_chunks,
+    search_document_chunks,
+)
+from symbology.database.generated_content_chunks import (
+    delete_chunks_for_content,
+    GeneratedContentChunk,
+    get_chunks_by_content,
+    replace_content_chunks,
+    search_content_chunks,
+)
+
 # Company Groups
 from symbology.database.company_groups import (
     add_company_to_group,
@@ -146,6 +162,11 @@ __all__ = [
     "Completion", "Aggregate", "Rating", "Prompt", "PromptRole",
     "Job", "JobStatus", "JobType",
     "PipelineRun", "PipelineRunStatus", "PipelineTrigger",
+    "DocumentChunk", "GeneratedContentChunk",
+
+    # Chunk functions
+    "get_chunks_by_document", "delete_chunks_for_document", "replace_document_chunks", "search_document_chunks",
+    "get_chunks_by_content", "delete_chunks_for_content", "replace_content_chunks", "search_content_chunks",
 
     # Company functions
     "get_company_ids", "get_company", "create_company", "update_company", "delete_company",

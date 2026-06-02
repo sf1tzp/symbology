@@ -237,6 +237,47 @@ def stop_job(job_id: Union[UUID, str]) -> Optional[Job]:
         raise
 
 
+def update_job(
+    job_id: Union[UUID, str],
+    params: Optional[Dict[str, Any]] = None,
+    priority: Optional[int] = None,
+    max_retries: Optional[int] = None,
+    replace_params: bool = False,
+) -> Optional[Job]:
+    """Edit an editable job's fields (params, priority, max_retries).
+
+    Only PENDING or FAILED jobs can be edited — a job that is running, completed,
+    or cancelled has either already consumed its params or will never run again,
+    so editing it would be misleading. ``params`` is merged into the existing
+    payload by default; pass ``replace_params=True`` to overwrite it wholesale.
+    Returns None if the job is missing or not in an editable status.
+    """
+    try:
+        session = get_db_session()
+        job = session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            logger.warning("update_job_not_found", job_id=str(job_id))
+            return None
+        if job.status not in (JobStatus.PENDING, JobStatus.FAILED):
+            logger.warning("update_job_not_editable", job_id=str(job_id), status=job.status.value)
+            return None
+        if params is not None:
+            # Reassign a fresh dict: the JSON column doesn't track in-place
+            # mutation, so merging into job.params directly wouldn't be flushed.
+            job.params = params if replace_params else {**(job.params or {}), **params}
+        if priority is not None:
+            job.priority = priority
+        if max_retries is not None:
+            job.max_retries = max_retries
+        session.commit()
+        logger.info("updated_job", job_id=str(job.id))
+        return job
+    except Exception as e:
+        session.rollback()
+        logger.error("update_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
+        raise
+
+
 def claim_next_job(worker_id: str) -> Optional[Job]:
     """Atomically claim the highest-priority eligible pending job.
 

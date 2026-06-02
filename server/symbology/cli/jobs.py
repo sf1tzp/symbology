@@ -1,5 +1,6 @@
 """CLI commands for background job management."""
 
+import json
 import sys
 
 import click
@@ -18,6 +19,7 @@ from symbology.database.jobs import (
     requeue_failed_jobs,
     requeue_job,
     stop_job,
+    update_job,
 )
 from symbology.utils.config import settings
 from symbology.utils.logging import get_logger
@@ -84,6 +86,33 @@ def format_job_context(job) -> str:
         ]
 
     return ", ".join(parts) if parts else "-"
+
+
+def coerce_param_value(raw: str):
+    """Best-effort typing for a ``--set KEY=VALUE`` value.
+
+    Params are an untyped JSON blob, but ``lookback=5`` should land as the int 5,
+    not the string "5", so handlers see what they expect. Order matters: try
+    bool/null, then int, then float, then JSON (lists/objects/quoted strings),
+    and finally fall back to the raw string (e.g. ``form=10-K``).
+    """
+    low = raw.lower()
+    if low in ("true", "false"):
+        return low == "true"
+    if low in ("null", "none"):
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        pass
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return raw
 
 
 @click.group()
@@ -156,6 +185,80 @@ def job_status(job_id: str):
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         logger.exception("Failed to get job status")
+        sys.exit(1)
+
+
+@jobs.command("edit")
+@click.argument("job_id")
+@click.option(
+    "--set",
+    "set_kvs",
+    multiple=True,
+    metavar="KEY=VALUE",
+    help="Set a param (repeatable). Auto-typed: 5->int, 1.5->float, true/false->bool, JSON for lists/objects, else string.",
+)
+@click.option("--params", "params_json", default=None, help="Merge a JSON object into params")
+@click.option("--replace-params", is_flag=True, help="Replace params wholesale instead of merging")
+@click.option("--priority", type=int, default=None, help="New priority (0=critical, 4=backlog)")
+@click.option("--max-retries", type=int, default=None, help="New maximum retry attempts")
+def edit_job(job_id, set_kvs, params_json, replace_params, priority, max_retries):
+    """Edit an editable job's params, priority, or max-retries.
+
+    JOB_ID: UUID of the job. Only PENDING or FAILED jobs can be edited.
+
+    \b
+    Examples:
+      jobs edit <id> --set lookback=10
+      jobs edit <id> --set form=10-Q --set lookback=3
+      jobs edit <id> --priority 0
+      jobs edit <id> --params '{"lookback": 8}'
+    """
+    # Build the params delta from --set pairs and/or --params JSON.
+    params_delta = {}
+    for kv in set_kvs:
+        if "=" not in kv:
+            console.print(f"[red]Invalid --set '{kv}', expected KEY=VALUE[/red]")
+            sys.exit(1)
+        key, _, raw = kv.partition("=")
+        params_delta[key.strip()] = coerce_param_value(raw)
+
+    if params_json is not None:
+        try:
+            parsed = json.loads(params_json)
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Invalid JSON params: {e}[/red]")
+            sys.exit(1)
+        if not isinstance(parsed, dict):
+            console.print("[red]--params must be a JSON object[/red]")
+            sys.exit(1)
+        params_delta.update(parsed)
+
+    if not params_delta and priority is None and max_retries is None:
+        console.print("[yellow]Nothing to edit. Pass --set, --params, --priority, or --max-retries.[/yellow]")
+        sys.exit(1)
+
+    try:
+        init_session()
+        job = update_job(
+            job_id,
+            params=params_delta or None,
+            priority=priority,
+            max_retries=max_retries,
+            replace_params=replace_params,
+        )
+        if not job:
+            console.print(
+                f"[red]Job not found or not editable (must be PENDING or FAILED): {job_id}[/red]"
+            )
+            sys.exit(1)
+        console.print(f"[green]✓[/green] Job updated: {job.id}")
+        console.print(f"  [blue]Type:[/blue]     {job.job_type.value}")
+        console.print(f"  [blue]Context:[/blue]  {format_job_context(job)}")
+        console.print(f"  [blue]Priority:[/blue] {job.priority}")
+        console.print(f"  [blue]Status:[/blue]   {job.status.value}")
+    except Exception as e:
+        console.print(f"[red]Error editing job: {e}[/red]")
+        logger.exception("Failed to edit job")
         sys.exit(1)
 
 

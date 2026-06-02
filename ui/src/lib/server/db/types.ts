@@ -17,7 +17,7 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
 
 export type JobStatusEnum = "cancelled" | "completed" | "failed" | "in_progress" | "pending";
 
-export type JobTypeEnum = "backfill_chunks" | "backfill_embeddings" | "bulk_ingest" | "company_group_pipeline" | "company_ingestion" | "content_generation" | "filing_ingestion" | "filing_page_content" | "full_pipeline" | "ingest_pipeline" | "pipeline_fan_in_check" | "pipeline_stage" | "test";
+export type JobTypeEnum = "backfill_chunks" | "backfill_embeddings" | "bulk_ingest" | "company_group_pipeline" | "company_ingestion" | "company_page_content" | "content_generation" | "filing_ingestion" | "filing_page_content" | "full_pipeline" | "ingest_pipeline" | "pipeline_fan_in_check" | "pipeline_stage" | "test";
 
 export type Json = JsonValue;
 
@@ -43,6 +43,52 @@ export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
 export interface AlembicVersion {
   version_num: string;
+}
+
+export interface AuthAccount {
+  accessToken: string | null;
+  accessTokenExpiresAt: Timestamp | null;
+  accountId: string;
+  createdAt: Generated<Timestamp>;
+  id: string;
+  idToken: string | null;
+  password: string | null;
+  providerId: string;
+  refreshToken: string | null;
+  refreshTokenExpiresAt: Timestamp | null;
+  scope: string | null;
+  updatedAt: Timestamp;
+  userId: string;
+}
+
+export interface AuthSession {
+  createdAt: Generated<Timestamp>;
+  expiresAt: Timestamp;
+  id: string;
+  ipAddress: string | null;
+  token: string;
+  updatedAt: Timestamp;
+  userAgent: string | null;
+  userId: string;
+}
+
+export interface AuthUser {
+  createdAt: Generated<Timestamp>;
+  email: string;
+  emailVerified: boolean;
+  id: string;
+  image: string | null;
+  name: string;
+  updatedAt: Generated<Timestamp>;
+}
+
+export interface AuthVerification {
+  createdAt: Generated<Timestamp>;
+  expiresAt: Timestamp;
+  id: string;
+  identifier: string;
+  updatedAt: Generated<Timestamp>;
+  value: string;
 }
 
 export interface Companies {
@@ -237,6 +283,7 @@ export interface Jobs {
   priority: number;
   result: Json | null;
   retry_count: number;
+  scheduled_at: Timestamp | null;
   started_at: Timestamp | null;
   status: JobStatusEnum;
   updated_at: Timestamp;
@@ -284,8 +331,19 @@ export interface Ratings {
   tags: string[];
 }
 
+export interface Watchlist {
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  user_id: string;
+}
+
 export interface DB {
   alembic_version: AlembicVersion;
+  "auth.account": AuthAccount;
+  "auth.session": AuthSession;
+  "auth.user": AuthUser;
+  "auth.verification": AuthVerification;
   companies: Companies;
   company_group_membership: CompanyGroupMembership;
   company_groups: CompanyGroups;
@@ -311,4 +369,5 @@ export interface DB {
   pipeline_runs: PipelineRuns;
   prompts: Prompts;
   ratings: Ratings;
+  watchlist: Watchlist;
 }

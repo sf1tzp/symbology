@@ -55,6 +55,7 @@
 		"vite": "^8.0.0"
 	},
 	"dependencies": {
+		"better-auth": "^1.6.13",
 		"dotenv": "^17.2.3",
 		"eslint-plugin-unused-imports": "^4.4.1",
 		"kysely": "^0.29.2",

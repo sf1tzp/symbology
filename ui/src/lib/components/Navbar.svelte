@@ -8,20 +8,31 @@
 	import X from '@lucide/svelte/icons/x';
 	import { resolve } from '$app/paths';
 
+	type NavUser = { id: string; name: string; email: string } | null;
+	let { user = null }: { user?: NavUser } = $props();
+
 	let scrollY = $state(0);
 	let mobileMenuOpen = $state(false);
 
-	const navItems = [
+	let navItems = $derived([
 		{ href: '/', label: 'Home' },
 		{ href: '/companies', label: 'Companies' },
+		...(user ? [{ href: '/watchlist', label: 'Watchlist' }] : []),
 		{ href: '/status', label: 'Status' },
 		// { href: '/search', label: 'Search' },
 		{ href: '/faq', label: 'FAQ' }
-	];
+	]);
 
 	function isCurrentPath(href: string): boolean {
 		if (href === '/') return page.url.pathname === '/';
 		return page.url.pathname.startsWith(href);
+	}
+
+	function initials(name: string): string {
+		const parts = name.trim().split(/\s+/).filter(Boolean);
+		if (parts.length === 0) return '?';
+		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+		return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 	}
 
 	let scrolled = $derived(scrollY > 50);
@@ -71,6 +82,25 @@
 			<!-- 	> -->
 			<!-- </a> -->
 			<DarkmodeToggle />
+
+			{#if user}
+				<a
+					href={resolve('/account')}
+					title={user.name}
+					aria-label="Account"
+					class="hidden h-7 w-7 items-center justify-center rounded-full bg-sage-2 font-mono text-[11px] font-semibold text-teal-2 no-underline md:inline-flex"
+				>
+					{initials(user.name)}
+				</a>
+			{:else}
+				<a
+					href={resolve('/login')}
+					class="hidden text-sm text-ink-3 no-underline transition-colors hover:text-ink md:inline-flex"
+				>
+					Sign in
+				</a>
+			{/if}
+
 			<Button
 				variant="ghost"
 				size="icon"
@@ -103,6 +133,16 @@
 						{item.label}
 					</Button>
 				{/each}
+				<Button
+					variant={isCurrentPath(user ? '/account' : '/login') ? 'secondary' : 'ghost'}
+					class="justify-start"
+					onclick={() => {
+						goto(user ? '/account' : '/login');
+						mobileMenuOpen = false;
+					}}
+				>
+					{user ? 'Account' : 'Sign in'}
+				</Button>
 			</nav>
 		</div>
 	{/if}

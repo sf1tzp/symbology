@@ -323,6 +323,11 @@
 		border: 1px solid var(--rule);
 		color: var(--ink-3);
 	}
+	.tag-solid {
+		background: var(--ink);
+		border-color: var(--ink);
+		color: var(--paper);
+	}
 	.tag-new {
 		background: var(--sage-2);
 		border-color: var(--sage);

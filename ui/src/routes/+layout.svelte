@@ -5,7 +5,7 @@
 	import Navbar from '$lib/components/Navbar.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import { env } from '$env/dynamic/public';
-	let { children } = $props();
+	let { children, data } = $props();
 </script>
 
 <svelte:head>
@@ -23,7 +23,7 @@
 <ModeWatcher />
 
 <div class="page flex min-h-screen flex-col bg-background">
-	<Navbar />
+	<Navbar user={data.user} />
 
 	<main class="page flex-1 py-8">
 		{@render children?.()}

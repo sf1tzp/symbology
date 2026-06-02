@@ -29,6 +29,16 @@ from symbology.database.generated_content import (
     generated_content_source_association,
 )
 from symbology.database.model_configs import ModelConfig
+from symbology.database.page_content import (
+    CompanyPageContent,
+    CompanyPageContentChangeReport,
+    DocumentPageContent,
+    FilingPageContent,
+    GroupPageContent,
+    company_page_content_filing,
+    filing_page_content_document,
+    group_page_content_company,
+)
 from symbology.database.prompts import Prompt
 from symbology.utils.logging import get_logger
 from uuid_extensions import uuid7
@@ -62,6 +72,15 @@ class NaturalKeyMaps:
     prompt_hash_to_id: Dict[str, UUID] = field(default_factory=dict)
     mc_hash_to_id: Dict[str, UUID] = field(default_factory=dict)
     gc_hash_to_id: Dict[str, UUID] = field(default_factory=dict)
+    # Page-content versions have no content_hash; identity is (scope natural
+    # key, created_at). created_at is preserved on copy so the key is stable.
+    doc_page_key_to_id: Dict[tuple, UUID] = field(default_factory=dict)
+    filing_page_key_to_id: Dict[tuple, UUID] = field(default_factory=dict)
+    company_page_key_to_id: Dict[tuple, UUID] = field(default_factory=dict)
+    group_page_key_to_id: Dict[tuple, UUID] = field(default_factory=dict)
+    # Direct source page id -> target page id, populated as page rows are
+    # synced, so child/provenance tables (Phase 7) can resolve their parent.
+    src_page_id_to_target: Dict[UUID, UUID] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +181,32 @@ def build_maps(target: Session) -> NaturalKeyMaps:
             .where(GeneratedContent.content_hash.is_not(None))
         ).all()
     }
+    # Page-content version keys: (scope natural key, created_at) -> page id.
+    maps.doc_page_key_to_id = {
+        (h, ca): pid for pid, h, ca in target.execute(
+            select(DocumentPageContent.id, Document.content_hash, DocumentPageContent.created_at)
+            .join(Document, DocumentPageContent.document_id == Document.id)
+            .where(Document.content_hash.is_not(None))
+        ).all()
+    }
+    maps.filing_page_key_to_id = {
+        (a, ca): pid for pid, a, ca in target.execute(
+            select(FilingPageContent.id, Filing.accession_number, FilingPageContent.created_at)
+            .join(Filing, FilingPageContent.filing_id == Filing.id)
+        ).all()
+    }
+    maps.company_page_key_to_id = {
+        (t, ca): pid for pid, t, ca in target.execute(
+            select(CompanyPageContent.id, Company.ticker, CompanyPageContent.created_at)
+            .join(Company, CompanyPageContent.company_id == Company.id)
+        ).all()
+    }
+    maps.group_page_key_to_id = {
+        (s, ca): pid for pid, s, ca in target.execute(
+            select(GroupPageContent.id, CompanyGroup.slug, GroupPageContent.created_at)
+            .join(CompanyGroup, GroupPageContent.company_group_id == CompanyGroup.id)
+        ).all()
+    }
     return maps
 
 
@@ -203,6 +248,14 @@ def _source_doc_hash(source: Session, doc_id: UUID) -> Optional[str]:
 def _source_gc_hash(source: Session, gc_id: UUID) -> Optional[str]:
     row = source.execute(select(GeneratedContent.content_hash).where(GeneratedContent.id == gc_id)).first()
     return row[0] if row else None
+
+
+def _resolve_gc(source: Session, maps: NaturalKeyMaps, gc_id: Optional[UUID]) -> Optional[UUID]:
+    """Resolve a source generated_content id to the target id via content_hash."""
+    if not gc_id:
+        return None
+    h = _source_gc_hash(source, gc_id)
+    return maps.gc_hash_to_id.get(h) if h else None
 
 
 # ---------------------------------------------------------------------------
@@ -618,6 +671,17 @@ def sync_generated_content(source: Session, target: Session, maps: NaturalKeyMap
             slug = _source_group_slug(source, row.company_group_id)
             target_group_id = maps.slug_to_group_id.get(slug) if slug else None
 
+        # Resolve scope FKs (optional; SET NULL semantics, so null if missing)
+        target_filing_id = None
+        if row.filing_id:
+            accession = _source_filing_accession(source, row.filing_id)
+            target_filing_id = maps.accession_to_filing_id.get(accession) if accession else None
+
+        target_document_id = None
+        if row.document_id:
+            d_hash = _source_doc_hash(source, row.document_id)
+            target_document_id = maps.doc_hash_to_id.get(d_hash) if d_hash else None
+
         # Resolve prompt FKs
         target_sys_prompt_id = None
         if row.system_prompt_id:
@@ -645,6 +709,9 @@ def sync_generated_content(source: Session, target: Session, maps: NaturalKeyMap
             content_hash=row.content_hash,
             company_id=target_company_id,
             company_group_id=target_group_id,
+            filing_id=target_filing_id,
+            document_id=target_document_id,
+            generation_depth=row.generation_depth,
             description=row.description,
             document_type=row.document_type,
             form_type=row.form_type,
@@ -780,6 +847,350 @@ def sync_gc_source_associations(source: Session, target: Session, maps: NaturalK
 
 
 # ---------------------------------------------------------------------------
+# Phase 6: page-content versions (the publishing layer the /c /f /d routes read)
+#
+# Immutable, versioned rows keyed by (scope, created_at). created_at is
+# preserved on copy so "latest version per scope" ordering and cross-DB
+# dedup both stay stable. Content slots (-> generated_content) are nullable
+# and resolved best-effort; an unresolved required slot skips the row.
+# ---------------------------------------------------------------------------
+
+def sync_document_page_content(source: Session, target: Session, maps: NaturalKeyMaps, dry_run: bool) -> SyncStats:
+    stats = SyncStats(table="document_page_content")
+    source_rows = source.query(DocumentPageContent).all()
+    stats.total_source = len(source_rows)
+
+    for row in source_rows:
+        doc_hash = _source_doc_hash(source, row.document_id)
+        if not doc_hash:
+            stats.skipped_fk += 1
+            continue
+        key = (doc_hash, row.created_at)
+
+        existing_id = maps.doc_page_key_to_id.get(key)
+        if existing_id:
+            maps.src_page_id_to_target[row.id] = existing_id
+            stats.already_exists += 1
+            continue
+
+        target_doc_id = maps.doc_hash_to_id.get(doc_hash)
+        if not target_doc_id:
+            stats.skipped_fk += 1
+            continue
+
+        if dry_run:
+            stats.synced += 1
+            continue
+
+        new_id = uuid7()
+        target.add(DocumentPageContent(
+            id=new_id,
+            document_id=target_doc_id,
+            summary_content_id=_resolve_gc(source, maps, row.summary_content_id),
+            intro_content_id=_resolve_gc(source, maps, row.intro_content_id),
+            created_at=row.created_at,
+        ))
+        maps.src_page_id_to_target[row.id] = new_id
+        maps.doc_page_key_to_id[key] = new_id
+        stats.synced += 1
+
+    if not dry_run:
+        target.commit()
+    return stats
+
+
+def sync_filing_page_content(source: Session, target: Session, maps: NaturalKeyMaps, dry_run: bool) -> SyncStats:
+    stats = SyncStats(table="filing_page_content")
+    source_rows = source.query(FilingPageContent).all()
+    stats.total_source = len(source_rows)
+
+    for row in source_rows:
+        accession = _source_filing_accession(source, row.filing_id)
+        if not accession:
+            stats.skipped_fk += 1
+            continue
+        key = (accession, row.created_at)
+
+        existing_id = maps.filing_page_key_to_id.get(key)
+        if existing_id:
+            maps.src_page_id_to_target[row.id] = existing_id
+            stats.already_exists += 1
+            continue
+
+        target_filing_id = maps.accession_to_filing_id.get(accession)
+        if not target_filing_id:
+            stats.skipped_fk += 1
+            continue
+
+        if dry_run:
+            stats.synced += 1
+            continue
+
+        new_id = uuid7()
+        target.add(FilingPageContent(
+            id=new_id,
+            filing_id=target_filing_id,
+            main_content_id=_resolve_gc(source, maps, row.main_content_id),
+            intro_content_id=_resolve_gc(source, maps, row.intro_content_id),
+            created_at=row.created_at,
+        ))
+        maps.src_page_id_to_target[row.id] = new_id
+        maps.filing_page_key_to_id[key] = new_id
+        stats.synced += 1
+
+    if not dry_run:
+        target.commit()
+    return stats
+
+
+def sync_company_page_content(source: Session, target: Session, maps: NaturalKeyMaps, dry_run: bool) -> SyncStats:
+    stats = SyncStats(table="company_page_content")
+    source_rows = source.query(CompanyPageContent).all()
+    stats.total_source = len(source_rows)
+
+    for row in source_rows:
+        ticker = _source_company_ticker(source, row.company_id)
+        if not ticker:
+            stats.skipped_fk += 1
+            continue
+        key = (ticker, row.created_at)
+
+        existing_id = maps.company_page_key_to_id.get(key)
+        if existing_id:
+            maps.src_page_id_to_target[row.id] = existing_id
+            stats.already_exists += 1
+            continue
+
+        target_company_id = maps.ticker_to_company_id.get(ticker)
+        if not target_company_id:
+            stats.skipped_fk += 1
+            continue
+
+        if dry_run:
+            stats.synced += 1
+            continue
+
+        new_id = uuid7()
+        target.add(CompanyPageContent(
+            id=new_id,
+            company_id=target_company_id,
+            main_content_id=_resolve_gc(source, maps, row.main_content_id),
+            intro_content_id=_resolve_gc(source, maps, row.intro_content_id),
+            created_at=row.created_at,
+        ))
+        maps.src_page_id_to_target[row.id] = new_id
+        maps.company_page_key_to_id[key] = new_id
+        stats.synced += 1
+
+    if not dry_run:
+        target.commit()
+    return stats
+
+
+def sync_group_page_content(source: Session, target: Session, maps: NaturalKeyMaps, dry_run: bool) -> SyncStats:
+    stats = SyncStats(table="group_page_content")
+    source_rows = source.query(GroupPageContent).all()
+    stats.total_source = len(source_rows)
+
+    for row in source_rows:
+        slug = _source_group_slug(source, row.company_group_id)
+        if not slug:
+            stats.skipped_fk += 1
+            continue
+        key = (slug, row.created_at)
+
+        existing_id = maps.group_page_key_to_id.get(key)
+        if existing_id:
+            maps.src_page_id_to_target[row.id] = existing_id
+            stats.already_exists += 1
+            continue
+
+        target_group_id = maps.slug_to_group_id.get(slug)
+        if not target_group_id:
+            stats.skipped_fk += 1
+            continue
+
+        if dry_run:
+            stats.synced += 1
+            continue
+
+        new_id = uuid7()
+        target.add(GroupPageContent(
+            id=new_id,
+            company_group_id=target_group_id,
+            main_content_id=_resolve_gc(source, maps, row.main_content_id),
+            intro_content_id=_resolve_gc(source, maps, row.intro_content_id),
+            created_at=row.created_at,
+        ))
+        maps.src_page_id_to_target[row.id] = new_id
+        maps.group_page_key_to_id[key] = new_id
+        stats.synced += 1
+
+    if not dry_run:
+        target.commit()
+    return stats
+
+
+# ---------------------------------------------------------------------------
+# Phase 7: page-content provenance (M2M) + change reports
+#
+# Parents are resolved via src_page_id_to_target (populated in Phase 6).
+# Runs without an intervening build_maps() so that map survives.
+# ---------------------------------------------------------------------------
+
+def sync_filing_page_documents(source: Session, target: Session, maps: NaturalKeyMaps, dry_run: bool) -> SyncStats:
+    stats = SyncStats(table="filing_page_content_document")
+    source_assocs = source.execute(select(
+        filing_page_content_document.c.filing_page_content_id,
+        filing_page_content_document.c.document_id,
+    )).all()
+    stats.total_source = len(source_assocs)
+
+    existing = set(target.execute(select(
+        filing_page_content_document.c.filing_page_content_id,
+        filing_page_content_document.c.document_id,
+    )).all())
+
+    for src_page_id, src_doc_id in source_assocs:
+        target_page_id = maps.src_page_id_to_target.get(src_page_id)
+        doc_hash = _source_doc_hash(source, src_doc_id)
+        target_doc_id = maps.doc_hash_to_id.get(doc_hash) if doc_hash else None
+        if not target_page_id or not target_doc_id:
+            stats.skipped_fk += 1
+            continue
+        if (target_page_id, target_doc_id) in existing:
+            stats.already_exists += 1
+            continue
+        if dry_run:
+            stats.synced += 1
+            continue
+        target.execute(filing_page_content_document.insert().values(
+            filing_page_content_id=target_page_id,
+            document_id=target_doc_id,
+        ))
+        stats.synced += 1
+
+    if not dry_run:
+        target.commit()
+    return stats
+
+
+def sync_company_page_filings(source: Session, target: Session, maps: NaturalKeyMaps, dry_run: bool) -> SyncStats:
+    stats = SyncStats(table="company_page_content_filing")
+    source_assocs = source.execute(select(
+        company_page_content_filing.c.company_page_content_id,
+        company_page_content_filing.c.filing_id,
+    )).all()
+    stats.total_source = len(source_assocs)
+
+    existing = set(target.execute(select(
+        company_page_content_filing.c.company_page_content_id,
+        company_page_content_filing.c.filing_id,
+    )).all())
+
+    for src_page_id, src_filing_id in source_assocs:
+        target_page_id = maps.src_page_id_to_target.get(src_page_id)
+        accession = _source_filing_accession(source, src_filing_id)
+        target_filing_id = maps.accession_to_filing_id.get(accession) if accession else None
+        if not target_page_id or not target_filing_id:
+            stats.skipped_fk += 1
+            continue
+        if (target_page_id, target_filing_id) in existing:
+            stats.already_exists += 1
+            continue
+        if dry_run:
+            stats.synced += 1
+            continue
+        target.execute(company_page_content_filing.insert().values(
+            company_page_content_id=target_page_id,
+            filing_id=target_filing_id,
+        ))
+        stats.synced += 1
+
+    if not dry_run:
+        target.commit()
+    return stats
+
+
+def sync_group_page_companies(source: Session, target: Session, maps: NaturalKeyMaps, dry_run: bool) -> SyncStats:
+    stats = SyncStats(table="group_page_content_company")
+    source_assocs = source.execute(select(
+        group_page_content_company.c.group_page_content_id,
+        group_page_content_company.c.company_id,
+    )).all()
+    stats.total_source = len(source_assocs)
+
+    existing = set(target.execute(select(
+        group_page_content_company.c.group_page_content_id,
+        group_page_content_company.c.company_id,
+    )).all())
+
+    for src_page_id, src_company_id in source_assocs:
+        target_page_id = maps.src_page_id_to_target.get(src_page_id)
+        ticker = _source_company_ticker(source, src_company_id)
+        target_company_id = maps.ticker_to_company_id.get(ticker) if ticker else None
+        if not target_page_id or not target_company_id:
+            stats.skipped_fk += 1
+            continue
+        if (target_page_id, target_company_id) in existing:
+            stats.already_exists += 1
+            continue
+        if dry_run:
+            stats.synced += 1
+            continue
+        target.execute(group_page_content_company.insert().values(
+            group_page_content_id=target_page_id,
+            company_id=target_company_id,
+        ))
+        stats.synced += 1
+
+    if not dry_run:
+        target.commit()
+    return stats
+
+
+def sync_company_page_change_reports(source: Session, target: Session, maps: NaturalKeyMaps, dry_run: bool) -> SyncStats:
+    stats = SyncStats(table="company_page_content_change_report")
+    source_rows = source.execute(select(
+        CompanyPageContentChangeReport.company_page_content_id,
+        CompanyPageContentChangeReport.document_type,
+        CompanyPageContentChangeReport.change_report_id,
+        CompanyPageContentChangeReport.change_report_intro_id,
+    )).all()
+    stats.total_source = len(source_rows)
+
+    existing = set(target.execute(select(
+        CompanyPageContentChangeReport.company_page_content_id,
+        CompanyPageContentChangeReport.document_type,
+    )).all())
+
+    for src_page_id, doc_type, src_cr_id, src_cr_intro_id in source_rows:
+        target_page_id = maps.src_page_id_to_target.get(src_page_id)
+        # change_report_id is NOT NULL — skip the row if it can't be resolved.
+        target_cr_id = _resolve_gc(source, maps, src_cr_id)
+        if not target_page_id or not target_cr_id:
+            stats.skipped_fk += 1
+            continue
+        if (target_page_id, doc_type) in existing:
+            stats.already_exists += 1
+            continue
+        if dry_run:
+            stats.synced += 1
+            continue
+        target.add(CompanyPageContentChangeReport(
+            company_page_content_id=target_page_id,
+            document_type=doc_type,
+            change_report_id=target_cr_id,
+            change_report_intro_id=_resolve_gc(source, maps, src_cr_intro_id),
+        ))
+        stats.synced += 1
+
+    if not dry_run:
+        target.commit()
+    return stats
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 
@@ -883,6 +1294,31 @@ def run_sync(source_url: str, target_url: str, dry_run: bool, batch_size: int = 
     console.print(f"  gc_document_assoc: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
     all_stats.append(sync_gc_source_associations(source, target, maps, dry_run))
     console.print(f"  gc_source_assoc: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
+
+    # Phase 6: page-content versions (publishing layer behind /c /f /d routes).
+    # Reuses the post-Phase-4 maps (Phase 5 added only association rows). Phase 6
+    # populates maps.src_page_id_to_target, which Phase 7 consumes — so do NOT
+    # rebuild maps between them (build_maps() returns a fresh, empty object).
+    console.print("\n[bold]Phase 6: Page content[/bold]")
+    all_stats.append(sync_document_page_content(source, target, maps, dry_run))
+    console.print(f"  document_page_content: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
+    all_stats.append(sync_filing_page_content(source, target, maps, dry_run))
+    console.print(f"  filing_page_content: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
+    all_stats.append(sync_company_page_content(source, target, maps, dry_run))
+    console.print(f"  company_page_content: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
+    all_stats.append(sync_group_page_content(source, target, maps, dry_run))
+    console.print(f"  group_page_content: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
+
+    # Phase 7: page-content provenance (M2M) + change reports
+    console.print("\n[bold]Phase 7: Page content provenance[/bold]")
+    all_stats.append(sync_filing_page_documents(source, target, maps, dry_run))
+    console.print(f"  filing_page_content_document: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
+    all_stats.append(sync_company_page_filings(source, target, maps, dry_run))
+    console.print(f"  company_page_content_filing: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
+    all_stats.append(sync_group_page_companies(source, target, maps, dry_run))
+    console.print(f"  group_page_content_company: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
+    all_stats.append(sync_company_page_change_reports(source, target, maps, dry_run))
+    console.print(f"  company_page_content_change_report: {all_stats[-1].synced} new, {all_stats[-1].skipped_fk} skipped")
 
     # Summary
     console.print()

@@ -237,20 +237,18 @@
 						{/if}
 					</div>
 					<div class="meta" style="color: var(--ink-3);">
-						{#if c.last_filing_form && c.last_filing_date}
+						<!-- {#if c.last_filing_form && c.last_filing_date}
 							{c.last_filing_form} &middot; {formatDate(c.last_filing_date)}
 						{:else}
 							<span style="color: var(--ink-4);">No filings</span>
-						{/if}
+						{/if} -->
 					</div>
 					<div class="meta" style="color: var(--ink-3); text-align: right;">
-						{#if c.filing_count > 0}
+						<!-- {#if c.filing_count > 0}
 							{c.filing_count} filings
-						{/if}
+						{/if} -->
 					</div>
-					<div style="display: flex; justify-content: flex-end;">
-						<ChevronRight style="width: 14px; height: 14px; color: var(--ink-4);" />
-					</div>
+					<ChevronRight style="width: 14px; height: 14px; color: var(--ink-4);" />
 				</a>
 			{/each}
 		</div>

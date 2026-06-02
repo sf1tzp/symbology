@@ -16,13 +16,15 @@ RUN pip install --no-cache-dir uv
 # Copy pyproject.toml to install dependencies
 COPY pyproject.toml .
 
-# Install Python dependencies to a virtual environment
+# Install Python dependencies to a virtual environment.
+# Include the "runtime" extra so the worker/CLI have ingestion (edgartools),
+# CLI (click/rich) and storage (boto3) deps — without the notebook tooling.
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-RUN uv pip install --no-cache-dir .
+RUN uv pip install --no-cache-dir ".[runtime]"
 
 # Production stage
-FROM python:3.14-alpine AS production
+FROM python:3.13-alpine AS production
 
 WORKDIR /app
 
@@ -42,6 +44,12 @@ COPY symbology/ /app/symbology/
 # Copy Alembic migration config and scripts
 COPY alembic.ini /app/alembic.ini
 COPY alembic/ /app/alembic/
+
+# Copy pipeline prompts + model_configs.yaml. load_pipeline_config() resolves
+# Path("prompts") relative to the /app workdir, so they must live at /app/prompts.
+# (Baked into the image for this deployment; an embed-style approach may replace
+# this later so it's explicit which prompts a given worker build shipped.)
+COPY prompts/ /app/prompts/
 
 # Create non-root user
 RUN addgroup -g 1001 -S apiuser && adduser -u 1001 -S apiuser -G apiuser

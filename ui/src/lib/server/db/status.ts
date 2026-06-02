@@ -1,7 +1,11 @@
 import { db } from '../db';
 import { sql } from 'kysely';
 
-// ── Token cost mapping (per token) ──
+// ── Generation cost model ──
+//
+// Claude models are billed per token at Anthropic API rates. Everything else
+// runs on our own hardware — a single M3 MacBook Air we estimate at ~$0.01/hr
+// of compute — so its cost is metered by generation wall-clock time, not tokens.
 
 const COST_PER_INPUT_TOKEN: Record<string, number> = {
 	'claude-sonnet-4-5-20250514': 3.0 / 1_000_000,
@@ -14,41 +18,177 @@ const COST_PER_OUTPUT_TOKEN: Record<string, number> = {
 const DEFAULT_INPUT_COST = 3.0 / 1_000_000;
 const DEFAULT_OUTPUT_COST = 15.0 / 1_000_000;
 
-function tokenCost(
+// Self-hosted compute estimate (M3 MacBook Air 70W + Nvidia 3060 170W = 240W ~= 0.04 per hour at 0.14 per kwh) .
+export const SELF_HOST_COST_PER_HOUR = 0.04;
+const SELF_HOST_COST_PER_SECOND = SELF_HOST_COST_PER_HOUR / 3600;
+
+function isSelfHosted(model: string | null): boolean {
+	return !(model ?? '').toLowerCase().startsWith('claude');
+}
+
+function generationCost(
 	model: string | null,
 	inputTokens: number | null,
-	outputTokens: number | null
+	outputTokens: number | null,
+	durationSeconds: number | null
 ): number {
+	// Self-hosted models: meter by compute time at the M3 estimate.
+	if (isSelfHosted(model)) {
+		return (durationSeconds ?? 0) * SELF_HOST_COST_PER_SECOND;
+	}
+	// Claude models: Anthropic per-token API pricing.
 	const m = model ?? '';
 	const inCost = COST_PER_INPUT_TOKEN[m] ?? DEFAULT_INPUT_COST;
 	const outCost = COST_PER_OUTPUT_TOKEN[m] ?? DEFAULT_OUTPUT_COST;
 	return (inputTokens ?? 0) * inCost + (outputTokens ?? 0) * outCost;
 }
 
-// ── Content stage label mapping ──
+// ── Label helpers ──
+
+/** snake_case / lower-enum → Title Case, as a last-resort label. */
+function humanize(s: string): string {
+	return s
+		.split('_')
+		.filter(Boolean)
+		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+		.join(' ');
+}
+
+// Friendly names for the document sections content can be scoped to
+// (DocumentType enum). Keeps the log readable instead of echoing raw enums.
+const SECTION_LABELS: Record<string, string> = {
+	management_discussion: 'MD&A',
+	risk_factors: 'Risk factors',
+	business_description: 'Business',
+	controls_procedures: 'Controls & procedures',
+	legal_proceedings: 'Legal proceedings',
+	market_risk: 'Market risk',
+	executive_compensation: 'Exec compensation',
+	directors_officers: 'Directors & officers'
+};
+
+function sectionLabel(docType: string | null): string | null {
+	if (!docType) return null;
+	return SECTION_LABELS[docType] ?? humanize(docType);
+}
 
 function contentLabel(stage: string | null, docType: string | null): string {
-	if (stage === 'single_summary') return 'Filing summary';
-	if (stage === 'frontpage_summary') return 'Frontpage summary';
-	if (stage === 'company_group_analysis') return 'Peer-group synthesis';
-	if (stage === 'company_group_frontpage') return 'Group frontpage';
-	if (stage === 'aggregate_summary') {
-		if (docType === 'risk_factors') return 'Risk-factor change analysis';
-		if (docType === 'management_discussion') return 'MD&A change analysis';
-		return 'Aggregate summary';
+	switch (stage) {
+		// Prototype stages (being retired).
+		case 'single_summary':
+			return 'Filing summary';
+		case 'frontpage_summary':
+			return 'Frontpage summary';
+		case 'company_group_analysis':
+			return 'Peer-group synthesis';
+		case 'company_group_frontpage':
+			return 'Group frontpage';
+		case 'aggregate_summary':
+			if (docType === 'risk_factors') return 'Risk-factor change analysis';
+			if (docType === 'management_discussion') return 'MD&A change analysis';
+			return 'Aggregate summary';
+		// New page-content stages.
+		case 'change_report':
+			return 'Change report';
+		case 'change_report_intro':
+			return 'Change-report intro';
+		case 'company_main_content':
+			return 'Company page';
+		case 'company_intro':
+			return 'Company intro';
+		case 'group_main_content':
+			return 'Group page';
+		case 'group_intro':
+			return 'Group intro';
+		case 'filing_main_content':
+			return 'Filing page';
+		case 'filing_intro':
+			return 'Filing intro';
+		case 'document_page_intro':
+			return 'Document intro';
+		default:
+			return stage ? humanize(stage) : 'Unknown';
 	}
-	return stage ?? 'Unknown';
+}
+
+// Friendly names for the worker job types shown in the in-flight queue.
+const JOB_KIND_LABELS: Record<string, string> = {
+	filing_page_content: 'Filing content',
+	company_page_content: 'Company content',
+	filing_ingestion: 'Filing ingest',
+	company_ingestion: 'Company ingest',
+	ingest_pipeline: 'Ingest pipeline',
+	full_pipeline: 'Full pipeline',
+	bulk_ingest: 'Bulk ingest',
+	company_group_pipeline: 'Group pipeline',
+	content_generation: 'Content gen'
+};
+
+function jobKindLabel(jobType: string): string {
+	return JOB_KIND_LABELS[jobType] ?? humanize(jobType);
+}
+
+/**
+ * Curate a job's heterogeneous params into a company + detail pair for display,
+ * mirroring the server CLI's format_job_context so the two surfaces agree.
+ */
+function jobContext(
+	jobType: string,
+	params: Record<string, unknown> | null
+): { company: string; detail: string } {
+	const p = params ?? {};
+	const str = (k: string) => (p[k] != null && p[k] !== '' ? String(p[k]) : null);
+	const list = (k: string) => (Array.isArray(p[k]) ? (p[k] as unknown[]).map(String) : null);
+
+	const ticker = str('ticker');
+	let company = ticker ?? '—';
+	let detailParts: (string | null)[] = [];
+
+	switch (jobType) {
+		case 'filing_page_content':
+			detailParts = [str('form'), str('year') ? `FY${str('year')}` : null];
+			break;
+		case 'company_page_content':
+			detailParts = [str('form'), str('lookback') ? `${str('lookback')} lookback` : null];
+			break;
+		case 'filing_ingestion':
+		case 'ingest_pipeline':
+			detailParts = [str('form'), str('count') ? `×${str('count')}` : null];
+			break;
+		case 'full_pipeline': {
+			const forms = list('forms');
+			detailParts = [forms ? forms.join(', ') : null, p.force ? 'force' : null];
+			break;
+		}
+		case 'company_group_pipeline': {
+			const tickers = list('tickers');
+			if (!ticker && tickers) company = tickers.join(', ');
+			detailParts = [str('group_slug')];
+			break;
+		}
+		case 'bulk_ingest': {
+			const filings = list('filings');
+			detailParts = [filings ? `${filings.length} filings` : null];
+			break;
+		}
+	}
+
+	if (company === '—' && p.company_id) {
+		company = `Company ${String(p.company_id).slice(0, 8)}`;
+	}
+
+	return { company, detail: detailParts.filter(Boolean).join(' · ') || '—' };
 }
 
 // ── Types ──
 
 export interface HeroStats {
-	filings24h: number;
-	generations24h: number;
-	queueDepth: number;
+	p95JobDuration: number | null;
+	generationsCount: number;
+	completedCount: number;
 	workersOnline: number;
 	totalWorkerSlots: number;
-	llmSpend24h: number;
+	llmSpend: number;
 	avgCostPerGen: number;
 	p95Latency: number | null;
 }
@@ -75,7 +215,7 @@ export interface ContentBreakdownRow {
 	count: number;
 	pct: string;
 	avgLatency: string;
-	avgCost: string;
+	totalCost: string;
 }
 
 export interface ThroughputDayRow {
@@ -86,7 +226,9 @@ export interface ThroughputDayRow {
 export interface ContentLogRow {
 	time: string;
 	kind: string;
-	target: string;
+	company: string;
+	context: string;
+	href: string | null;
 	model: string;
 	tokensIn: number;
 	tokensOut: number;
@@ -111,11 +253,12 @@ export interface ActiveJobRow {
 	id: string;
 	kind: string;
 	priority: number;
+	company: string;
 	target: string;
 	attempt: string;
 	workerId: string;
 	state: 'running' | 'queued' | 'backoff';
-	age: string;
+	runtime: string;
 }
 
 export interface WorkerRow {
@@ -129,28 +272,31 @@ export interface WorkerRow {
 // ── Queries ──
 
 export async function getHeroStats(): Promise<HeroStats> {
-	const ago24h = sql<Date>`now() - interval '24 hours'`;
+	const stat_window = sql<Date>`now() - interval '12 hours'`;
 
-	const [filingsRes, gensRes, queueRes, workersRes, spendRes, p95Res] = await Promise.all([
-		// Filings in last 24h
+	const [jobDurRes, gensRes, completedRes, workersRes, spendRes, p95Res] = await Promise.all([
+		// p95 job duration (wall-clock) over jobs completed in last 7d
 		db
-			.selectFrom('filings')
-			.select(sql<number>`count(*)::int`.as('count'))
-			.where('filing_date', '>=', ago24h)
-			.executeTakeFirstOrThrow(),
+			.selectFrom('jobs')
+			.select(sql<number>`percentile_cont(0.95) within group (order by duration)`.as('p95'))
+			.where('status', '=', 'completed')
+			.where('completed_at', '>=', stat_window)
+			.where('duration', 'is not', null)
+			.executeTakeFirst(),
 
-		// Generations in last 24h
+		// Generations in last 7d
 		db
 			.selectFrom('generated_content')
 			.select(sql<number>`count(*)::int`.as('count'))
-			.where('created_at', '>=', ago24h)
+			.where('created_at', '>=', stat_window)
 			.executeTakeFirstOrThrow(),
 
-		// Queue depth (pending + in_progress)
+		// Completed jobs in last 7d
 		db
 			.selectFrom('jobs')
 			.select(sql<number>`count(*)::int`.as('count'))
-			.where('status', 'in', ['pending', 'in_progress'])
+			.where('status', '=', 'completed')
+			.where('completed_at', '>=', stat_window)
 			.executeTakeFirstOrThrow(),
 
 		// Workers online (distinct worker_ids with in_progress jobs)
@@ -161,41 +307,47 @@ export async function getHeroStats(): Promise<HeroStats> {
 			.where('worker_id', 'is not', null)
 			.executeTakeFirstOrThrow(),
 
-		// LLM spend in 24h
+		// LLM spend in 12hr
 		db
 			.selectFrom('generated_content')
 			.leftJoin('model_configs', 'model_configs.id', 'generated_content.model_config_id')
 			.select([
 				'model_configs.model',
 				'generated_content.input_tokens',
-				'generated_content.output_tokens'
+				'generated_content.output_tokens',
+				'generated_content.total_duration'
 			])
-			.where('generated_content.created_at', '>=', ago24h)
+			.where('generated_content.created_at', '>=', stat_window)
 			.execute(),
 
 		// p95 latency
 		db
 			.selectFrom('generated_content')
 			.select(sql<number>`percentile_cont(0.95) within group (order by total_duration)`.as('p95'))
-			.where('created_at', '>=', ago24h)
+			.where('created_at', '>=', stat_window)
 			.where('total_duration', 'is not', null)
 			.executeTakeFirst()
 	]);
 
 	let totalSpend = 0;
 	for (const row of spendRes) {
-		totalSpend += tokenCost(row.model ?? null, row.input_tokens, row.output_tokens);
+		totalSpend += generationCost(
+			row.model ?? null,
+			row.input_tokens,
+			row.output_tokens,
+			row.total_duration
+		);
 	}
 	const genCount = gensRes.count;
 	const avgCost = genCount > 0 ? totalSpend / genCount : 0;
 
 	return {
-		filings24h: filingsRes.count,
-		generations24h: genCount,
-		queueDepth: queueRes.count,
+		p95JobDuration: jobDurRes?.p95 != null ? Math.round(jobDurRes.p95 * 10) / 10 : null,
+		generationsCount: genCount,
+		completedCount: completedRes.count,
 		workersOnline: workersRes.count,
 		totalWorkerSlots: 8,
-		llmSpend24h: Math.round(totalSpend * 100) / 100,
+		llmSpend: Math.round(totalSpend * 100) / 100,
 		avgCostPerGen: Math.round(avgCost * 1000) / 1000,
 		p95Latency: p95Res?.p95 != null ? Math.round(p95Res.p95 * 10) / 10 : null
 	};
@@ -301,7 +453,8 @@ export async function getContentBreakdown(): Promise<ContentBreakdownRow[]> {
 			'generated_content.document_type',
 			'model_configs.model',
 			'generated_content.input_tokens',
-			'generated_content.output_tokens'
+			'generated_content.output_tokens',
+			'generated_content.total_duration'
 		])
 		.where('generated_content.created_at', '>=', ago24h)
 		.execute();
@@ -310,7 +463,12 @@ export async function getContentBreakdown(): Promise<ContentBreakdownRow[]> {
 		const label = contentLabel(r.content_stage, r.document_type);
 		const existing = map.get(label);
 		if (existing) {
-			existing.totalCost += tokenCost(r.model ?? null, r.input_tokens, r.output_tokens);
+			existing.totalCost += generationCost(
+				r.model ?? null,
+				r.input_tokens,
+				r.output_tokens,
+				r.total_duration
+			);
 		}
 	}
 
@@ -323,7 +481,7 @@ export async function getContentBreakdown(): Promise<ContentBreakdownRow[]> {
 			count: v.count,
 			pct: total > 0 ? `${((v.count / total) * 100).toFixed(1)}%` : '0%',
 			avgLatency: v.durCount > 0 ? `${(v.totalDur / v.durCount).toFixed(1)}s` : '—',
-			avgCost: v.count > 0 ? `$${(v.totalCost / v.count).toFixed(2)}` : '$0.00'
+			totalCost: `$${v.totalCost.toFixed(2)}`
 		}));
 }
 
@@ -346,15 +504,29 @@ export async function getContentLog(limit: number): Promise<ContentLogRow[]> {
 	const rows = await db
 		.selectFrom('generated_content')
 		.leftJoin('model_configs', 'model_configs.id', 'generated_content.model_config_id')
-		.leftJoin('companies', 'companies.id', 'generated_content.company_id')
+		// Resolve the owning company through whichever link is set: filing/document
+		// generations leave company_id null but carry filing_id or document_id, each
+		// of which points back to a company.
+		.leftJoin('filings as gc_filing', 'gc_filing.id', 'generated_content.filing_id')
+		.leftJoin('documents as gc_doc', 'gc_doc.id', 'generated_content.document_id')
+		.leftJoin('filings as doc_filing', 'doc_filing.id', 'gc_doc.filing_id')
+		.leftJoin('companies as direct_co', 'direct_co.id', 'generated_content.company_id')
+		.leftJoin('companies as filing_co', 'filing_co.id', 'gc_filing.company_id')
+		.leftJoin('companies as doc_co', 'doc_co.id', 'gc_doc.company_id')
 		.select([
 			sql<string>`to_char(generated_content.created_at, 'HH24:MI:SS')`.as('time'),
 			'generated_content.content_stage',
 			'generated_content.document_type',
-			'generated_content.description',
 			'generated_content.form_type',
-			'companies.ticker',
-			'companies.name as company_name',
+			'generated_content.content_hash',
+			sql<string | null>`coalesce(direct_co.ticker, filing_co.ticker, doc_co.ticker)`.as('ticker'),
+			sql<string | null>`coalesce(direct_co.name, filing_co.name, doc_co.name)`.as('company_name'),
+			sql<string | null>`coalesce(gc_filing.form, doc_filing.form)`.as('filing_form'),
+			sql<
+				number | null
+			>`extract(year from coalesce(gc_filing.period_of_report, doc_filing.period_of_report))::int`.as(
+				'fiscal_year'
+			),
 			'model_configs.model',
 			'generated_content.input_tokens',
 			'generated_content.output_tokens',
@@ -367,10 +539,21 @@ export async function getContentLog(limit: number): Promise<ContentLogRow[]> {
 
 	return rows.map((r) => {
 		const kind = contentLabel(r.content_stage, r.document_type);
-		const ticker = r.ticker ?? '';
-		const formPart = r.form_type ? ` · ${r.form_type}` : '';
-		const target = r.description || `${ticker}${formPart}`;
-		const cost = tokenCost(r.model ?? null, r.input_tokens, r.output_tokens);
+		const company = r.ticker ?? r.company_name ?? '—';
+
+		// Prefer structured filing context (form · fiscal year · section) over the
+		// internal `description` key, which is opaque (e.g. "controls_procedures_single_summary").
+		const form = r.form_type ?? r.filing_form ?? null;
+		const fy = r.fiscal_year ? `FY${r.fiscal_year}` : null;
+		const section = sectionLabel(r.document_type);
+		const context = [form, fy, section].filter(Boolean).join(' · ') || '—';
+
+		// Deep-link to the content page (/g/[ticker]/[sha], matched by hash prefix).
+		// Needs a real ticker, so company-less content (e.g. groups) isn't linkable.
+		const href =
+			r.ticker && r.content_hash ? `/g/${r.ticker}/${r.content_hash.slice(0, 12)}` : null;
+
+		const cost = generationCost(r.model ?? null, r.input_tokens, r.output_tokens, r.total_duration);
 
 		let status: 'ok' | 'retry' | 'fail' = 'ok';
 		if (r.warning) {
@@ -380,7 +563,9 @@ export async function getContentLog(limit: number): Promise<ContentLogRow[]> {
 		return {
 			time: r.time,
 			kind,
-			target,
+			company,
+			context,
+			href,
 			model: r.model ?? '—',
 			tokensIn: r.input_tokens ?? 0,
 			tokensOut: r.output_tokens ?? 0,
@@ -481,20 +666,21 @@ export async function getActiveJobs(limit: number): Promise<ActiveJobRow[]> {
 
 	return rows.map((r) => {
 		const params = r.params as Record<string, unknown> | null;
-		const target = params?.ticker
-			? `${params.ticker}${params.form ? ' · ' + params.form : ''}`
-			: params?.company_id
-				? `Company ${String(params.company_id).slice(0, 8)}`
-				: r.job_type;
+		const { company, detail } = jobContext(r.job_type, params);
 
-		const ageMs = Date.now() - new Date(r.created_at as unknown as string).getTime();
-		const ageSecs = Math.floor(ageMs / 1000);
-		const ageStr =
-			ageSecs >= 3600
-				? `${Math.floor(ageSecs / 3600)}h ${Math.floor((ageSecs % 3600) / 60)}m`
-				: ageSecs >= 60
-					? `${Math.floor(ageSecs / 60)}m ${ageSecs % 60}s`
-					: `${ageSecs}s`;
+		// Runtime is measured from when the job actually started executing.
+		// Queued jobs haven't started yet, so they have no runtime.
+		const startedAt = r.started_at ? new Date(r.started_at as unknown as string).getTime() : null;
+		let runtime = '—';
+		if (startedAt != null) {
+			const secs = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+			runtime =
+				secs >= 3600
+					? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`
+					: secs >= 60
+						? `${Math.floor(secs / 60)}m ${secs % 60}s`
+						: `${secs}s`;
+		}
 
 		let state: 'running' | 'queued' | 'backoff' = 'queued';
 		if (r.status === 'in_progress') state = 'running';
@@ -502,13 +688,14 @@ export async function getActiveJobs(limit: number): Promise<ActiveJobRow[]> {
 
 		return {
 			id: r.id.slice(0, 10),
-			kind: r.job_type,
+			kind: jobKindLabel(r.job_type),
 			priority: r.priority,
-			target,
+			company,
+			target: detail,
 			attempt: `${r.retry_count + 1}/${r.max_retries}`,
 			workerId: r.worker_id ?? '—',
 			state,
-			age: ageStr
+			runtime
 		};
 	});
 }
@@ -552,9 +739,19 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 		.map((wid) => {
 			const active = activeMap.get(wid);
 			const params = active?.params as Record<string, unknown> | null;
-			const jobDesc = active
-				? `${active.job_type}${params?.ticker ? ' · ' + params.ticker : ''}`
-				: '—';
+			let jobDesc = '—';
+			if (active) {
+				// e.g. "Filing content · AMZN · 10-K · FY2025" — same kind/company/detail
+				// the in-flight table shows, flattened into one line for the card.
+				const { company, detail } = jobContext(active.job_type, params);
+				jobDesc = [
+					jobKindLabel(active.job_type),
+					company !== '—' ? company : null,
+					detail !== '—' ? detail : null
+				]
+					.filter(Boolean)
+					.join(' · ');
+			}
 
 			let elapsed = '—';
 			if (active?.started_at) {

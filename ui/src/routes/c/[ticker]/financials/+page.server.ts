@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	try {
 		const [company, financialComparison, filings] = await Promise.all([
 			getCompanyByTicker(ticker),
-			getFinancialComparison(ticker, undefined, 20),
+			getFinancialComparison(ticker, undefined, 20, '10-K'),
 			getFilingsTimeline(ticker, 5)
 		]);
 

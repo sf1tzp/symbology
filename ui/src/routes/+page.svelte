@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import type { CompanyListItem } from '$lib/api-types';
-	import { titleCase } from 'title-case';
-	import { cleanContent } from '$lib/utils/filings';
-	import { ArrowRight } from '@lucide/svelte';
+	import type { PageData } from './$types';
+	import FeaturedIntroCarousel from '$lib/components/landing/FeaturedIntroCarousel.svelte';
+
+	let { data }: { data: PageData } = $props();
 
 	interface PlatformStats {
 		companies: number;
@@ -12,9 +11,8 @@
 		earliest_year: number | null;
 	}
 
-	let stats = $state<PlatformStats | null>(null);
-	let exampleCompany = $state<CompanyListItem | null>(null);
-	let exampleSummary = $state<string | null>(null);
+	const stats = $derived(data.stats as PlatformStats | null);
+	const featured = $derived(data.featured);
 
 	const proofCards = [
 		{
@@ -26,13 +24,13 @@
 		{
 			num: '02',
 			eyebrow: 'DISTILL',
-			title: 'Section-by-section synthesis',
+			title: 'Section-by-section',
 			body: 'Each filing is broken into its component sections — Risk Factors, MD&A, Business Description — and distilled into a consistent, readable format.'
 		},
 		{
 			num: '03',
 			eyebrow: 'COMPARE',
-			title: 'What actually changed',
+			title: 'Multi-level Synthesis',
 			body: 'By indexing the same sections across years and quarters, Symbology surfaces meaningful disclosure changes — automatically, with citations back to source.'
 		}
 	];
@@ -42,50 +40,13 @@
 		if (n >= 1_000) return n.toLocaleString();
 		return String(n);
 	}
-
-	function truncateToSentences(text: string, maxSentences: number = 3): string {
-		const cleaned = cleanContent(text) ?? '';
-		const sentences = cleaned.match(/[^.!?]+[.!?]+/g);
-		if (!sentences) return cleaned.substring(0, 300);
-		return sentences.slice(0, maxSentences).join('').trim();
-	}
-
-	onMount(async () => {
-		// Fetch stats and a featured company in parallel
-		const [statsRes, companiesRes] = await Promise.all([
-			fetch('/api/stats'),
-			fetch('/api/companies?search=adi')
-		]);
-
-		if (statsRes.ok) {
-			stats = await statsRes.json();
-		}
-
-		if (companiesRes.ok) {
-			const data = await companiesRes.json();
-			if (data.companies?.length > 0) {
-				exampleCompany = data.companies[0];
-
-				// Fetch frontpage summary for the example company
-				const summaryRes = await fetch(
-					`/api/companies/${encodeURIComponent(exampleCompany.ticker)}/summary`
-				);
-				if (summaryRes.ok) {
-					const summaryData = await summaryRes.json();
-					if (summaryData.summary) {
-						exampleSummary = truncateToSentences(summaryData.summary, 3);
-					}
-				}
-			}
-		}
-	});
 </script>
 
 <!-- Hero -->
 <section style="padding-top: 2rem; padding-bottom: 2rem;">
 	<div class="eyebrow" style="margin-bottom: 28px;">
-		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SYMBOLOGY &middot; INDEPENDENT SEC
-		FILING INTELLIGENCE
+		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SYMBOLOGY.ONLINE &middot;
+		INDEPENDENT SEC FILING INTELLIGENCE
 	</div>
 	<h1 class="display" style="max-width: 14ch; margin-bottom: 2rem;">
 		Read every filing.<br />
@@ -136,75 +97,8 @@
 	</div>
 </section>
 
-<!-- Example company -->
-{#if exampleCompany}
-	<section class="hairline-section" style="margin-top: 5rem;">
-		<div class="flex-between" style="align-items: flex-end; margin-bottom: 28px;">
-			<div>
-				<div class="eyebrow" style="margin-bottom: 10px;">
-					<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;A REAL EXAMPLE
-				</div>
-				<h2 class="section-heading">
-					{titleCase((exampleCompany.display_name || exampleCompany.name).toLowerCase())}
-					&middot; Year-Over-Year Analysis
-				</h2>
-			</div>
-			<a
-				href="/c/{exampleCompany.ticker}"
-				class="meta"
-				style="color: var(--teal-2); text-decoration: none;"
-			>
-				Open {exampleCompany.ticker} &rarr;
-			</a>
-		</div>
-		<a
-			href="/c/{exampleCompany.ticker}"
-			style="display: block; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; text-decoration: none; color: inherit; transition: border-color 0.15s;"
-			class="hover-card"
-		>
-			<div class="flex-between" style="padding: 20px 28px; border-bottom: 1px solid var(--rule);">
-				<div style="display: flex; align-items: baseline; gap: 14px;">
-					<span class="tag" style="font-weight: 500; color: var(--ink);">
-						{exampleCompany.ticker}
-					</span>
-					<span style="font-family: var(--serif); font-size: 18px;">
-						{titleCase((exampleCompany.display_name || exampleCompany.name).toLowerCase())}
-					</span>
-					{#if exampleCompany.last_filing_form && exampleCompany.last_filing_date}
-						<span class="meta" style="color: var(--ink-4);">
-							Sourced from Form
-							{exampleCompany.last_filing_form}'s
-						</span>
-					{/if}
-				</div>
-				{#if exampleCompany.filing_count > 0}
-					<span class="meta" style="color: var(--ink-4);">
-						{exampleCompany.filing_count} filings tracked
-					</span>
-				{/if}
-			</div>
-			<div class="p-8">
-				{#if exampleSummary}
-					<p
-						style="font-family: var(--serif); font-size: 17px; line-height: 1.65; color: var(--ink-2); margin: 0;"
-					>
-						{exampleSummary}
-					</p>
-				{:else if exampleCompany.sic_description}
-					<p
-						style="font-family: var(--serif); font-size: 17px; line-height: 1.65; color: var(--ink-2); margin: 0;"
-					>
-						{exampleCompany.sic_description}
-					</p>
-				{/if}
-				<p class="flex justify-end pt-4 font-serif text-ink-3">
-					Click to view the full filing timeline, change analysis, and AI-generated insights. <ArrowRight
-					/>
-				</p>
-			</div>
-		</a>
-	</section>
-{/if}
+<!-- Featured company intros -->
+<FeaturedIntroCarousel companies={featured} />
 
 <!-- Scale / Stats strip -->
 {#if stats}
@@ -269,9 +163,6 @@
 	.btn-secondary:hover {
 		border-color: var(--ink-4);
 	}
-	.hover-card:hover {
-		border-color: var(--rule-2) !important;
-	}
 
 	/* ---------- Quick stats row ---------- */
 	.stats {
@@ -290,30 +181,5 @@
 	}
 	.stat:last-child {
 		border-right: 0;
-	}
-	.stat .k {
-		font-family: var(--mono);
-		font-size: 10.5px;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: var(--ink-3);
-	}
-	.stat .v {
-		font-family: var(--serif);
-		font-size: 28px;
-		font-weight: 400;
-		color: var(--ink);
-		letter-spacing: -0.01em;
-	}
-	.stat .d {
-		font-family: var(--mono);
-		font-size: 11.5px;
-		color: var(--teal-2);
-	}
-	.stat .d.down {
-		color: var(--danger);
-	}
-	.stat .d.flat {
-		color: var(--ink-3);
 	}
 </style>

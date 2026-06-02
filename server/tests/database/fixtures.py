@@ -1,8 +1,9 @@
 import pytest
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session
 
 # Import the models and settings
+from symbology.database import base
 from symbology.database.base import Base
 from symbology.utils.logging import configure_logging, get_logger
 
@@ -41,8 +42,13 @@ def create_test_database():
             logger.error(f"Error creating test database: {e}")
             raise
 
-    # Create an engine connected to the test database and create the tables
+    # Create an engine connected to the test database and create the tables.
+    # Enable pgvector first — the schema has vector embedding columns, and a
+    # database freshly cloned from template1 doesn't carry the extension.
     test_engine = create_engine(TEST_DATABASE_URL)
+    with test_engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
     Base.metadata.create_all(bind=test_engine)
     test_engine.dispose()
 
@@ -83,20 +89,31 @@ def db_engine():
 
 @pytest.fixture(scope="function")
 def db_session(db_engine):
-    """Create a fresh database session for each test."""
+    """A transactional, isolated session for each test.
+
+    Opens an outer transaction on a dedicated connection and binds the session
+    with ``join_transaction_mode="create_savepoint"`` so that ``commit()`` calls
+    inside the code under test become SAVEPOINT releases — the outer transaction
+    is rolled back on teardown, fully isolating each test (committing accessors
+    no longer leak rows into the shared test database).
+
+    Also points the application's ``base.db_session`` at this session for the
+    duration of the test, so ``get_db_session()`` returns it everywhere —
+    accessor functions *and* handlers — without per-test monkeypatching.
+    """
     connection = db_engine.connect()
     transaction = connection.begin()
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
 
-    # Create a session factory
-    session_factory = sessionmaker(bind=connection)
-    session = session_factory()
+    saved_session = base.db_session
+    base.db_session = session
 
     try:
         yield session
     finally:
-        # Cleanup
+        base.db_session = saved_session
         session.close()
-        # Only rollback if the transaction is still active
+        # Roll back the outer transaction, discarding everything the test wrote.
         if transaction.is_active:
             transaction.rollback()
         connection.close()

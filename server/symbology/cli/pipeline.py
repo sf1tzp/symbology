@@ -55,7 +55,9 @@ def pipeline_status():
         table.add_column("Started", style="dim")
 
         stale_count = 0
-        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=7200)
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            seconds=1000
+        )
 
         for run in latest_runs:
             company = get_company(run.company_id)
@@ -71,7 +73,11 @@ def pipeline_status():
                 PipelineRunStatus.PARTIAL: "red",
             }.get(run.status, "white")
 
-            if run.status == PipelineRunStatus.RUNNING and run.started_at and run.started_at < cutoff:
+            if (
+                run.status == PipelineRunStatus.RUNNING
+                and run.started_at
+                and run.started_at < cutoff
+            ):
                 stale_count += 1
 
             failure_str = str(failures) if failures > 0 else "-"
@@ -88,7 +94,9 @@ def pipeline_status():
         console.print(table)
 
         if stale_count:
-            console.print(f"\n[yellow]Stale runs (RUNNING > 2h): {stale_count}[/yellow]")
+            console.print(
+                f"\n[yellow]Stale runs (RUNNING > 2h): {stale_count}[/yellow]"
+            )
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -96,9 +104,113 @@ def pipeline_status():
         sys.exit(1)
 
 
+@pipeline.command("filing-content")
+@click.argument("ticker", required=False)
+@click.argument("year", type=int, required=False)
+@click.argument("form", default="10-K")
+@click.option(
+    "--accession",
+    "-a",
+    "accession_number",
+    default=None,
+    help="Target a specific filing by EDGAR accession number (overrides TICKER/YEAR).",
+)
+def filing_page_content(ticker: str, year: int, form: str, accession_number: str):
+    """Generate document + filing page content for a filing.
+
+    By default targets TICKER's YEAR FORM filing. Alternatively pass
+    --accession to target a specific filing by its EDGAR accession number,
+    in which case TICKER and YEAR are not required.
+    """
+    try:
+        init_session()
+
+        if accession_number:
+            job = create_job(
+                job_type=JobType.FILING_PAGE_CONTENT,
+                params={"accession_number": accession_number},
+                priority=1,
+            )
+            console.print(
+                f"[green]✓[/green] Filing page content queued for accession {accession_number}"
+            )
+            console.print(f"  [blue]Job ID:[/blue]  {job.id}")
+            return
+
+        if not ticker or year is None:
+            console.print(
+                "[red]Provide TICKER and YEAR, or use --accession to target a filing.[/red]"
+            )
+            sys.exit(1)
+
+        company = get_company_by_ticker(ticker.upper())
+        if not company:
+            console.print(f"[red]Company not found: {ticker}[/red]")
+            sys.exit(1)
+
+        job = create_job(
+            job_type=JobType.FILING_PAGE_CONTENT,
+            params={"ticker": company.ticker, "year": year, "form": form},
+            priority=1,
+        )
+
+        console.print(
+            f"[green]✓[/green] Filing page content queued for {company.ticker} {year} {form}"
+        )
+        console.print(f"  [blue]Job ID:[/blue]  {job.id}")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Filing page content trigger failed")
+        sys.exit(1)
+
+
+@pipeline.command("company-content")
+@click.argument("ticker")
+@click.option(
+    "--lookback", "-n", type=int, default=5, help="Number of recent filings to span."
+)
+@click.option("--form", default="10-K", help="Filing form type.")
+def company_page_content(ticker: str, lookback: int, form: str):
+    """Synthesize company page content for TICKER from its last LOOKBACK filings.
+
+    Requires those filings' page content to already be published (run
+    `pipeline filing-content` for each first); fails if any is missing.
+    """
+    try:
+        init_session()
+        company = get_company_by_ticker(ticker.upper())
+        if not company:
+            console.print(f"[red]Company not found: {ticker}[/red]")
+            sys.exit(1)
+
+        job = create_job(
+            job_type=JobType.COMPANY_PAGE_CONTENT,
+            params={
+                "ticker": company.ticker,
+                "lookback": lookback,
+                "form": form,
+            },
+            priority=2,
+        )
+
+        console.print(
+            f"[green]✓[/green] Company page content queued for {company.ticker} "
+            f"({lookback}x {form})"
+        )
+        console.print(f"  [blue]Job ID:[/blue]  {job.id}")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        logger.exception("Company page content trigger failed")
+        sys.exit(1)
+
+
 @pipeline.command("trigger")
 @click.argument("ticker")
-@click.option("--forms", "-f", multiple=True, help="SEC form types (default: scheduler config)")
+@click.option(
+    "--forms", "-f", multiple=True, help="SEC form types (default: scheduler config)"
+)
 def trigger_pipeline(ticker: str, forms: tuple):
     """Manually trigger a pipeline run for TICKER."""
     try:
@@ -127,20 +239,62 @@ def trigger_pipeline(ticker: str, forms: tuple):
 
 
 @pipeline.command("backfill")
-@click.option("--start-year", default=2021, type=int, help="Start year for backfill (default: 2021)")
-@click.option("--end-year", default=None, type=int, help="End year for backfill (default: current year)")
-@click.option("--forms", "-f", multiple=True, help="Form types (default: 10-K, 10-K/A, 10-Q, 10-Q/A)")
-@click.option("--batch-size", default=50, type=int, help="Filings per job (default: 50)")
+@click.option(
+    "--start-year",
+    default=2021,
+    type=int,
+    help="Start year for backfill (default: 2021)",
+)
+@click.option(
+    "--end-year",
+    default=None,
+    type=int,
+    help="End year for backfill (default: current year)",
+)
+@click.option(
+    "--forms",
+    "-f",
+    multiple=True,
+    help="Form types (default: 10-K, 10-K/A, 10-Q, 10-Q/A)",
+)
+@click.option(
+    "--batch-size", default=50, type=int, help="Filings per job (default: 50)"
+)
 @click.option("--dry-run", is_flag=True, help="Show counts without creating jobs")
-@click.option("--include-documents/--no-documents", default=True, help="Ingest document text sections")
+@click.option(
+    "--include-documents/--no-documents",
+    default=True,
+    help="Ingest document text sections",
+)
 @click.option("--sp500", is_flag=True, help="Limit to S&P 500 companies")
-@click.option("--ciks-file", type=click.Path(exists=True), help="CSV file with Cik column to filter by")
-@click.option("--group", "group_slug", default=None, help="Company group slug to filter by")
-def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_run: bool, include_documents: bool, sp500: bool, ciks_file: str, group_slug: str):
+@click.option(
+    "--ciks-file",
+    type=click.Path(exists=True),
+    help="CSV file with Cik column to filter by",
+)
+@click.option(
+    "--group", "group_slug", default=None, help="Company group slug to filter by"
+)
+def backfill(
+    start_year: int,
+    end_year: int,
+    forms: tuple,
+    batch_size: int,
+    dry_run: bool,
+    include_documents: bool,
+    sp500: bool,
+    ciks_file: str,
+    group_slug: str,
+):
     """Backfill EDGAR filings for a date range (no LLM)."""
     from datetime import date
 
-    from symbology.ingestion.bulk_discovery import BULK_FORM_TYPES, discover_filings_by_date_range, get_sp500_ciks, load_ciks_from_csv
+    from symbology.ingestion.bulk_discovery import (
+        BULK_FORM_TYPES,
+        discover_filings_by_date_range,
+        get_sp500_ciks,
+        load_ciks_from_csv,
+    )
     from symbology.ingestion.edgar_db.accessors import edgar_login
 
     try:
@@ -150,7 +304,9 @@ def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_
         # Resolve CIK filter (mutually exclusive)
         filter_flags = sum([sp500, bool(ciks_file), bool(group_slug)])
         if filter_flags > 1:
-            console.print("[red]Error: --sp500, --ciks-file, and --group are mutually exclusive[/red]")
+            console.print(
+                "[red]Error: --sp500, --ciks-file, and --group are mutually exclusive[/red]"
+            )
             sys.exit(1)
 
         allowed_ciks = None
@@ -159,15 +315,20 @@ def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_
             console.print(f"Filter: [green]S&P 500[/green] ({len(allowed_ciks)} CIKs)")
         elif ciks_file:
             allowed_ciks = load_ciks_from_csv(ciks_file)
-            console.print(f"Filter: [green]{ciks_file}[/green] ({len(allowed_ciks)} CIKs)")
+            console.print(
+                f"Filter: [green]{ciks_file}[/green] ({len(allowed_ciks)} CIKs)"
+            )
         elif group_slug:
             from symbology.database.company_groups import get_company_group_by_slug
+
             grp = get_company_group_by_slug(group_slug)
             if not grp:
                 console.print(f"[red]Group not found: {group_slug}[/red]")
                 sys.exit(1)
             allowed_ciks = {c.cik for c in grp.companies if c.cik}
-            console.print(f"Filter: [green]{grp.name}[/green] ({len(allowed_ciks)} CIKs)")
+            console.print(
+                f"Filter: [green]{grp.name}[/green] ({len(allowed_ciks)} CIKs)"
+            )
 
         if end_year is None:
             end_year = date.today().year
@@ -199,8 +360,12 @@ def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_
                 # Clamp end date to today
                 actual_end = min(q_end, date.today())
 
-                console.print(f"  {year} Q{q_idx} ({q_start} to {actual_end})...", end=" ")
-                new_filings = discover_filings_by_date_range(q_start, actual_end, form_types, allowed_ciks=allowed_ciks)
+                console.print(
+                    f"  {year} Q{q_idx} ({q_start} to {actual_end})...", end=" "
+                )
+                new_filings = discover_filings_by_date_range(
+                    q_start, actual_end, form_types, allowed_ciks=allowed_ciks
+                )
                 console.print(f"[cyan]{len(new_filings)}[/cyan] new filings")
 
                 if new_filings and not dry_run:
@@ -208,7 +373,10 @@ def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_
                         batch = new_filings[i : i + batch_size]
                         create_job(
                             job_type=JobType.BULK_INGEST,
-                            params={"filings": batch, "include_documents": include_documents},
+                            params={
+                                "filings": batch,
+                                "include_documents": include_documents,
+                            },
                             priority=4,  # lowest — backfill shouldn't block ongoing work
                         )
                         total_jobs += 1
@@ -218,8 +386,12 @@ def backfill(start_year: int, end_year: int, forms: tuple, batch_size: int, dry_
         console.print()
         console.print(f"Total new filings: [cyan]{total_filings}[/cyan]")
         if dry_run:
-            estimated_jobs = (total_filings + batch_size - 1) // batch_size if total_filings else 0
-            console.print(f"Would create: [cyan]{estimated_jobs}[/cyan] BULK_INGEST jobs")
+            estimated_jobs = (
+                (total_filings + batch_size - 1) // batch_size if total_filings else 0
+            )
+            console.print(
+                f"Would create: [cyan]{estimated_jobs}[/cyan] BULK_INGEST jobs"
+            )
         else:
             console.print(f"Created: [green]{total_jobs}[/green] BULK_INGEST jobs")
 
@@ -244,6 +416,7 @@ def enrich_companies(limit: int):
 
         session = get_db_session()
         from symbology.database.companies import Company
+
         placeholder_companies = (
             session.query(Company)
             .filter(Company.ticker.like("CIK%"))
@@ -255,7 +428,9 @@ def enrich_companies(limit: int):
             console.print("[green]No placeholder companies to enrich[/green]")
             return
 
-        console.print(f"Found [cyan]{len(placeholder_companies)}[/cyan] companies with CIK placeholders")
+        console.print(
+            f"Found [cyan]{len(placeholder_companies)}[/cyan] companies with CIK placeholders"
+        )
 
         enriched = 0
         failed = 0
@@ -267,28 +442,49 @@ def enrich_companies(limit: int):
                 if ticker and not ticker.startswith("CIK"):
                     update_data = {
                         "ticker": ticker,
-                        "display_name": edgar_company.data.display_name if hasattr(edgar_company.data, "display_name") else None,
+                        "display_name": (
+                            edgar_company.data.display_name
+                            if hasattr(edgar_company.data, "display_name")
+                            else None
+                        ),
                         "exchanges": edgar_company.get_exchanges(),
-                        "sic": edgar_company.data.sic if hasattr(edgar_company.data, "sic") else None,
-                        "sic_description": edgar_company.data.sic_description if hasattr(edgar_company.data, "sic_description") else None,
+                        "sic": (
+                            edgar_company.data.sic
+                            if hasattr(edgar_company.data, "sic")
+                            else None
+                        ),
+                        "sic_description": (
+                            edgar_company.data.sic_description
+                            if hasattr(edgar_company.data, "sic_description")
+                            else None
+                        ),
                     }
                     # Remove None values to avoid overwriting existing data
-                    update_data = {k: v for k, v in update_data.items() if v is not None}
+                    update_data = {
+                        k: v for k, v in update_data.items() if v is not None
+                    }
                     update_company(company.id, update_data)
                     enriched += 1
-                    console.print(f"  [green]{company.name}[/green]: CIK{company.cik} -> {ticker}")
+                    console.print(
+                        f"  [green]{company.name}[/green]: CIK{company.cik} -> {ticker}"
+                    )
                 else:
-                    console.print(f"  [yellow]{company.name}[/yellow]: no ticker resolved")
+                    console.print(
+                        f"  [yellow]{company.name}[/yellow]: no ticker resolved"
+                    )
             except Exception as e:
                 failed += 1
                 console.print(f"  [red]{company.name}[/red]: {e}")
 
-        console.print(f"\nEnriched: [green]{enriched}[/green], Failed: [red]{failed}[/red]")
+        console.print(
+            f"\nEnriched: [green]{enriched}[/green], Failed: [red]{failed}[/red]"
+        )
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         logger.exception("Enrich companies failed")
         sys.exit(1)
+
 
 @pipeline.command("trigger-group")
 @click.argument("tickers", nargs=-1, required=False)
@@ -303,6 +499,7 @@ def trigger_company_group_pipeline(tickers: tuple, group_slug: str):
         # If group slug is provided, resolve tickers from the group
         if group_slug:
             from symbology.database.company_groups import get_company_group_by_slug
+
             grp = get_company_group_by_slug(group_slug)
             if not grp:
                 console.print(f"[red]Group not found: {group_slug}[/red]")
@@ -340,9 +537,12 @@ def trigger_company_group_pipeline(tickers: tuple, group_slug: str):
 
 
 @pipeline.command("runs")
-@click.option("--status", "status_filter",
-              type=click.Choice([s.value for s in PipelineRunStatus], case_sensitive=False),
-              help="Filter by status")
+@click.option(
+    "--status",
+    "status_filter",
+    type=click.Choice([s.value for s in PipelineRunStatus], case_sensitive=False),
+    help="Filter by status",
+)
 @click.option("--ticker", help="Filter by company ticker")
 @click.option("--limit", default=20, help="Maximum number of runs to show")
 def list_runs(status_filter: str, ticker: str, limit: int):
@@ -407,7 +607,9 @@ def list_runs(status_filter: str, ticker: str, limit: int):
         console.print(table)
 
         if len(runs) == limit:
-            console.print(f"\n[yellow]Showing first {limit} results. Use --limit to see more.[/yellow]")
+            console.print(
+                f"\n[yellow]Showing first {limit} results. Use --limit to see more.[/yellow]"
+            )
 
     except Exception as e:
         console.print(f"[red]Error listing runs: {e}[/red]")
@@ -418,11 +620,24 @@ def list_runs(status_filter: str, ticker: str, limit: int):
 @pipeline.command("regenerate")
 @click.argument("ticker")
 @click.option("--form", "-f", default="10-K", help="SEC form type (default: 10-K)")
-@click.option("--doc-type", "-d", required=True, help="Document type (e.g. risk_factors, business_description)")
-@click.option("--stage", "-s", default="all",
-              type=click.Choice(["single", "aggregate", "frontpage", "all"], case_sensitive=False),
-              help="Pipeline stage to regenerate (default: all)")
-@click.option("--force/--no-force", default=True, help="Bypass dedup checks (default: True)")
+@click.option(
+    "--doc-type",
+    "-d",
+    required=True,
+    help="Document type (e.g. risk_factors, business_description)",
+)
+@click.option(
+    "--stage",
+    "-s",
+    default="all",
+    type=click.Choice(
+        ["single", "aggregate", "frontpage", "all"], case_sensitive=False
+    ),
+    help="Pipeline stage to regenerate (default: all)",
+)
+@click.option(
+    "--force/--no-force", default=True, help="Bypass dedup checks (default: True)"
+)
 def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
     """Regenerate content for a specific ticker/form/doc-type.
 
@@ -455,13 +670,19 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
 
         company_id = str(company.id)
 
-        console.print(f"Regenerate: [cyan]{ticker.upper()}[/cyan] / {form} / {doc_type} / stage={stage}")
+        console.print(
+            f"Regenerate: [cyan]{ticker.upper()}[/cyan] / {form} / {doc_type} / stage={stage}"
+        )
         console.print(f"Force: {'yes' if force else 'no'}")
 
         # Set up model configs and prompts
         mc_single = ensure_model_config(**PIPELINE_MODEL_CONFIGS["single_summary"])
-        mc_aggregate = ensure_model_config(**PIPELINE_MODEL_CONFIGS["aggregate_summary"])
-        mc_frontpage = ensure_model_config(**PIPELINE_MODEL_CONFIGS["frontpage_summary"])
+        mc_aggregate = ensure_model_config(
+            **PIPELINE_MODEL_CONFIGS["aggregate_summary"]
+        )
+        mc_frontpage = ensure_model_config(
+            **PIPELINE_MODEL_CONFIGS["frontpage_summary"]
+        )
         single_prompt = ensure_prompt(doc_type)
         aggregate_prompt = ensure_prompt(PIPELINE_PROMPTS["aggregate_summary"])
         frontpage_prompt = ensure_prompt(PIPELINE_PROMPTS["frontpage_summary"])
@@ -476,31 +697,53 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
                 .all()
             )
             if not filings:
-                console.print(f"[yellow]No {form} filings found for {ticker.upper()}[/yellow]")
+                console.print(
+                    f"[yellow]No {form} filings found for {ticker.upper()}[/yellow]"
+                )
                 sys.exit(0)
 
             console.print(f"Found [cyan]{len(filings)}[/cyan] {form} filings")
 
             hashes, new, reused, failed = generate_single_summaries(
-                company_id, ticker.upper(), form, doc_type,
-                filings, single_prompt, mc_single, force=force,
+                company_id,
+                ticker.upper(),
+                form,
+                doc_type,
+                filings,
+                single_prompt,
+                mc_single,
+                force=force,
             )
-            console.print(f"  Singles: [green]{new} new[/green], {reused} reused, [red]{failed} failed[/red]")
+            console.print(
+                f"  Singles: [green]{new} new[/green], {reused} reused, [red]{failed} failed[/red]"
+            )
             total_generated += new
 
             if stage == "all" and hashes:
                 # Continue to aggregate
                 agg_hash, agg_ok = generate_aggregate_summary(
-                    company_id, ticker.upper(), form, doc_type,
-                    hashes, aggregate_prompt, mc_aggregate, force=force,
+                    company_id,
+                    ticker.upper(),
+                    form,
+                    doc_type,
+                    hashes,
+                    aggregate_prompt,
+                    mc_aggregate,
+                    force=force,
                 )
                 if agg_ok:
                     console.print("  Aggregate: [green]generated[/green]")
                     total_generated += 1
 
                     fp_hash, fp_ok = generate_frontpage_summary(
-                        company_id, ticker.upper(), form, doc_type,
-                        agg_hash, frontpage_prompt, mc_frontpage, force=force,
+                        company_id,
+                        ticker.upper(),
+                        form,
+                        doc_type,
+                        agg_hash,
+                        frontpage_prompt,
+                        mc_frontpage,
+                        force=force,
                     )
                     if fp_ok:
                         console.print("  Frontpage: [green]generated[/green]")
@@ -512,7 +755,10 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
 
         elif stage == "aggregate":
             # Find existing single summary hashes for this form/doc_type
-            from symbology.database.generated_content import ContentStage, GeneratedContent
+            from symbology.database.generated_content import (
+                ContentStage,
+                GeneratedContent,
+            )
             from sqlalchemy import or_
 
             single_hashes = (
@@ -520,9 +766,9 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
                 .filter(
                     GeneratedContent.company_id == company.id,
                     or_(
-                        (GeneratedContent.content_stage == ContentStage.SINGLE_SUMMARY) &
-                        (GeneratedContent.form_type == form) &
-                        (GeneratedContent.description.contains(doc_type)),
+                        (GeneratedContent.content_stage == ContentStage.SINGLE_SUMMARY)
+                        & (GeneratedContent.form_type == form)
+                        & (GeneratedContent.description.contains(doc_type)),
                         GeneratedContent.description == f"{doc_type}_single_summary",
                     ),
                 )
@@ -531,22 +777,36 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
             hashes = [h for (h,) in single_hashes if h]
 
             if not hashes:
-                console.print(f"[yellow]No single summaries found for {doc_type}/{form}[/yellow]")
+                console.print(
+                    f"[yellow]No single summaries found for {doc_type}/{form}[/yellow]"
+                )
                 sys.exit(0)
 
             console.print(f"Found [cyan]{len(hashes)}[/cyan] single summaries")
 
             agg_hash, agg_ok = generate_aggregate_summary(
-                company_id, ticker.upper(), form, doc_type,
-                hashes, aggregate_prompt, mc_aggregate, force=force,
+                company_id,
+                ticker.upper(),
+                form,
+                doc_type,
+                hashes,
+                aggregate_prompt,
+                mc_aggregate,
+                force=force,
             )
             if agg_ok:
                 console.print("  Aggregate: [green]generated[/green]")
                 total_generated += 1
 
                 fp_hash, fp_ok = generate_frontpage_summary(
-                    company_id, ticker.upper(), form, doc_type,
-                    agg_hash, frontpage_prompt, mc_frontpage, force=force,
+                    company_id,
+                    ticker.upper(),
+                    form,
+                    doc_type,
+                    agg_hash,
+                    frontpage_prompt,
+                    mc_frontpage,
+                    force=force,
                 )
                 if fp_ok:
                     console.print("  Frontpage: [green]generated[/green]")
@@ -558,7 +818,10 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
 
         elif stage == "frontpage":
             # Find latest aggregate hash
-            from symbology.database.generated_content import ContentStage, GeneratedContent
+            from symbology.database.generated_content import (
+                ContentStage,
+                GeneratedContent,
+            )
             from sqlalchemy import or_
 
             agg = (
@@ -566,9 +829,12 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
                 .filter(
                     GeneratedContent.company_id == company.id,
                     or_(
-                        (GeneratedContent.content_stage == ContentStage.AGGREGATE_SUMMARY) &
-                        (GeneratedContent.form_type == form) &
-                        (GeneratedContent.description.contains(doc_type)),
+                        (
+                            GeneratedContent.content_stage
+                            == ContentStage.AGGREGATE_SUMMARY
+                        )
+                        & (GeneratedContent.form_type == form)
+                        & (GeneratedContent.description.contains(doc_type)),
                         GeneratedContent.description == f"{doc_type}_aggregate_summary",
                     ),
                 )
@@ -576,12 +842,20 @@ def regenerate(ticker: str, form: str, doc_type: str, stage: str, force: bool):
                 .first()
             )
             if not agg or not agg.content_hash:
-                console.print(f"[yellow]No aggregate summary found for {doc_type}/{form}[/yellow]")
+                console.print(
+                    f"[yellow]No aggregate summary found for {doc_type}/{form}[/yellow]"
+                )
                 sys.exit(0)
 
             fp_hash, fp_ok = generate_frontpage_summary(
-                company_id, ticker.upper(), form, doc_type,
-                agg.content_hash, frontpage_prompt, mc_frontpage, force=force,
+                company_id,
+                ticker.upper(),
+                form,
+                doc_type,
+                agg.content_hash,
+                frontpage_prompt,
+                mc_frontpage,
+                force=force,
             )
             if fp_ok:
                 console.print("  Frontpage: [green]generated[/green]")
@@ -629,7 +903,9 @@ def regenerate_group_frontpage(group_slug: str):
 
         analyses = get_company_group_analysis(grp.id, limit=1)
         if not analyses or not analyses[0].content_hash:
-            console.print(f"[yellow]No group analysis found for '{group_slug}'[/yellow]")
+            console.print(
+                f"[yellow]No group analysis found for '{group_slug}'[/yellow]"
+            )
             sys.exit(0)
 
         analysis = analyses[0]
@@ -658,8 +934,12 @@ def regenerate_group_frontpage(group_slug: str):
 
 
 @pipeline.command("backfill-metadata")
-@click.option("--dry-run", is_flag=True, help="Show what would be updated without making changes")
-@click.option("--limit", default=1000, type=int, help="Max rows to process (default: 1000)")
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be updated without making changes"
+)
+@click.option(
+    "--limit", default=1000, type=int, help="Max rows to process (default: 1000)"
+)
 def backfill_metadata(dry_run: bool, limit: int):
     """Backfill content_stage, document_type, and form_type on existing rows.
 
@@ -730,7 +1010,9 @@ def backfill_metadata(dry_run: bool, limit: int):
                 continue
 
             # Detect document_type from prefix
-            detected_doc_type = DOC_TYPE_MAP.get(doc_type_prefix) if doc_type_prefix else None
+            detected_doc_type = (
+                DOC_TYPE_MAP.get(doc_type_prefix) if doc_type_prefix else None
+            )
 
             # Infer form_type from source documents
             detected_form_type = None
@@ -760,9 +1042,13 @@ def backfill_metadata(dry_run: bool, limit: int):
         if not dry_run:
             session.commit()
 
-        console.print(f"\n{'Would update' if dry_run else 'Updated'}: [green]{updated}[/green]")
+        console.print(
+            f"\n{'Would update' if dry_run else 'Updated'}: [green]{updated}[/green]"
+        )
         if skipped:
-            console.print(f"Skipped (unrecognized description): [yellow]{skipped}[/yellow]")
+            console.print(
+                f"Skipped (unrecognized description): [yellow]{skipped}[/yellow]"
+            )
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")

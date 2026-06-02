@@ -8,7 +8,8 @@ import type {
 
 export async function getFilingsTimeline(
 	ticker: string,
-	limit: number = 20
+	limit: number = 20,
+	form?: string
 ): Promise<FilingTimelineResponse[]> {
 	// 1. Get company ID
 	const company = await db
@@ -19,14 +20,14 @@ export async function getFilingsTimeline(
 
 	if (!company) return [];
 
-	// 2. Get filings ordered by period_of_report ASC
-	const filings = await db
-		.selectFrom('filings')
-		.selectAll()
-		.where('company_id', '=', company.id)
-		.orderBy('period_of_report', 'asc')
-		.limit(limit)
-		.execute();
+	// 2. Get filings ordered by period_of_report ASC (optionally filtered by form)
+	let query = db.selectFrom('filings').selectAll().where('company_id', '=', company.id);
+
+	if (form) {
+		query = query.where('form', '=', form);
+	}
+
+	const filings = await query.orderBy('period_of_report', 'asc').limit(limit).execute();
 
 	if (filings.length === 0) return [];
 
@@ -146,9 +147,13 @@ export async function getFilingByAccession(
 	};
 }
 
+/** DocumentResponse augmented with a flag indicating whether analysis
+ * (document page content) has been generated for the document. */
+export type DocumentWithAnalysisResponse = DocumentResponse & { has_analysis: boolean };
+
 export async function getDocumentsByAccession(
 	accessionNumber: string
-): Promise<DocumentResponse[]> {
+): Promise<DocumentWithAnalysisResponse[]> {
 	const filing = await db
 		.selectFrom('filings')
 		.select([
@@ -180,6 +185,25 @@ export async function getDocumentsByAccession(
 		.where('documents.filing_id', '=', filing.id)
 		.execute();
 
+	// Determine which documents have analysis generated. A document "has
+	// analysis" when a document_page_content row exists for it with resolved
+	// summary (L1) or intro (L2) content — mirroring the document page's own
+	// hasAnalysis check, driven entirely from the DB.
+	const docIds = documents.map((d) => d.id);
+	const analysisDocIds = new Set<string>();
+	if (docIds.length > 0) {
+		const pageRows = await db
+			.selectFrom('document_page_content')
+			.select(['document_id', 'summary_content_id', 'intro_content_id'])
+			.where('document_id', 'in', docIds)
+			.execute();
+		for (const row of pageRows) {
+			if (row.summary_content_id || row.intro_content_id) {
+				analysisDocIds.add(row.document_id);
+			}
+		}
+	}
+
 	const filingResponse: FilingResponse = {
 		id: filing.id,
 		company_id: filing.company_id,
@@ -199,6 +223,7 @@ export async function getDocumentsByAccession(
 		content: doc.content,
 		content_hash: doc.content_hash,
 		short_hash: doc.content_hash?.slice(0, 12) ?? null,
+		has_analysis: analysisDocIds.has(doc.id),
 		filing: filingResponse
 	}));
 }

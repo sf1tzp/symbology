@@ -8,13 +8,13 @@
 
 	let { active = 'Overview', refreshAgo = 'just now' }: Props = $props();
 
-	const items = ['Overview', 'Ingestion', 'Generations', 'Queue', 'Workers'];
+	const items = ['Overview', 'Queue', 'Generations', 'Ingestion', 'Workers'];
 
 	const anchors: Record<string, string> = {
 		Overview: '#',
-		Ingestion: '#ingestion',
-		Generations: '#generations',
 		Queue: '#queue',
+		Generations: '#generations',
+		Ingestion: '#ingestion',
 		Workers: '#workers'
 	};
 </script>

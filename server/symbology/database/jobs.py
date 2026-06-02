@@ -33,6 +33,8 @@ class JobType(str, Enum):
     FULL_PIPELINE = "full_pipeline"
     BULK_INGEST = "bulk_ingest"
     COMPANY_GROUP_PIPELINE = "company_group_pipeline"
+    FILING_PAGE_CONTENT = "filing_page_content"
+    COMPANY_PAGE_CONTENT = "company_page_content"
     TEST = "test"
 
 
@@ -173,6 +175,35 @@ def cancel_job(job_id: Union[UUID, str]) -> Optional[Job]:
         raise
 
 
+def stop_job(job_id: Union[UUID, str]) -> Optional[Job]:
+    """Manually stop a job by marking it CANCELLED.
+
+    Unlike :func:`cancel_job` (which only touches PENDING jobs), this also stops
+    an IN_PROGRESS job. Note this only updates DB state — a worker already
+    executing the job will keep running until its current task finishes; the
+    CANCELLED status simply prevents it from being picked up / retried and flags
+    intent. Returns None if the job is missing or already in a terminal state.
+    """
+    try:
+        session = get_db_session()
+        job = session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            logger.warning("stop_job_not_found", job_id=str(job_id))
+            return None
+        if job.status not in (JobStatus.PENDING, JobStatus.IN_PROGRESS):
+            logger.warning("stop_job_not_stoppable", job_id=str(job_id), status=job.status.value)
+            return None
+        job.status = JobStatus.CANCELLED
+        job.completed_at = func.now()
+        session.commit()
+        logger.info("stopped_job", job_id=str(job_id))
+        return job
+    except Exception as e:
+        session.rollback()
+        logger.error("stop_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
+        raise
+
+
 def claim_next_job(worker_id: str) -> Optional[Job]:
     """Atomically claim the highest-priority pending job using SELECT FOR UPDATE SKIP LOCKED."""
     try:
@@ -249,6 +280,69 @@ def fail_job(job_id: Union[UUID, str], error: str) -> Optional[Job]:
         raise
 
 
+def heartbeat_job(job_id: Union[UUID, str], worker_id: str) -> bool:
+    """Bump an in-progress job's ``updated_at`` to signal the worker is alive.
+
+    Stale detection keys off ``updated_at``, but a handler doesn't touch its row
+    while it runs (a long LLM generation can go minutes without a write), so
+    without a heartbeat ``updated_at`` reflects last-state-change, not liveness —
+    forcing ``stale_threshold`` to stay high to avoid reclaiming live jobs. A
+    periodic heartbeat lets the threshold drop so a dead worker's job is
+    recovered in a minute or two instead of ~17.
+
+    Scoped to the owning worker (``worker_id`` guard) so a worker that has lost
+    its claim — e.g. its job was already reclaimed by the stale sweep — can't
+    revive a row another worker now owns. Returns whether a row was updated.
+    """
+    try:
+        session = get_db_session()
+        updated = (
+            session.query(Job)
+            .filter(Job.id == job_id)
+            .filter(Job.status == JobStatus.IN_PROGRESS)
+            .filter(Job.worker_id == worker_id)
+            .update({Job.updated_at: func.now()}, synchronize_session=False)
+        )
+        session.commit()
+        return updated > 0
+    except Exception as e:
+        session.rollback()
+        logger.error("heartbeat_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
+        raise
+
+
+def requeue_job_for_shutdown(job_id: Union[UUID, str]) -> Optional[Job]:
+    """Return an IN_PROGRESS job to PENDING after a worker shutdown.
+
+    Unlike :func:`fail_job`, this does NOT consume a retry: an operational
+    restart is not the job's fault, so it should resume from where it was, not
+    inch toward the retry ceiling. It is also idempotent — a no-op once the job
+    is no longer IN_PROGRESS — so the executing worker thread (on a clean
+    ``ShutdownRequested``) and the main loop (when the handler is stuck in an
+    uninterruptible request) can both call it without double-handling.
+    """
+    try:
+        session = get_db_session()
+        job = session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            logger.warning("requeue_for_shutdown_not_found", job_id=str(job_id))
+            return None
+        if job.status != JobStatus.IN_PROGRESS:
+            # Already requeued (or finished) by the other party — nothing to do.
+            return job
+        job.status = JobStatus.PENDING
+        job.worker_id = None
+        job.started_at = None
+        job.error = "worker shutdown during execution"
+        session.commit()
+        logger.info("requeued_job_for_shutdown", job_id=str(job.id))
+        return job
+    except Exception as e:
+        session.rollback()
+        logger.error("requeue_for_shutdown_failed", job_id=str(job_id), error=str(e), exc_info=True)
+        raise
+
+
 def count_jobs_by_status(status: JobStatus, job_type: Optional[JobType] = None) -> int:
     """Count jobs with a given status, optionally filtered by type."""
     try:
@@ -287,6 +381,36 @@ def requeue_failed_jobs(job_type: Optional[JobType] = None) -> List[Job]:
     except Exception as e:
         session.rollback()
         logger.error("requeue_failed_jobs_failed", error=str(e), exc_info=True)
+        raise
+
+
+def requeue_job(job_id: Union[UUID, str]) -> Optional[Job]:
+    """Reset a single FAILED job to PENDING so it can be retried.
+
+    Clears retry_count, worker_id, error, started_at, and completed_at. Returns
+    None if the job does not exist or is not in FAILED status.
+    """
+    try:
+        session = get_db_session()
+        job = (
+            session.query(Job)
+            .filter(Job.id == job_id, Job.status == JobStatus.FAILED)
+            .first()
+        )
+        if not job:
+            return None
+        job.status = JobStatus.PENDING
+        job.retry_count = 0
+        job.worker_id = None
+        job.error = None
+        job.started_at = None
+        job.completed_at = None
+        session.commit()
+        logger.info("requeued_job", job_id=str(job.id))
+        return job
+    except Exception as e:
+        session.rollback()
+        logger.error("requeue_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
         raise
 
 

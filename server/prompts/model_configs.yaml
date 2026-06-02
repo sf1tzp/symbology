@@ -1,0 +1,112 @@
+# Declarative pipeline configuration for the new content stages.
+#
+# - model_configs: per-stage model + generation options. Only max_tokens and
+#   temperature are stored/forwarded (both providers); see new-content-plan.md #12.
+#   Any "claude*" model routes to the Anthropic API, anything else to the
+#   OpenAI-compatible endpoint (OPENAI_* env). Build options from these values
+#   directly (NOT ModelConfig.create_default, which injects top_k/top_p).
+# - prompts: stage -> flat prompt path under prompts/ (no .md suffix).
+# - doc_type_prompts: L1 single-summary prompt per document type.
+# - form_document_types: which document types are extracted per filing form.
+#
+# Stage keys must be valid ContentStage values (see database/generated_content.py).
+
+model_configs:
+  l1_document_summary:
+    model: google/gemma-4-e4b
+    max_tokens: 8192
+    temperature: 0.2
+  l2_document_page_intro:
+    model: google/gemma-4-e4b
+    max_tokens: 1024
+    temperature: 0.5
+
+  l2_filing_main_content:
+    model: google/gemma-4-e4b
+    max_tokens: 4096
+    temperature: 0.3
+  l3_filing_intro_content:
+    model: google/gemma-4-e4b
+    max_tokens: 4096
+    temperature: 0.3
+
+  l2_change_report_content:
+    model: google/gemma-4-e4b
+    max_tokens: 8192
+    temperature: 0.3
+  l3_change_report_intro_content:
+    model: google/gemma-4-e4b
+    max_tokens: 4096
+    temperature: 0.3
+
+  l3_company_main_content:
+    model: google/gemma-4-e4b
+    max_tokens: 4096
+    temperature: 0.3
+  l4_company_intro_content:
+    model: google/gemma-4-e4b
+    max_tokens: 4096
+    temperature: 0.3
+
+  single_summary:
+    model: claude-haiku-4-5-20251001
+    max_tokens: 2048
+    temperature: 0.2
+  change_report:
+    model: claude-sonnet-4-5-20250929
+    max_tokens: 4096
+    temperature: 0.3
+  change_report_intro:
+    model: claude-haiku-4-5-20251001
+    max_tokens: 512
+    temperature: 0.5
+  company_main_content:
+    model: claude-sonnet-4-5-20250929
+    max_tokens: 8192
+    temperature: 0.3
+  company_intro:
+    model: claude-haiku-4-5-20251001
+    max_tokens: 512
+    temperature: 0.7
+  group_main_content:
+    model: claude-sonnet-4-5-20250929
+    max_tokens: 8192
+    temperature: 0.3
+  group_intro:
+    model: claude-haiku-4-5-20251001
+    max_tokens: 512
+    temperature: 0.7
+  filing_main_content:
+    model: claude-sonnet-4-5-20250929
+    max_tokens: 4096
+    temperature: 0.3
+  filing_intro:
+    model: claude-haiku-4-5-20251001
+    max_tokens: 512
+    temperature: 0.5
+  document_page_intro:
+    model: claude-haiku-4-5-20251001
+    max_tokens: 512
+    temperature: 0.5
+
+prompts:
+  change_report: l2/change-report
+  change_report_intro: l3/change-report-intro
+  company_main_content: l3/company-main-content
+  company_intro: l4/company-intro-content
+  group_main_content: l3/group-main-content
+  group_intro: l4/group-intro-content
+  filing_main_content: l2/filing-main-content
+  filing_intro: l3/filing-intro-content
+  document_page_intro: l2/document-intro-content
+
+doc_type_prompts:
+  business_description: l1/business_description
+  risk_factors: l1/risk_factors
+  management_discussion: l1/management_discussion
+  controls_procedures: l1/controls_procedures
+  market_risk: l1/market_risk
+
+form_document_types:
+  10-K: [business_description, risk_factors, management_discussion, controls_procedures]
+  10-Q: [risk_factors, management_discussion, controls_procedures, market_risk]

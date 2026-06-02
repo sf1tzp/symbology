@@ -25,6 +25,11 @@
 	--warn: #c97a3a;
 	--danger: #b85543;
 
+	/* ── Document-type accents (change report cards) ── */
+	--blue: #5b82a6;
+	--gold: #b3902f;
+	--plum: #8a6ea0;
+
 	/* ── Font stacks ── */
 	--serif: 'Source Serif 4', 'Iowan Old Style', 'Charter', Georgia, serif;
 	--sans: 'Geist', 'Söhne', ui-sans-serif, system-ui, sans-serif;
@@ -240,7 +245,7 @@
 	}
 	.meta {
 		font-family: var(--mono);
-		font-size: 0.75rem;
+		/* font-size: 0.75rem; */
 		letter-spacing: 0.01em;
 	}
 
@@ -270,6 +275,39 @@
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--ink-3);
+	}
+
+	/* ── Compact stat blocks (metadata cards) ── */
+	.meta-stats {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+		gap: 0.75rem;
+	}
+	.meta-stat {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.meta-stat-value {
+		font-family: var(--serif);
+		font-size: 1.625rem;
+		font-weight: 400;
+		line-height: 1;
+		letter-spacing: -0.02em;
+		color: var(--ink);
+	}
+	.meta-stat-label {
+		font-family: var(--mono);
+		font-size: 0.625rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--ink-4);
+	}
+	.metadata-card {
+		border: 1px solid var(--rule);
+		border-radius: 8px;
+		padding: 1.5rem;
+		background: var(--paper-2);
 	}
 
 	/* ── Tags ── */

@@ -1,0 +1,54 @@
+06a1bd20-0be5-7932-8000-de16855330fb │ filing_page_content  │ ticker=SOFI, form=10-K, year=2025  │ failed │ 1        │ 4/3     │ 2026-05-31 06:15:28 │ 2026-05-31 08:18:09 │ 2026-05-31 08:18:58 │
+5169   │ 2026-05-31T08:17:24.016615Z [error    ] retry_backoff_non_retryable    caller='"symbology/llm/client.py:115"' error=BadRequestError("Error code: 400 - {'error': 'The number of tokens to keep from the initial prompt is greater than the context length (n_keep: 64180>= n_ctx: 32000). Try to load the model wi
+       │ th a larger context length, or provide a shorter input.'}") error_type=BadRequestError function=retry_backoff
+
+---
+
+06a1bd1f-ea82-7045-8000-2cef8d70a5f0 │ filing_page_content  │ ticker=SOFI, form=10-K, year=2024  │ failed │ 1        │ 4/3     │ 2026-05-31 06:15:26 │ 2026-05-31 08:10:08 │ 2026-05-31 08:10:52 │
+4984   │ 2026-05-31T08:09:23.109702Z [error    ] retry_backoff_non_retryable    caller='"symbology/llm/client.py:115"' error=BadRequestError("Error code: 400 - {'error': 'The number of tokens to keep from the initial prompt is greater than the context length (n_keep: 58380>= n_ctx: 32000). Try to load the model wi
+       │ th a larger context length, or provide a shorter input.'}") error_type=BadRequestError function=retry_backoff
+
+---
+
+06a1bd1f-cb8c-76f6-8000-85ff05b522ab │ filing_page_content  │ ticker=SOFI, form=10-K, year=2023  │ failed │ 1        │ 4/3     │ 2026-05-31 06:15:24 │ 2026-05-31 08:02:17 │ 2026-05-31 08:03:09 │
+2026-05-31T08:01:30.400051Z [error    ] retry_backoff_non_retryable    caller='"symbology/llm/client.py:115"' error=BadRequestError("Error code: 400 - {'error': 'The number of tokens to keep from the initial prompt is greater than the context length (n_keep: 56764>= n_ctx: 32000). Try to load the model wi
+       │ th a larger context length, or provide a shorter input.'}") error_type=BadRequestError function=retry_backoff
+       │ he model with a larger context length, or provide a shorter input.'}" filing_id=06a1be4c-1adb-79b1-8000-06696cb21439 function=generate_single_summaries
+
+---
+
+06a1bd1f-ac37-749f-8000-2755483574f3 │ filing_page_content  │ ticker=SOFI, form=10-K, year=2022  │ failed │ 1        │ 4/3     │ 2026-05-31 06:15:22 │ 2026-05-31 07:54:28 │ 2026-05-31 07:55:12 │
+2026-05-31T07:53:43.434855Z [error    ] retry_backoff_non_retryable    caller='"symbology/llm/client.py:115"' error=BadRequestError("Error code: 400 - {'error': 'The number of tokens to keep from the initial prompt is greater than the context length (n_keep: 53577>= n_ctx: 32000). Try to load the model wi
+       │ th a larger context length, or provide a shorter input.'}") error_type=BadRequestError function=retry_backoff
+4616   │ 2026-05-31T07:53:43.438351Z [error    ] job_execution_failed           caller='"symbology/worker/main.py:66"' function=_execute_job job_id=06a1bd1f-ac37-749f-8000-2755483574f3
+
+---
+
+06a1bd1f-8b01-7dcb-8000-73eadc96bf36 │ filing_page_content  │ ticker=SOFI, form=10-K, year=2021  │ failed │ 1        │ 4/3     │ 2026-05-31 06:15:20 │ 2026-05-31 07:45:35 │ 2026-05-31 07:46:36 │
+       │ he model with a larger context length, or provide a shorter input.'}" filing_id=06a1be54-0747-709a-8000-3109d2b897b3 function=generate_single_summaries
+4431   │ 2026-05-31T07:44:52.403003Z [error    ] job_execution_failed           caller='"symbology/worker/main.py:66"' function=_execute_job job_id=06a1bd1f-8b01-7dcb-8000-73eadc96bf36
+
+---
+
+06a1bd20-2c3d-7ebc-8000-e36f48d1edc7 │ company_page_content │ ticker=SOFI, form=10-K, lookback=5
+17790   │ 2026-05-31T17:56:38.735728Z [error    ] job_execution_failed           caller='"symbology/worker/main.py:66"' function=_execute_job job_id=06a1bd20-2c3d-7ebc-8000-e36f48d1edc7
+17791   │ Traceback (most recent call last):
+17792   │   File "/app/symbology/worker/main.py", line 55, in _execute_job
+17793   │     result = handler(job.params or {})
+17794   │   File "/app/symbology/worker/handlers.py", line 763, in handle_company_page_content
+17795   │     page = company_page_content_pipeline(company, lookback=lookback, form=form)
+17796   │   File "/app/symbology/worker/page_pipelines.py", line 343, in company_page_content_pipeline
+17797   │     raise PageContentGenerationError(
+17798   │     ...<3 lines>...
+17799   │     )
+17800   │ symbology.worker.page_pipelines.PageContentGenerationError: 5 of 5 source filings for SOFI lack published filing page content (['06a1be44-4488-7174-8000-726a1b34b960', '06a1be48-51a1-71b6-8000-632e0
+        │ 1c89158', '06a1be4c-1adb-79b1-8000-06696cb21439', '06a1be50-3e22-7910-8000-be6f06ca7e84', '06a1be54-0747-709a-8000-3109d2b897b3']); generate it first
+17801   │ Traceback (most recent call last):
+17802   │   File "/app/symbology/worker/main.py", line 55, in _execute_job
+17803   │     result = handler(job.params or {})
+17804   │   File "/app/symbology/worker/handlers.py", line 763, in handle_company_page_content
+17805   │     page = company_page_content_pipeline(company, lookback=lookback, form=form)
+17806   │   File "/app/symbology/worker/page_pipelines.py", line 343, in company_page_content_pipeline
+17807   │     raise PageContentGenerationError(
+17808   │     ...<3 lines>...
+17809   │     )

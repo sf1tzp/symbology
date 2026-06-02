@@ -113,8 +113,6 @@
 				return 'Filing';
 			case 'generated_content':
 				return 'Analysis';
-			case 'company_group':
-				return 'Group';
 			default:
 				return type;
 		}

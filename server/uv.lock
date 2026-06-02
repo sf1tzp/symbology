@@ -2165,6 +2165,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "safe-result" },
     { name = "sqlalchemy" },
@@ -2200,6 +2201,14 @@ dev = [
     { name = "rich" },
     { name = "seaborn" },
 ]
+runtime = [
+    { name = "boto3" },
+    { name = "click" },
+    { name = "edgartools" },
+    { name = "httpx" },
+    { name = "requests" },
+    { name = "rich" },
+]
 test = [
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -2210,10 +2219,10 @@ test = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.3" },
     { name = "anthropic", specifier = ">=0.52.0" },
-    { name = "boto3", marker = "extra == 'dev'", specifier = ">=1.35.0" },
-    { name = "click", marker = "extra == 'dev'", specifier = ">=8.1.0" },
-    { name = "edgartools", marker = "extra == 'dev'", specifier = ">=5.14.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = "==0.28.1" },
+    { name = "boto3", marker = "extra == 'runtime'", specifier = ">=1.35.0" },
+    { name = "click", marker = "extra == 'runtime'", specifier = ">=8.1.0" },
+    { name = "edgartools", marker = "extra == 'runtime'", specifier = ">=5.14.0" },
+    { name = "httpx", marker = "extra == 'runtime'", specifier = "==0.28.1" },
     { name = "ipywidgets", marker = "extra == 'dev'" },
     { name = "jupyter", marker = "extra == 'dev'" },
     { name = "matplotlib", marker = "extra == 'dev'", specifier = "==3.10.9" },
@@ -2226,17 +2235,19 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.1.1" },
     { name = "pytest-json-report", marker = "extra == 'test'", specifier = ">=1.5.0" },
     { name = "python-dotenv", specifier = "==1.2.2" },
-    { name = "requests", marker = "extra == 'dev'", specifier = ">=2.32.3" },
-    { name = "rich", marker = "extra == 'dev'", specifier = ">=13.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "requests", marker = "extra == 'runtime'", specifier = ">=2.32.3" },
+    { name = "rich", marker = "extra == 'runtime'", specifier = ">=13.0.0" },
     { name = "ruff", specifier = ">=0.15.0" },
     { name = "safe-result" },
     { name = "seaborn", marker = "extra == 'dev'", specifier = "==0.13.2" },
     { name = "sqlalchemy", specifier = "==2.0.49" },
     { name = "structlog", specifier = "==25.5.0" },
     { name = "symbology", extras = ["dev", "test"], marker = "extra == 'all'" },
+    { name = "symbology", extras = ["runtime"], marker = "extra == 'dev'" },
     { name = "uuid7", specifier = "==0.1.0" },
 ]
-provides-extras = ["dev", "test", "all"]
+provides-extras = ["runtime", "dev", "test", "all"]
 
 [[package]]
 name = "tabulate"

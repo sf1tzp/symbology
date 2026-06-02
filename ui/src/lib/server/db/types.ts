@@ -7,7 +7,7 @@ import type { ColumnType } from "kysely";
 
 export type ContentSourceTypeEnum = "both" | "documents" | "generated_content";
 
-export type ContentStageEnum = "aggregate_summary" | "company_group_analysis" | "company_group_frontpage" | "frontpage_summary" | "single_summary";
+export type ContentStageEnum = "aggregate_summary" | "change_report" | "change_report_intro" | "company_group_analysis" | "company_group_frontpage" | "company_intro" | "company_main_content" | "document_page_intro" | "filing_intro" | "filing_main_content" | "frontpage_summary" | "group_intro" | "group_main_content" | "single_summary";
 
 export type DocumentTypeEnum = "business_description" | "controls_procedures" | "directors_officers" | "executive_compensation" | "legal_proceedings" | "management_discussion" | "market_risk" | "risk_factors";
 
@@ -17,7 +17,7 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
 
 export type JobStatusEnum = "cancelled" | "completed" | "failed" | "in_progress" | "pending";
 
-export type JobTypeEnum = "bulk_ingest" | "company_group_pipeline" | "company_ingestion" | "content_generation" | "filing_ingestion" | "full_pipeline" | "ingest_pipeline" | "test";
+export type JobTypeEnum = "backfill_chunks" | "backfill_embeddings" | "bulk_ingest" | "company_group_pipeline" | "company_ingestion" | "content_generation" | "filing_ingestion" | "filing_page_content" | "full_pipeline" | "ingest_pipeline" | "pipeline_fan_in_check" | "pipeline_stage" | "test";
 
 export type Json = JsonValue;
 
@@ -76,6 +76,44 @@ export interface CompanyGroups {
   updated_at: Generated<Timestamp | null>;
 }
 
+export interface CompanyPageContent {
+  company_id: string;
+  created_at: Timestamp | null;
+  id: string;
+  intro_content_id: string | null;
+  main_content_id: string | null;
+}
+
+export interface CompanyPageContentChangeReport {
+  change_report_id: string;
+  change_report_intro_id: string | null;
+  company_page_content_id: string;
+  document_type: DocumentTypeEnum;
+}
+
+export interface CompanyPageContentFiling {
+  company_page_content_id: string;
+  filing_id: string;
+}
+
+export interface DocumentChunks {
+  chunk_index: number;
+  content: string;
+  content_hash: string | null;
+  document_id: string;
+  embedding: string | null;
+  embedding_model: string | null;
+  id: string;
+}
+
+export interface DocumentPageContent {
+  created_at: Timestamp | null;
+  document_id: string;
+  id: string;
+  intro_content_id: string | null;
+  summary_content_id: string | null;
+}
+
 export interface Documents {
   company_id: string;
   content: string | null;
@@ -84,6 +122,19 @@ export interface Documents {
   filing_id: string | null;
   id: string;
   title: string;
+}
+
+export interface FilingPageContent {
+  created_at: Timestamp | null;
+  filing_id: string;
+  id: string;
+  intro_content_id: string | null;
+  main_content_id: string | null;
+}
+
+export interface FilingPageContentDocument {
+  document_id: string;
+  filing_page_content_id: string;
 }
 
 export interface Filings {
@@ -121,8 +172,11 @@ export interface GeneratedContent {
   content_stage: ContentStageEnum | null;
   created_at: Timestamp;
   description: string | null;
+  document_id: string | null;
   document_type: DocumentTypeEnum | null;
+  filing_id: string | null;
   form_type: string | null;
+  generation_depth: number | null;
   id: string;
   input_tokens: number | null;
   model_config_id: string | null;
@@ -136,6 +190,16 @@ export interface GeneratedContent {
   warning: string | null;
 }
 
+export interface GeneratedContentChunks {
+  chunk_index: number;
+  content: string;
+  content_hash: string | null;
+  embedding: string | null;
+  embedding_model: string | null;
+  generated_content_id: string;
+  id: string;
+}
+
 export interface GeneratedContentDocumentAssociation {
   document_id: string;
   generated_content_id: string;
@@ -146,6 +210,19 @@ export interface GeneratedContentSourceAssociation {
   parent_content_id: string;
   relationship_type: string | null;
   source_content_id: string;
+}
+
+export interface GroupPageContent {
+  company_group_id: string;
+  created_at: Timestamp | null;
+  id: string;
+  intro_content_id: string | null;
+  main_content_id: string | null;
+}
+
+export interface GroupPageContentCompany {
+  company_id: string;
+  group_page_content_id: string;
 }
 
 export interface Jobs {
@@ -212,13 +289,23 @@ export interface DB {
   companies: Companies;
   company_group_membership: CompanyGroupMembership;
   company_groups: CompanyGroups;
+  company_page_content: CompanyPageContent;
+  company_page_content_change_report: CompanyPageContentChangeReport;
+  company_page_content_filing: CompanyPageContentFiling;
+  document_chunks: DocumentChunks;
+  document_page_content: DocumentPageContent;
   documents: Documents;
+  filing_page_content: FilingPageContent;
+  filing_page_content_document: FilingPageContentDocument;
   filings: Filings;
   financial_concepts: FinancialConcepts;
   financial_values: FinancialValues;
   generated_content: GeneratedContent;
+  generated_content_chunks: GeneratedContentChunks;
   generated_content_document_association: GeneratedContentDocumentAssociation;
   generated_content_source_association: GeneratedContentSourceAssociation;
+  group_page_content: GroupPageContent;
+  group_page_content_company: GroupPageContentCompany;
   jobs: Jobs;
   model_configs: ModelConfigs;
   pipeline_runs: PipelineRuns;

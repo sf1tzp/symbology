@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { CircleQuestionMark } from '@lucide/svelte';
+	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 	import type {
 		HeroStats,
@@ -20,6 +22,12 @@
 	import StatusNav from '$lib/components/status/StatusNav.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	// Self-hosting brag — surfaced via the spend tooltip.
+	const HOST_SPECS =
+		'The majority of content is generated on consumer hardware ' +
+		'(Apple M3 Macbook Air 24GB, Nvidia 3060 12GB), which we estimate ~$0.02/hr of compute. ' +
+		'Self-hosted generations are metered by compute time at that rate; Claude API calls are counted at Anthropic per-token rates.';
 
 	// Mutable state for polling
 	let hero = $state<HeroStats | null>(data.hero);
@@ -101,6 +109,17 @@
 		if (p >= 5) return 'var(--ink-2)';
 		return 'var(--ink-4)';
 	}
+
+	// Compact duration: 42s · 18min42s · 1h18min
+	function formatDuration(seconds: number): string {
+		const s = Math.round(seconds);
+		if (s < 60) return `${s}s`;
+		const h = Math.floor(s / 3600);
+		const m = Math.floor((s % 3600) / 60);
+		const rem = s % 60;
+		if (h > 0) return m > 0 ? `${h}h${m}min` : `${h}h`;
+		return rem > 0 ? `${m}min${rem}s` : `${m}min`;
+	}
 </script>
 
 <svelte:head>
@@ -143,234 +162,44 @@
 	</div>
 	{#if hero}
 		<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;">
-			<div class="stat" style="padding: 1rem 0;">
-				<span class="stat-label">Filings &middot; 24h</span>
-				<span class="stat-value" style="font-size: 2rem;">{hero.filings24h}</span>
-			</div>
-			<div class="stat" style="padding: 1rem 0;">
-				<span class="stat-label">Generations &middot; 24h</span>
-				<span class="stat-value" style="font-size: 2rem;">{hero.generations24h}</span>
-			</div>
-			<div class="stat" style="padding: 1rem 0;">
-				<span class="stat-label">Queue depth</span>
-				<span class="stat-value" style="font-size: 2rem;">{hero.queueDepth}</span>
-			</div>
-			<div class="stat" style="padding: 1rem 0; border-top: 1px solid var(--rule);">
+			<div class="stat" style="padding: 1rem 0; ">
 				<span class="stat-label">Workers online</span>
-				<span class="stat-value" style="font-size: 2rem;"
-					>{hero.workersOnline} / {hero.totalWorkerSlots}</span
-				>
+				<span class="stat-value" style="font-size: 2rem;">{hero.workersOnline} </span>
+			</div>
+			<div class="stat" style="padding: 1rem 0;">
+				<span class="stat-label">Completed jobs &middot; 12hr</span>
+				<span class="stat-value" style="font-size: 2rem;">{hero.completedCount}</span>
+			</div>
+			<div class="stat" style="padding: 1rem 0;">
+				<span class="stat-label">p95 job duration</span>
+				<span class="stat-value" style="font-size: 2rem;">
+					{hero.p95JobDuration != null ? formatDuration(hero.p95JobDuration) : '—'}
+				</span>
 			</div>
 			<div class="stat" style="padding: 1rem 0; border-top: 1px solid var(--rule);">
-				<span class="stat-label">LLM spend &middot; 24h</span>
-				<span class="stat-value" style="font-size: 2rem;">${hero.llmSpend24h.toFixed(2)}</span>
+				<span class="stat-label flex items-center gap-1">
+					LLM spend &middot; 12hr
+					<span
+						class="spec-help"
+						title={HOST_SPECS}
+						style="display: inline-flex; align-items: center; color: var(--ink-4); cursor: help;"
+					>
+						<CircleQuestionMark style="width: 11px; height: 11px;" />
+					</span>
+				</span>
+				<span class="stat-value" style="font-size: 2rem;">${hero.llmSpend.toFixed(2)}</span>
 				<span class="meta" style="color: var(--ink-3);">${hero.avgCostPerGen.toFixed(3)} / gen</span
 				>
 			</div>
 			<div class="stat" style="padding: 1rem 0; border-top: 1px solid var(--rule);">
-				<span class="stat-label">p95 latency</span>
+				<span class="stat-label">Generations &middot; 12hr</span>
+				<span class="stat-value" style="font-size: 2rem;">{hero.generationsCount}</span>
+			</div>
+			<div class="stat" style="padding: 1rem 0; border-top: 1px solid var(--rule);">
+				<span class="stat-label">p95 LLM latency</span>
 				<span class="stat-value" style="font-size: 2rem;">
 					{hero.p95Latency != null ? `${hero.p95Latency}s` : '—'}
 				</span>
-			</div>
-		</div>
-	{/if}
-</section>
-
-<!-- ═══════════ INGESTION ═══════════ -->
-<section class="hairline-section" id="ingestion">
-	<div class="flex-between" style="align-items: flex-end; margin-bottom: 1.75rem;">
-		<div>
-			<div class="eyebrow" style="margin-bottom: 0.625rem;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;EDGAR INGESTION
-			</div>
-			<h2 class="section-heading">Filings, in by form type.</h2>
-		</div>
-	</div>
-
-	{#if ingestionDays.length > 0}
-		<div class="status-card" style="padding: 1.75rem;">
-			<StackedColumns
-				data={ingestionDays}
-				segments={['k', 'q', '_8k', 'other']}
-				colors={['var(--teal-2)', 'var(--olive)', 'var(--ink-2)', 'var(--ink-4)']}
-				height={220}
-			/>
-			<div
-				style="display: flex; gap: 1.75rem; margin-top: 0.875rem; padding-top: 1.125rem; border-top: 1px solid var(--rule); flex-wrap: wrap;"
-			>
-				{#each [{ c: 'var(--teal-2)', l: '10-K', v: ingestionTotals.k }, { c: 'var(--olive)', l: '10-Q', v: ingestionTotals.q }, { c: 'var(--ink-2)', l: '8-K', v: ingestionTotals._8k }, { c: 'var(--ink-4)', l: 'Other', v: ingestionTotals.other }] as legend (legend.l)}
-					<span class="meta" style="display: flex; align-items: center; gap: 0.5rem;">
-						<span style="width: 10px; height: 10px; background: {legend.c}; border-radius: 2px;"
-						></span>
-						{legend.l} &middot; <span style="color: var(--ink);">{legend.v}</span>
-					</span>
-				{/each}
-				<span class="meta" style="margin-left: auto;">Source: EDGAR full-index</span>
-			</div>
-		</div>
-	{/if}
-
-	<!-- Recent pulls table -->
-	{#if recentFilings.length > 0}
-		<div style="margin-top: 2.25rem;">
-			<div class="flex-between" style="margin-bottom: 0.875rem; align-items: baseline;">
-				<h3 class="sub">Recent filings</h3>
-				<span class="meta">Showing {recentFilings.length}</span>
-			</div>
-			<div class="status-card">
-				<table class="status-table">
-					<thead>
-						<tr>
-							<th>Time</th>
-							<th>CIK</th>
-							<th>Company</th>
-							<th>Form</th>
-							<th style="text-align: right;">Docs</th>
-							<th style="text-align: right;">Status</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each recentFilings as r, i (i)}
-							<tr class:last={i === recentFilings.length - 1}>
-								<td class="mono-cell">{r.time}</td>
-								<td class="mono-cell">{r.cik ?? '—'}</td>
-								<td class="serif-cell">{r.company}</td>
-								<td><span class="tag" style="font-size: 0.6875rem;">{r.form}</span></td>
-								<td class="mono-cell" style="text-align: right;">{r.docCount || '—'}</td>
-								<td style="text-align: right;">
-									<span
-										class="status-badge"
-										class:status-ok={r.status === 'indexed'}
-										class:status-idle={r.status !== 'indexed'}
-									>
-										<StatusDot kind={r.status === 'indexed' ? 'ok' : 'idle'} size={6} />
-										{r.status}
-									</span>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		</div>
-	{/if}
-</section>
-
-<!-- ═══════════ GENERATED CONTENT ═══════════ -->
-<section class="hairline-section" id="generations">
-	<div class="flex-between" style="align-items: flex-end; margin-bottom: 1.75rem;">
-		<div>
-			<div class="eyebrow" style="margin-bottom: 0.625rem;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;LLM PIPELINE
-			</div>
-			<h2 class="section-heading">Generated content, by kind.</h2>
-		</div>
-	</div>
-
-	<div class="grid-2" style="align-items: start; gap: 1.5rem;">
-		<!-- Breakdown -->
-		{#if contentBreakdown.length > 0}
-			<div class="status-card" style="padding: 1.75rem;">
-				<div class="flex-between" style="margin-bottom: 1.125rem;">
-					<h3 class="sub">Mix &middot; last 24h</h3>
-					<span class="meta">{hero?.generations24h ?? 0} total</span>
-				</div>
-				<div style="display: flex; flex-direction: column; gap: 0.875rem;">
-					{#each contentBreakdown as r (r.kind)}
-						<div
-							style="display: grid; grid-template-columns: 1fr 60px 50px 50px; gap: 1rem; align-items: center;"
-						>
-							<div>
-								<div style="font-size: 0.84375rem; color: var(--ink); margin-bottom: 0.25rem;">
-									{r.kind}
-								</div>
-								<Bar value={r.count} max={maxBreakdownCount} color="var(--teal-2)" />
-							</div>
-							<span class="mono-sm" style="text-align: right;">{r.count}</span>
-							<span class="mono-sm muted" style="text-align: right;">{r.avgLatency}</span>
-							<span class="mono-sm" style="text-align: right; color: var(--ink-3);"
-								>{r.avgCost}</span
-							>
-						</div>
-					{/each}
-				</div>
-				<div
-					class="flex-between"
-					style="margin-top: 1.125rem; padding-top: 0.875rem; border-top: 1px solid var(--rule);"
-				>
-					<span class="meta" style="color: var(--ink-4);"
-						>count &middot; avg latency &middot; avg cost</span
-					>
-				</div>
-			</div>
-		{/if}
-
-		<!-- Throughput chart -->
-		{#if contentThroughput.length > 0}
-			<div class="status-card" style="padding: 1.75rem;">
-				<div class="flex-between" style="margin-bottom: 1.125rem;">
-					<h3 class="sub">Throughput &middot; 14 days</h3>
-					<span class="meta">avg {throughputAvg} / day</span>
-				</div>
-				<AreaChart data={contentThroughput} color="var(--teal-2)" height={180} />
-			</div>
-		{/if}
-	</div>
-
-	<!-- Generation log -->
-	{#if contentLog.length > 0}
-		<div style="margin-top: 2.25rem;">
-			<div class="flex-between" style="margin-bottom: 0.875rem; align-items: baseline;">
-				<h3 class="sub">Generation log</h3>
-				<span class="meta" style="display: inline-flex; align-items: center; gap: 0.5rem;">
-					<BlinkDot color="var(--teal-2)" /> streaming &middot; {contentLog.length} recent
-				</span>
-			</div>
-			<div class="status-card">
-				<table class="status-table">
-					<thead>
-						<tr>
-							<th>Time</th>
-							<th>Kind</th>
-							<th>Target</th>
-							<th>Model</th>
-							<th style="text-align: right;">Tok in / out</th>
-							<th style="text-align: right;">Lat</th>
-							<th style="text-align: right;">Cost</th>
-							<th style="text-align: right;">Status</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each contentLog as r, i (i)}
-							<tr class:last={i === contentLog.length - 1} class:row-fail={r.status === 'fail'}>
-								<td class="mono-cell">{r.time}</td>
-								<td style="font-size: 0.8125rem; color: var(--ink-2);">{r.kind}</td>
-								<td class="serif-cell">{r.target}</td>
-								<td class="mono-cell" style="font-size: 0.71875rem;">{r.model}</td>
-								<td class="mono-cell" style="text-align: right;">
-									{r.tokensIn.toLocaleString()} / {r.tokensOut.toLocaleString()}
-								</td>
-								<td class="mono-cell" style="text-align: right;">{r.latency}</td>
-								<td class="mono-cell" style="text-align: right;">{r.cost}</td>
-								<td style="text-align: right;">
-									<span
-										class="status-badge"
-										class:status-ok={r.status === 'ok'}
-										class:status-err={r.status === 'fail'}
-										class:status-warn={r.status === 'retry'}
-									>
-										<StatusDot
-											kind={r.status === 'ok' ? 'ok' : r.status === 'fail' ? 'err' : 'warn'}
-											size={6}
-										/>
-										{r.status}
-									</span>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
 			</div>
 		</div>
 	{/if}
@@ -407,7 +236,7 @@
 					<span class="meta">{totalPending} pending &middot; {queueStats.running} running</span>
 				</div>
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem;">
-					{#each [{ k: 'Running', v: queueStats.running, c: '#3d8bff', sub: 'of worker slots' }, { k: 'Queued', v: queueStats.queued, c: 'var(--ink-2)', sub: 'FIFO within priority' }, { k: 'Backoff', v: queueStats.backoff, c: 'var(--warn)', sub: 'exp retry' }, { k: 'Failed · 24h', v: queueStats.failed24h, c: 'var(--danger)', sub: 'dead-letter' }] as s (s.k)}
+					{#each [{ k: 'Running', v: queueStats.running, c: '#3d8bff', sub: '' }, { k: 'Queued', v: queueStats.queued, c: 'var(--ink-2)', sub: 'FIFO within priority' }, { k: 'Scheduled', v: queueStats.backoff, c: 'var(--warn)', sub: 'Not Implemented' }, { k: 'Failed · 24h', v: queueStats.failed24h, c: 'var(--danger)', sub: 'dead-letter' }] as s (s.k)}
 						<div
 							style="padding: 1rem 1.125rem; border: 1px solid var(--rule); border-radius: 10px;"
 						>
@@ -443,10 +272,11 @@
 						<th style="width: 24px; text-align: center;"></th>
 						<th>Job ID</th>
 						<th>Kind</th>
+						<th>Company</th>
 						<th>Target</th>
 						<th style="text-align: right;">Try</th>
 						<th style="text-align: right;">Worker</th>
-						<th style="text-align: right;">Age</th>
+						<th style="text-align: right;">Runtime</th>
 						<th style="text-align: right;">State</th>
 					</tr>
 				</thead>
@@ -462,6 +292,7 @@
 							</td>
 							<td class="mono-cell">{j.id}</td>
 							<td class="mono-cell" style="color: var(--ink-2);">{j.kind}</td>
+							<td class="mono-cell">{j.company}</td>
 							<td class="serif-cell">{j.target}</td>
 							<td
 								class="mono-cell"
@@ -472,7 +303,7 @@
 								{j.attempt}
 							</td>
 							<td class="mono-cell" style="text-align: right;">{j.workerId}</td>
-							<td class="mono-cell" style="text-align: right;">{j.age}</td>
+							<td class="mono-cell" style="text-align: right;">{j.runtime}</td>
 							<td style="text-align: right;">
 								{#if j.state === 'running'}
 									<span class="status-badge" style="color: #3d8bff;">
@@ -492,6 +323,140 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
+	{/if}
+</section>
+
+<!-- ═══════════ GENERATED CONTENT ═══════════ -->
+<section class="hairline-section" id="generations">
+	<div class="flex-between" style="align-items: flex-end; margin-bottom: 1.75rem;">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.625rem;">
+				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;LLM PIPELINE
+			</div>
+			<h2 class="section-heading">Generated content, by kind.</h2>
+		</div>
+	</div>
+
+	<div class="grid-2" style="align-items: start; gap: 1.5rem;">
+		<!-- Breakdown -->
+		{#if contentBreakdown.length > 0}
+			<div class="status-card" style="padding: 1.75rem;">
+				<div class="flex-between" style="margin-bottom: 1.125rem;">
+					<h3 class="sub">Mix &middot; last 24h</h3>
+					<span class="meta">{contentBreakdown.reduce((s, r) => s + r.count, 0)} total</span>
+				</div>
+				<div style="display: flex; flex-direction: column; gap: 0.875rem;">
+					{#each contentBreakdown as r (r.kind)}
+						<div
+							style="display: grid; grid-template-columns: 1fr 60px 50px 50px; gap: 1rem; align-items: center;"
+						>
+							<div>
+								<div style="font-size: 0.84375rem; color: var(--ink); margin-bottom: 0.25rem;">
+									{r.kind}
+								</div>
+								<Bar value={r.count} max={maxBreakdownCount} color="var(--teal-2)" />
+							</div>
+							<span class="mono-sm" style="text-align: right;">{r.count}</span>
+							<span class="mono-sm muted" style="text-align: right;">{r.avgLatency}</span>
+							<span class="mono-sm" style="text-align: right; color: var(--ink-3);"
+								>{r.totalCost}</span
+							>
+						</div>
+					{/each}
+				</div>
+				<div
+					class="flex-between"
+					style="margin-top: 1.125rem; padding-top: 0.875rem; border-top: 1px solid var(--rule);"
+				>
+					<span class="meta" style="color: var(--ink-4);"
+						>count &middot; avg latency &middot; total cost · 24h</span
+					>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Throughput chart -->
+		{#if contentThroughput.length > 0}
+			<div class="status-card" style="padding: 1.75rem;">
+				<div class="flex-between" style="margin-bottom: 1.125rem;">
+					<h3 class="sub">Throughput &middot; 14 days</h3>
+					<span class="meta">avg {throughputAvg} / day</span>
+				</div>
+				<AreaChart data={contentThroughput} color="var(--teal-2)" height={180} />
+			</div>
+		{/if}
+	</div>
+
+	<!-- Generation log -->
+	{#if contentLog.length > 0}
+		<div style="margin-top: 2.25rem;">
+			<div class="flex-between" style="margin-bottom: 0.875rem; align-items: baseline;">
+				<h3 class="sub">Generation log</h3>
+				<span class="meta" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+					<BlinkDot color="var(--teal-2)" /> streaming &middot; {contentLog.length} recent
+				</span>
+			</div>
+			<div class="status-card">
+				<table class="status-table">
+					<thead>
+						<tr>
+							<th>Time</th>
+							<th>Kind</th>
+							<th>Company</th>
+							<th>Context</th>
+							<th>Model</th>
+							<th style="text-align: right;">Tok in / out</th>
+							<th style="text-align: right;">Lat</th>
+							<th style="text-align: right;">Cost</th>
+							<th style="text-align: right;">Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each contentLog as r, i (i)}
+							<tr
+								class:last={i === contentLog.length - 1}
+								class:row-fail={r.status === 'fail'}
+								class:linked={!!r.href}
+								role={r.href ? 'link' : undefined}
+								tabindex={r.href ? 0 : undefined}
+								onclick={() => r.href && goto(r.href)}
+								onkeydown={(e) => {
+									if (r.href && (e.key === 'Enter' || e.key === ' ')) {
+										e.preventDefault();
+										goto(r.href);
+									}
+								}}
+							>
+								<td class="mono-cell">{r.time}</td>
+								<td style="font-size: 0.8125rem; color: var(--ink-2);">{r.kind}</td>
+								<td class="mono-cell">{r.company}</td>
+								<td class="serif-cell">{r.context}</td>
+								<td class="mono-cell" style="font-size: 0.71875rem;">{r.model}</td>
+								<td class="mono-cell" style="text-align: right;">
+									{r.tokensIn.toLocaleString()} / {r.tokensOut.toLocaleString()}
+								</td>
+								<td class="mono-cell" style="text-align: right;">{r.latency}</td>
+								<td class="mono-cell" style="text-align: right;">{r.cost}</td>
+								<td style="text-align: right;">
+									<span
+										class="status-badge"
+										class:status-ok={r.status === 'ok'}
+										class:status-err={r.status === 'fail'}
+										class:status-warn={r.status === 'retry'}
+									>
+										<StatusDot
+											kind={r.status === 'ok' ? 'ok' : r.status === 'fail' ? 'err' : 'warn'}
+											size={6}
+										/>
+										{r.status}
+									</span>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 		</div>
 	{/if}
 </section>
@@ -590,6 +555,86 @@
 	</section>
 {/if}
 
+<!-- ═══════════ INGESTION ═══════════ -->
+<section class="hairline-section" id="ingestion">
+	<div class="flex-between" style="align-items: flex-end; margin-bottom: 1.75rem;">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.625rem;">
+				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;EDGAR INGESTION
+			</div>
+			<h2 class="section-heading">Filings, in by form type.</h2>
+		</div>
+	</div>
+
+	{#if ingestionDays.length > 0}
+		<div class="status-card" style="padding: 1.75rem;">
+			<StackedColumns
+				data={ingestionDays}
+				segments={['k', 'q', '_8k', 'other']}
+				colors={['var(--teal-2)', 'var(--olive)', 'var(--ink-2)', 'var(--ink-4)']}
+				height={220}
+			/>
+			<div
+				style="display: flex; gap: 1.75rem; margin-top: 0.875rem; padding-top: 1.125rem; border-top: 1px solid var(--rule); flex-wrap: wrap;"
+			>
+				{#each [{ c: 'var(--teal-2)', l: '10-K', v: ingestionTotals.k }, { c: 'var(--olive)', l: '10-Q', v: ingestionTotals.q }, { c: 'var(--ink-2)', l: '8-K', v: ingestionTotals._8k }, { c: 'var(--ink-4)', l: 'Other', v: ingestionTotals.other }] as legend (legend.l)}
+					<span class="meta" style="display: flex; align-items: center; gap: 0.5rem;">
+						<span style="width: 10px; height: 10px; background: {legend.c}; border-radius: 2px;"
+						></span>
+						{legend.l} &middot; <span style="color: var(--ink);">{legend.v}</span>
+					</span>
+				{/each}
+				<span class="meta" style="margin-left: auto;">Source: EDGAR full-index</span>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Recent pulls table -->
+	{#if recentFilings.length > 0}
+		<div style="margin-top: 2.25rem;">
+			<div class="flex-between" style="margin-bottom: 0.875rem; align-items: baseline;">
+				<h3 class="sub">Recent filings</h3>
+				<span class="meta">Showing {recentFilings.length}</span>
+			</div>
+			<div class="status-card">
+				<table class="status-table">
+					<thead>
+						<tr>
+							<th>Time</th>
+							<th>CIK</th>
+							<th>Company</th>
+							<th>Form</th>
+							<th style="text-align: right;">Docs</th>
+							<th style="text-align: right;">Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each recentFilings as r, i (i)}
+							<tr class:last={i === recentFilings.length - 1}>
+								<td class="mono-cell">{r.time}</td>
+								<td class="mono-cell">{r.cik ?? '—'}</td>
+								<td class="serif-cell">{r.company}</td>
+								<td><span class="tag" style="font-size: 0.6875rem;">{r.form}</span></td>
+								<td class="mono-cell" style="text-align: right;">{r.docCount || '—'}</td>
+								<td style="text-align: right;">
+									<span
+										class="status-badge"
+										class:status-ok={r.status === 'indexed'}
+										class:status-idle={r.status !== 'indexed'}
+									>
+										<StatusDot kind={r.status === 'indexed' ? 'ok' : 'idle'} size={6} />
+										{r.status}
+									</span>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	{/if}
+</section>
+
 <!-- ═══════════ FOOTER ═══════════ -->
 <footer
 	style="margin-top: 5rem; padding-top: 1.75rem; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; color: var(--ink-4);"
@@ -630,6 +675,12 @@
 	}
 	.status-table tbody tr.last {
 		border-bottom: 0;
+	}
+	.status-table tbody tr.linked {
+		cursor: pointer;
+	}
+	.status-table tbody tr.linked:hover {
+		background: var(--sage-2);
 	}
 
 	/* ── Cell helpers ── */

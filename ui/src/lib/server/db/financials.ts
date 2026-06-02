@@ -4,7 +4,8 @@ import type { FinancialComparisonResponse } from '$lib/api-types';
 export async function getFinancialComparison(
 	ticker: string,
 	statementType?: string,
-	periods: number = 5
+	periods: number = 5,
+	form?: string
 ): Promise<FinancialComparisonResponse | null> {
 	const company = await db
 		.selectFrom('companies')
@@ -14,13 +15,17 @@ export async function getFinancialComparison(
 
 	if (!company) return null;
 
-	// Get distinct value_date periods, newest first
+	// Get distinct value_date periods, newest first. When a form is given, only
+	// consider values tied to filings of that form (e.g. annual 10-K figures).
 	const periodRows = await db
-		.selectFrom('financial_values')
-		.select('value_date')
+		.selectFrom('financial_values as fv')
+		.select('fv.value_date')
 		.distinct()
-		.where('company_id', '=', company.id)
-		.orderBy('value_date', 'desc')
+		.where('fv.company_id', '=', company.id)
+		.$if(!!form, (qb) =>
+			qb.innerJoin('filings as f', 'f.id', 'fv.filing_id').where('f.form', '=', form!)
+		)
+		.orderBy('fv.value_date', 'desc')
 		.limit(periods)
 		.execute();
 
@@ -35,7 +40,10 @@ export async function getFinancialComparison(
 		.innerJoin('financial_concepts as fc', 'fc.id', 'fv.concept_id')
 		.select(['fc.name as concept_name', 'fc.description', 'fc.labels', 'fv.value_date', 'fv.value'])
 		.where('fv.company_id', '=', company.id)
-		.where('fv.value_date', 'in', periodValues);
+		.where('fv.value_date', 'in', periodValues)
+		.$if(!!form, (qb) =>
+			qb.innerJoin('filings as f', 'f.id', 'fv.filing_id').where('f.form', '=', form!)
+		);
 
 	// TODO: statementType filter would require array containment operator
 	// For now this matches the Python behavior when no filter is applied

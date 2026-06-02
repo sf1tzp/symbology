@@ -1,13 +1,16 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import SynthesisHelp from './SynthesisHelp.svelte';
 
 	interface Props {
 		eyebrow?: string;
 		heading: string;
 		aside?: Snippet;
+		/** Show a (?) glyph after the eyebrow linking to the synthesis-levels FAQ. */
+		synthesisHelp?: boolean;
 		class?: string;
 	}
-	let { eyebrow, heading, aside, class: className = '' }: Props = $props();
+	let { eyebrow, heading, aside, synthesisHelp = false, class: className = '' }: Props = $props();
 </script>
 
 <header
@@ -16,8 +19,9 @@
 >
 	<div>
 		{#if eyebrow}
-			<div class="eyebrow" style="margin-bottom: 10px;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{eyebrow}
+			<div class="eyebrow flex" style="margin-bottom: 10px; align-items: center;">
+				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{eyebrow}&nbsp;
+				{#if synthesisHelp}<SynthesisHelp />{/if}
 			</div>
 		{/if}
 		<h2 class="section-heading">{heading}</h2>

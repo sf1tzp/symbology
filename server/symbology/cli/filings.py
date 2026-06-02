@@ -3,6 +3,7 @@
 import json
 import logging
 import sys
+from uuid import UUID
 
 import click
 from rich.console import Console
@@ -10,7 +11,11 @@ from rich.panel import Panel
 from rich.table import Table
 from symbology.database.base import get_db_session
 from symbology.database.companies import get_company_by_ticker
-from symbology.database.filings import get_filing_by_accession_number, get_filings_by_company
+from symbology.database.filings import (
+    get_filing,
+    get_filing_by_accession_number,
+    get_filings_by_company,
+)
 from symbology.ingestion.edgar_db.accessors import edgar_login
 import symbology.ingestion.ingestion_helpers as ih
 from symbology.utils.config import settings
@@ -192,10 +197,13 @@ def list_filings(ticker: str, form: str, output: str):
 
 
 @filings.command('get')
-@click.argument('accession_number')
+@click.argument('identifier')
 @click.option('-o', '--output', type=click.Choice(['table', 'json']), default='table', help='Output format')
-def get_filing(accession_number: str, output: str):
-    """Get detailed information about a specific filing."""
+def get_filing_cmd(identifier: str, output: str):
+    """Get detailed information about a specific filing.
+
+    IDENTIFIER may be either a filing UUID or an accession number.
+    """
 
     # For JSON output, temporarily suppress INFO level logs to avoid interference with JSON parsing
     if output == 'json':
@@ -208,14 +216,22 @@ def get_filing(accession_number: str, output: str):
 
     try:
         _ = init_session()
-        filing = get_filing_by_accession_number(accession_number)
+
+        # Accept either a filing UUID or an accession number. A UUID parses
+        # cleanly; anything else is treated as an accession number.
+        try:
+            filing_uuid = UUID(identifier)
+        except ValueError:
+            filing_uuid = None
+
+        filing = get_filing(filing_uuid) if filing_uuid else get_filing_by_accession_number(identifier)
 
         if not filing:
             if output == 'json':
-                error_data = {"error": f"Filing with accession number '{accession_number}' not found"}
+                error_data = {"error": f"Filing '{identifier}' not found"}
                 click.echo(json.dumps(error_data))
             else:
-                console.print(f"[red]Error: Filing with accession number '{accession_number}' not found[/red]")
+                console.print(f"[red]Error: Filing '{identifier}' not found[/red]")
             sys.exit(1)
 
         if output == 'json':

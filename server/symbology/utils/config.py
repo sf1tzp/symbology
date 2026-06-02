@@ -61,7 +61,12 @@ class OpenAISettings(BaseSettings):
         default=32, description="Max inputs per embeddings request"
     )
     request_timeout: float = Field(
-        default=60.0, description="Per-request timeout in seconds"
+        default=60.0, description="Per-request timeout in seconds (embeddings)"
+    )
+    chat_request_timeout: float = Field(
+        default=1200.0,
+        description="Per-request timeout (s) for chat completions; long because "
+        "local generation can take minutes",
     )
     retry_timeout: float = Field(
         default=600.0, description="Total seconds to keep retrying on failure"
@@ -71,6 +76,61 @@ class OpenAISettings(BaseSettings):
     chunk_size: int = Field(default=2000, description="Target chunk size in characters")
     chunk_overlap: int = Field(
         default=200, description="Overlap between consecutive chunks in characters"
+    )
+
+    # Dynamic context sizing (LM Studio model load API). When enabled, the chat
+    # client (re)loads the served model with a context window sized to each
+    # request, so oversized filing sections (e.g. risk_factors) don't overflow a
+    # fixed window and abort the pipeline with a non-retryable 4xx.
+    manage_context: bool = Field(
+        default=True,
+        description="(Re)load the model with a per-request context window via the "
+        "LM Studio model-load API before each OpenAI-provider call",
+    )
+    management_path: str = Field(
+        default="/api/v1",
+        description="Base path of LM Studio's management API (hosts /models/load)",
+    )
+    context_min: int = Field(
+        default=4096, description="Smallest context window to ever load (tokens)"
+    )
+    context_max: int = Field(
+        default=128000,
+        description="Largest context window the hardware can serve (tokens); "
+        "requests are clamped to this ceiling",
+    )
+    context_bucket: int = Field(
+        default=4096,
+        description="Round the required context up to this multiple so similar "
+        "request sizes reuse one loaded window instead of reloading",
+    )
+    chars_per_token: float = Field(
+        default=3.5,
+        description="Heuristic chars-per-token used to estimate prompt size "
+        "(conservatively low to over-estimate tokens)",
+    )
+    context_safety_margin: float = Field(
+        default=1.15,
+        description="Multiplier on estimated prompt+output tokens for headroom",
+    )
+    model_load_timeout: float = Field(
+        default=300.0,
+        description="Per-request timeout (s) for a model-load call (loading a "
+        "large context can take a while)",
+    )
+
+    # Overflow offload to Anthropic. Prompts above this estimated token size are
+    # both slow to serve locally and risk overflowing even a dynamically-sized
+    # window, so route them to a (large-context) Anthropic model instead.
+    overflow_threshold_tokens: int = Field(
+        default=32000,
+        description="Estimated prompt tokens above which a local request is "
+        "offloaded to Anthropic; 0 disables offload",
+    )
+    overflow_model: str = Field(
+        default="claude-sonnet-4-6",
+        description="Anthropic model to offload oversized prompts to; empty "
+        "falls back to ANTHROPIC_DEFAULT_MODEL",
     )
 
     # model_config refers to the Pydanic Model (not an LLM model)
@@ -83,6 +143,11 @@ class OpenAISettings(BaseSettings):
     def base_url(self) -> str:
         """Construct the OpenAI-compatible base URL (with /v1 suffix)."""
         return f"http://{self.api_host}:{self.api_port}/v1"
+
+    @property
+    def management_url(self) -> str:
+        """Base URL of LM Studio's management API (e.g. the model-load endpoint)."""
+        return f"http://{self.api_host}:{self.api_port}{self.management_path}"
 
 
 class LoggingSettings(BaseSettings):

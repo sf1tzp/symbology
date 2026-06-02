@@ -25,7 +25,7 @@
 	:global(.prose p) {
 		margin-bottom: 1rem;
 		line-height: 1.7;
-		color: hsl(var(--foreground));
+		color: var(--ink-2);
 	}
 
 	:global(.prose p:last-child) {
@@ -38,11 +38,13 @@
 	:global(.prose h4),
 	:global(.prose h5),
 	:global(.prose h6) {
-		margin-top: 1.5rem;
+		margin-top: 1.75rem;
 		margin-bottom: 0.75rem;
-		color: hsl(var(--foreground));
-		font-weight: 600;
-		line-height: 1.3;
+		font-family: var(--serif);
+		color: var(--ink);
+		font-weight: 500;
+		line-height: 1.25;
+		letter-spacing: -0.015em;
 	}
 
 	:global(.prose h1:first-child),
@@ -56,14 +58,32 @@
 
 	:global(.prose h1) {
 		font-size: 1.875rem;
-		border-bottom: 2px solid hsl(var(--border));
+		border-bottom: 1px solid var(--rule);
 		padding-bottom: 0.5rem;
 	}
 
 	:global(.prose h2) {
 		font-size: 1.5rem;
-		border-bottom: 1px solid hsl(var(--border));
+		border-bottom: 1px solid var(--rule);
 		padding-bottom: 0.25rem;
+	}
+
+	/* Teal accent marker before lower-level headings for a touch of color */
+	:global(.prose h3),
+	:global(.prose h4) {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+	}
+	:global(.prose h3::before),
+	:global(.prose h4::before) {
+		content: '';
+		flex: none;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--teal-2);
+		transform: translateY(-2px);
 	}
 
 	:global(.prose h3) {
@@ -80,13 +100,14 @@
 
 	:global(.prose h6) {
 		font-size: 0.875rem;
-		color: hsl(var(--muted-foreground));
+		color: var(--ink-3);
 	}
 
 	:global(.prose ul),
 	:global(.prose ol) {
 		margin: 1rem 0;
 		padding-left: 1.5rem;
+		color: var(--ink-2);
 	}
 
 	:global(.prose li) {
@@ -94,9 +115,13 @@
 		line-height: 1.6;
 	}
 
+	:global(.prose li::marker) {
+		color: var(--teal-2);
+	}
+
 	:global(.prose strong) {
 		font-weight: 600;
-		color: hsl(var(--foreground));
+		color: var(--ink);
 	}
 
 	:global(.prose em) {
@@ -104,83 +129,83 @@
 	}
 
 	:global(.prose code) {
-		background-color: hsl(var(--muted));
-		padding: 0.125rem 0.25rem;
-		border-radius: calc(var(--radius) - 2px);
-		font-family:
-			ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New',
-			monospace;
-		font-size: 0.875em;
-		border: 1px solid hsl(var(--border));
+		background-color: var(--paper-2);
+		padding: 0.125rem 0.3rem;
+		border-radius: var(--radius-sm);
+		font-family: var(--mono);
+		font-size: 0.85em;
+		color: var(--ink-2);
+		border: 1px solid var(--rule);
 	}
 
 	:global(.prose pre) {
-		background-color: hsl(var(--muted));
+		background-color: var(--paper-2);
 		padding: 1rem;
 		border-radius: var(--radius);
 		overflow-x: auto;
 		margin: 1rem 0;
-		border: 1px solid hsl(var(--border));
+		border: 1px solid var(--rule);
 	}
 
 	:global(.prose pre code) {
 		background: none;
 		padding: 0;
 		border: none;
-		font-size: 0.875rem;
+		font-size: 0.85rem;
 	}
 
 	:global(.prose blockquote) {
-		border-left: 4px solid hsl(var(--primary));
-		padding-left: 1rem;
-		margin: 1rem 0;
+		border-left: 3px solid var(--teal-2);
+		margin: 1.25rem 0;
 		font-style: italic;
-		color: hsl(var(--muted-foreground));
-		background-color: hsl(var(--muted) / 0.5);
-		padding: 1rem;
-		border-radius: var(--radius);
+		color: var(--ink-2);
+		background-color: var(--sage-2);
+		padding: 1rem 1.25rem;
+		border-radius: 0 8px 8px 0;
 	}
 
 	:global(.prose table) {
 		border-collapse: collapse;
 		width: 100%;
 		margin: 1.5rem 0;
-		border: 1px solid hsl(var(--border));
+		font-family: var(--sans);
+		border: 1px solid var(--rule);
 		border-radius: var(--radius);
 		overflow: hidden;
 	}
 
 	:global(.prose th),
 	:global(.prose td) {
-		border: 1px solid hsl(var(--border));
-		padding: 0.75rem;
+		border: 1px solid var(--rule);
+		padding: 0.625rem 0.75rem;
 		text-align: left;
+		color: var(--ink-2);
 	}
 
 	:global(.prose th) {
-		background-color: hsl(var(--muted));
+		background-color: var(--sage-2);
 		font-weight: 600;
-		color: hsl(var(--foreground));
+		color: var(--ink);
 	}
 
 	:global(.prose tr:nth-child(even)) {
-		background-color: hsl(var(--muted) / 0.3);
+		background-color: var(--paper-2);
 	}
 
 	:global(.prose hr) {
 		border: none;
-		border-top: 1px solid hsl(var(--border));
+		border-top: 1px solid var(--rule);
 		margin: 2rem 0;
 	}
 
 	:global(.prose a) {
-		color: hsl(var(--primary));
+		color: var(--teal-2);
 		text-decoration: underline;
 		text-underline-offset: 2px;
 	}
 
 	:global(.prose a:hover) {
-		color: hsl(var(--primary));
+		color: var(--teal-2);
 		text-decoration: none;
 	}
 </style>

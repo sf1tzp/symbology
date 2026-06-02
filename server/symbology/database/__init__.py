@@ -100,6 +100,19 @@ from symbology.database.generated_content import (
     update_generated_content,
 )
 
+# Page content (publishing layer)
+from symbology.database.page_content import (
+    CompanyPageContent,
+    CompanyPageContentChangeReport,
+    DocumentPageContent,
+    FilingPageContent,
+    get_current_company_page_content,
+    get_current_document_page_content,
+    get_current_filing_page_content,
+    get_current_group_page_content,
+    GroupPageContent,
+)
+
 # Chunk models (vector embeddings)
 from symbology.database.document_chunks import (
     delete_chunks_for_document,
@@ -163,6 +176,12 @@ __all__ = [
     "Job", "JobStatus", "JobType",
     "PipelineRun", "PipelineRunStatus", "PipelineTrigger",
     "DocumentChunk", "GeneratedContentChunk",
+
+    # Page content (publishing layer)
+    "DocumentPageContent", "FilingPageContent", "CompanyPageContent",
+    "CompanyPageContentChangeReport", "GroupPageContent",
+    "get_current_document_page_content", "get_current_filing_page_content",
+    "get_current_company_page_content", "get_current_group_page_content",
 
     # Chunk functions
     "get_chunks_by_document", "delete_chunks_for_document", "replace_document_chunks", "search_document_chunks",

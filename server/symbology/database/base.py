@@ -15,6 +15,7 @@ engine = None
 db_session = None
 SessionLocal = None
 
+
 def init_db(database_url: str) -> Tuple[object, object]:
     """Initialize the database with the provided connection URL.
 
@@ -28,7 +29,7 @@ def init_db(database_url: str) -> Tuple[object, object]:
 
     try:
         # Create SQLAlchemy engine using the provided URL
-        engine = create_engine(database_url)
+        engine = create_engine(database_url, pool_pre_ping=True, pool_recycle=1800)
 
         # Create a scoped session factory
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -41,6 +42,7 @@ def init_db(database_url: str) -> Tuple[object, object]:
         logger.error("database_initialization_failed", error=str(e), exc_info=True)
         raise
 
+
 def get_db_session():
     """Get the current database session.
 
@@ -51,6 +53,7 @@ def get_db_session():
         logger.error("database_session_error", error="Database not initialized")
         raise RuntimeError("Database not initialized. Call init_db first.")
     return db_session
+
 
 def get_db() -> Generator[Session, None, None]:
     """FastAPI dependency for getting a database session.
@@ -72,6 +75,7 @@ def get_db() -> Generator[Session, None, None]:
     finally:
         logger.debug("database_session_closed_after_request")
         db.close()
+
 
 def close_session() -> None:
     """Close the current session and remove it from the registry.

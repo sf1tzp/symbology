@@ -1,0 +1,6 @@
+# Note: The pipelines are configured to look for gemma4 under the tag 'google/gemma-4-e4b' (lm studio naming)
+# ollama default tag is 'gemma4:e4b', so for simplicity we'll retag this and let the workers use either server:
+# `ollama create google/gemma-4-e4b -f gemma4-retag.modelfile`
+
+FROM gemma4:e4b
+

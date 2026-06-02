@@ -17,9 +17,12 @@ from symbology.database.jobs import (
     create_job,
     fail_job,
     get_job,
+    heartbeat_job,
     list_jobs,
     mark_stale_jobs_as_failed,
     requeue_failed_jobs,
+    requeue_job,
+    requeue_job_for_shutdown,
 )
 
 
@@ -207,6 +210,72 @@ class TestStaleDetection:
             stale = mark_stale_jobs_as_failed(stale_threshold_seconds=600)
             assert len(stale) == 0
 
+    def test_heartbeat_keeps_job_from_going_stale(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST, max_retries=3)
+            job.status = JobStatus.IN_PROGRESS
+            job.worker_id = "w1"
+            # Older than the threshold — would be reclaimed without a heartbeat.
+            job.updated_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=700)
+            db_session.commit()
+
+            assert heartbeat_job(job.id, "w1") is True
+
+            stale = mark_stale_jobs_as_failed(stale_threshold_seconds=600)
+            assert stale == []
+            db_session.refresh(job)
+            assert job.status == JobStatus.IN_PROGRESS
+
+    def test_heartbeat_ignores_jobs_owned_by_another_worker(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST)
+            job.status = JobStatus.IN_PROGRESS
+            job.worker_id = "owner"
+            old = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=700)
+            job.updated_at = old
+            db_session.commit()
+
+            # A worker that no longer owns the claim must not revive the row.
+            assert heartbeat_job(job.id, "stranger") is False
+            db_session.refresh(job)
+            assert job.updated_at == old
+
+
+class TestRequeueForShutdown:
+    """Test the shutdown requeue path used by the worker."""
+
+    def test_requeue_resets_without_consuming_retry(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST, max_retries=3)
+            job.status = JobStatus.IN_PROGRESS
+            job.worker_id = "w1"
+            job.retry_count = 1
+            db_session.commit()
+
+            result = requeue_job_for_shutdown(job.id)
+            assert result.status == JobStatus.PENDING
+            assert result.worker_id is None
+            assert result.started_at is None
+            # An operational restart must NOT count against the retry budget.
+            assert result.retry_count == 1
+
+    def test_requeue_is_idempotent(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST, max_retries=3)
+            job.status = JobStatus.IN_PROGRESS
+            job.retry_count = 2
+            db_session.commit()
+
+            requeue_job_for_shutdown(job.id)
+            # Second call (e.g. the worker thread after the main loop) is a no-op.
+            again = requeue_job_for_shutdown(job.id)
+            assert again.status == JobStatus.PENDING
+            assert again.retry_count == 2
+
+    def test_requeue_nonexistent_returns_none(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            assert requeue_job_for_shutdown(uuid7()) is None
+
 
 class TestRequeueFailedJobs:
     """Test requeue and cancel operations on failed jobs."""
@@ -251,6 +320,47 @@ class TestRequeueFailedJobs:
             create_job(JobType.TEST)  # PENDING, not FAILED
             requeued = requeue_failed_jobs()
             assert len(requeued) == 0
+
+    def test_requeue_single_job_resets_fields(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.BULK_INGEST, max_retries=3)
+            job.status = JobStatus.FAILED
+            job.retry_count = 3
+            job.worker_id = "worker-1"
+            job.error = "connection timeout"
+            job.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            job.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db_session.commit()
+
+            requeued = requeue_job(job.id)
+            assert requeued is not None
+            assert requeued.status == JobStatus.PENDING
+            assert requeued.retry_count == 0
+            assert requeued.worker_id is None
+            assert requeued.error is None
+            assert requeued.started_at is None
+            assert requeued.completed_at is None
+
+    def test_requeue_single_job_only_affects_target(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            j1 = create_job(JobType.BULK_INGEST)
+            j1.status = JobStatus.FAILED
+            j2 = create_job(JobType.TEST)
+            j2.status = JobStatus.FAILED
+            db_session.commit()
+
+            requeue_job(j1.id)
+            db_session.refresh(j2)
+            assert j2.status == JobStatus.FAILED
+
+    def test_requeue_single_job_not_failed_returns_none(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST)  # PENDING, not FAILED
+            assert requeue_job(job.id) is None
+
+    def test_requeue_single_job_nonexistent_returns_none(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            assert requeue_job(uuid7()) is None
 
 
 class TestCancelFailedJobs:

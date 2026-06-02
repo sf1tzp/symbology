@@ -12,7 +12,7 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.0",
-		"@internationalized/date": "^3.10.1",
+		"@internationalized/date": "^3.12.2",
 		"@lucide/svelte": "^1.0.0",
 		"@sveltejs/adapter-auto": "^7.0.0",
 		"@sveltejs/adapter-node": "^5.5.1",
@@ -25,7 +25,7 @@
 		"@tanstack/table-core": "^8.21.3",
 		"@types/node": "^25.0.9",
 		"@types/pg": "^8.20.0",
-		"bits-ui": "^2.15.4",
+		"bits-ui": "^2.18.1",
 		"clsx": "^2.1.1",
 		"embla-carousel-svelte": "^8.6.0",
 		"eslint": "^10.0.0",

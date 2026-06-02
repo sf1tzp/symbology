@@ -4,8 +4,9 @@ import {
 	getFilingByAccession,
 	getDocumentsByAccession,
 	getCompanyByAccession,
-	getFilingsByCompanyId
+	getFilingsTimeline
 } from '$lib/server/db/filings';
+import { getCurrentFilingPageContent } from '$lib/server/db/page-content';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const { accession_number } = params;
@@ -20,15 +21,21 @@ export const load: PageServerLoad = async ({ params }) => {
 		error(404, 'Filing not found');
 	}
 
-	const otherFilings = filing.company_id
-		? await getFilingsByCompanyId(filing.company_id, accession_number, 10)
-		: [];
+	if (!company) {
+		error(404, 'Company not found');
+	}
+
+	const [filingPageContent, timeline] = await Promise.all([
+		getCurrentFilingPageContent(filing.id),
+		getFilingsTimeline(company.ticker, 10, '10-K')
+	]);
 
 	return {
 		filing,
 		documents,
 		company,
-		otherFilings,
-		accession_number
+		filingPageContent,
+		accession_number,
+		timeline
 	};
 };

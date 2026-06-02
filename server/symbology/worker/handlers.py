@@ -109,13 +109,19 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
         model_config_hash (str, required): Hash of the model config.
         source_document_hashes (list[str]): Hashes of source documents.
         source_content_hashes (list[str]): Hashes of source generated content.
-        company_ticker (str, optional): Company ticker.
+        company_ticker (str, optional): Company ticker (resolves company_id).
         description (str, optional): Description of the content.
+        document_type (str, optional): Document type for disambiguation.
+        form_type (str, optional): Filing form type (e.g. "10-K").
+        content_stage (str, optional): ContentStage value to tag the content.
+        company_group_id / filing_id / document_id (optional): Subject/scope FKs
+            set per page-content kind (distinct from the source provenance links).
     """
     from symbology.database.base import get_db_session
     from symbology.database.companies import get_company_by_ticker
     from symbology.database.documents import Document
     from symbology.database.generated_content import (
+        compute_generation_depth,
         create_generated_content,
         get_generated_content_by_hash,
     )
@@ -132,6 +138,10 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     document_type_str = params.get("document_type")
     form_type = params.get("form_type")
     content_stage_str = params.get("content_stage")
+    # Subject/scope FKs (set per page-content kind; company_id is derived from ticker below).
+    company_group_id = params.get("company_group_id")
+    filing_id = params.get("filing_id")
+    document_id = params.get("document_id")
 
     session = get_db_session()
 
@@ -166,6 +176,14 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
         source_content=source_content or None,
     )
 
+    # Offload oversized prompts from the local endpoint to Anthropic (no-op when
+    # disabled / already Anthropic / under threshold). The returned config is
+    # what we both call and record below, so provenance reflects the offload.
+    from symbology.worker.config_loader import resolve_generation_model_config
+    model_config = resolve_generation_model_config(
+        model_config, f"{system_prompt.content}\n{user_prompt_text}"
+    )
+
     # Call LLM
     logger.info("handler_content_generation_start", description=description)
     response, warning = get_generate_response(model_config, system_prompt.content, user_prompt_text)
@@ -188,10 +206,14 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
         "content": response.response,
         "summary": None,
         "company_id": company_id,
+        "company_group_id": company_group_id,
+        "filing_id": filing_id,
+        "document_id": document_id,
         "description": description,
         "document_type": resolved_document_type,
         "form_type": form_type,
         "content_stage": resolved_content_stage,
+        "generation_depth": compute_generation_depth(source_content),
         "source_type": "documents" if source_documents else "generated_content",
         "model_config_id": model_config.id,
         "system_prompt_id": system_prompt.id,
@@ -281,6 +303,7 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
     from symbology.database.base import get_db_session
     from symbology.database.company_groups import get_company_group_by_slug
     from symbology.database.generated_content import (
+        compute_generation_depth,
         create_generated_content,
         get_aggregate_summaries_by_ticker,
     )
@@ -337,6 +360,12 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
         additional_text=group_info if group_info else f"Tickers: {', '.join(tickers)}",
     )
 
+    # Offload oversized prompts to Anthropic (cross-company inputs can be large).
+    from symbology.worker.config_loader import resolve_generation_model_config
+    mc = resolve_generation_model_config(
+        mc, f"{system_prompt.content}\n{user_prompt_text}"
+    )
+
     # Call LLM
     response, warning = get_generate_response(mc, system_prompt.content, user_prompt_text)
 
@@ -348,6 +377,7 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
         "company_group_id": group.id if group else None,
         "description": "company_group_analysis",
         "content_stage": ContentStage.COMPANY_GROUP_ANALYSIS,
+        "generation_depth": compute_generation_depth(all_sources),
         "source_type": "generated_content",
         "model_config_id": mc.id,
         "system_prompt_id": system_prompt.id,
@@ -632,3 +662,183 @@ def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             jobs_failed=jobs_failed,
         )
         raise
+
+
+def _resolve_filing_by_accession(accession_number: str):
+    """Return the DB filing for an accession number, ingesting it if missing.
+
+    Looks the filing up in the DB first; if absent, fetches it from EDGAR
+    (creating/looking up the owning company) and ingests its documents so the
+    page pipeline has section text to work with.
+    """
+    from symbology.database.filings import get_filing_by_accession_number
+    from symbology.ingestion.bulk_discovery import get_or_create_company_from_filing
+    from symbology.ingestion.edgar_db.accessors import edgar_login
+    from symbology.ingestion.ingestion_helpers import ingest_single_filing
+    from symbology.utils.config import settings
+
+    filing = get_filing_by_accession_number(accession_number)
+    if filing is not None:
+        return filing
+
+    from edgar import find
+
+    edgar_login(settings.edgar_api.edgar_contact)
+    edgar_filing = find(accession_number)
+    if edgar_filing is None:
+        raise ValueError(f"No EDGAR filing found for accession {accession_number}")
+
+    company = get_or_create_company_from_filing(
+        cik=str(edgar_filing.cik),
+        company_name=edgar_filing.company,
+    )
+    ingest_single_filing(
+        company_id=company.id,
+        accession_number=accession_number,
+        include_documents=True,
+    )
+
+    filing = get_filing_by_accession_number(accession_number)
+    if filing is None:
+        raise ValueError(f"Failed to ingest filing for accession {accession_number}")
+    return filing
+
+
+@register_handler(JobType.FILING_PAGE_CONTENT)
+def handle_filing_page_content(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Generate + publish document and filing page content for one filing.
+
+    Ensures the company and the target filing (with documents) are ingested
+    (delegating to the existing ingestion handlers), then runs the filing page
+    pipeline which produces DocumentPageContent per document and a
+    FilingPageContent version.
+
+    The target filing can be selected either by ticker + fiscal year (the
+    default) or directly by EDGAR accession number.
+
+    params:
+        accession_number (str, optional): EDGAR accession number of the target
+            filing. When provided, ticker/year/form are ignored.
+        ticker (str): Company ticker. Required unless accession_number is given.
+        year (int): Fiscal year of the target filing. Required unless
+            accession_number is given.
+        form (str): Filing form type. Defaults to "10-K".
+    """
+    from uuid import UUID
+
+    from symbology.database.base import get_db_session
+    from symbology.database.companies import get_company_by_ticker
+    from symbology.database.filings import Filing
+    from symbology.worker.page_pipelines import filing_page_content_pipeline
+
+    accession_number = params.get("accession_number")
+    if accession_number:
+        filing = _resolve_filing_by_accession(accession_number)
+        page = filing_page_content_pipeline(filing)
+        logger.info("handler_filing_page_content_done",
+                    accession_number=accession_number, filing_id=str(filing.id))
+        return {
+            "accession_number": accession_number,
+            "filing_id": str(filing.id),
+            "filing_page_content_id": str(page.id),
+        }
+
+    ticker = params["ticker"]
+    year = int(params["year"])
+    form = params.get("form", "10-K")
+
+    logger.info("handler_filing_page_content_start", ticker=ticker, year=year, form=form)
+
+    def _find_filing(company_id):
+        session = get_db_session()
+        filings = (
+            session.query(Filing)
+            .filter(Filing.company_id == UUID(str(company_id)), Filing.form == form)
+            .all()
+        )
+        for f in filings:
+            if (f.period_of_report and f.period_of_report.year == year) or (
+                f.filing_date and f.filing_date.year == year
+            ):
+                return f
+        return None
+
+    # Resolve the company from the DB first; only ingest from EDGAR if missing
+    # (so the common "already ingested" path doesn't require the edgar module).
+    company = get_company_by_ticker(ticker.upper())
+    if company is None:
+        company_id = handle_company_ingestion({"ticker": ticker})["company_id"]
+    else:
+        company_id = company.id
+
+    # Ensure the target filing + its documents are present; ingest if missing.
+    filing = _find_filing(company_id)
+    if filing is None:
+        handle_filing_ingestion({
+            "company_id": str(company_id), "ticker": ticker, "form": form,
+            "count": 10, "include_documents": True,
+        })
+        filing = _find_filing(company_id)
+    if filing is None:
+        raise ValueError(f"No {form} filing for {ticker} fiscal year {year} after ingestion")
+
+    page = filing_page_content_pipeline(filing)
+
+    logger.info("handler_filing_page_content_done", ticker=ticker, year=year,
+                form=form, filing_id=str(filing.id))
+    return {
+        "ticker": ticker,
+        "year": year,
+        "form": form,
+        "filing_id": str(filing.id),
+        "filing_page_content_id": str(page.id),
+    }
+
+
+@register_handler(JobType.COMPANY_PAGE_CONTENT)
+def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Publish company page content by synthesizing already-published pages.
+
+    Pure synthesis: it does *not* ingest filings or generate the underlying
+    document/filing pages. The company page pipeline requires each source filing
+    (and its documents) to already have published page content, and fails
+    otherwise — so a CompanyPageContent never cites analysis that isn't itself
+    available on the site. Run the filing page pipeline for the lookback filings
+    first.
+
+    params:
+        ticker (str, required): Company ticker.
+        lookback (int): Number of recent filings to span. Defaults to 5.
+        form (str): Filing form type. Defaults to "10-K".
+    """
+    from symbology.database.companies import get_company_by_ticker
+    from symbology.worker.page_pipelines import (
+        DEFAULT_COMPANY_LOOKBACK,
+        PageContentGenerationError,
+        company_page_content_pipeline,
+    )
+
+    ticker = params["ticker"]
+    lookback = int(params.get("lookback", DEFAULT_COMPANY_LOOKBACK))
+    form = params.get("form", "10-K")
+
+    logger.info("handler_company_page_content_start", ticker=ticker,
+                lookback=lookback, form=form)
+
+    company = get_company_by_ticker(ticker.upper())
+    if company is None:
+        raise PageContentGenerationError(
+            f"company {ticker} not ingested; ingest it and generate its filing "
+            f"page content before the company page"
+        )
+
+    page = company_page_content_pipeline(company, lookback=lookback, form=form)
+
+    logger.info("handler_company_page_content_done", ticker=ticker,
+                form=form, company_id=str(company.id))
+    return {
+        "ticker": ticker,
+        "form": form,
+        "company_id": str(company.id),
+        "company_page_content_id": str(page.id),
+    }

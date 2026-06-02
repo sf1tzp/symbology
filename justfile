@@ -55,10 +55,13 @@ deps-server:
 deps-ui:
     just -d ui -f ui/justfile deps
 
-build:
+build-server:
+    just -f server/justfile build
+
+build-ui:
     just -f ui/justfile build
 
-deploy HOST:
+deploy HOST: build-ui
     #!/usr/bin/env bash
     set -euo pipefail
     ssh {{HOST}} -C "mkdir -p ~/images"
@@ -91,3 +94,32 @@ deploy-prod HOST TAG:
 bounce HOST:
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml down"
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-compose.yaml up -d --env-file ~/symbology/.env"
+
+
+deploy-server HOST: build-server
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ssh {{HOST}} -C "mkdir -p ~/images"
+    ssh {{HOST}} -C "mkdir -p ~/symbology"
+    sops -d secrets/{{HOST}}.env | ssh {{HOST}} "cat > ~/symbology/.env"
+    scp symbology-server-compose.yaml {{HOST}}:~/symbology-server-compose.yaml
+    scp server/symbology-server-latest.tar {{HOST}}:~/images/symbology-server-latest.tar
+    ssh {{HOST}} -C "~/.local/bin/nerdctl load -i ~/images/symbology-server-latest.tar"
+    ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-server-compose.yaml down"
+    ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-server-compose.yaml up -d --env-file ~/symbology/.env"
+
+
+queue-new-jobs TICKER:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    just cli companies ingest {{ TICKER }}
+
+    just cli pipeline filing-content {{ TICKER }} 2021
+    just cli pipeline filing-content {{ TICKER }} 2022
+    just cli pipeline filing-content {{ TICKER }} 2023
+    just cli pipeline filing-content {{ TICKER }} 2024
+    just cli pipeline filing-content {{ TICKER }} 2025
+    just cli pipeline company-content {{ TICKER }} -n 5
+
+

@@ -18,6 +18,7 @@ from uuid_extensions import uuid7
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
     from symbology.database.documents import Document
+    from symbology.database.filings import Filing
     from symbology.database.model_configs import ModelConfig
     from symbology.database.prompts import Prompt
     from symbology.database.ratings import Rating
@@ -35,11 +36,22 @@ class ContentSourceType(str, Enum):
 
 class ContentStage(str, Enum):
     """Pipeline stage that produced this content."""
+    # Prototype stages (being retired in the new-stages phase).
     SINGLE_SUMMARY = "single_summary"
     AGGREGATE_SUMMARY = "aggregate_summary"
     FRONTPAGE_SUMMARY = "frontpage_summary"
     COMPANY_GROUP_ANALYSIS = "company_group_analysis"
     COMPANY_GROUP_FRONTPAGE = "company_group_frontpage"
+    # New page-content stages (new-content.md).
+    CHANGE_REPORT = "change_report"
+    CHANGE_REPORT_INTRO = "change_report_intro"
+    COMPANY_MAIN_CONTENT = "company_main_content"
+    COMPANY_INTRO = "company_intro"
+    GROUP_MAIN_CONTENT = "group_main_content"
+    GROUP_INTRO = "group_intro"
+    FILING_MAIN_CONTENT = "filing_main_content"
+    FILING_INTRO = "filing_intro"
+    DOCUMENT_PAGE_INTRO = "document_page_intro"
 
 
 # Association table for many-to-many relationship between GeneratedContent and Document
@@ -86,6 +98,30 @@ class GeneratedContent(Base):
         ForeignKey("company_groups.id", ondelete="SET NULL"), index=True, nullable=True
     )
 
+    # Filing Foreign Key (optional, for filing-page content). Scope/subject link
+    # — what this content is about — distinct from the source_documents provenance
+    # M2M. Set only for filing-scoped stages; NULL otherwise (mirrors company_id).
+    filing_id: Mapped[Optional[UUID]] = mapped_column(
+        ForeignKey("filings.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    filing: Mapped[Optional["Filing"]] = relationship(
+        "Filing",
+        foreign_keys=[filing_id],
+        backref="generated_content",
+    )
+
+    # Document Foreign Key (optional, for document-page content). Scope/subject
+    # link; backref is "scoped_content" because Document.generated_content is
+    # already taken by the source_documents provenance M2M backref.
+    document_id: Mapped[Optional[UUID]] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    document: Mapped[Optional["Document"]] = relationship(
+        "Document",
+        foreign_keys=[document_id],
+        backref="scoped_content",
+    )
+
     # description (optional, string description of the content)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
@@ -104,6 +140,12 @@ class GeneratedContent(Base):
         SQLEnum(ContentStage, name="content_stage_enum", values_callable=lambda obj: [e.value for e in obj]),
         nullable=True, index=True,
     )
+
+    # How many generations from a primary source this content is (heuristic,
+    # orthogonal to content_stage): content generated directly from documents = 1,
+    # each subsequent generation adds 1. Computed at write time; nullable to
+    # tolerate legacy rows created before this column existed.
+    generation_depth: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
 
     # Source type - what kind of sources this content was generated from
     source_type: Mapped[ContentSourceType] = mapped_column(
@@ -254,6 +296,17 @@ class GeneratedContent(Base):
 
         return max_source_depth + 1
 
+    def _depth_value(self) -> int:
+        """This content's depth, preferring the stored value, falling back to a walk.
+
+        ``get_source_chain_depth`` is 0-indexed on the generated-content chain
+        (content-from-documents = 0), whereas ``generation_depth`` is 1-indexed
+        from a primary source (content-from-documents = 1), so the fallback adds 1.
+        """
+        if self.generation_depth is not None:
+            return self.generation_depth
+        return self.get_source_chain_depth() + 1
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert GeneratedContent to dictionary for API responses."""
         return {
@@ -262,9 +315,12 @@ class GeneratedContent(Base):
             "short_hash": self.get_short_hash(),
             "company_id": str(self.company_id) if self.company_id else None,
             "company_group_id": str(self.company_group_id) if self.company_group_id else None,
+            "filing_id": str(self.filing_id) if self.filing_id else None,
+            "document_id": str(self.document_id) if self.document_id else None,
             "document_type": self.document_type.value if self.document_type else None,
             "form_type": self.form_type,
             "content_stage": self.content_stage.value if self.content_stage else None,
+            "generation_depth": self.generation_depth,
             "description": self.description,
             "source_type": self.source_type.value,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -281,6 +337,26 @@ class GeneratedContent(Base):
             "source_content_ids": [str(content.id) for content in self.source_content],
             "derived_content_ids": [str(content.id) for content in self.derived_content] if hasattr(self, '_derived_content_loaded') else None,
         }
+
+
+def compute_generation_depth(source_content: Optional[List["GeneratedContent"]]) -> int:
+    """Compute the generation depth for new content from its source content.
+
+    Content generated directly from documents (no source content) is depth 1;
+    derived content is ``1 + max(source depth)``. Uses each source's stored
+    ``generation_depth`` when present, falling back to a chain walk for legacy
+    rows. See ``GeneratedContent.generation_depth``.
+
+    Args:
+        source_content: The GeneratedContent rows this content is derived from,
+            or None/empty for content generated directly from documents.
+
+    Returns:
+        The 1-indexed generation depth.
+    """
+    if not source_content:
+        return 1
+    return 1 + max(c._depth_value() for c in source_content)
 
 
 def get_generated_content_ids() -> List[UUID]:
@@ -676,6 +752,73 @@ def find_existing_content_for_document(
         )
         .first()
     )
+
+
+def find_existing_page_content(
+    content_stage: Union[str, "ContentStage"],
+    source_content_hashes: List[str],
+    system_prompt_id: Union[UUID, str],
+    model_config_id: Union[UUID, str],
+) -> Optional[GeneratedContent]:
+    """Find existing page content for a (stage, sources, prompt, model_config) key.
+
+    The page-content stages (intros, main content, change reports) derive from
+    other GeneratedContent rather than from documents directly, so
+    ``find_existing_content_for_document`` does not cover them. This is the
+    analogous dedup: skip a duplicate LLM call when content for the same stage
+    was already generated from exactly the same source content with the same
+    prompt and model configuration.
+
+    The match requires the candidate's source-content set to equal the requested
+    set exactly (same members, same cardinality) — not merely a superset — so a
+    piece built from a different combination of sources is never reused.
+
+    Returns:
+        The first matching GeneratedContent, or None.
+    """
+    if not source_content_hashes:
+        return None
+
+    stage = ContentStage(content_stage) if isinstance(content_stage, str) else content_stage
+    session = get_db_session()
+
+    # Resolve source hashes to ids; a hash with no row means the key can't match.
+    source_ids = [
+        row.id
+        for row in session.query(GeneratedContent.id)
+        .filter(GeneratedContent.content_hash.in_(source_content_hashes))
+        .all()
+    ]
+    if len(source_ids) != len(set(source_content_hashes)):
+        return None
+
+    assoc = generated_content_source_association
+    # Candidates: same stage/prompt/model that are linked to all requested
+    # sources. The HAVING count guarantees every requested source is present;
+    # the per-candidate total-source check below enforces exact equality.
+    candidates = (
+        session.query(GeneratedContent)
+        .join(assoc, GeneratedContent.id == assoc.c.parent_content_id)
+        .filter(
+            GeneratedContent.content_stage == stage,
+            GeneratedContent.system_prompt_id == system_prompt_id,
+            GeneratedContent.model_config_id == model_config_id,
+            assoc.c.source_content_id.in_(source_ids),
+        )
+        .group_by(GeneratedContent.id)
+        .having(func.count(func.distinct(assoc.c.source_content_id)) == len(source_ids))
+        .all()
+    )
+    for candidate in candidates:
+        total_sources = (
+            session.query(func.count())
+            .select_from(assoc)
+            .filter(assoc.c.parent_content_id == candidate.id)
+            .scalar()
+        )
+        if total_sources == len(source_ids):
+            return candidate
+    return None
 
 
 def get_generated_content_by_source_document(document_id: Union[UUID, str]) -> List[GeneratedContent]:

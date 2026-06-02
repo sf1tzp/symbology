@@ -5,23 +5,46 @@ CLI calls (model-configs create, prompts create) with direct Python equivalents.
 Includes composable functions for each pipeline stage that can be called
 independently for selective regeneration.
 """
+
 import json
 from pathlib import Path
 from typing import List, Optional, Tuple
+from uuid import UUID
 
 from symbology.database.model_configs import ModelConfig, get_or_create_model_config
 from symbology.database.prompts import Prompt, create_prompt
+from symbology.llm.client import ShutdownRequested
 from symbology.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 # Default model tiers used by the ingestion pipeline
 PIPELINE_MODEL_CONFIGS = {
-    "single_summary": {"model_name": "claude-haiku-4-5-20251001", "max_tokens": 2048, "temperature": 0.2},
-    "aggregate_summary": {"model_name": "claude-sonnet-4-5-20250929", "max_tokens": 4096, "temperature": 0.3},
-    "frontpage_summary": {"model_name": "claude-haiku-4-5-20251001", "max_tokens": 512, "temperature": 0.3},
-    "company_group_analysis": {"model_name": "claude-sonnet-4-5-20250929", "max_tokens": 8192, "temperature": 0.3},
-    "company_group_frontpage": {"model_name": "claude-haiku-4-5-20251001", "max_tokens": 512, "temperature": 0.3},
+    "single_summary": {
+        "model_name": "claude-haiku-4-5-20251001",
+        "max_tokens": 2048,
+        "temperature": 0.2,
+    },
+    "aggregate_summary": {
+        "model_name": "claude-sonnet-4-5-20250929",
+        "max_tokens": 4096,
+        "temperature": 0.3,
+    },
+    "frontpage_summary": {
+        "model_name": "claude-haiku-4-5-20251001",
+        "max_tokens": 512,
+        "temperature": 0.3,
+    },
+    "company_group_analysis": {
+        "model_name": "claude-sonnet-4-5-20250929",
+        "max_tokens": 8192,
+        "temperature": 0.3,
+    },
+    "company_group_frontpage": {
+        "model_name": "claude-haiku-4-5-20251001",
+        "max_tokens": 512,
+        "temperature": 0.3,
+    },
 }
 
 # Prompt names used at each pipeline stage
@@ -34,8 +57,18 @@ PIPELINE_PROMPTS = {
 
 # Document types per form (mirrors ingest.just)
 FORM_DOCUMENT_TYPES = {
-    "10-K": ["business_description", "risk_factors", "management_discussion", "controls_procedures"],
-    "10-Q": ["risk_factors", "management_discussion", "controls_procedures", "market_risk"],
+    "10-K": [
+        "business_description",
+        "risk_factors",
+        "management_discussion",
+        "controls_procedures",
+    ],
+    "10-Q": [
+        "risk_factors",
+        "management_discussion",
+        "controls_procedures",
+        "market_risk",
+    ],
 }
 
 
@@ -81,6 +114,52 @@ def ensure_model_config(
     return mc
 
 
+def load_prompt_content(
+    prompt_name: str,
+    prompts_dir: Optional[Path] = None,
+) -> str:
+    """Read a prompt's text from disk (no DB).
+
+    Prefers the flat layout ``{prompts_dir}/{name}.md`` (one self-contained file
+    per prompt — ``name`` may be a nested path like ``"l2/change-report"``).
+    Falls back to the legacy ``{prompts_dir}/{name}/prompt.md`` (+ appended
+    ``examples/*.md``) for prototype prompts not yet migrated to the flat layout.
+
+    Args:
+        prompt_name: Flat path under prompts/ (e.g. "l2/change-report") or a
+            legacy subdirectory name (e.g. "risk_factors").
+        prompts_dir: Base prompts directory.  Defaults to ``Path("prompts")``,
+            relative to the working directory.
+
+    Returns:
+        The assembled prompt content, stripped.
+
+    Raises:
+        FileNotFoundError: If neither the flat nor the legacy file exists.
+    """
+    if prompts_dir is None:
+        prompts_dir = Path("prompts")
+
+    flat_file = prompts_dir / f"{prompt_name}.md"
+    if flat_file.exists():
+        return flat_file.read_text().strip()
+
+    legacy_file = prompts_dir / prompt_name / "prompt.md"
+    if not legacy_file.exists():
+        raise FileNotFoundError(f"Prompt file not found: {flat_file} or {legacy_file}")
+
+    content = legacy_file.read_text().strip()
+
+    # Append examples if present (sorted for deterministic hashing). Legacy only.
+    examples_dir = prompts_dir / prompt_name / "examples"
+    if examples_dir.exists() and examples_dir.is_dir():
+        for example_file in sorted(examples_dir.glob("*.md")):
+            content += "\n\n"
+            content += example_file.read_text().strip()
+
+    return content
+
+
 def ensure_prompt(
     prompt_name: str,
     prompts_dir: Optional[Path] = None,
@@ -88,15 +167,13 @@ def ensure_prompt(
 ) -> Prompt:
     """Get or create a Prompt by loading it from the prompts directory.
 
-    Mirrors the CLI ``prompts create`` command: reads
-    ``{prompts_dir}/{name}/prompt.md``, appends any example files from
-    ``{prompts_dir}/{name}/examples/*.md``, then delegates to
-    ``create_prompt`` for content-hash deduplication.
+    Reads the content via :func:`load_prompt_content` (flat layout preferred,
+    legacy fallback) then delegates to ``create_prompt`` for content-hash
+    deduplication.
 
     Args:
-        prompt_name: Subdirectory name under prompts/ (e.g. "risk_factors").
-        prompts_dir: Base prompts directory.  Defaults to ``Path("prompts")``,
-            matching the CLI convention (relative to the working directory).
+        prompt_name: Flat path (e.g. "l2/change-report") or legacy subdir name.
+        prompts_dir: Base prompts directory.  Defaults to ``Path("prompts")``.
         role: Prompt role (system, user, assistant).  Defaults to "system".
 
     Returns:
@@ -105,21 +182,7 @@ def ensure_prompt(
     Raises:
         FileNotFoundError: If the prompt file does not exist.
     """
-    if prompts_dir is None:
-        prompts_dir = Path("prompts")
-
-    prompt_file = prompts_dir / prompt_name / "prompt.md"
-    if not prompt_file.exists():
-        raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
-
-    content = prompt_file.read_text().strip()
-
-    # Append examples if present (sorted for deterministic hashing)
-    examples_dir = prompts_dir / prompt_name / "examples"
-    if examples_dir.exists() and examples_dir.is_dir():
-        for example_file in sorted(examples_dir.glob("*.md")):
-            content += "\n\n"
-            content += example_file.read_text().strip()
+    content = load_prompt_content(prompt_name, prompts_dir)
 
     prompt_data = {
         "name": prompt_name,
@@ -180,7 +243,9 @@ def generate_single_summaries(
     for filing in filings:
         matching = [d for d in filing.documents if d.document_type == doc_type]
         if not matching:
-            logger.debug("pipeline_no_document", filing_id=str(filing.id), doc_type=doc_type_str)
+            logger.debug(
+                "pipeline_no_document", filing_id=str(filing.id), doc_type=doc_type_str
+            )
             continue
         doc = matching[0]
         if not doc.content_hash:
@@ -206,21 +271,25 @@ def generate_single_summaries(
 
         # Generate single summary
         try:
-            gen_result = handle_content_generation({
-                "system_prompt_hash": prompt.content_hash,
-                "model_config_hash": str(model_config.id),
-                "source_document_hashes": [doc.content_hash],
-                "company_ticker": ticker,
-                "description": f"{doc_type_str}_single_summary",
-                "document_type": doc_type_str,
-                "form_type": form,
-                "content_stage": "single_summary",
-            })
+            gen_result = handle_content_generation(
+                {
+                    "system_prompt_hash": prompt.content_hash,
+                    "model_config_hash": str(model_config.id),
+                    "source_document_hashes": [doc.content_hash],
+                    "company_ticker": ticker,
+                    "description": f"{doc_type_str}_single_summary",
+                    "document_type": doc_type_str,
+                    "form_type": form,
+                    "content_stage": "single_summary",
+                }
+            )
             if gen_result and gen_result.get("content_hash"):
                 content_hashes.append(gen_result["content_hash"])
                 new_count += 1
             else:
                 failed_count += 1
+        except ShutdownRequested:
+            raise
         except Exception as e:
             failed_count += 1
             logger.error(
@@ -264,19 +333,23 @@ def generate_aggregate_summary(
         return None, False
 
     try:
-        result = handle_content_generation({
-            "system_prompt_hash": prompt.content_hash,
-            "model_config_hash": str(model_config.id),
-            "source_content_hashes": single_summary_hashes,
-            "company_ticker": ticker,
-            "description": f"{doc_type_str}_aggregate_summary",
-            "document_type": doc_type_str,
-            "form_type": form,
-            "content_stage": "aggregate_summary",
-        })
+        result = handle_content_generation(
+            {
+                "system_prompt_hash": prompt.content_hash,
+                "model_config_hash": str(model_config.id),
+                "source_content_hashes": single_summary_hashes,
+                "company_ticker": ticker,
+                "description": f"{doc_type_str}_aggregate_summary",
+                "document_type": doc_type_str,
+                "form_type": form,
+                "content_stage": "aggregate_summary",
+            }
+        )
         if result and result.get("content_hash"):
             return result["content_hash"], True
         return None, False
+    except ShutdownRequested:
+        raise
     except Exception as e:
         logger.error(
             "pipeline_aggregate_summary_failed",
@@ -315,19 +388,23 @@ def generate_frontpage_summary(
     from symbology.worker.handlers import handle_content_generation
 
     try:
-        result = handle_content_generation({
-            "system_prompt_hash": prompt.content_hash,
-            "model_config_hash": str(model_config.id),
-            "source_content_hashes": [aggregate_hash],
-            "company_ticker": ticker,
-            "description": f"{doc_type_str}_frontpage_summary",
-            "document_type": doc_type_str,
-            "form_type": form,
-            "content_stage": "frontpage_summary",
-        })
+        result = handle_content_generation(
+            {
+                "system_prompt_hash": prompt.content_hash,
+                "model_config_hash": str(model_config.id),
+                "source_content_hashes": [aggregate_hash],
+                "company_ticker": ticker,
+                "description": f"{doc_type_str}_frontpage_summary",
+                "document_type": doc_type_str,
+                "form_type": form,
+                "content_stage": "frontpage_summary",
+            }
+        )
         if result and result.get("content_hash"):
             return result["content_hash"], True
         return None, False
+    except ShutdownRequested:
+        raise
     except Exception as e:
         logger.error(
             "pipeline_frontpage_summary_failed",
@@ -358,6 +435,7 @@ def generate_group_frontpage_summary(
     from symbology.database.base import get_db_session
     from symbology.database.generated_content import (
         ContentStage,
+        compute_generation_depth,
         create_generated_content,
         get_generated_content_by_hash,
     )
@@ -367,11 +445,23 @@ def generate_group_frontpage_summary(
     try:
         source_content = get_generated_content_by_hash(analysis_hash)
         if not source_content:
-            logger.error("group_frontpage_source_not_found", analysis_hash=analysis_hash)
+            logger.error(
+                "group_frontpage_source_not_found", analysis_hash=analysis_hash
+            )
             return None, False
 
         user_prompt_text = format_user_prompt_content(source_content=[source_content])
-        response, warning = get_generate_response(model_config, prompt.content, user_prompt_text)
+
+        # Offload oversized prompts to Anthropic (no-op when under threshold).
+        # Lazy import: config_loader imports this module at top level.
+        from symbology.worker.config_loader import resolve_generation_model_config
+        model_config = resolve_generation_model_config(
+            model_config, f"{prompt.content}\n{user_prompt_text}"
+        )
+
+        response, warning = get_generate_response(
+            model_config, prompt.content, user_prompt_text
+        )
 
         content_data = {
             "content": response.response,
@@ -380,6 +470,7 @@ def generate_group_frontpage_summary(
             "company_group_id": company_group_id,
             "description": "company_group_frontpage",
             "content_stage": ContentStage.COMPANY_GROUP_FRONTPAGE,
+            "generation_depth": compute_generation_depth([source_content]),
             "source_type": "generated_content",
             "model_config_id": model_config.id,
             "system_prompt_id": prompt.id,
@@ -400,10 +491,99 @@ def generate_group_frontpage_summary(
             company_group_id=company_group_id,
         )
         return generated.content_hash, True
+    except ShutdownRequested:
+        raise
     except Exception as e:
         logger.error(
             "pipeline_group_frontpage_summary_failed",
             company_group_id=company_group_id,
             error=str(e),
         )
+        return None, False
+
+
+def generate_page_content(
+    stage: str,
+    source_content_hashes: List[str],
+    prompt: Prompt,
+    model_config: ModelConfig,
+    *,
+    ticker: Optional[str] = None,
+    company_group_id: Optional[UUID] = None,
+    filing_id: Optional[UUID] = None,
+    document_id: Optional[UUID] = None,
+    document_type: Optional[str] = None,
+    form_type: Optional[str] = None,
+    description: Optional[str] = None,
+    force: bool = False,
+) -> Tuple[Optional[str], bool]:
+    """Generate one page-content piece for any of the new content stages.
+
+    Uniform write for the new stages: N already-gathered source-content hashes
+    -> one LLM call -> one GeneratedContent row tagged with ``stage`` and the
+    appropriate subject/scope FK. Source gathering is the caller's (page
+    pipeline's) job. ``generation_depth`` is set automatically from the sources.
+
+    Args:
+        stage: ContentStage value (e.g. "company_main_content").
+        source_content_hashes: Content hashes of the source GeneratedContent.
+        prompt: System prompt for this stage.
+        model_config: Model configuration for this stage.
+        ticker: Company ticker (resolves company_id) for company-scoped stages.
+        company_group_id / filing_id / document_id: Subject/scope FK for the
+            relevant page type (set exactly one for the new page-content stages).
+        document_type / form_type: Optional structured metadata.
+        description: Optional description (defaults to the stage name).
+        force: If True, skip the dedup check and always regenerate.
+
+    Returns:
+        Tuple of (content_hash_or_None, success).
+    """
+    from symbology.database.generated_content import find_existing_page_content
+    from symbology.worker.handlers import handle_content_generation
+
+    if not source_content_hashes:
+        return None, False
+
+    # Dedup (skip if force): reuse content already generated for the same stage
+    # from the same sources with the same prompt + model config, mirroring the
+    # L1 reuse in generate_single_summaries so page intros don't re-call the LLM.
+    if not force:
+        existing = find_existing_page_content(
+            content_stage=stage,
+            source_content_hashes=source_content_hashes,
+            system_prompt_id=prompt.id,
+            model_config_id=model_config.id,
+        )
+        if existing and existing.content_hash:
+            logger.info(
+                "pipeline_reuse_existing_page_content",
+                stage=stage,
+                content_hash=existing.content_hash[:12],
+            )
+            return existing.content_hash, True
+
+    try:
+        result = handle_content_generation(
+            {
+                "system_prompt_hash": prompt.content_hash,
+                "model_config_hash": str(model_config.id),
+                "source_content_hashes": source_content_hashes,
+                "company_ticker": ticker,
+                "company_group_id": company_group_id,
+                "filing_id": filing_id,
+                "document_id": document_id,
+                "document_type": document_type,
+                "form_type": form_type,
+                "content_stage": stage,
+                "description": description or stage,
+            }
+        )
+        if result and result.get("content_hash"):
+            return result["content_hash"], True
+        return None, False
+    except ShutdownRequested:
+        raise
+    except Exception as e:
+        logger.error("pipeline_page_content_failed", stage=stage, error=str(e))
         return None, False

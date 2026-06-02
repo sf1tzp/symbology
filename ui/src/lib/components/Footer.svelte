@@ -21,7 +21,6 @@
 
 		<nav class="flex items-center gap-4 text-sm text-ink-3">
 			<a href={resolve('/companies')} class="transition-colors hover:text-ink">Companies</a>
-			<a href={resolve('/groups')} class="transition-colors hover:text-ink">Groups</a>
 			<a href={resolve('/faq')} class="transition-colors hover:text-ink">FAQ</a>
 			<a
 				href="https://github.com/sf1tzp/symbology/"

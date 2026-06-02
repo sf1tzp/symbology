@@ -16,6 +16,8 @@ from symbology.database.jobs import (
     get_job,
     list_jobs,
     requeue_failed_jobs,
+    requeue_job,
+    stop_job,
 )
 from symbology.utils.config import settings
 from symbology.utils.logging import get_logger
@@ -28,6 +30,60 @@ def init_session():
     """Initialize database session."""
     init_db(settings.database.url)
     return get_db_session()
+
+
+def format_job_context(job) -> str:
+    """Build a compact, human-readable context string from a job's params.
+
+    Job types carry heterogeneous payloads, so we curate the most meaningful
+    fields per type (ticker / form / year / etc.) rather than dumping raw JSON.
+    Falls back to the first couple of scalar params for unknown types.
+    """
+    params = job.params or {}
+
+    def pick(*keys):
+        return [f"{k}={params[k]}" for k in keys if params.get(k) not in (None, "", [])]
+
+    jt = job.job_type
+    parts: list = []
+
+    if jt == JobType.COMPANY_INGESTION:
+        parts = pick("ticker")
+    elif jt in (JobType.FILING_INGESTION, JobType.INGEST_PIPELINE):
+        parts = pick("ticker", "form", "count")
+    elif jt == JobType.FILING_PAGE_CONTENT:
+        parts = pick("ticker", "form", "year")
+    elif jt == JobType.COMPANY_PAGE_CONTENT:
+        parts = pick("ticker", "form", "lookback")
+    elif jt == JobType.FULL_PIPELINE:
+        parts = pick("ticker")
+        forms = params.get("forms")
+        if forms:
+            parts.append(f"forms={','.join(forms)}")
+        if params.get("force"):
+            parts.append("force")
+    elif jt == JobType.CONTENT_GENERATION:
+        parts = pick("company_ticker", "form_type", "document_type", "content_stage", "description")
+    elif jt == JobType.COMPANY_GROUP_PIPELINE:
+        tickers = params.get("tickers")
+        if tickers:
+            parts.append(f"tickers={','.join(tickers)}")
+        parts += pick("group_slug")
+    elif jt == JobType.BULK_INGEST:
+        filings = params.get("filings") or []
+        parts = [f"{len(filings)} filings"]
+    elif jt == JobType.TEST:
+        parts = pick("sleep")
+
+    # Fallback: surface the first few scalar params for any unhandled type.
+    if not parts:
+        parts = [
+            f"{k}={v}"
+            for k, v in list(params.items())[:3]
+            if isinstance(v, (str, int, float, bool))
+        ]
+
+    return ", ".join(parts) if parts else "-"
 
 
 @click.group()
@@ -84,11 +140,14 @@ def job_status(job_id: str):
         table = Table(show_header=False, box=None, padding=(0, 1))
         table.add_row("[bold blue]ID:[/bold blue]", str(job.id))
         table.add_row("[bold blue]Type:[/bold blue]", job.job_type.value)
+        table.add_row("[bold blue]Context:[/bold blue]", format_job_context(job))
         table.add_row("[bold blue]Status:[/bold blue]", job.status.value)
         table.add_row("[bold blue]Priority:[/bold blue]", str(job.priority))
         table.add_row("[bold blue]Worker:[/bold blue]", job.worker_id or "-")
         table.add_row("[bold blue]Created:[/bold blue]", str(job.created_at))
-        table.add_row("[bold blue]Retries:[/bold blue]", f"{job.retry_count}/{job.max_retries}")
+        # "Attempt N/total" — matches the status page convention. retry_count is
+        # the number of *completed* attempts, so the current one is +1.
+        table.add_row("[bold blue]Attempt:[/bold blue]", f"{job.retry_count + 1}/{job.max_retries}")
         if job.error:
             table.add_row("[bold red]Error:[/bold red]", job.error)
         if job.duration is not None:
@@ -134,11 +193,12 @@ def list_jobs_cmd(status_filter: str, type_filter: str, limit: int, shortcut_run
             return str(ts)[:19] if ts else "-"
 
         table = Table(title="Jobs")
-        table.add_column("ID", style="dim", max_width=12)
+        table.add_column("ID", style="dim", no_wrap=True)
         table.add_column("Type", style="cyan")
+        table.add_column("Context", style="magenta")
         table.add_column("Status", style="white")
         table.add_column("Priority")
-        table.add_column("Retries")
+        table.add_column("Attempt")
         table.add_column("Created")
         table.add_column("Started")
         table.add_column("Completed")
@@ -153,11 +213,12 @@ def list_jobs_cmd(status_filter: str, type_filter: str, limit: int, shortcut_run
             }.get(job.status, "white")
 
             table.add_row(
-                str(job.id)[:12] + "…",
+                str(job.id),
                 job.job_type.value,
+                format_job_context(job),
                 f"[{status_style}]{job.status.value}[/{status_style}]",
                 str(job.priority),
-                f"{job.retry_count}/{job.max_retries}",
+                f"{job.retry_count + 1}/{job.max_retries}",
                 fmt_ts(job.created_at),
                 fmt_ts(job.started_at),
                 fmt_ts(job.completed_at),
@@ -194,29 +255,85 @@ def cancel_job_cmd(job_id: str):
         sys.exit(1)
 
 
-@jobs.command("requeue-failed")
-@click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="Filter by job type")
-@click.option("--dry-run", is_flag=True, help="Show counts without making changes")
-def requeue_failed_cmd(type_filter: str, dry_run: bool):
-    """Reset FAILED jobs back to PENDING for retry."""
+@jobs.command("stop")
+@click.argument("job_id")
+def stop_job_cmd(job_id: str):
+    """Stop an active job (PENDING or IN_PROGRESS) by marking it CANCELLED.
+
+    JOB_ID: UUID of the job to stop.
+
+    Note: this updates DB state only. A worker already executing the job keeps
+    running its current task until it finishes; the CANCELLED status prevents it
+    from being retried or re-picked up.
+    """
     try:
         init_session()
-        jt = JobType(type_filter) if type_filter else None
-        count = count_jobs_by_status(JobStatus.FAILED, job_type=jt)
+        job = stop_job(job_id)
+        if not job:
+            console.print(
+                f"[red]Job not found or not stoppable (already terminal): {job_id}[/red]"
+            )
+            sys.exit(1)
+        console.print(f"[green]✓[/green] Job stopped: {job.id}")
+    except Exception as e:
+        console.print(f"[red]Error stopping job: {e}[/red]")
+        logger.exception("Failed to stop job")
+        sys.exit(1)
 
-        if count == 0:
-            console.print("[yellow]No failed jobs found[/yellow]")
+
+@jobs.command("retry")
+@click.argument("job_id", required=False)
+@click.option("--all", "retry_all", is_flag=True, help="Retry all FAILED jobs")
+@click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="With --all, filter by job type")
+@click.option("--dry-run", is_flag=True, help="Show counts without making changes")
+def retry_cmd(job_id: str, retry_all: bool, type_filter: str, dry_run: bool):
+    """Reset FAILED jobs back to PENDING for retry.
+
+    JOB_ID: UUID of the job to retry. Read from stdin if not given as an
+    argument. Ignored when --all is set, which retries every failed job.
+    """
+    try:
+        init_session()
+
+        if retry_all:
+            jt = JobType(type_filter) if type_filter else None
+            count = count_jobs_by_status(JobStatus.FAILED, job_type=jt)
+
+            if count == 0:
+                console.print("[yellow]No failed jobs found[/yellow]")
+                return
+
+            if dry_run:
+                console.print(f"Would requeue: [cyan]{count}[/cyan] failed jobs")
+                return
+
+            requeued = requeue_failed_jobs(job_type=jt)
+            console.print(f"[green]✓[/green] Requeued {len(requeued)} failed jobs to PENDING")
             return
+
+        # Single-job mode: read the id from the argument or stdin.
+        if not job_id:
+            job_id = sys.stdin.readline().strip()
+        if not job_id:
+            console.print("[red]No job id provided (pass an argument, pipe via stdin, or use --all)[/red]")
+            sys.exit(1)
 
         if dry_run:
-            console.print(f"Would requeue: [cyan]{count}[/cyan] failed jobs")
+            job = get_job(job_id)
+            if not job or job.status != JobStatus.FAILED:
+                console.print(f"[red]Job not found or not in FAILED status: {job_id}[/red]")
+                sys.exit(1)
+            console.print(f"Would requeue: [cyan]{job.id}[/cyan]")
             return
 
-        requeued = requeue_failed_jobs(job_type=jt)
-        console.print(f"[green]✓[/green] Requeued {len(requeued)} failed jobs to PENDING")
+        job = requeue_job(job_id)
+        if not job:
+            console.print(f"[red]Job not found or not in FAILED status: {job_id}[/red]")
+            sys.exit(1)
+        console.print(f"[green]✓[/green] Requeued job to PENDING: {job.id}")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        logger.exception("Failed to requeue jobs")
+        logger.exception("Failed to retry jobs")
         sys.exit(1)
 
 

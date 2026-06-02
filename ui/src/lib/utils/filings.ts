@@ -52,11 +52,11 @@ export function formatFilingPeriod(
 				else quarter = 4;
 			}
 
-			return `FY${fiscalYear} Q${quarter}`;
+			return `FY ${fiscalYear} Q${quarter}`;
 		}
 
 		if (filing.form.includes('10-K')) {
-			return `FY${reportYear}`;
+			return `FY ${reportYear}`;
 		}
 	} catch (error) {
 		console.warn('Failed to parse filing date:', filing.period_of_report, error);
@@ -143,6 +143,15 @@ export function getAnalysisTypeDisplay(documentType: string): string {
 	if (type.includes('aggregate_summary')) return 'Change Analysis';
 
 	return documentType;
+}
+
+/**
+ * Strip a provider prefix from a model identifier, returning only the part
+ * after the last '/'. Models without a prefix (e.g. "claude-sonnet") are
+ * returned unchanged.
+ */
+export function shortModelName(model: string): string {
+	return model.split('/').pop() || model;
 }
 
 /**

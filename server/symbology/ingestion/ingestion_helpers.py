@@ -112,7 +112,7 @@ def ingest_company(ticker: str) -> Tuple[Company, UUID]:
         logger.error("ingest_company_failed", ticker=ticker, error=str(e), exc_info=True)
         raise
 
-def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_documents: bool = True) -> List[Tuple]:
+def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_documents: bool = True, amendments: bool = False) -> List[Tuple]:
     """Fetch filings from EDGAR and store in database.
 
     Args:
@@ -121,6 +121,9 @@ def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_docum
         form: Form type (10-K, 10-Q, etc.)
         count: Number of filings to retrieve
         include_documents: Whether to also ingest filing documents
+        amendments: Whether to include amended filings (e.g. 10-K/A). Defaults to
+            False — amendments typically only amend Part III, so for the page
+            pipelines we want the original full filing, not the amendment.
 
     Returns:
         List of tuples containing (ticker, form, period_of_report, filing_id)
@@ -131,13 +134,20 @@ def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_docum
             #  some error
             return (None, None)
 
-        logger.info("filings", ticker=ticker, form=form, count=count)
-        # Get filings from EDGAR
-        edgar_filings = company.get_filings(form=form).latest(count)
+        logger.info("filings", ticker=ticker, form=form, count=count, amendments=amendments)
+        # Get filings from EDGAR. amendments=False excludes 10-K/A etc. so the
+        # pipeline operates on original full filings only.
+        edgar_filings = company.get_filings(form=form, amendments=amendments).latest(count)
+
+        # Defensive exact-form filter: when excluding amendments, never accept a
+        # filing whose form isn't exactly `form` (guards against any prefix-style
+        # matching that could let a 10-K/A through).
+        def _form_ok(f) -> bool:
+            return amendments or f.form == form
 
         # Handle case where fewer filings are available than requested
         if count == 1:
-            filings = [edgar_filings] if edgar_filings is not None else []
+            filings = [edgar_filings] if edgar_filings is not None and _form_ok(edgar_filings) else []
         else:
             # Check how many filings are actually available
             try:
@@ -146,6 +156,11 @@ def ingest_filings(db_id: str, ticker: str, form: str, count: int, include_docum
                 for i in range(count):
                     try:
                         filing = edgar_filings[i]
+                        if not _form_ok(filing):
+                            logger.info("skip_amendment_filing", ticker=ticker,
+                                        requested_form=form, got_form=filing.form,
+                                        accession_number=filing.accession_number)
+                            continue
                         filings.append(filing)
                     except IndexError:
                         # No more filings available

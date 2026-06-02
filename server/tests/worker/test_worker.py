@@ -59,6 +59,9 @@ class TestWorkerLoop:
         mock_job.job_type = JobType.TEST
         mock_job.params = {"key": "value"}
 
+        # init_db now returns an (engine, session) tuple
+        mock_init_db.return_value = (MagicMock(), MagicMock())
+
         # First call returns a job, second call triggers shutdown
         call_count = 0
         def claim_side_effect(wid):
@@ -103,6 +106,9 @@ class TestWorkerLoop:
         mock_job.job_type = JobType.TEST
         mock_job.params = {}
 
+        # init_db now returns an (engine, session) tuple
+        mock_init_db.return_value = (MagicMock(), MagicMock())
+
         call_count = 0
         def claim_side_effect(wid):
             nonlocal call_count
@@ -145,6 +151,9 @@ class TestWorkerLoop:
         mock_job.id = "no-handler-id"
         mock_job.job_type = JobType.COMPANY_INGESTION  # no handler registered yet
         mock_job.params = {}
+
+        # init_db now returns an (engine, session) tuple
+        mock_init_db.return_value = (MagicMock(), MagicMock())
 
         call_count = 0
         def claim_side_effect(wid):

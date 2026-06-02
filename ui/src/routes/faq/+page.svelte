@@ -68,9 +68,9 @@
 			What is Symbology?
 		</h2>
 		<p>
-			In finance, a stock symbol represents a company's identity in the market. Symbology takes that
-			idea further — turning raw SEC filings into clear, structured intelligence you can actually
-			use.
+			A stock symbol is a company's shorthand identity in the market. Symbology extends that idea to
+			the company's own words — turning the raw SEC filings behind a ticker into clear, structured,
+			comparable intelligence.
 		</p>
 
 		<h2
@@ -79,7 +79,7 @@
 			How does it work?
 		</h2>
 		<p>
-			Symbology retrieves public filings directly from the SEC using the
+			Symbology pulls public filings straight from the SEC with the
 			<a
 				href="https://github.com/dgunning/edgartools"
 				target="_blank"
@@ -87,13 +87,92 @@
 				style="color: var(--teal-2); text-decoration: underline; text-underline-offset: 3px;"
 				>edgartools</a
 			>
-			library. Each filing is broken into its component sections — often thousands of lines of dense,
-			unstructured text.
+			library and splits each one into its component sections — risk factors, management's discussion,
+			business description, and the rest — often thousands of lines of dense, unstructured text.
 		</p>
 		<p>
-			We then use large language models to distill each section into a consistent, readable format.
-			By repeating this process across multiple reporting periods, Symbology can surface meaningful
-			changes in a company's disclosures over time — automatically.
+			From there, large language models distill those sections and compare them across reporting
+			periods to surface what actually changed. That synthesis happens in deliberate stages,
+			described below.
+		</p>
+
+		<h2
+			id="synthesis-levels"
+			style="font-family: var(--serif); font-size: 1.5rem; font-weight: 400; margin-top: 2.5rem; margin-bottom: 0.75rem; color: var(--ink); scroll-margin-top: 5rem;"
+		>
+			What are synthesis levels?
+		</h2>
+		<p>
+			Every piece of generated analysis carries a <strong>synthesis level</strong> — labelled L1 through
+			L4 — that records how many steps of generation separate it from the original filing text. Each level
+			is built only from the level beneath it, so the analysis forms a traceable chain rooted in primary
+			source material.
+		</p>
+		<div style="margin: 1.5rem 0; display: flex; flex-direction: column; gap: 1rem;">
+			<div
+				style="display: grid; grid-template-columns: 3rem 1fr; gap: 1rem; align-items: baseline;"
+			>
+				<span
+					style="font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--teal-2);"
+					>L1</span
+				>
+				<div>
+					<strong style="color: var(--ink);">Section summary</strong> — generated directly from a single
+					filing section. The source material is the document itself.
+				</div>
+			</div>
+			<div
+				style="display: grid; grid-template-columns: 3rem 1fr; gap: 1rem; align-items: baseline;"
+			>
+				<span
+					style="font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--teal-2);"
+					>L2</span
+				>
+				<div>
+					<strong style="color: var(--ink);">Change report</strong> — generated from a collection of L1
+					summaries of the same section across reporting periods.
+				</div>
+			</div>
+			<div
+				style="display: grid; grid-template-columns: 3rem 1fr; gap: 1rem; align-items: baseline;"
+			>
+				<span
+					style="font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--teal-2);"
+					>L3</span
+				>
+				<div>
+					<strong style="color: var(--ink);">Page content</strong> — generated from an L2 report — the
+					editorial narrative you read on a company or filing page.
+				</div>
+			</div>
+			<div
+				style="display: grid; grid-template-columns: 3rem 1fr; gap: 1rem; align-items: baseline;"
+			>
+				<span
+					style="font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--teal-2);"
+					>L4</span
+				>
+				<div>
+					<strong style="color: var(--ink);">Lead</strong> — generated from L3. Brief introductions, used
+					sparingly.
+				</div>
+			</div>
+		</div>
+		<p>
+			Our prompting strategy shifts deliberately as the level rises. <strong>L1</strong> is direct
+			and fact-oriented — a faithful distillation of a single section. <strong>L2</strong>
+			gathers those summaries across years and surfaces what changed and what recurred over time.
+			<strong>L3</strong>
+			is editorial, weaving those trends into a readable narrative.
+			<strong>L4</strong> is reserved for the short leads that orient a reader before they dive in.
+		</p>
+		<p>
+			We are deliberately cautious about extending this chain too far. Each additional level moves
+			further from the source text and compounds the risk of hallucination, so we stop well before
+			the analysis becomes untethered from what the filings actually say. To keep every statement
+			verifiable, the full chain of generation — and the source documents at its root — stays
+			visible, so a higher-level claim can always be traced back through the levels that produced
+			it.
 		</p>
 
 		<h2
@@ -102,13 +181,14 @@
 			Why build this?
 		</h2>
 		<p>
-			SEC filings are one of the most valuable sources of information about public companies, and
-			one of the least accessible. They're long, inconsistent, and difficult to compare across years
-			without significant manual effort.
+			SEC filings are among the most valuable sources of information about public companies, and
+			among the least accessible — long, inconsistent, and hard to compare across years without
+			significant manual effort.
 		</p>
 		<p>
-			Symbology automates that work. No third-party data providers, no editorial interpretation —
-			just structured analysis derived directly from primary sources.
+			Symbology automates that work end to end, from primary sources. No third-party data feeds and
+			no opinions layered on top: the analysis turns editorial only where it helps a reader, and
+			every statement traces back through its synthesis levels to the filing it came from.
 		</p>
 	</div>
 

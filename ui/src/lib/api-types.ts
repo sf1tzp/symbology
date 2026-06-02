@@ -36,6 +36,18 @@ export interface CompanyListResponse {
 	total: number;
 }
 
+// Featured company intro (landing-page carousel) — sourced from CompanyPageContent
+export interface FeaturedCompanyIntro {
+	ticker: string;
+	name: string;
+	display_name: string | null;
+	sic_description: string | null;
+	intro: string | null;
+	source_form_type: string | null;
+	source_filing_count: number;
+	created_at: string | null;
+}
+
 // Company Group types
 // Manually defined until API types are regenerated via `just -f ui/justfile generate-api-types`
 export interface CompanyGroupResponse {

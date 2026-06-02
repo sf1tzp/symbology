@@ -8,10 +8,12 @@
 		filings: FilingTimelineResponse[];
 		company: CompanyResponse | null;
 		selectedId?: string;
+		/** Base path for each filing node link, e.g. "/f". */
+		linkPrefix?: string;
 		onselect?: (filing: FilingTimelineResponse) => void;
 	}
 
-	let { filings, company, selectedId = '', onselect }: Props = $props();
+	let { filings, company, selectedId = '', linkPrefix = '/f', onselect }: Props = $props();
 
 	let scrollContainer = $state<HTMLDivElement | null>(null);
 
@@ -65,7 +67,7 @@
 
 				<!-- Filing node -->
 				<a
-					href="/f/{filing.accession_number}"
+					href="{linkPrefix}/{filing.accession_number}"
 					class="group flex flex-col items-center gap-1.5 rounded-lg px-3 py-2 no-underline transition-colors {isSelected
 						? 'bg-accent'
 						: 'hover:bg-muted/50'}"

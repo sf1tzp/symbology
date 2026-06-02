@@ -18,7 +18,7 @@ export async function unifiedSearch(
 	options: SearchOptions = {}
 ): Promise<SearchResponse> {
 	const {
-		entityTypes = ['company', 'filing', 'generated_content', 'company_group'],
+		entityTypes = ['company', 'filing', 'generated_content'],
 		sic,
 		formType,
 		documentType,
@@ -41,6 +41,7 @@ export async function unifiedSearch(
 				name as title, ticker as subtitle, null::text as date_value
 			FROM companies
 			WHERE search_vector @@ websearch_to_tsquery('english', ${query})
+				AND EXISTS (SELECT 1 FROM company_page_content cpc WHERE cpc.company_id = companies.id)
 		`;
 		if (sic) {
 			q = sql`${q} AND sic = ${sic}`;
@@ -91,20 +92,6 @@ export async function unifiedSearch(
 		if (dateTo) {
 			q = sql`${q} AND created_at <= ${dateTo}::date`;
 		}
-		parts.push(q);
-	}
-
-	if (entityTypes.includes('company_group')) {
-		const q = sql`
-			SELECT 'company_group' as entity_type, id::text,
-				ts_rank(search_vector, websearch_to_tsquery('english', ${query})) as rank,
-				ts_headline('english', concat_ws(' ', name, slug, description),
-					websearch_to_tsquery('english', ${query}),
-					'MaxWords=50, MinWords=10, StartSel=<mark>, StopSel=</mark>') as headline,
-				name as title, slug as subtitle, created_at::text as date_value
-			FROM company_groups
-			WHERE search_vector @@ websearch_to_tsquery('english', ${query})
-		`;
 		parts.push(q);
 	}
 
@@ -162,6 +149,7 @@ export async function unifiedSearch(
 			FROM companies
 			WHERE (ticker ILIKE ${query + '%'} OR name ILIKE ${'%' + query + '%'})
 				AND NOT (search_vector @@ websearch_to_tsquery('english', ${query}))
+				AND EXISTS (SELECT 1 FROM company_page_content cpc WHERE cpc.company_id = companies.id)
 			ORDER BY ticker ASC
 			LIMIT ${limit}
 		`.execute(db);
@@ -177,6 +165,7 @@ export async function unifiedSearch(
 					SELECT count(*) as count FROM companies
 					WHERE (ticker ILIKE ${query + '%'} OR name ILIKE ${'%' + query + '%'})
 						AND NOT (search_vector @@ websearch_to_tsquery('english', ${query}))
+						AND EXISTS (SELECT 1 FROM company_page_content cpc WHERE cpc.company_id = companies.id)
 				`.execute(db);
 				total += Number(fuzzyCount.rows[0]?.count ?? 0);
 

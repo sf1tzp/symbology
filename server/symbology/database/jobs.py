@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text, func, text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
@@ -67,6 +67,12 @@ class Job(Base):
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Earliest time this job may be claimed (naive UTC). NULL = eligible
+    # immediately. Lets a job defer itself — e.g. a company page waiting on
+    # in-flight filing page content — without busy-looping through the retry
+    # machinery (which retries immediately and burns max_retries).
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     # Retry
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     max_retries: Mapped[int] = mapped_column(Integer, default=3)
@@ -81,6 +87,7 @@ class Job(Base):
     __table_args__ = (
         Index("ix_jobs_queue_poll", "status", "priority", "created_at"),
         Index("ix_jobs_stale_detection", "status", "updated_at"),
+        Index("ix_jobs_scheduled", "status", "scheduled_at"),
     )
 
     def __repr__(self) -> str:
@@ -96,8 +103,13 @@ def create_job(
     params: Optional[Dict[str, Any]] = None,
     priority: int = 2,
     max_retries: int = 3,
+    scheduled_at: Optional[datetime] = None,
 ) -> Job:
-    """Create a new job and persist it."""
+    """Create a new job and persist it.
+
+    ``scheduled_at`` (naive UTC) defers the job: it won't be claimed until then.
+    Leave it None to make the job eligible immediately.
+    """
     try:
         session = get_db_session()
         job = Job(
@@ -105,10 +117,12 @@ def create_job(
             params=params or {},
             priority=priority,
             max_retries=max_retries,
+            scheduled_at=scheduled_at,
         )
         session.add(job)
         session.commit()
-        logger.info("created_job", job_id=str(job.id), job_type=job_type.value, priority=priority)
+        logger.info("created_job", job_id=str(job.id), job_type=job_type.value,
+                    priority=priority, scheduled_at=scheduled_at.isoformat() if scheduled_at else None)
         return job
     except Exception as e:
         session.rollback()
@@ -151,6 +165,25 @@ def list_jobs(
         return jobs
     except Exception as e:
         logger.error("list_jobs_failed", error=str(e), exc_info=True)
+        raise
+
+
+def get_active_jobs(job_type: JobType) -> List[Job]:
+    """Return jobs of a type that are still in flight (PENDING or IN_PROGRESS).
+
+    Used to tell whether work for a dependency is already queued/running before
+    enqueuing a duplicate (e.g. filing page content a company page is waiting on).
+    """
+    try:
+        session = get_db_session()
+        return (
+            session.query(Job)
+            .filter(Job.job_type == job_type)
+            .filter(Job.status.in_([JobStatus.PENDING, JobStatus.IN_PROGRESS]))
+            .all()
+        )
+    except Exception as e:
+        logger.error("get_active_jobs_failed", job_type=job_type.value, error=str(e), exc_info=True)
         raise
 
 
@@ -205,23 +238,56 @@ def stop_job(job_id: Union[UUID, str]) -> Optional[Job]:
 
 
 def claim_next_job(worker_id: str) -> Optional[Job]:
-    """Atomically claim the highest-priority pending job using SELECT FOR UPDATE SKIP LOCKED."""
+    """Atomically claim the highest-priority eligible pending job.
+
+    Claiming is a SINGLE statement — ``UPDATE ... WHERE id = (SELECT ... FOR
+    UPDATE SKIP LOCKED LIMIT 1) RETURNING`` — rather than a ``SELECT FOR UPDATE``
+    followed by a separate ``UPDATE``. The two-statement form only holds the row
+    lock across both statements on a *direct* connection; behind a transaction-
+    or statement-pooling pooler (e.g. PgBouncer) the ``SELECT``'s lock and the
+    ``UPDATE`` can land on different backends, so two workers can claim the same
+    row. A single statement is atomic under every pooling mode.
+
+    Deferred jobs (``scheduled_at`` in the future) are skipped until their time
+    arrives; a NULL ``scheduled_at`` is eligible immediately. The enum labels
+    (``'pending'`` / ``'in_progress'``) are inlined as untyped literals so they
+    coerce to ``job_status_enum`` without a bound-parameter cast.
+    """
     try:
         session = get_db_session()
-        job = (
-            session.query(Job)
-            .filter(Job.status == JobStatus.PENDING)
-            .order_by(Job.priority, Job.created_at)
-            .with_for_update(skip_locked=True)
-            .first()
-        )
-        if not job:
+        # Compare scheduled_at against a Python-side naive UTC "now" (matching how
+        # scheduled_at is written and the stale-sweep convention) so a non-UTC DB
+        # session timezone can't shift the timestamp/timestamptz comparison.
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        claimed_id = session.execute(
+            text(
+                """
+                UPDATE jobs
+                SET status = 'in_progress',
+                    worker_id = :wid,
+                    started_at = now()
+                WHERE id = (
+                    SELECT id FROM jobs
+                    WHERE status = 'pending'
+                      AND (scheduled_at IS NULL OR scheduled_at <= :now)
+                    ORDER BY priority, created_at
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                )
+                RETURNING id
+                """
+            ),
+            {"wid": worker_id, "now": now},
+        ).scalar()
+        if claimed_id is None:
+            session.commit()
             return None
-        job.status = JobStatus.IN_PROGRESS
-        job.worker_id = worker_id
-        job.started_at = func.now()
+        # Re-read inside the same transaction (sees our own UPDATE) for a fully
+        # hydrated ORM instance, then commit to release the row.
+        job = session.query(Job).filter(Job.id == claimed_id).first()
         session.commit()
-        logger.info("claimed_job", job_id=str(job.id), worker_id=worker_id, job_type=job.job_type.value)
+        logger.info("claimed_job", job_id=str(claimed_id), worker_id=worker_id,
+                    job_type=job.job_type.value if job else None)
         return job
     except Exception as e:
         session.rollback()

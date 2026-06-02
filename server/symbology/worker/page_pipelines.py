@@ -45,6 +45,21 @@ class PageContentGenerationError(RuntimeError):
     """Raised when page content could not be fully generated (publish is skipped)."""
 
 
+class FilingPageContentNotReady(PageContentGenerationError):
+    """Source filings still lack published page content — a dependency, not a hard failure.
+
+    Distinguished from a generic ``PageContentGenerationError`` so a caller can
+    react (wait for in-flight filing page jobs, or enqueue missing ones) instead
+    of treating it as a terminal failure. Carries the offending filing ids.
+    Subclasses ``PageContentGenerationError`` so existing ``except`` clauses
+    still catch it.
+    """
+
+    def __init__(self, message: str, missing_filing_ids: List[str]):
+        super().__init__(message)
+        self.missing_filing_ids = missing_filing_ids
+
+
 def _generate_document_page_content(
     filing,
     document,
@@ -343,10 +358,12 @@ def company_page_content_pipeline(
         f for f in filings_desc if get_current_filing_page_content(f.id) is None
     ]
     if missing_pages:
-        raise PageContentGenerationError(
+        missing_ids = [str(f.id) for f in missing_pages]
+        raise FilingPageContentNotReady(
             f"{len(missing_pages)} of {len(filings_desc)} source filings for "
             f"{company.ticker} lack published filing page content "
-            f"({[str(f.id) for f in missing_pages]}); generate it first"
+            f"({missing_ids}); generate it first",
+            missing_filing_ids=missing_ids,
         )
 
     # Chronological order (oldest first) for change-report narratives.

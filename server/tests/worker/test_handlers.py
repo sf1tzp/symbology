@@ -530,3 +530,144 @@ class TestHandleFullPipeline:
         # All 3 stages generated
         assert mock_content_gen.call_count == 3
         assert result["content_generated"] == 3
+
+
+from datetime import date
+from types import SimpleNamespace
+
+
+def _fake_filing(accession, ticker, form="10-K", period_year=2024, filed_year=2024):
+    return SimpleNamespace(
+        id=uuid7(),
+        accession_number=accession,
+        form=form,
+        company=SimpleNamespace(ticker=ticker),
+        period_of_report=date(period_year, 12, 31) if period_year else None,
+        filing_date=date(filed_year, 2, 1) if filed_year else None,
+    )
+
+
+class TestFilingPageJobInFlight:
+    """The matcher that decides whether a filing's page job is already queued."""
+
+    def test_matches_by_accession_number(self):
+        from symbology.worker.handlers import _filing_page_job_in_flight
+        filing = _fake_filing("0000320193-24-000123", "AAPL")
+        jobs = [SimpleNamespace(params={"accession_number": "0000320193-24-000123"})]
+        assert _filing_page_job_in_flight(filing, jobs) is True
+
+    def test_matches_by_ticker_year_form(self):
+        from symbology.worker.handlers import _filing_page_job_in_flight
+        filing = _fake_filing("acc-1", "AAPL", period_year=2024)
+        jobs = [SimpleNamespace(params={"ticker": "aapl", "year": "2024", "form": "10-K"})]
+        assert _filing_page_job_in_flight(filing, jobs) is True
+
+    def test_matches_year_against_filing_date_when_period_differs(self):
+        from symbology.worker.handlers import _filing_page_job_in_flight
+        # Job targets the filing-date year (2025), period_of_report is 2024.
+        filing = _fake_filing("acc-1", "AAPL", period_year=2024, filed_year=2025)
+        jobs = [SimpleNamespace(params={"ticker": "AAPL", "year": 2025})]
+        assert _filing_page_job_in_flight(filing, jobs) is True
+
+    def test_no_match_for_different_filing(self):
+        from symbology.worker.handlers import _filing_page_job_in_flight
+        filing = _fake_filing("acc-1", "AAPL", period_year=2024)
+        jobs = [
+            SimpleNamespace(params={"accession_number": "other-acc"}),
+            SimpleNamespace(params={"ticker": "MSFT", "year": 2024}),
+            SimpleNamespace(params={"ticker": "AAPL", "year": 2020}),
+        ]
+        assert _filing_page_job_in_flight(filing, jobs) is False
+
+    def test_empty_active_jobs(self):
+        from symbology.worker.handlers import _filing_page_job_in_flight
+        assert _filing_page_job_in_flight(_fake_filing("a", "AAPL"), []) is False
+
+
+class TestAwaitFilingPageContent:
+    """The dependency-recovery path: queue missing filing jobs, defer the company job."""
+
+    def _patches(self, filings_by_id, active_jobs, created):
+        """Patch the local imports inside _await_filing_page_content."""
+        session = MagicMock()
+
+        def query(_model):
+            q = MagicMock()
+            def filter_(expr):
+                fq = MagicMock()
+                # The handler builds Filing.id == UUID(fid); resolve via call order.
+                fq.first.side_effect = lambda: filings_by_id.pop(0) if filings_by_id else None
+                return fq
+            q.filter.side_effect = filter_
+            return q
+        session.query.side_effect = query
+
+        def fake_create_job(job_type, params=None, priority=2, scheduled_at=None):
+            job = SimpleNamespace(id=uuid7(), job_type=job_type, params=params,
+                                  scheduled_at=scheduled_at)
+            created.append(job)
+            return job
+
+        return (
+            patch("symbology.database.base.get_db_session", return_value=session),
+            patch("symbology.database.jobs.get_active_jobs", return_value=active_jobs),
+            patch("symbology.database.jobs.create_job", side_effect=fake_create_job),
+        )
+
+    def test_queues_filing_job_when_not_in_flight(self):
+        from symbology.worker.handlers import _await_filing_page_content
+        from symbology.worker.page_pipelines import FilingPageContentNotReady
+
+        filing = _fake_filing("acc-X", "AAPL")
+        exc = FilingPageContentNotReady("missing", [str(filing.id)])
+        created = []
+        p1, p2, p3 = self._patches([filing], active_jobs=[], created=created)
+        with p1, p2, p3:
+            result = _await_filing_page_content("AAPL", "10-K", {}, exc)
+
+        from symbology.database.jobs import JobType
+        filing_jobs = [j for j in created if j.job_type == JobType.FILING_PAGE_CONTENT]
+        company_jobs = [j for j in created if j.job_type == JobType.COMPANY_PAGE_CONTENT]
+        assert len(filing_jobs) == 1
+        assert filing_jobs[0].params == {"accession_number": "acc-X"}
+        # Company job deferred into the future with an incremented attempt counter.
+        assert len(company_jobs) == 1
+        assert company_jobs[0].scheduled_at is not None
+        assert company_jobs[0].params["_dep_wait_attempts"] == 1
+        assert result["status"] == "requeued_waiting_on_filing_pages"
+        assert result["queued_filing_pages"] == ["acc-X"]
+
+    def test_waits_without_requeuing_filing_when_in_flight(self):
+        from symbology.worker.handlers import _await_filing_page_content
+        from symbology.worker.page_pipelines import FilingPageContentNotReady
+        from symbology.database.jobs import JobType
+
+        filing = _fake_filing("acc-Y", "AAPL")
+        exc = FilingPageContentNotReady("missing", [str(filing.id)])
+        active = [SimpleNamespace(params={"accession_number": "acc-Y"})]
+        created = []
+        p1, p2, p3 = self._patches([filing], active_jobs=active, created=created)
+        with p1, p2, p3:
+            result = _await_filing_page_content("AAPL", "10-K", {}, exc)
+
+        assert not [j for j in created if j.job_type == JobType.FILING_PAGE_CONTENT]
+        assert result["waiting_on_in_flight"] == [str(filing.id)]
+        assert [j for j in created if j.job_type == JobType.COMPANY_PAGE_CONTENT]
+
+    def test_raises_when_attempts_exhausted(self):
+        import pytest
+        from symbology.worker.handlers import _await_filing_page_content
+        from symbology.worker.page_pipelines import FilingPageContentNotReady
+        from symbology.worker.config import worker_settings
+
+        filing = _fake_filing("acc-Z", "AAPL")
+        exc = FilingPageContentNotReady("missing", [str(filing.id)])
+        created = []
+        active = [SimpleNamespace(params={"accession_number": "acc-Z"})]
+        p1, p2, p3 = self._patches([filing], active_jobs=active, created=created)
+        params = {"_dep_wait_attempts": worker_settings.dependency_requeue_max_attempts}
+        with p1, p2, p3, pytest.raises(FilingPageContentNotReady):
+            _await_filing_page_content("AAPL", "10-K", params, exc)
+        # No successor enqueued once the bound is hit.
+        from symbology.database.jobs import JobType
+        assert not [j for j in created if j.job_type == JobType.COMPANY_PAGE_CONTENT]

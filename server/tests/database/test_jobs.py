@@ -16,6 +16,7 @@ from symbology.database.jobs import (
     count_jobs_by_status,
     create_job,
     fail_job,
+    get_active_jobs,
     get_job,
     heartbeat_job,
     list_jobs,
@@ -141,6 +142,51 @@ class TestClaimNextJob:
         with patch("symbology.database.jobs.get_db_session", return_value=db_session):
             result = claim_next_job("worker-1")
             assert result is None
+
+    def test_claim_skips_future_scheduled_job(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            future = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=10)
+            create_job(JobType.TEST, params={"name": "deferred"}, priority=0,
+                       scheduled_at=future)
+            # Highest priority but not yet eligible — nothing else pending.
+            assert claim_next_job("worker-1") is None
+
+    def test_claim_returns_due_scheduled_job(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            past = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
+            j = create_job(JobType.TEST, params={"name": "due"}, priority=2,
+                           scheduled_at=past)
+            claimed = claim_next_job("worker-1")
+            assert claimed is not None and claimed.id == j.id
+
+    def test_claim_prefers_eligible_over_future(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            future = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=10)
+            create_job(JobType.TEST, params={"name": "deferred"}, priority=0,
+                       scheduled_at=future)
+            now_job = create_job(JobType.TEST, params={"name": "now"}, priority=3)
+            claimed = claim_next_job("worker-1")
+            # The lower-priority job wins because the priority-0 one isn't due.
+            assert claimed.id == now_job.id
+
+
+class TestGetActiveJobs:
+    """Test the in-flight (PENDING/IN_PROGRESS) lookup used for dependency gating."""
+
+    def test_returns_pending_and_in_progress_only(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            pending = create_job(JobType.FILING_PAGE_CONTENT, params={"year": 2024})
+            running = create_job(JobType.FILING_PAGE_CONTENT, params={"year": 2023})
+            claim_next_job("worker-1")  # flips one to IN_PROGRESS
+            done = create_job(JobType.FILING_PAGE_CONTENT, params={"year": 2022})
+            complete_job(done.id)
+            create_job(JobType.TEST, params={"year": 2024})  # different type, excluded
+
+            active = get_active_jobs(JobType.FILING_PAGE_CONTENT)
+            ids = {j.id for j in active}
+            assert pending.id in ids and running.id in ids
+            assert done.id not in ids
+            assert all(j.job_type == JobType.FILING_PAGE_CONTENT for j in active)
 
 
 class TestCompleteAndFail:

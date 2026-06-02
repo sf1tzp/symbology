@@ -814,6 +814,7 @@ def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, An
     from symbology.database.companies import get_company_by_ticker
     from symbology.worker.page_pipelines import (
         DEFAULT_COMPANY_LOOKBACK,
+        FilingPageContentNotReady,
         PageContentGenerationError,
         company_page_content_pipeline,
     )
@@ -832,7 +833,14 @@ def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, An
             f"page content before the company page"
         )
 
-    page = company_page_content_pipeline(company, lookback=lookback, form=form)
+    try:
+        page = company_page_content_pipeline(company, lookback=lookback, form=form)
+    except FilingPageContentNotReady as exc:
+        # Dependency gate, not a real failure: the source filing pages aren't
+        # published yet. Ensure each missing filing has a page job in flight
+        # (queue one if not) and defer this company page rather than burning
+        # retries on a tight crash loop.
+        return _await_filing_page_content(ticker, form, params, exc)
 
     logger.info("handler_company_page_content_done", ticker=ticker,
                 form=form, company_id=str(company.id))
@@ -841,4 +849,109 @@ def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, An
         "form": form,
         "company_id": str(company.id),
         "company_page_content_id": str(page.id),
+    }
+
+
+def _filing_page_job_in_flight(filing, active_jobs) -> bool:
+    """Whether a FILING_PAGE_CONTENT job for ``filing`` is already PENDING/IN_PROGRESS.
+
+    FILING_PAGE_CONTENT jobs are parameterized either by ``accession_number`` or
+    by ``ticker``+``year``(+``form``), so match on both shapes. Year is compared
+    against the filing's period-of-report and filing-date years to mirror how
+    ``handle_filing_page_content`` resolves a filing from a fiscal year.
+    """
+    acc = filing.accession_number
+    fticker = (filing.company.ticker or "").upper()
+    fform = filing.form
+    fyears = set()
+    if filing.period_of_report:
+        fyears.add(filing.period_of_report.year)
+    if filing.filing_date:
+        fyears.add(filing.filing_date.year)
+
+    for job in active_jobs:
+        p = job.params or {}
+        if acc and p.get("accession_number") == acc:
+            return True
+        if (p.get("ticker") or "").upper() == fticker and p.get("form", "10-K") == fform:
+            year = p.get("year")
+            if year is not None and int(year) in fyears:
+                return True
+    return False
+
+
+def _await_filing_page_content(ticker, form, params, exc):
+    """React to missing source filing pages: enqueue what's absent, defer the rest.
+
+    For each missing filing id from ``exc``: if a filing page job is already in
+    flight, leave it; otherwise queue a fresh one by accession number (covers the
+    never-queued case *and* a prior job that died transiently — it's no longer in
+    flight, so we re-queue). Then reschedule this company page job
+    ``dependency_requeue_delay`` seconds out via ``scheduled_at``, bounded by
+    ``dependency_requeue_max_attempts`` so a permanently-broken filing can't keep
+    it pending forever.
+    """
+    from datetime import datetime, timedelta, timezone
+    from uuid import UUID
+
+    from symbology.database.base import get_db_session
+    from symbology.database.filings import Filing
+    from symbology.database.jobs import JobType, create_job, get_active_jobs
+    from symbology.worker.config import worker_settings
+
+    session = get_db_session()
+    active_filing_jobs = get_active_jobs(JobType.FILING_PAGE_CONTENT)
+
+    queued, waiting, unresolved = [], [], []
+    for fid in exc.missing_filing_ids:
+        filing = session.query(Filing).filter(Filing.id == UUID(fid)).first()
+        if filing is None:
+            # Can't queue a precise job without the row; surface it and move on.
+            unresolved.append(fid)
+            logger.warning("dep_filing_not_found", filing_id=fid, ticker=ticker)
+            continue
+        if _filing_page_job_in_flight(filing, active_filing_jobs):
+            waiting.append(fid)
+            logger.info("dep_filing_page_in_flight", filing_id=fid, ticker=ticker)
+            continue
+        job = create_job(
+            job_type=JobType.FILING_PAGE_CONTENT,
+            params={"accession_number": filing.accession_number},
+            priority=1,
+        )
+        queued.append(filing.accession_number)
+        logger.info("dep_filing_page_queued", filing_id=fid,
+                    accession_number=filing.accession_number, job_id=str(job.id))
+
+    attempts = int(params.get("_dep_wait_attempts", 0)) + 1
+    if attempts > worker_settings.dependency_requeue_max_attempts:
+        logger.error("company_page_dep_wait_exhausted", ticker=ticker, form=form,
+                     attempts=attempts, missing=exc.missing_filing_ids,
+                     unresolved=unresolved)
+        # Out of patience — fail loudly so it lands in failed jobs.
+        raise exc
+
+    delay = worker_settings.dependency_requeue_delay
+    scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=delay)
+    successor = create_job(
+        job_type=JobType.COMPANY_PAGE_CONTENT,
+        params={**params, "_dep_wait_attempts": attempts},
+        priority=2,
+        scheduled_at=scheduled_at,
+    )
+    logger.info("company_page_requeued_for_deps", ticker=ticker, form=form,
+                attempt=attempts, max_attempts=worker_settings.dependency_requeue_max_attempts,
+                delay_seconds=delay, scheduled_at=scheduled_at.isoformat(),
+                queued_filing_pages=queued, waiting_on=waiting,
+                successor_job_id=str(successor.id))
+    return {
+        "ticker": ticker,
+        "form": form,
+        "status": "requeued_waiting_on_filing_pages",
+        "attempt": attempts,
+        "queued_filing_pages": queued,
+        "waiting_on_in_flight": waiting,
+        "unresolved_filing_ids": unresolved,
+        "scheduled_at": scheduled_at.isoformat(),
+        "successor_job_id": str(successor.id),
     }

@@ -271,7 +271,7 @@
 									Synthesis
 								</span>
 							{/if}
-							<span class="tag text-olive" style="font-size: 10px; gap: 4px;">
+							<span class="tag hidden text-olive md:inline-flex" style="font-size: 10px; gap: 4px;">
 								<ScrollText class="h-2.5 w-2.5" />
 								Source Document
 							</span>
@@ -356,6 +356,18 @@
 	}
 	.docrow-filing:hover {
 		background: var(--paper-2);
+	}
+	@media (max-width: 767.98px) {
+		.docrow-filing {
+			grid-template-columns: auto 1fr auto auto;
+			gap: 0.5rem;
+			padding: 0.875rem 1rem;
+		}
+		/* Let cells shrink and long type tokens wrap, never forcing overflow. */
+		.docrow-filing > div {
+			min-width: 0;
+			overflow-wrap: anywhere;
+		}
 	}
 
 	.btn-filing-primary {

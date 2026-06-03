@@ -133,7 +133,7 @@
 <div style="height: 2rem;"></div>
 
 <!-- ═══════════ HERO ═══════════ -->
-<section style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: end;">
+<section class="two-col-even" style="align-items: end;">
 	<div>
 		<div class="eyebrow" style="margin-bottom: 1.125rem;">
 			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;OPERATIONS &middot; status
@@ -161,7 +161,7 @@
 		{/if}
 	</div>
 	{#if hero}
-		<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;">
+		<div class="grid grid-cols-2 md:grid-cols-3" style="gap: 0;">
 			<div class="stat" style="padding: 1rem 0; ">
 				<span class="stat-label">Workers online</span>
 				<span class="stat-value" style="font-size: 2rem;">{hero.workersOnline} </span>
@@ -266,63 +266,65 @@
 			<div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--rule);" class="flex-between">
 				<h3 class="sub">In-flight & queued &middot; {activeJobs.length}</h3>
 			</div>
-			<table class="status-table">
-				<thead>
-					<tr>
-						<th style="width: 24px; text-align: center;"></th>
-						<th>Job ID</th>
-						<th>Kind</th>
-						<th>Company</th>
-						<th>Target</th>
-						<th style="text-align: right;">Try</th>
-						<th style="text-align: right;">Worker</th>
-						<th style="text-align: right;">Runtime</th>
-						<th style="text-align: right;">State</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each activeJobs as j, i (j.id)}
-						<tr class:last={i === activeJobs.length - 1}>
-							<td style="padding: 0.6875rem 0; text-align: center;">
-								<span
-									style="display: inline-block; width: 3px; height: 26px; background: {priColorFor(
-										j.priority
-									)}; border-radius: 1.5px;"
-								></span>
-							</td>
-							<td class="mono-cell">{j.id}</td>
-							<td class="mono-cell" style="color: var(--ink-2);">{j.kind}</td>
-							<td class="mono-cell">{j.company}</td>
-							<td class="serif-cell">{j.target}</td>
-							<td
-								class="mono-cell"
-								style="text-align: right; color: {j.attempt.startsWith('1')
-									? 'var(--ink-3)'
-									: 'var(--warn)'};"
-							>
-								{j.attempt}
-							</td>
-							<td class="mono-cell" style="text-align: right;">{j.workerId}</td>
-							<td class="mono-cell" style="text-align: right;">{j.runtime}</td>
-							<td style="text-align: right;">
-								{#if j.state === 'running'}
-									<span class="status-badge" style="color: #3d8bff;">
-										<BlinkDot color="#3d8bff" /> running
-									</span>
-								{:else if j.state === 'backoff'}
-									<span class="status-badge status-warn">
-										<StatusDot kind="warn" size={6} /> backoff
-									</span>
-								{:else}
-									<span class="status-badge status-idle">
-										<StatusDot kind="idle" size={6} /> queued
-									</span>
-								{/if}
-							</td>
+			<div class="table-scroll">
+				<table class="status-table">
+					<thead>
+						<tr>
+							<th style="width: 24px; text-align: center;"></th>
+							<th>Job ID</th>
+							<th>Kind</th>
+							<th>Company</th>
+							<th>Target</th>
+							<th style="text-align: right;">Try</th>
+							<th style="text-align: right;">Worker</th>
+							<th style="text-align: right;">Runtime</th>
+							<th style="text-align: right;">State</th>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						{#each activeJobs as j, i (j.id)}
+							<tr class:last={i === activeJobs.length - 1}>
+								<td style="padding: 0.6875rem 0; text-align: center;">
+									<span
+										style="display: inline-block; width: 3px; height: 26px; background: {priColorFor(
+											j.priority
+										)}; border-radius: 1.5px;"
+									></span>
+								</td>
+								<td class="mono-cell">{j.id}</td>
+								<td class="mono-cell" style="color: var(--ink-2);">{j.kind}</td>
+								<td class="mono-cell">{j.company}</td>
+								<td class="serif-cell">{j.target}</td>
+								<td
+									class="mono-cell"
+									style="text-align: right; color: {j.attempt.startsWith('1')
+										? 'var(--ink-3)'
+										: 'var(--warn)'};"
+								>
+									{j.attempt}
+								</td>
+								<td class="mono-cell" style="text-align: right;">{j.workerId}</td>
+								<td class="mono-cell" style="text-align: right;">{j.runtime}</td>
+								<td style="text-align: right;">
+									{#if j.state === 'running'}
+										<span class="status-badge" style="color: #3d8bff;">
+											<BlinkDot color="#3d8bff" /> running
+										</span>
+									{:else if j.state === 'backoff'}
+										<span class="status-badge status-warn">
+											<StatusDot kind="warn" size={6} /> backoff
+										</span>
+									{:else}
+										<span class="status-badge status-idle">
+											<StatusDot kind="idle" size={6} /> queued
+										</span>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 		</div>
 	{/if}
 </section>
@@ -398,64 +400,66 @@
 				</span>
 			</div>
 			<div class="status-card">
-				<table class="status-table">
-					<thead>
-						<tr>
-							<th>Time</th>
-							<th>Kind</th>
-							<th>Company</th>
-							<th>Context</th>
-							<th>Model</th>
-							<th style="text-align: right;">Tok in / out</th>
-							<th style="text-align: right;">Lat</th>
-							<th style="text-align: right;">Cost</th>
-							<th style="text-align: right;">Status</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each contentLog as r, i (i)}
-							<tr
-								class:last={i === contentLog.length - 1}
-								class:row-fail={r.status === 'fail'}
-								class:linked={!!r.href}
-								role={r.href ? 'link' : undefined}
-								tabindex={r.href ? 0 : undefined}
-								onclick={() => r.href && goto(r.href)}
-								onkeydown={(e) => {
-									if (r.href && (e.key === 'Enter' || e.key === ' ')) {
-										e.preventDefault();
-										goto(r.href);
-									}
-								}}
-							>
-								<td class="mono-cell">{r.time}</td>
-								<td style="font-size: 0.8125rem; color: var(--ink-2);">{r.kind}</td>
-								<td class="mono-cell">{r.company}</td>
-								<td class="serif-cell">{r.context}</td>
-								<td class="mono-cell" style="font-size: 0.71875rem;">{r.model}</td>
-								<td class="mono-cell" style="text-align: right;">
-									{r.tokensIn.toLocaleString()} / {r.tokensOut.toLocaleString()}
-								</td>
-								<td class="mono-cell" style="text-align: right;">{r.latency}</td>
-								<td class="mono-cell" style="text-align: right;">{r.cost}</td>
-								<td style="text-align: right;">
-									<span
-										class="status-badge"
-										class:status-ok={r.status === 'ok'}
-										class:status-err={r.status === 'fail'}
-										class:status-warn={r.status === 'retry'}
-									>
-										<StatusDot
-											kind={r.status === 'ok' ? 'ok' : r.status === 'fail' ? 'err' : 'warn'}
-											size={6}
-										/>
-										{r.status}
-									</span>
-								</td>
+				<div class="table-scroll">
+					<table class="status-table">
+						<thead>
+							<tr>
+								<th>Time</th>
+								<th>Kind</th>
+								<th>Company</th>
+								<th>Context</th>
+								<th>Model</th>
+								<th style="text-align: right;">Tok in / out</th>
+								<th style="text-align: right;">Lat</th>
+								<th style="text-align: right;">Cost</th>
+								<th style="text-align: right;">Status</th>
 							</tr>
-						{/each}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{#each contentLog as r, i (i)}
+								<tr
+									class:last={i === contentLog.length - 1}
+									class:row-fail={r.status === 'fail'}
+									class:linked={!!r.href}
+									role={r.href ? 'link' : undefined}
+									tabindex={r.href ? 0 : undefined}
+									onclick={() => r.href && goto(r.href)}
+									onkeydown={(e) => {
+										if (r.href && (e.key === 'Enter' || e.key === ' ')) {
+											e.preventDefault();
+											goto(r.href);
+										}
+									}}
+								>
+									<td class="mono-cell">{r.time}</td>
+									<td style="font-size: 0.8125rem; color: var(--ink-2);">{r.kind}</td>
+									<td class="mono-cell">{r.company}</td>
+									<td class="serif-cell">{r.context}</td>
+									<td class="mono-cell" style="font-size: 0.71875rem;">{r.model}</td>
+									<td class="mono-cell" style="text-align: right;">
+										{r.tokensIn.toLocaleString()} / {r.tokensOut.toLocaleString()}
+									</td>
+									<td class="mono-cell" style="text-align: right;">{r.latency}</td>
+									<td class="mono-cell" style="text-align: right;">{r.cost}</td>
+									<td style="text-align: right;">
+										<span
+											class="status-badge"
+											class:status-ok={r.status === 'ok'}
+											class:status-err={r.status === 'fail'}
+											class:status-warn={r.status === 'retry'}
+										>
+											<StatusDot
+												kind={r.status === 'ok' ? 'ok' : r.status === 'fail' ? 'err' : 'warn'}
+												size={6}
+											/>
+											{r.status}
+										</span>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
 			</div>
 		</div>
 	{/if}
@@ -597,39 +601,41 @@
 				<span class="meta">Showing {recentFilings.length}</span>
 			</div>
 			<div class="status-card">
-				<table class="status-table">
-					<thead>
-						<tr>
-							<th>Time</th>
-							<th>CIK</th>
-							<th>Company</th>
-							<th>Form</th>
-							<th style="text-align: right;">Docs</th>
-							<th style="text-align: right;">Status</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each recentFilings as r, i (i)}
-							<tr class:last={i === recentFilings.length - 1}>
-								<td class="mono-cell">{r.time}</td>
-								<td class="mono-cell">{r.cik ?? '—'}</td>
-								<td class="serif-cell">{r.company}</td>
-								<td><span class="tag" style="font-size: 0.6875rem;">{r.form}</span></td>
-								<td class="mono-cell" style="text-align: right;">{r.docCount || '—'}</td>
-								<td style="text-align: right;">
-									<span
-										class="status-badge"
-										class:status-ok={r.status === 'indexed'}
-										class:status-idle={r.status !== 'indexed'}
-									>
-										<StatusDot kind={r.status === 'indexed' ? 'ok' : 'idle'} size={6} />
-										{r.status}
-									</span>
-								</td>
+				<div class="table-scroll">
+					<table class="status-table">
+						<thead>
+							<tr>
+								<th>Time</th>
+								<th>CIK</th>
+								<th>Company</th>
+								<th>Form</th>
+								<th style="text-align: right;">Docs</th>
+								<th style="text-align: right;">Status</th>
 							</tr>
-						{/each}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{#each recentFilings as r, i (i)}
+								<tr class:last={i === recentFilings.length - 1}>
+									<td class="mono-cell">{r.time}</td>
+									<td class="mono-cell">{r.cik ?? '—'}</td>
+									<td class="serif-cell">{r.company}</td>
+									<td><span class="tag" style="font-size: 0.6875rem;">{r.form}</span></td>
+									<td class="mono-cell" style="text-align: right;">{r.docCount || '—'}</td>
+									<td style="text-align: right;">
+										<span
+											class="status-badge"
+											class:status-ok={r.status === 'indexed'}
+											class:status-idle={r.status !== 'indexed'}
+										>
+											<StatusDot kind={r.status === 'indexed' ? 'ok' : 'idle'} size={6} />
+											{r.status}
+										</span>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
 			</div>
 		</div>
 	{/if}
@@ -649,6 +655,11 @@
 		border: 1px solid var(--rule);
 		border-radius: 10px;
 		background: var(--paper);
+	}
+
+	/* Wide dense tables scroll horizontally instead of overflowing the page. */
+	.table-scroll {
+		overflow-x: auto;
 	}
 
 	/* ── Dense table ── */

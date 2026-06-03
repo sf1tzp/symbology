@@ -75,7 +75,8 @@
 
 .dark {
 	--paper: #1c2126;
-	--paper-2: #1c2126;
+	/* Slightly lifted from --paper so cards/stat-grids read as elevated in dark mode. */
+	--paper-2: #232b31;
 	--ink: #e7e5dc;
 	--ink-2: #c2c8ce;
 	--ink-3: #8a949e;
@@ -205,6 +206,8 @@
 		line-height: 1.04;
 		letter-spacing: -0.025em;
 		color: var(--ink);
+		/* Long single words (company names) break instead of overflowing on mobile. */
+		overflow-wrap: break-word;
 	}
 	.display em {
 		font-weight: 300;
@@ -277,6 +280,22 @@
 		color: var(--ink-3);
 	}
 
+	/* ── Quick-stats strip: 4-across bordered row on desktop,
+	   2×2 elevated card on mobile (see the responsive block below). ── */
+	.stats {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		border-top: 1px solid var(--rule);
+		border-bottom: 1px solid var(--rule);
+	}
+	.stats .stat {
+		padding: 20px 24px;
+		border-right: 1px solid var(--rule);
+	}
+	.stats .stat:last-child {
+		border-right: 0;
+	}
+
 	/* ── Compact stat blocks (metadata cards) ── */
 	.meta-stats {
 		display: grid;
@@ -347,6 +366,14 @@
 		align-items: start;
 	}
 
+	/* ── Even two-column split (collapses to one column on mobile) ── */
+	.two-col-even {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 4rem;
+		align-items: start;
+	}
+
 	/* ── Change card ── */
 	.change-card {
 		border: 1px solid var(--rule);
@@ -403,6 +430,58 @@
 		.two-col {
 			grid-template-columns: 1fr;
 			gap: 2rem;
+		}
+	}
+
+	/* ── Mobile reflow (below the md breakpoint; 767.98px avoids a 1px seam
+	   with Tailwind's md: utilities, which fire at min-width 768px) ── */
+	@media (max-width: 767.98px) {
+		/* Tighter page gutters reclaim horizontal room on small screens. */
+		.page {
+			padding-inline: 16px;
+		}
+
+		/* Quick-stats strip → 2×2 elevated card (mirrors the mobile mockup's .m-stats). */
+		.stats {
+			grid-template-columns: 1fr 1fr;
+			border: 1px solid var(--rule);
+			border-radius: 13px;
+			overflow: hidden;
+		}
+		.stats .stat {
+			padding: 16px;
+			border-right: 1px solid var(--rule);
+			border-bottom: 1px solid var(--rule);
+		}
+		.stats .stat:nth-child(2n) {
+			border-right: 0;
+		}
+		.stats .stat:nth-last-child(-n + 2) {
+			border-bottom: 0;
+		}
+
+		/* Mobile stat scale; min-width:0 lets cells shrink below content width so
+		   two-column stat grids never force horizontal overflow. */
+		.stat {
+			min-width: 0;
+		}
+		.stat-value {
+			font-size: 1.5rem;
+		}
+
+		/* Even two-column splits stack. */
+		.two-col-even {
+			grid-template-columns: 1fr;
+			gap: 2rem;
+		}
+
+		/* Tighter editorial type scale on small screens (.display already
+		   self-shrinks via clamp()). */
+		.lede {
+			font-size: 1.0625rem;
+		}
+		.section-heading {
+			font-size: 1.5rem;
 		}
 	}
 	@media (min-width: 769px) and (max-width: 1024px) {

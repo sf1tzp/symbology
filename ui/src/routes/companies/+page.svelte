@@ -104,7 +104,7 @@
 
 <!-- Masthead -->
 <section>
-	<div class="flex-between" style="align-items: flex-end;">
+	<div class="flex-between flex-col items-stretch gap-6 md:flex-row md:items-end">
 		<div>
 			<div class="eyebrow" style="margin-bottom: 14px;">
 				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;COMPANIES
@@ -123,7 +123,8 @@
 		</div>
 		<!-- Search input -->
 		<div
-			style="min-width: 340px; display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+			class="w-full md:w-[340px]"
+			style="display: flex; align-items: center; gap: 8px; padding: 10px 14px;
 			       border: 1px solid var(--rule-2); border-radius: 8px; background: var(--paper);"
 		>
 			<Search style="width: 14px; height: 14px; color: var(--ink-4); flex-shrink: 0;" />
@@ -219,7 +220,7 @@
 				<a
 					href="/c/{c.ticker}"
 					class="docrow"
-					style="grid-template-columns: 70px 1fr 200px 80px 24px; text-decoration: none; color: inherit;"
+					style="grid-template-columns: 70px 1fr auto auto 24px; text-decoration: none; color: inherit;"
 				>
 					<div>
 						<span class="tag" style="font-size: 11px; font-weight: 500; color: var(--ink);">

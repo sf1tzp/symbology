@@ -8,6 +8,11 @@
 
 	let current = $state(0);
 
+	// The scroll-snap viewport (mobile) — also drives `current` from scroll position.
+	let viewport = $state<HTMLDivElement | null>(null);
+	// Below md we navigate via native scroll-snap; at md+ we use the JS translateX track.
+	let snapMode = $state(false);
+
 	const count = $derived(companies.length);
 	const active = $derived(companies[current]);
 
@@ -15,7 +20,13 @@
 		return Math.max(0, Math.min(i, count - 1));
 	}
 	function go(i: number) {
-		current = clamp(i);
+		const target = clamp(i);
+		if (snapMode && viewport) {
+			// Let the scroll handler sync `current`; just move the viewport.
+			viewport.scrollTo({ left: target * viewport.clientWidth, behavior: 'smooth' });
+		} else {
+			current = target;
+		}
 	}
 	function prev() {
 		go(current - 1);
@@ -23,6 +34,20 @@
 	function next() {
 		go(current + 1);
 	}
+
+	/** Derive the active slide from the snap viewport's scroll offset (mobile). */
+	function onScroll() {
+		if (!snapMode || !viewport) return;
+		current = clamp(Math.round(viewport.scrollLeft / viewport.clientWidth));
+	}
+
+	$effect(() => {
+		const mq = window.matchMedia('(max-width: 767.98px)');
+		const sync = () => (snapMode = mq.matches);
+		sync();
+		mq.addEventListener('change', sync);
+		return () => mq.removeEventListener('change', sync);
+	});
 
 	function displayName(c: FeaturedCompanyIntro): string {
 		return titleCase((c.display_name || c.name).toLowerCase());
@@ -38,65 +63,87 @@
 </script>
 
 {#if count > 0}
-	<section class="hairline-section" style="margin-top: 5rem;">
-		<div class="flex-between" style="align-items: flex-end; margin-bottom: 28px;">
+	<section class="hairline-section mt-20">
+		<div class="flex-between mb-7 items-end">
 			<div>
-				<div class="eyebrow" style="margin-bottom: 10px;">
-					<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;REAL EXAMPLES
+				<div class="eyebrow mb-2.5">
+					<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;REAL EXAMPLES
 				</div>
-				<h2 class="section-heading">Company analyses, direct from the filings.</h2>
+				<!-- <h2 class="section-heading">Generated Analysis, direct from the filings.</h2> -->
 			</div>
 			{#if active}
 				<a
 					href="/c/{active.ticker}"
-					class="meta"
-					style="color: var(--teal-2); text-decoration: none; white-space: nowrap;"
+					class="meta hidden whitespace-nowrap text-teal-2 no-underline md:block"
 				>
 					Open {active.ticker} &rarr;
 				</a>
 			{/if}
 		</div>
 
-		<div class="carousel">
-			<div class="track" style="transform: translateX(-{current * 100}%);">
+		<!--
+			Mobile: a horizontal scroll-snap viewport (swipe to page). md+: overflow is
+			clipped and the track is positioned with translateX instead (arrows + dots).
+			Scrollbar is hidden; `current` syncs from scrollLeft via onScroll.
+		-->
+		<div
+			bind:this={viewport}
+			onscroll={onScroll}
+			class="relative snap-x snap-mandatory [scrollbar-width:none] overflow-x-auto overflow-y-hidden rounded-lg [-ms-overflow-style:none] md:snap-none md:overflow-hidden [&::-webkit-scrollbar]:hidden"
+		>
+			<div
+				class="flex transition-transform duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+				style:transform={snapMode ? undefined : `translateX(-${current * 100}%)`}
+			>
 				{#each companies as c (c.ticker)}
-					<div class="slide">
-						<a href="/c/{c.ticker}" class="intro-card hover-card">
+					<div class="w-full shrink-0 snap-start">
+						<a
+							href="/c/{c.ticker}"
+							class="flex h-full flex-col overflow-hidden rounded-lg border border-rule text-inherit no-underline transition-colors duration-150 hover:border-rule-2"
+						>
 							<div
-								class="flex-between"
-								style="padding: 20px 28px; border-bottom: 1px solid var(--rule);"
+								class="flex-between flex-wrap gap-x-3 gap-y-1 border-b border-rule px-5 py-4 md:px-7 md:py-5"
 							>
-								<div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;">
-									<span class="tag" style="font-weight: 500; color: var(--ink);">{c.ticker}</span>
-									<span style="font-family: var(--serif); font-size: 18px;">{displayName(c)}</span>
-									{#if c.source_form_type}
-										<span class="meta" style="color: var(--ink-4);">
-											Sourced from Form {c.source_form_type}'s
-										</span>
-									{/if}
+								<div class="flex flex-wrap items-baseline gap-3.5">
+									<div class="flex-between flex">
+										<span class="font-serif text-xl">{displayName(c)}</span>
+										<span class="tag ml-2 font-medium text-ink">{c.ticker}</span>
+									</div>
 								</div>
+								{#if c.source_form_type}
+									<span class="meta text-xs text-ink-4">
+										Synthesized from Form {c.source_form_type}'s
+									</span>
+								{/if}
 								{#if c.source_filing_count > 0}
-									<span class="meta" style="color: var(--ink-4); white-space: nowrap;">
+									<span class="meta hidden text-xs whitespace-nowrap text-ink-4 md:block">
 										{c.source_filing_count} filings considered
 									</span>
 								{/if}
 							</div>
-							<div class="p-8">
+							<div class="flex flex-1 flex-col p-6 md:p-8">
 								{#if c.intro}
 									<p
-										style="font-family: var(--serif); font-size: 17px; line-height: 1.65; color: var(--ink-2); margin: 0;"
-										class="px-8"
+										class="m-0 line-clamp-8 font-serif text-[17px] leading-[1.65] text-ink-2 md:px-8"
 									>
 										{preview(c.intro)}
 									</p>
 								{:else if c.sic_description}
-									<p
-										style="font-family: var(--serif); font-size: 17px; line-height: 1.65; color: var(--ink-2); margin: 0;"
-									>
+									<p class="m-0 line-clamp-4 font-serif text-[17px] leading-[1.65] text-ink-2">
 										{c.sic_description}
 									</p>
 								{/if}
-								<p class="flex justify-end pt-4 font-serif text-ink-3">
+								{#if active}
+									<a
+										href="/c/{active.ticker}"
+										class="meta whitespace-nowrap text-teal-2 no-underline"
+									>
+									</a>
+								{/if}
+								<p class="mt-auto flex justify-end pt-4 font-serif text-teal-2 md:hidden">
+									Open {active.ticker} &rarr;
+								</p>
+								<p class="mt-auto hidden justify-end pt-4 font-serif text-ink-3 md:flex">
 									Click to view the full filing timeline, change analysis, and AI-generated
 									insights.
 									<ArrowRight />
@@ -110,7 +157,7 @@
 			{#if count > 1}
 				<button
 					type="button"
-					class="nav-btn nav-prev"
+					class="absolute top-1/2 left-4 hidden size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-rule-2 bg-paper text-ink-2 transition duration-150 enabled:hover:border-ink-4 enabled:hover:text-ink disabled:pointer-events-none disabled:opacity-0 md:flex"
 					onclick={prev}
 					disabled={current === 0}
 					aria-label="Previous company"
@@ -119,7 +166,7 @@
 				</button>
 				<button
 					type="button"
-					class="nav-btn nav-next"
+					class="absolute top-1/2 right-4 hidden size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-rule-2 bg-paper text-ink-2 transition duration-150 enabled:hover:border-ink-4 enabled:hover:text-ink disabled:pointer-events-none disabled:opacity-0 md:flex"
 					onclick={next}
 					disabled={current === count - 1}
 					aria-label="Next company"
@@ -130,12 +177,14 @@
 		</div>
 
 		{#if count > 1}
-			<div class="dots">
+			<div class="mt-8 flex flex-wrap justify-center gap-2">
 				{#each companies as c, i (c.ticker)}
 					<button
 						type="button"
-						class="dot"
-						class:active={i === current}
+						class="h-[7px] cursor-pointer rounded-full border-0 p-0 transition-all duration-200 {i ===
+						current
+							? 'w-[22px] bg-teal-2'
+							: 'w-[7px] bg-rule-2 hover:bg-ink-4'}"
 						onclick={() => go(i)}
 						aria-label="Show {c.ticker}"
 						aria-current={i === current}
@@ -145,93 +194,3 @@
 		{/if}
 	</section>
 {/if}
-
-<style>
-	.carousel {
-		position: relative;
-		overflow: hidden;
-		border-radius: 8px;
-	}
-	.track {
-		display: flex;
-		transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-	}
-	.slide {
-		min-width: 100%;
-		box-sizing: border-box;
-	}
-	.intro-card {
-		display: block;
-		border: 1px solid var(--rule);
-		border-radius: 8px;
-		overflow: hidden;
-		text-decoration: none;
-		color: inherit;
-		transition: border-color 0.15s;
-	}
-	.hover-card:hover {
-		border-color: var(--rule-2) !important;
-	}
-
-	/* Prev / next controls */
-	.nav-btn {
-		position: absolute;
-		top: 50%;
-		transform: translateY(-50%);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 34px;
-		height: 34px;
-		border-radius: 999px;
-		border: 1px solid var(--rule-2);
-		background: var(--paper);
-		color: var(--ink-2);
-		cursor: pointer;
-		transition:
-			border-color 0.15s,
-			color 0.15s,
-			opacity 0.15s;
-	}
-	.nav-btn:hover:not(:disabled) {
-		border-color: var(--ink-4);
-		color: var(--ink);
-	}
-	.nav-btn:disabled {
-		opacity: 0;
-		pointer-events: none;
-	}
-	.nav-prev {
-		left: 14px;
-	}
-	.nav-next {
-		right: 14px;
-	}
-
-	/* Position indicators */
-	.dots {
-		display: flex;
-		justify-content: center;
-		gap: 8px;
-		margin-top: 18px;
-	}
-	.dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 999px;
-		border: 0;
-		padding: 0;
-		background: var(--rule-2);
-		cursor: pointer;
-		transition:
-			background 0.15s,
-			width 0.2s;
-	}
-	.dot:hover {
-		background: var(--ink-4);
-	}
-	.dot.active {
-		width: 22px;
-		background: var(--teal-2);
-	}
-</style>

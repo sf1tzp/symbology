@@ -182,9 +182,7 @@
 </section>
 
 <!-- Two-column: filters + results -->
-<section
-	style="margin-top: 3rem; display: grid; grid-template-columns: 240px 1fr; gap: 4rem; align-items: start;"
->
+<section class="two-col" style="margin-top: 3rem;">
 	<!-- Sidebar filters -->
 	<aside style="position: sticky; top: 100px;">
 		<h3 class="sub" style="margin-bottom: 18px;">Filters</h3>
@@ -259,7 +257,7 @@
 	</aside>
 
 	<!-- Results -->
-	<main class="min-w-5xl">
+	<main class="min-w-0">
 		{#if error}
 			<div
 				style="border-left: 3px solid var(--danger); padding: 1rem 1.25rem; background: color-mix(in oklch, var(--danger) 8%, var(--paper));"

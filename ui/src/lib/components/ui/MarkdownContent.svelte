@@ -12,7 +12,12 @@
 			gfm: true,
 			async: false
 		});
-		return typeof result === 'string' ? result : '';
+		const html = typeof result === 'string' ? result : '';
+		// Wrap tables so wide ones scroll horizontally instead of overflowing the page.
+		// marked emits bare <table>…</table>, so a string swap is safe here.
+		return html
+			.replaceAll('<table>', '<div class="table-scroll"><table>')
+			.replaceAll('</table>', '</table></div>');
 	}
 </script>
 
@@ -22,6 +27,20 @@
 </div>
 
 <style>
+	/* Long unbreakable tokens (URLs, run-together words) wrap instead of overflowing.
+	   overflow-wrap is inherited, so this covers all prose descendants. */
+	:global(.prose) {
+		overflow-wrap: break-word;
+		min-width: 0;
+	}
+
+	/* Horizontal scroll container for wide tables (see renderMarkdown). */
+	:global(.prose .table-scroll) {
+		margin: 1.5rem 0;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
 	:global(.prose p) {
 		margin-bottom: 1rem;
 		line-height: 1.7;
@@ -167,7 +186,7 @@
 	:global(.prose table) {
 		border-collapse: collapse;
 		width: 100%;
-		margin: 1.5rem 0;
+		margin: 0;
 		font-family: var(--sans);
 		border: 1px solid var(--rule);
 		border-radius: var(--radius);

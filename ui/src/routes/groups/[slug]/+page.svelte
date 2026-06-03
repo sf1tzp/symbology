@@ -54,7 +54,7 @@
 	</div>
 {:else}
 	<!-- Masthead -->
-	<header style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: end;">
+	<header class="grid grid-cols-1 gap-8 md:grid-cols-[1fr_auto] md:items-end">
 		<div>
 			<div class="eyebrow" style="margin-bottom: 1rem;">
 				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SECTOR

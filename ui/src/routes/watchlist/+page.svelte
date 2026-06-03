@@ -151,7 +151,9 @@
 												class="flex w-full items-center gap-3 border-b border-rule px-3 py-2 text-left last:border-b-0 hover:bg-paper-2 disabled:opacity-40"
 											>
 												<span class="tag tag-solid">{r.ticker}</span>
-												<span class="flex-1 truncate text-sm text-ink">{r.display_name ?? r.name}</span>
+												<span class="flex-1 truncate text-sm text-ink"
+													>{r.display_name ?? r.name}</span
+												>
 												{#if watchedIds.has(r.id)}
 													<span class="meta text-ink-4">Watching</span>
 												{:else}
@@ -175,7 +177,9 @@
 								<a href={resolve(`/c/${c.ticker}`)} class="contents">
 									<span class="tag tag-solid">{c.ticker}</span>
 									<div class="min-w-0 flex-1">
-										<div class="truncate font-serif text-base text-ink">{c.display_name ?? c.name}</div>
+										<div class="truncate font-serif text-base text-ink">
+											{c.display_name ?? c.name}
+										</div>
 										{#if c.sic_description}
 											<div class="meta mt-0.5 truncate text-ink-3">{c.sic_description}</div>
 										{/if}

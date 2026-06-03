@@ -40,7 +40,13 @@
 	<form class="flex max-w-md flex-col gap-4" onsubmit={onSubmit}>
 		<label class="flex flex-col gap-1.5">
 			<span class="text-sm text-ink-2">Email</span>
-			<Input type="email" bind:value={email} required autocomplete="email" placeholder="you@example.com" />
+			<Input
+				type="email"
+				bind:value={email}
+				required
+				autocomplete="email"
+				placeholder="you@example.com"
+			/>
 		</label>
 		<label class="flex flex-col gap-1.5">
 			<span class="text-sm text-ink-2">Password</span>

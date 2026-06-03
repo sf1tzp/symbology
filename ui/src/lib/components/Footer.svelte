@@ -4,22 +4,24 @@
 </script>
 
 <footer class="border-t border-border">
-	<div class="page flex-between py-8">
-		<div class="flex items-center gap-2 align-middle font-serif text-sm text-ink-3">
+	<div class="flex-between flex flex-row py-3 md:py-8">
+		<div class="mx-auto flex items-center gap-1 font-serif text-sm text-ink-3 md:m-0">
 			<a
 				href={resolve('/')}
 				class="flex items-center gap-2 font-serif text-sm text-ink-3 transition-colors hover:text-ink"
 			>
 				<Mark size={18} />
-				<span>Symbology</span>
+				Symbology
 			</a>
-			<p class="text-xs">by</p>
-			<a href="https://streetfortress.com" class="transition-colors hover:text-ink">
-				<span>Streetfortress Industries, LLC.</span>
-			</a>
+			<p class="text-sm">
+				by
+				<a href="https://streetfortress.com" class="transition-colors hover:text-ink">
+					Streetfortress Industries, LLC.
+				</a>
+			</p>
 		</div>
 
-		<nav class="flex items-center gap-4 text-sm text-ink-3">
+		<nav class="hidden items-center gap-4 text-sm text-ink-3 md:flex">
 			<a href={resolve('/companies')} class="transition-colors hover:text-ink">Companies</a>
 			<a href={resolve('/faq')} class="transition-colors hover:text-ink">FAQ</a>
 			<a

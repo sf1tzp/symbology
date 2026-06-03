@@ -205,10 +205,7 @@
 
 <!-- DATA ROW: financial stats strip -->
 {#if filings.length > 0}
-	<div
-		class="grid-4"
-		style="margin-top: 2.5rem; padding: 1.5rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);"
-	>
+	<div class="stats" style="margin-top: 2.5rem;">
 		{#if revenueLatest}
 			<div class="stat">
 				<span class="stat-value">${formatFinancialValue(revenueLatest.value)}</span>
@@ -286,7 +283,7 @@
 	<!-- FINANCIAL OVERVIEW: below the change reports -->
 	{#if financialComparison && financialComparison.items.length > 0}
 		<section id="financials" class="hairline-section" style="scroll-margin-top: 3rem;">
-			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start;">
+			<div class="two-col-even">
 				<div>
 					<div class="eyebrow" style="margin-bottom: 1.125rem;">
 						<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{company?.ticker}
@@ -485,6 +482,16 @@
 			gap: 2rem;
 			align-items: start;
 		}
+		/* Activations span the width and read as full-width buttons on mobile. */
+		.activations {
+			align-items: stretch;
+		}
+		.activation-row .activation-btn {
+			flex: 1;
+		}
+		.activation-btn {
+			justify-content: center;
+		}
 	}
 
 	/* Activations placeholder zone */
@@ -568,7 +575,9 @@
 	/* Change report cards — left accent per document type */
 	.change-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		/* min(300px, 100%) keeps a single card from forcing overflow on phones
+		   narrower than 300px of content. */
+		grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
 		gap: 1rem;
 	}
 	.change-card {

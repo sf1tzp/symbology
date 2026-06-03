@@ -1,40 +1,16 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Button } from '$lib/components/ui/button';
 	import DarkmodeToggle from '$lib/components/DarkmodeToggle.svelte';
 	import Mark from '$lib/components/Mark.svelte';
-	import Menu from '@lucide/svelte/icons/menu';
-	import X from '@lucide/svelte/icons/x';
 	import { resolve } from '$app/paths';
+	import { buildNavItems, isCurrentPath, initials, type NavUser } from '$lib/nav';
 
-	type NavUser = { id: string; name: string; email: string } | null;
 	let { user = null }: { user?: NavUser } = $props();
 
 	let scrollY = $state(0);
-	let mobileMenuOpen = $state(false);
 
-	let navItems = $derived([
-		{ href: '/', label: 'Home' },
-		{ href: '/companies', label: 'Companies' },
-		...(user ? [{ href: '/watchlist', label: 'Watchlist' }] : []),
-		{ href: '/status', label: 'Status' },
-		// { href: '/search', label: 'Search' },
-		{ href: '/faq', label: 'FAQ' }
-	]);
-
-	function isCurrentPath(href: string): boolean {
-		if (href === '/') return page.url.pathname === '/';
-		return page.url.pathname.startsWith(href);
-	}
-
-	function initials(name: string): string {
-		const parts = name.trim().split(/\s+/).filter(Boolean);
-		if (parts.length === 0) return '?';
-		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-		return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-	}
-
+	// Same user-aware model the MobileTabBar uses, so the two stay in sync.
+	let navItems = $derived(buildNavItems(user));
 	let scrolled = $derived(scrollY > 50);
 </script>
 
@@ -51,14 +27,15 @@
 			<a href={resolve('/')} class="flex items-center gap-2 text-ink">
 				<Mark size={22} />
 				<span class="font-serif text-lg tracking-tight">Symbology</span>
+				<!-- <span class="font-serif text-lg tracking-tight">symbology<span class="text-teal">.online</span></span> -->
 			</a>
 
-			<!-- Center: Desktop nav links -->
+			<!-- Center: Desktop nav links (mobile uses the bottom tab bar instead) -->
 			<div class="hidden items-center gap-6 md:flex">
 				{#each navItems as item (item.href)}
 					<a
-						href={resolve(item.href)}
-						class="text-sm transition-colors {isCurrentPath(item.href)
+						href={item.href}
+						class="text-sm transition-colors {isCurrentPath(page.url.pathname, item.href)
 							? 'font-medium text-ink'
 							: 'text-ink-3 hover:text-ink'}"
 					>
@@ -68,19 +45,12 @@
 			</div>
 		</div>
 
-		<!-- Right: Search button + dark mode + mobile hamburger -->
+		<!--
+			Right: dark mode toggle, plus the account status. The avatar / sign-in
+			link is desktop-only — on mobile the same destination is a tab in the
+			MobileTabBar, so the top bar stays uncluttered.
+		-->
 		<div class="flex items-center gap-3">
-			<!-- <a -->
-			<!-- 	href={resolve('/search')} -->
-			<!-- 	class="hidden items-center gap-2 rounded-md border border-rule bg-paper-2 px-3 py-1.5 text-sm text-ink-3 no-underline transition-colors hover:border-rule-2 hover:text-ink-2 md:flex" -->
-			<!-- > -->
-			<!-- 	<Search class="h-3.5 w-3.5" /> -->
-			<!-- 	<span>Search companies, filings&hellip;</span> -->
-			<!-- 	<kbd -->
-			<!-- 		class="ml-2 rounded border border-rule bg-background px-1.5 py-0.5 font-mono text-[10px] text-ink-4" -->
-			<!-- 		>&#8984;K</kbd -->
-			<!-- 	> -->
-			<!-- </a> -->
 			<DarkmodeToggle />
 
 			{#if user}
@@ -100,52 +70,8 @@
 					Sign in
 				</a>
 			{/if}
-
-			<Button
-				variant="ghost"
-				size="icon"
-				class="md:hidden"
-				onclick={() => (mobileMenuOpen = !mobileMenuOpen)}
-			>
-				{#if mobileMenuOpen}
-					<X class="h-5 w-5" />
-				{:else}
-					<Menu class="h-5 w-5" />
-				{/if}
-				<span class="sr-only">Toggle Menu</span>
-			</Button>
 		</div>
 	</div>
-
-	<!-- Mobile dropdown -->
-	{#if mobileMenuOpen}
-		<div class="border-t border-border bg-background px-4 py-2 md:hidden">
-			<nav class="flex flex-col space-y-1">
-				{#each navItems as item (item.href)}
-					<Button
-						variant={isCurrentPath(item.href) ? 'secondary' : 'ghost'}
-						class="justify-start"
-						onclick={() => {
-							goto(item.href);
-							mobileMenuOpen = false;
-						}}
-					>
-						{item.label}
-					</Button>
-				{/each}
-				<Button
-					variant={isCurrentPath(user ? '/account' : '/login') ? 'secondary' : 'ghost'}
-					class="justify-start"
-					onclick={() => {
-						goto(user ? '/account' : '/login');
-						mobileMenuOpen = false;
-					}}
-				>
-					{user ? 'Account' : 'Sign in'}
-				</Button>
-			</nav>
-		</div>
-	{/if}
 </nav>
 
 <!-- Spacer to offset fixed navbar -->

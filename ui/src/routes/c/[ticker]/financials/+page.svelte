@@ -84,7 +84,7 @@
 </div>
 
 <!-- Hero -->
-<section style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: end;">
+<section class="two-col-even" style="align-items: end;">
 	<div>
 		<div class="eyebrow" style="margin-bottom: 1.125rem;">
 			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{ticker}

@@ -195,6 +195,12 @@
 		gap: 64px;
 		align-items: start;
 	}
+	/* Let grid children shrink below their content's intrinsic width so a wide
+	   markdown table / long token can't stretch the column and overflow the page. */
+	.change-hero > *,
+	.change-layout > * {
+		min-width: 0;
+	}
 	@media (max-width: 768px) {
 		.change-hero {
 			grid-template-columns: 1fr;

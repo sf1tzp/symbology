@@ -114,11 +114,22 @@
 		<form class="flex flex-col gap-4" onsubmit={changePassword}>
 			<label class="flex flex-col gap-1.5">
 				<span class="text-sm text-ink-2">Current password</span>
-				<Input type="password" bind:value={currentPassword} required autocomplete="current-password" />
+				<Input
+					type="password"
+					bind:value={currentPassword}
+					required
+					autocomplete="current-password"
+				/>
 			</label>
 			<label class="flex flex-col gap-1.5">
 				<span class="text-sm text-ink-2">New password</span>
-				<Input type="password" bind:value={newPassword} required autocomplete="new-password" minlength={8} />
+				<Input
+					type="password"
+					bind:value={newPassword}
+					required
+					autocomplete="new-password"
+					minlength={8}
+				/>
 			</label>
 			{#if pwMsg}<p class="text-sm text-ink-3">{pwMsg}</p>{/if}
 			<Button type="submit" disabled={pwSaving} class="mt-1 self-start">
@@ -146,7 +157,12 @@
 			>
 				<label class="flex flex-col gap-1.5">
 					<span class="text-sm text-ink-2">Confirm your password</span>
-					<Input type="password" bind:value={deletePassword} required autocomplete="current-password" />
+					<Input
+						type="password"
+						bind:value={deletePassword}
+						required
+						autocomplete="current-password"
+					/>
 				</label>
 				<div class="flex items-center gap-3">
 					<Button type="submit" variant="destructive" disabled={deleting}>
@@ -166,7 +182,8 @@
 				</div>
 			</form>
 		{:else}
-			<Button variant="destructive" onclick={() => (confirmingDelete = true)}>Delete account</Button>
+			<Button variant="destructive" onclick={() => (confirmingDelete = true)}>Delete account</Button
+			>
 		{/if}
 	</section>
 </div>

@@ -24,16 +24,6 @@ services:
     networks:
       - caddy_network
 
-  # symbology-scheduler:
-  #   image: symbology-server:latest
-  #   container_name: symbology-scheduler
-  #   restart: always
-  #   command: ["python", "-m", "symbology.scheduler.main"]
-  #   env_file:
-  #     - symbology/.env
-  #   networks:
-  #     - caddy_network
-
 networks:
   caddy_network:
     driver: bridge

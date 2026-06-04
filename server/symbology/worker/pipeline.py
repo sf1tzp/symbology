@@ -1,9 +1,10 @@
 """Pipeline orchestration helpers.
 
-Shared utilities for the FULL_PIPELINE job handler that replace shell-script
-CLI calls (model-configs create, prompts create) with direct Python equivalents.
-Includes composable functions for each pipeline stage that can be called
-independently for selective regeneration.
+Shared content-generation utilities used by the page, company-group, and diff
+job handlers. Replaces shell-script CLI calls (model-configs create, prompts
+create) with direct Python equivalents, and exposes composable functions for
+each generation stage that can be called independently for selective
+regeneration.
 """
 
 import json

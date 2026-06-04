@@ -39,6 +39,13 @@ model_configs:
     max_tokens: 1024
     temperature: 0.7
 
+  # Per-topic "what changed" summary for a year-over-year section diff: a small,
+  # focused call over just the two chunk texts.
+  l2_topic_diff_summary:
+    model: google/gemma-4-e4b
+    max_tokens: 512
+    temperature: 0.3
+
   l3_company_main_content:
     model: google/gemma-4-e4b
     max_tokens: 4096
@@ -99,6 +106,7 @@ prompts:
   filing_main_content: l2/filing-main-content
   filing_intro: l3/filing-intro-content
   document_page_intro: l2/document-intro-content
+  topic_diff_summary: l2/topic-diff-summary
 
 doc_type_prompts:
   business_description: l1/business_description

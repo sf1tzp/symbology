@@ -16,12 +16,6 @@ cli *ARGS:
 run-worker *ARGS:
     just -d server -f server/justfile worker {{ARGS}}
 
-run-scheduler *ARGS:
-    just -d server -f server/justfile scheduler {{ARGS}}
-
-run-pipeline-trigger *ARGS:
-    just -d server -f server/justfile cli pipeline trigger {{ARGS}}
-
 run-ui *ARGS:
     just -d ui -f ui/justfile up {{ARGS}}
 
@@ -109,18 +103,13 @@ deploy-server HOST: build-server
     ssh {{HOST}} -C "~/.local/bin/nerdctl compose -f ~/symbology-server-compose.yaml up -d --env-file ~/symbology/.env"
 
 
-queue-new-jobs TICKER:
+# Queue the full ingest → embed → page-content → diff pipeline for a ticker.
+queue-new-jobs TICKER LOOKBACK:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    just cli companies ingest {{ TICKER }}
+    just cli jobs start filing_ingestion --set ticker={{ TICKER }} --set count={{ LOOKBACK }} --set form=10-K
 
-    just cli pipeline filing-content {{ TICKER }} 2021
-    just cli pipeline filing-content {{ TICKER }} 2022
-    just cli pipeline filing-content {{ TICKER }} 2023
-    just cli pipeline filing-content {{ TICKER }} 2024
-    just cli pipeline filing-content {{ TICKER }} 2025
-    just cli pipeline filing-content {{ TICKER }} 2026
-    just cli pipeline company-content {{ TICKER }} -n 5
+    just cli jobs start company_page_content --set ticker={{ TICKER }} --set lookback={{ LOOKBACK }} --set form=10-K
 
-
+    just cli jobs start company_diff --set ticker={{ TICKER }} --set lookback={{ LOOKBACK }} --set form=10-K

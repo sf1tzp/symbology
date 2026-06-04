@@ -61,6 +61,17 @@
 		)
 	);
 
+	// "What's new" change cards from the latest filing's diffs, ranked by significance.
+	const changeCards = $derived(data.changeCards ?? []);
+	const CHANGE_KIND_LABEL: Record<string, string> = {
+		new: 'New disclosure',
+		escalated: 'Escalated',
+		de_emphasised: 'De-emphasised',
+		reworded: 'Reworded',
+		removed: 'Removed'
+	};
+	const changeKindLabel = (k: string): string => CHANGE_KIND_LABEL[k] ?? k;
+
 	const hasAnalysis = $derived(!!(page && (page.intro?.content || page.main?.content)));
 	const _generationDepth = $derived(
 		page?.main?.generationDepth ?? page?.intro?.generationDepth ?? null
@@ -280,7 +291,7 @@
 		</section>
 	{/if}
 
-	<!-- FINANCIAL OVERVIEW: below the change reports -->
+	<!-- FINANCIAL OVERVIEW -->
 	{#if financialComparison && financialComparison.items.length > 0}
 		<section id="financials" class="hairline-section" style="scroll-margin-top: 3rem;">
 			<div class="two-col-even">
@@ -364,10 +375,47 @@
 			</div>
 		</section>
 	{/if}
-	<!-- CHANGE REPORTS: one colored card per document type -->
+	<!-- CHANGE CARDS: one colored card per document type -->
+	{#if changeCards.length > 0}
+		<section id="whats-new" class="hairline-section" style="scroll-margin-top: 2rem;">
+			<SectionHead eyebrow="CHANGES SINCE LAST FILING" heading="What's new in the latest filing." />
+			<div class="change-grid">
+				{#each changeCards as c (c.id)}
+					<a
+						href="/c/{company?.ticker}/changes/{c.documentType}#diff-{c.id}"
+						class="change-card"
+						style="--card-accent: {docColor(c.documentType)};"
+					>
+						<div class="hd">
+							<span class="hd-dot" style="background: {docColor(c.documentType)};"></span>
+							{changeKindLabel(c.changeKind)} · {getAnalysisTypeDisplay(c.documentType)}
+						</div>
+						{#if c.heading}
+							<div class="ti">{c.heading}</div>
+						{/if}
+						{#if c.summary}
+							<div class="bd">{c.summary}</div>
+						{/if}
+						<div class="ft">
+							{#if c.sectionPath}
+								<span class="meta" style="font-family: var(--mono); color: var(--ink-4);"
+									>{c.sectionPath}</span
+								>
+							{:else}
+								<span></span>
+							{/if}
+							<span>Open <ChevronRight class="inline h-3 w-3" /></span>
+						</div>
+					</a>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	<!-- CHANGE REPORTS -->
 	{#if changeReports.length > 0}
 		<section id="change-reports" class="hairline-section" style="scroll-margin-top: 2rem;">
-			<SectionHead eyebrow="CHANGE ANALYSIS" heading="What changed, year over year." />
+			<SectionHead eyebrow="CHANGE ANALYSIS" heading="Each section in detail." />
 			<div class="change-grid">
 				{#each changeReports as cr (cr.documentType)}
 					<a
@@ -611,6 +659,12 @@
 		height: 8px;
 		border-radius: 9999px;
 		flex-shrink: 0;
+	}
+	.change-card .ti {
+		font-family: var(--serif);
+		font-size: 16px;
+		line-height: 1.3;
+		color: var(--ink);
 	}
 	.change-card .bd {
 		font-size: 13.5px;

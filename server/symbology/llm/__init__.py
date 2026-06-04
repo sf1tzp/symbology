@@ -14,8 +14,18 @@ from .client import (
     OpenAIResponseAdapter,
     remove_thinking_tags,
 )
-from .content_processing import chunk_and_embed_document, chunk_and_embed_generated_content
+from .content_processing import (
+    chunk_and_embed_document,
+    chunk_and_embed_generated_content,
+    chunk_embed_and_cluster_document,
+)
 from .embeddings import embed_query, embed_texts, init_embedding_client
+from .section_chunker import chunk_document_sections, SectionChunk
+from .topic_clustering import (
+    assign_unclustered_chunks,
+    recluster_company_doctype,
+    TOPIC_DISTANCE_THRESHOLD,
+)
 
 __all__ = [
     'init_client',
@@ -34,4 +44,11 @@ __all__ = [
     # Content processing
     'chunk_and_embed_document',
     'chunk_and_embed_generated_content',
+    'chunk_embed_and_cluster_document',
+    # Section-aware chunking + topic clustering
+    'chunk_document_sections',
+    'SectionChunk',
+    'assign_unclustered_chunks',
+    'recluster_company_doctype',
+    'TOPIC_DISTANCE_THRESHOLD',
 ]

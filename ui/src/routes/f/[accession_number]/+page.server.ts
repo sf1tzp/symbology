@@ -7,6 +7,7 @@ import {
 	getFilingsTimeline
 } from '$lib/server/db/filings';
 import { getCurrentFilingPageContent } from '$lib/server/db/page-content';
+import { getDiffSetsByRightFiling } from '$lib/server/db/diffs';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const { accession_number } = params;
@@ -25,9 +26,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		error(404, 'Company not found');
 	}
 
-	const [filingPageContent, timeline] = await Promise.all([
+	const [filingPageContent, timeline, priorDiffSets] = await Promise.all([
 		getCurrentFilingPageContent(filing.id),
-		getFilingsTimeline(company.ticker, 10, '10-K')
+		getFilingsTimeline(company.ticker, 10, '10-K'),
+		getDiffSetsByRightFiling(filing.id)
 	]);
 
 	return {
@@ -36,6 +38,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		company,
 		filingPageContent,
 		accession_number,
-		timeline
+		timeline,
+		priorDiffSets
 	};
 };

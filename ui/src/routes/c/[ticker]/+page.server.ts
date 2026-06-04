@@ -4,6 +4,7 @@ import { getCompanyByTicker } from '$lib/server/db/companies';
 import { getCurrentCompanyPageContent } from '$lib/server/db/page-content';
 import { getFilingsTimeline } from '$lib/server/db/filings';
 import { getFinancialComparison } from '$lib/server/db/financials';
+import { getLatestChangeCards } from '$lib/server/db/diffs';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const ticker = params.ticker.toUpperCase();
@@ -13,10 +14,11 @@ export const load: PageServerLoad = async ({ params }) => {
 		error(404, 'Company not found');
 	}
 
-	const [companyPageContent, timeline, financialComparison] = await Promise.all([
+	const [companyPageContent, timeline, financialComparison, changeCards] = await Promise.all([
 		getCurrentCompanyPageContent(company.id),
 		getFilingsTimeline(ticker, 40, '10-K'),
-		getFinancialComparison(ticker, undefined, 5, '10-K')
+		getFinancialComparison(ticker, undefined, 5, '10-K'),
+		getLatestChangeCards(company.id, 6)
 	]);
 
 	// Companies without generated page content are not yet published — keep them
@@ -39,6 +41,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		companyPageContent,
 		sourceFilings,
 		filings: timeline,
-		financialComparison
+		financialComparison,
+		changeCards
 	};
 };

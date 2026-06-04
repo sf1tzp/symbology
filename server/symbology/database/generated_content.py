@@ -52,6 +52,8 @@ class ContentStage(str, Enum):
     FILING_MAIN_CONTENT = "filing_main_content"
     FILING_INTRO = "filing_intro"
     DOCUMENT_PAGE_INTRO = "document_page_intro"
+    # Per-topic "what changed" narrative for a year-over-year section diff.
+    TOPIC_DIFF_SUMMARY = "topic_diff_summary"
 
 
 # Association table for many-to-many relationship between GeneratedContent and Document

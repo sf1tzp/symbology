@@ -1,11 +1,11 @@
 """Tests for job handlers with mocked DB/LLM/EDGAR dependencies."""
+from datetime import date
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from uuid_extensions import uuid7
 
 from symbology.worker.handlers import (
-    handle_full_pipeline,
-    handle_ingest_pipeline,
     handle_test,
 )
 
@@ -66,12 +66,14 @@ class TestHandleFilingIngestion:
         mock_settings = MagicMock()
         mock_settings.edgar_api.edgar_contact = "test@test.com"
 
+        embedded = []
         with patch.dict("sys.modules", {
             "symbology.ingestion.edgar_db": MagicMock(),
             "symbology.ingestion.edgar_db.accessors": MagicMock(),
             "symbology.ingestion.ingestion_helpers": MagicMock(ingest_filings=mock_ingest),
         }):
-            with patch("symbology.utils.config.settings", mock_settings):
+            with patch("symbology.utils.config.settings", mock_settings), \
+                 patch("symbology.worker.handlers._enqueue_embed_filing", side_effect=embedded.append):
                 from symbology.worker.handlers import handle_filing_ingestion
                 result = handle_filing_ingestion({
                     "company_id": str(uuid7()),
@@ -83,6 +85,8 @@ class TestHandleFilingIngestion:
         assert result["form"] == "10-K"
         assert len(result["filing_ids"]) == 1
         assert result["filing_ids"][0] == str(filing_id)
+        # Each ingested filing gets an EMBED_FILING job enqueued.
+        assert embedded == [str(filing_id)]
 
     def test_defaults(self):
         mock_ingest = MagicMock(return_value=[])
@@ -105,435 +109,29 @@ class TestHandleFilingIngestion:
         assert call_args[0][3] == 5  # count default
         assert call_args[0][4] is True  # include_documents default
 
+    def test_resolves_company_from_ticker_when_company_id_absent(self):
+        cid = uuid7()
+        mock_ingest = MagicMock(return_value=[("AAPL", "10-K", "2023-09-30", uuid7())])
+        mock_settings = MagicMock()
+        mock_settings.edgar_api.edgar_contact = "test@test.com"
 
-class TestHandleIngestPipeline:
-    @patch("symbology.worker.handlers.handle_filing_ingestion")
-    @patch("symbology.worker.handlers.handle_company_ingestion")
-    def test_pipeline_calls_both(self, mock_company, mock_filing):
-        company_id = str(uuid7())
-        filing_id = str(uuid7())
-        mock_company.return_value = {"ticker": "AAPL", "company_id": company_id, "name": "Apple"}
-        mock_filing.return_value = {"ticker": "AAPL", "form": "10-K", "filing_ids": [filing_id]}
+        with patch.dict("sys.modules", {
+            "symbology.ingestion.edgar_db": MagicMock(),
+            "symbology.ingestion.edgar_db.accessors": MagicMock(),
+            "symbology.ingestion.ingestion_helpers": MagicMock(ingest_filings=mock_ingest),
+        }):
+            with patch("symbology.utils.config.settings", mock_settings), \
+                 patch(
+                     "symbology.database.companies.get_company_by_ticker",
+                     return_value=SimpleNamespace(id=cid),
+                 ), \
+                 patch("symbology.worker.handlers._enqueue_embed_filing"):
+                from symbology.worker.handlers import handle_filing_ingestion
+                result = handle_filing_ingestion({"ticker": "AAPL", "count": 1})
 
-        result = handle_ingest_pipeline({"ticker": "AAPL"})
+        # No company_id passed → resolved from ticker and threaded into ingest_filings.
+        assert mock_ingest.call_args[0][0] == cid
         assert result["ticker"] == "AAPL"
-        assert result["company_id"] == company_id
-        assert result["filings"] == [filing_id]
-
-        mock_company.assert_called_once_with({"ticker": "AAPL"})
-        filing_params = mock_filing.call_args[0][0]
-        assert filing_params["company_id"] == company_id
-        assert filing_params["ticker"] == "AAPL"
-
-
-def _mock_pipeline_run():
-    """Return a MagicMock that behaves like a PipelineRun."""
-    run = MagicMock()
-    run.id = uuid7()
-    return run
-
-
-class TestHandleFullPipeline:
-    @patch("symbology.database.pipeline_runs.get_db_session")
-    @patch("symbology.database.generated_content.find_existing_content_for_document", return_value=None)
-    @patch("symbology.worker.handlers.handle_content_generation")
-    @patch("symbology.worker.handlers.handle_filing_ingestion")
-    @patch("symbology.worker.handlers.handle_company_ingestion")
-    def test_full_pipeline_orchestrates_all_stages(
-        self, mock_company, mock_filing, mock_content_gen, mock_find_existing, mock_pr_session, tmp_path
-    ):
-        """Full pipeline calls company, filing, and content generation handlers."""
-        company_id = str(uuid7())
-        filing_id = uuid7()
-        mock_company.return_value = {
-            "ticker": "AAPL",
-            "company_id": company_id,
-            "name": "Apple",
-        }
-        mock_filing.return_value = {
-            "ticker": "AAPL",
-            "form": "10-K",
-            "filing_ids": [str(filing_id)],
-        }
-
-        # Mock content generation to return a hash each time
-        call_count = {"n": 0}
-
-        def fake_content_gen(params):
-            call_count["n"] += 1
-            return {
-                "content_id": str(uuid7()),
-                "content_hash": f"hash_{call_count['n']:03d}",
-                "was_created": True,
-            }
-
-        mock_content_gen.side_effect = fake_content_gen
-
-        # Set up a mock filing with one document
-        from symbology.database.documents import DocumentType
-
-        mock_doc = MagicMock()
-        mock_doc.document_type = DocumentType.RISK_FACTORS
-        mock_doc.content_hash = "doc_hash_001"
-
-        mock_filing_obj = MagicMock()
-        mock_filing_obj.id = filing_id
-        mock_filing_obj.documents = [mock_doc]
-
-        mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.all.return_value = [
-            mock_filing_obj
-        ]
-
-        # Create prompt files
-        for name in ["risk_factors", "aggregate-summary", "general-summary"]:
-            d = tmp_path / name
-            d.mkdir()
-            (d / "prompt.md").write_text(f"Prompt for {name}")
-
-        mock_prompt = MagicMock()
-        mock_prompt.content_hash = "prompt_hash_001"
-        mock_prompt.get_short_hash.return_value = "prompt_hash_0"
-
-        mock_mc = MagicMock()
-        mock_mc.id = uuid7()
-        mock_mc.get_short_hash.return_value = "mc_hash_0001"
-
-        with (
-            patch(
-                "symbology.database.base.get_db_session",
-                return_value=mock_session,
-            ),
-            patch(
-                "symbology.worker.pipeline.ensure_model_config",
-                return_value=mock_mc,
-            ),
-            patch(
-                "symbology.worker.pipeline.ensure_prompt",
-                return_value=mock_prompt,
-            ),
-        ):
-            result = handle_full_pipeline({
-                "ticker": "AAPL",
-                "forms": ["10-K"],
-                "counts": {"10-K": 1},
-                "document_types": {"10-K": ["risk_factors"]},
-                "prompts_dir": str(tmp_path),
-            })
-
-        assert result["ticker"] == "AAPL"
-        assert result["company_id"] == company_id
-        assert result["forms"] == ["10-K"]
-        # 1 single + 1 aggregate + 1 frontpage = 3
-        assert result["content_generated"] == 3
-        assert mock_content_gen.call_count == 3
-        assert result["pipeline_run_id"] is not None
-
-        # Verify the three stages were called with correct descriptions
-        descriptions = [
-            call[0][0]["description"] for call in mock_content_gen.call_args_list
-        ]
-        assert descriptions[0] == "risk_factors_single_summary"
-        assert descriptions[1] == "risk_factors_aggregate_summary"
-        assert descriptions[2] == "risk_factors_frontpage_summary"
-
-        # Verify structured metadata fields are passed
-        for call in mock_content_gen.call_args_list:
-            params = call[0][0]
-            assert params["document_type"] == "risk_factors"
-            assert params["form_type"] == "10-K"
-            assert "content_stage" in params
-
-        stages = [
-            call[0][0]["content_stage"] for call in mock_content_gen.call_args_list
-        ]
-        assert stages[0] == "single_summary"
-        assert stages[1] == "aggregate_summary"
-        assert stages[2] == "frontpage_summary"
-
-    @patch("symbology.database.pipeline_runs.get_db_session")
-    @patch("symbology.database.generated_content.find_existing_content_for_document")
-    @patch("symbology.worker.handlers.handle_content_generation")
-    @patch("symbology.worker.handlers.handle_filing_ingestion")
-    @patch("symbology.worker.handlers.handle_company_ingestion")
-    def test_skips_llm_for_existing_content(
-        self, mock_company, mock_filing, mock_content_gen, mock_find_existing, mock_pr_session, tmp_path
-    ):
-        """Pipeline skips LLM calls when content already exists for a document."""
-        company_id = str(uuid7())
-        filing_id = uuid7()
-        mock_company.return_value = {
-            "ticker": "AAPL",
-            "company_id": company_id,
-            "name": "Apple",
-        }
-        mock_filing.return_value = {
-            "ticker": "AAPL",
-            "form": "10-K",
-            "filing_ids": [str(filing_id)],
-        }
-
-        # Simulate existing content for the single summary
-        existing_content = MagicMock()
-        existing_content.content_hash = "existing_hash_001"
-        mock_find_existing.return_value = existing_content
-
-        # Content gen only called for aggregate + frontpage (not single)
-        call_count = {"n": 0}
-
-        def fake_content_gen(params):
-            call_count["n"] += 1
-            return {
-                "content_id": str(uuid7()),
-                "content_hash": f"hash_{call_count['n']:03d}",
-                "was_created": True,
-            }
-
-        mock_content_gen.side_effect = fake_content_gen
-
-        from symbology.database.documents import DocumentType
-
-        mock_doc = MagicMock()
-        mock_doc.document_type = DocumentType.RISK_FACTORS
-        mock_doc.content_hash = "doc_hash_001"
-
-        mock_filing_obj = MagicMock()
-        mock_filing_obj.id = filing_id
-        mock_filing_obj.documents = [mock_doc]
-
-        mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.all.return_value = [
-            mock_filing_obj
-        ]
-
-        for name in ["risk_factors", "aggregate-summary", "general-summary"]:
-            d = tmp_path / name
-            d.mkdir()
-            (d / "prompt.md").write_text(f"Prompt for {name}")
-
-        mock_prompt = MagicMock()
-        mock_prompt.content_hash = "prompt_hash_001"
-        mock_prompt.get_short_hash.return_value = "prompt_hash_0"
-        mock_mc = MagicMock()
-        mock_mc.id = uuid7()
-        mock_mc.get_short_hash.return_value = "mc_hash_0001"
-
-        with (
-            patch("symbology.database.base.get_db_session", return_value=mock_session),
-            patch("symbology.worker.pipeline.ensure_model_config", return_value=mock_mc),
-            patch("symbology.worker.pipeline.ensure_prompt", return_value=mock_prompt),
-        ):
-            result = handle_full_pipeline({
-                "ticker": "AAPL",
-                "forms": ["10-K"],
-                "counts": {"10-K": 1},
-                "document_types": {"10-K": ["risk_factors"]},
-                "prompts_dir": str(tmp_path),
-            })
-
-        # All singles reused, aggregate+frontpage skipped (no new content to aggregate)
-        assert mock_content_gen.call_count == 0
-        assert result["content_generated"] == 1  # 1 reused single only
-
-    @patch("symbology.database.pipeline_runs.get_db_session")
-    @patch("symbology.worker.handlers.handle_content_generation")
-    @patch("symbology.worker.handlers.handle_filing_ingestion")
-    @patch("symbology.worker.handlers.handle_company_ingestion")
-    def test_skips_when_no_documents(
-        self, mock_company, mock_filing, mock_content_gen, mock_pr_session, tmp_path
-    ):
-        """Pipeline skips content gen when filings have no matching documents."""
-        company_id = str(uuid7())
-        mock_company.return_value = {
-            "ticker": "MSFT",
-            "company_id": company_id,
-            "name": "Microsoft",
-        }
-        mock_filing.return_value = {
-            "ticker": "MSFT",
-            "form": "10-K",
-            "filing_ids": [],
-        }
-
-        # Filing with no documents
-        mock_filing_obj = MagicMock()
-        mock_filing_obj.documents = []
-
-        mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.all.return_value = [
-            mock_filing_obj
-        ]
-
-        for name in ["risk_factors", "aggregate-summary", "general-summary"]:
-            d = tmp_path / name
-            d.mkdir()
-            (d / "prompt.md").write_text(f"Prompt for {name}")
-
-        mock_prompt = MagicMock()
-        mock_prompt.content_hash = "prompt_hash"
-        mock_prompt.get_short_hash.return_value = "prompt_ha"
-        mock_mc = MagicMock()
-        mock_mc.id = uuid7()
-        mock_mc.get_short_hash.return_value = "mc_hash"
-
-        with (
-            patch(
-                "symbology.database.base.get_db_session",
-                return_value=mock_session,
-            ),
-            patch(
-                "symbology.worker.pipeline.ensure_model_config",
-                return_value=mock_mc,
-            ),
-            patch(
-                "symbology.worker.pipeline.ensure_prompt",
-                return_value=mock_prompt,
-            ),
-        ):
-            result = handle_full_pipeline({
-                "ticker": "MSFT",
-                "forms": ["10-K"],
-                "document_types": {"10-K": ["risk_factors"]},
-                "prompts_dir": str(tmp_path),
-            })
-
-        assert result["content_generated"] == 0
-        mock_content_gen.assert_not_called()
-
-    @patch("symbology.database.pipeline_runs.get_db_session")
-    @patch("symbology.worker.handlers.handle_filing_ingestion")
-    @patch("symbology.worker.handlers.handle_company_ingestion")
-    def test_defaults_to_both_forms(self, mock_company, mock_filing, mock_pr_session):
-        """Without explicit forms, processes both 10-K and 10-Q."""
-        company_id = str(uuid7())
-        mock_company.return_value = {
-            "ticker": "GOOG",
-            "company_id": company_id,
-            "name": "Alphabet",
-        }
-        mock_filing.return_value = {
-            "ticker": "GOOG",
-            "form": "10-K",
-            "filing_ids": [],
-        }
-
-        mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.all.return_value = []
-
-        mock_prompt = MagicMock()
-        mock_prompt.content_hash = "ph"
-        mock_prompt.get_short_hash.return_value = "ph"
-        mock_mc = MagicMock()
-        mock_mc.id = uuid7()
-        mock_mc.get_short_hash.return_value = "mc"
-
-        with (
-            patch(
-                "symbology.database.base.get_db_session",
-                return_value=mock_session,
-            ),
-            patch(
-                "symbology.worker.pipeline.ensure_model_config",
-                return_value=mock_mc,
-            ),
-            patch(
-                "symbology.worker.pipeline.ensure_prompt",
-                return_value=mock_prompt,
-            ),
-        ):
-            result = handle_full_pipeline({"ticker": "GOOG"})
-
-        assert result["forms"] == ["10-K", "10-Q"]
-        # Should have called filing ingestion twice (once per form)
-        assert mock_filing.call_count == 2
-        forms_called = [call[0][0]["form"] for call in mock_filing.call_args_list]
-        assert "10-K" in forms_called
-        assert "10-Q" in forms_called
-
-    @patch("symbology.database.pipeline_runs.get_db_session")
-    @patch("symbology.database.generated_content.find_existing_content_for_document", return_value=None)
-    @patch("symbology.worker.handlers.handle_content_generation")
-    @patch("symbology.worker.handlers.handle_filing_ingestion")
-    @patch("symbology.worker.handlers.handle_company_ingestion")
-    def test_full_pipeline_with_force_flag(
-        self, mock_company, mock_filing, mock_content_gen, mock_find_existing, mock_pr_session, tmp_path
-    ):
-        """Force flag bypasses dedup and regenerates all content."""
-        company_id = str(uuid7())
-        filing_id = uuid7()
-        mock_company.return_value = {
-            "ticker": "AAPL",
-            "company_id": company_id,
-            "name": "Apple",
-        }
-        mock_filing.return_value = {
-            "ticker": "AAPL",
-            "form": "10-K",
-            "filing_ids": [str(filing_id)],
-        }
-
-        call_count = {"n": 0}
-
-        def fake_content_gen(params):
-            call_count["n"] += 1
-            return {
-                "content_id": str(uuid7()),
-                "content_hash": f"hash_{call_count['n']:03d}",
-                "was_created": True,
-            }
-
-        mock_content_gen.side_effect = fake_content_gen
-
-        from symbology.database.documents import DocumentType
-
-        mock_doc = MagicMock()
-        mock_doc.document_type = DocumentType.RISK_FACTORS
-        mock_doc.content_hash = "doc_hash_001"
-
-        mock_filing_obj = MagicMock()
-        mock_filing_obj.id = filing_id
-        mock_filing_obj.documents = [mock_doc]
-
-        mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.all.return_value = [
-            mock_filing_obj
-        ]
-
-        for name in ["risk_factors", "aggregate-summary", "general-summary"]:
-            d = tmp_path / name
-            d.mkdir()
-            (d / "prompt.md").write_text(f"Prompt for {name}")
-
-        mock_prompt = MagicMock()
-        mock_prompt.content_hash = "prompt_hash_001"
-        mock_prompt.get_short_hash.return_value = "prompt_hash_0"
-        mock_mc = MagicMock()
-        mock_mc.id = uuid7()
-        mock_mc.get_short_hash.return_value = "mc_hash_0001"
-
-        with (
-            patch("symbology.database.base.get_db_session", return_value=mock_session),
-            patch("symbology.worker.pipeline.ensure_model_config", return_value=mock_mc),
-            patch("symbology.worker.pipeline.ensure_prompt", return_value=mock_prompt),
-        ):
-            result = handle_full_pipeline({
-                "ticker": "AAPL",
-                "forms": ["10-K"],
-                "counts": {"10-K": 1},
-                "document_types": {"10-K": ["risk_factors"]},
-                "prompts_dir": str(tmp_path),
-                "force": True,
-            })
-
-        # With force=True, find_existing should NOT be called
-        mock_find_existing.assert_not_called()
-        # All 3 stages generated
-        assert mock_content_gen.call_count == 3
-        assert result["content_generated"] == 3
-
-
-from datetime import date
-from types import SimpleNamespace
 
 
 def _fake_filing(accession, ticker, form="10-K", period_year=2024, filed_year=2024):
@@ -671,3 +269,256 @@ class TestAwaitFilingPageContent:
         # No successor enqueued once the bound is hit.
         from symbology.database.jobs import JobType
         assert not [j for j in created if j.job_type == JobType.COMPANY_PAGE_CONTENT]
+
+
+def _fake_diff_filing(accession, company_id, form="10-K", period_year=2024, filed_year=2024):
+    """A filing fake carrying the fields the embed/diff handlers read."""
+    return SimpleNamespace(
+        id=uuid7(),
+        accession_number=accession,
+        company_id=company_id,
+        form=form,
+        company=SimpleNamespace(ticker="AAPL", id=company_id),
+        period_of_report=date(period_year, 12, 31) if period_year else None,
+        filing_date=date(filed_year, 2, 1) if filed_year else None,
+        documents=[],
+    )
+
+
+class TestHandleEmbedFiling:
+    """EMBED_FILING loops chunk/embed/cluster over a filing's documents."""
+
+    def test_processes_each_document(self):
+        from symbology.worker.handlers import handle_embed_filing
+
+        cid = uuid7()
+        filing = _fake_diff_filing("acc-1", cid)
+        filing.documents = [SimpleNamespace(id=uuid7()), SimpleNamespace(id=uuid7())]
+        calls = []
+        with patch("symbology.worker.handlers._resolve_filing_token", return_value=filing), \
+             patch(
+                 "symbology.llm.content_processing.chunk_embed_and_cluster_document",
+                 side_effect=lambda doc_id, **kw: calls.append(doc_id),
+             ):
+            result = handle_embed_filing({"filing_id": str(filing.id)})
+
+        assert len(calls) == 2
+        assert result["documents_processed"] == 2
+        assert result["documents_total"] == 2
+
+    def test_requires_an_identifier(self):
+        import pytest
+        from symbology.worker.handlers import handle_embed_filing
+        with pytest.raises(ValueError):
+            handle_embed_filing({})
+
+    def test_one_document_failure_is_non_fatal(self):
+        from symbology.worker.handlers import handle_embed_filing
+
+        cid = uuid7()
+        filing = _fake_diff_filing("acc-1", cid)
+        filing.documents = [SimpleNamespace(id=uuid7()), SimpleNamespace(id=uuid7())]
+
+        def flaky(doc_id, **kw):
+            if doc_id == filing.documents[0].id:
+                raise RuntimeError("embed server down")
+
+        with patch("symbology.worker.handlers._resolve_filing_token", return_value=filing), \
+             patch("symbology.llm.content_processing.chunk_embed_and_cluster_document", side_effect=flaky):
+            result = handle_embed_filing({"filing_id": str(filing.id)})
+
+        assert result["documents_processed"] == 1
+        assert result["documents_total"] == 2
+
+
+class TestOrderFilings:
+    def test_returns_older_then_newer(self):
+        from symbology.worker.handlers import _order_filings
+        older = _fake_diff_filing("a", uuid7(), period_year=2023)
+        newer = _fake_diff_filing("b", uuid7(), period_year=2024)
+        assert _order_filings(newer, older) == (older, newer)
+        assert _order_filings(older, newer) == (older, newer)
+
+
+class TestFilingDiffInFlight:
+    def test_matches_by_filing_ids(self):
+        from symbology.worker.handlers import _filing_diff_in_flight
+        cid = uuid7()
+        left = _fake_diff_filing("accL", cid)
+        right = _fake_diff_filing("accR", cid)
+        jobs = [SimpleNamespace(params={"left_filing_id": str(left.id),
+                                        "right_filing_id": str(right.id)})]
+        assert _filing_diff_in_flight(left, right, jobs) is True
+
+    def test_matches_by_accession_aliases(self):
+        from symbology.worker.handlers import _filing_diff_in_flight
+        cid = uuid7()
+        left = _fake_diff_filing("accL", cid)
+        right = _fake_diff_filing("accR", cid)
+        jobs = [SimpleNamespace(params={"from": "accL", "to": "accR"})]
+        assert _filing_diff_in_flight(left, right, jobs) is True
+
+    def test_no_match(self):
+        from symbology.worker.handlers import _filing_diff_in_flight
+        cid = uuid7()
+        left = _fake_diff_filing("accL", cid)
+        right = _fake_diff_filing("accR", cid)
+        jobs = [SimpleNamespace(params={"from": "accL", "to": "other"})]
+        assert _filing_diff_in_flight(left, right, jobs) is False
+
+
+class TestHandleFilingDiff:
+    """FILING_DIFF validates + orders the pair, gates on embeddings, then diffs."""
+
+    def test_rejects_same_filing(self):
+        import pytest
+        from symbology.worker.handlers import handle_filing_diff
+        f = _fake_diff_filing("acc", uuid7())
+        with patch("symbology.worker.handlers._resolve_filing_token", return_value=f), \
+             pytest.raises(ValueError):
+            handle_filing_diff({"from": "acc", "to": "acc"})
+
+    def test_rejects_cross_company(self):
+        import pytest
+        from symbology.worker.handlers import handle_filing_diff
+        a = _fake_diff_filing("accA", uuid7())
+        b = _fake_diff_filing("accB", uuid7())
+        with patch("symbology.worker.handlers._resolve_filing_token", side_effect=[a, b]), \
+             pytest.raises(ValueError):
+            handle_filing_diff({"from": "accA", "to": "accB"})
+
+    def test_rejects_form_mismatch(self):
+        import pytest
+        from symbology.worker.handlers import handle_filing_diff
+        cid = uuid7()
+        a = _fake_diff_filing("accA", cid, form="10-K")
+        b = _fake_diff_filing("accB", cid, form="10-Q")
+        with patch("symbology.worker.handlers._resolve_filing_token", side_effect=[a, b]), \
+             pytest.raises(ValueError):
+            handle_filing_diff({"from": "accA", "to": "accB"})
+
+    def test_runs_pipeline_when_ready_in_order(self):
+        from symbology.worker.handlers import handle_filing_diff
+        cid = uuid7()
+        newer = _fake_diff_filing("accNew", cid, period_year=2024)
+        older = _fake_diff_filing("accOld", cid, period_year=2023)
+        captured = {}
+
+        def fake_pipeline(left, right, form, generate_summaries=True):
+            captured["left"], captured["right"], captured["form"] = left, right, form
+            return [SimpleNamespace(document_type=SimpleNamespace(value="risk_factors"))]
+
+        # `from`=newer, `to`=older — handler must reorder to (older, newer).
+        with patch("symbology.worker.handlers._resolve_filing_token", side_effect=[newer, older]), \
+             patch("symbology.worker.handlers._filing_ready_for_diff", return_value=True), \
+             patch("symbology.worker.diff_pipeline.filing_diff_pipeline", side_effect=fake_pipeline):
+            result = handle_filing_diff({"from": "accNew", "to": "accOld"})
+
+        assert captured["left"] is older and captured["right"] is newer
+        assert result["diff_sets"] == 1
+        assert result["document_types"] == ["risk_factors"]
+
+    def test_defers_when_not_embedded(self):
+        from symbology.worker.handlers import handle_filing_diff
+        cid = uuid7()
+        a = _fake_diff_filing("accA", cid, period_year=2023)
+        b = _fake_diff_filing("accB", cid, period_year=2024)
+        created = []
+
+        def fake_create_job(job_type, params=None, priority=2, scheduled_at=None):
+            job = SimpleNamespace(id=uuid7(), job_type=job_type, params=params,
+                                  scheduled_at=scheduled_at)
+            created.append(job)
+            return job
+
+        with patch("symbology.worker.handlers._resolve_filing_token", side_effect=[a, b]), \
+             patch("symbology.worker.handlers._filing_ready_for_diff", return_value=False), \
+             patch("symbology.database.jobs.get_active_jobs", return_value=[]), \
+             patch("symbology.database.jobs.create_job", side_effect=fake_create_job):
+            result = handle_filing_diff({"from": "accA", "to": "accB"})
+
+        from symbology.database.jobs import JobType
+        embeds = [j for j in created if j.job_type == JobType.EMBED_FILING]
+        successors = [j for j in created if j.job_type == JobType.FILING_DIFF]
+        assert len(embeds) == 2  # both sides not ready
+        assert len(successors) == 1 and successors[0].scheduled_at is not None
+        assert result["status"] == "requeued_waiting_on_embeddings"
+
+
+class TestHandleCompanyDiffEnsure:
+    """COMPANY_DIFF now walks consecutive pairs and enqueues FILING_DIFF jobs."""
+
+    def _run(self, filings, current_diff_for=None, active=None, created=None, extra_params=None):
+        created = created if created is not None else []
+        cid = uuid7()
+        company = SimpleNamespace(id=cid, ticker="AAPL")
+        session = MagicMock()
+        session.query.return_value.filter.return_value.order_by.return_value.all.return_value = filings
+
+        cfg = SimpleNamespace(form_document_types={"10-K": ["risk_factors"]})
+
+        def fake_get_current(company_id, dt, right_filing_id=None):
+            return (current_diff_for or {}).get(right_filing_id)
+
+        def fake_create_job(job_type, params=None, priority=2, scheduled_at=None):
+            job = SimpleNamespace(id=uuid7(), job_type=job_type, params=params)
+            created.append(job)
+            return job
+
+        from symbology.worker.handlers import handle_company_diff
+        params = {"ticker": "AAPL", "form": "10-K", **(extra_params or {})}
+        with patch("symbology.database.companies.get_company_by_ticker", return_value=company), \
+             patch("symbology.database.base.get_db_session", return_value=session), \
+             patch("symbology.worker.config_loader.load_pipeline_config", return_value=cfg), \
+             patch("symbology.database.section_diffs.get_current_diff_set", side_effect=fake_get_current), \
+             patch("symbology.database.jobs.get_active_jobs", return_value=active or []), \
+             patch("symbology.database.jobs.create_job", side_effect=fake_create_job):
+            result = handle_company_diff(params)
+        return result, created, company
+
+    def test_enqueues_each_consecutive_pair(self):
+        cid = uuid7()
+        filings = [
+            _fake_diff_filing("a", cid, period_year=2022),
+            _fake_diff_filing("b", cid, period_year=2023),
+            _fake_diff_filing("c", cid, period_year=2024),
+        ]
+        result, created, _ = self._run(filings)
+        from symbology.database.jobs import JobType
+        diff_jobs = [j for j in created if j.job_type == JobType.FILING_DIFF]
+        assert result["pairs"] == 2
+        assert result["enqueued"] == 2
+        assert len(diff_jobs) == 2
+
+    def test_skips_pair_with_existing_diff(self):
+        cid = uuid7()
+        f0 = _fake_diff_filing("a", cid, period_year=2023)
+        f1 = _fake_diff_filing("b", cid, period_year=2024)
+        # A current diff already exists for the (f0 -> f1) pair.
+        existing = SimpleNamespace(left_filing_id=f0.id)
+        result, created, _ = self._run([f0, f1], current_diff_for={f1.id: existing})
+        assert result["enqueued"] == 0
+        assert result["skipped"] == 1
+
+    def test_single_filing_no_op(self):
+        cid = uuid7()
+        result, created, _ = self._run([_fake_diff_filing("a", cid)])
+        assert result["pairs"] == 0 and result["enqueued"] == 0
+
+    def test_lookback_spans_only_the_most_recent_filings(self):
+        # With 4 filings but lookback=2, only the latest two (one pair) are diffed.
+        cid = uuid7()
+        filings = [
+            _fake_diff_filing("a", cid, period_year=2021),
+            _fake_diff_filing("b", cid, period_year=2022),
+            _fake_diff_filing("c", cid, period_year=2023),
+            _fake_diff_filing("d", cid, period_year=2024),
+        ]
+        result, created, _ = self._run(filings, extra_params={"lookback": 2})
+        from symbology.database.jobs import JobType
+        diff_jobs = [j for j in created if j.job_type == JobType.FILING_DIFF]
+        assert result["pairs"] == 1
+        assert result["enqueued"] == 1
+        # The single pair is the most recent one (2023 -> 2024).
+        assert diff_jobs[0].params["right_filing_id"] == str(filings[-1].id)
+        assert diff_jobs[0].params["left_filing_id"] == str(filings[-2].id)

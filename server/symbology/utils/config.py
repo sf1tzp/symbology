@@ -52,9 +52,22 @@ class OpenAISettings(BaseSettings):
         default="not-needed", description="Bearer token; many local servers ignore it"
     )
 
-    # Embedding model configuration
-    embedding_model: str = Field(default="jina-embeddings-v5-omni-small-retrieval")
-    embedding_dimensions: int = Field(default=1024)
+    # Embedding model configuration. nomic-embed-text-v1.5 is the standardized
+    # embedding model (768-dim); it loads as an embedding-type instance in
+    # LM Studio, unlike the qwen3-architecture jina model which LM Studio treats
+    # as an LLM and refuses to serve from /v1/embeddings.
+    embedding_model: str = Field(default="text-embedding-nomic-embed-text-v1.5")
+    embedding_dimensions: int = Field(default=768)
+    # nomic models expect a task-instruction prefix on each input; "clustering:"
+    # suits within-company topic alignment (symmetric chunk-vs-chunk comparison).
+    # Empty string disables prefixing (for models that don't use it).
+    embedding_task_prefix: str = Field(default="clustering: ")
+    # Cosine *distance* below which a chunk joins an existing topic. Model-
+    # dependent: nomic's cosine range is compressed (unrelated risk text sits at
+    # ~0.70 similarity / 0.30 distance), so same-company same-section text needs a
+    # tight threshold. Measured on TSLA risk factors: same risk year-over-year is
+    # <0.03 apart, distinct risks >0.08 apart — 0.05 sits in the separating gap.
+    topic_distance_threshold: float = Field(default=0.05)
 
     # Request behaviour
     embedding_batch_size: int = Field(

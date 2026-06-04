@@ -70,21 +70,6 @@ from symbology.database.jobs import (
     mark_stale_jobs_as_failed,
 )
 
-# Pipeline Runs
-from symbology.database.pipeline_runs import (
-    complete_pipeline_run,
-    count_consecutive_failures,
-    create_pipeline_run,
-    fail_pipeline_run,
-    get_latest_run_per_company,
-    get_pipeline_run,
-    list_pipeline_runs,
-    PipelineRun,
-    PipelineRunStatus,
-    PipelineTrigger,
-    start_pipeline_run,
-)
-
 from symbology.database.generated_content import (
     ContentSourceType,
     create_generated_content,
@@ -118,7 +103,10 @@ from symbology.database.document_chunks import (
     delete_chunks_for_document,
     DocumentChunk,
     get_chunks_by_document,
+    get_chunks_by_topic,
+    get_chunks_for_company_doctype,
     replace_document_chunks,
+    replace_document_section_chunks,
     search_document_chunks,
 )
 from symbology.database.generated_content_chunks import (
@@ -127,6 +115,25 @@ from symbology.database.generated_content_chunks import (
     get_chunks_by_content,
     replace_content_chunks,
     search_content_chunks,
+)
+
+# Chunk topics (stable cross-filing identity)
+from symbology.database.chunk_topics import (
+    add_member_to_topic,
+    ChunkTopic,
+    create_chunk_topic,
+    delete_topics_for_scope,
+    get_topics_for_scope,
+    nearest_topic,
+)
+
+# Section diffs (precomputed year-over-year diffs)
+from symbology.database.section_diffs import (
+    ChangeKind,
+    delete_diff_sets_for_pair,
+    DiffSet,
+    get_current_diff_set,
+    SectionDiff,
 )
 
 # Company Groups
@@ -174,8 +181,7 @@ __all__ = [
     "Company", "Filing", "Document", "FinancialConcept", "FinancialValue",
     "Completion", "Aggregate", "Rating", "Prompt", "PromptRole",
     "Job", "JobStatus", "JobType",
-    "PipelineRun", "PipelineRunStatus", "PipelineTrigger",
-    "DocumentChunk", "GeneratedContentChunk",
+    "DocumentChunk", "GeneratedContentChunk", "ChunkTopic",
 
     # Page content (publishing layer)
     "DocumentPageContent", "FilingPageContent", "CompanyPageContent",
@@ -185,7 +191,16 @@ __all__ = [
 
     # Chunk functions
     "get_chunks_by_document", "delete_chunks_for_document", "replace_document_chunks", "search_document_chunks",
+    "get_chunks_for_company_doctype", "get_chunks_by_topic", "replace_document_section_chunks",
     "get_chunks_by_content", "delete_chunks_for_content", "replace_content_chunks", "search_content_chunks",
+
+    # Chunk topic functions
+    "get_topics_for_scope", "nearest_topic", "create_chunk_topic", "add_member_to_topic",
+    "delete_topics_for_scope",
+
+    # Section diff models + functions
+    "DiffSet", "SectionDiff", "ChangeKind",
+    "get_current_diff_set", "delete_diff_sets_for_pair",
 
     # Company functions
     "get_company_ids", "get_company", "create_company", "update_company", "delete_company",
@@ -213,9 +228,4 @@ __all__ = [
     # Job functions
     "create_job", "get_job", "list_jobs", "cancel_job",
     "claim_next_job", "complete_job", "fail_job", "mark_stale_jobs_as_failed",
-
-    # Pipeline Run functions
-    "create_pipeline_run", "get_pipeline_run", "list_pipeline_runs",
-    "start_pipeline_run", "complete_pipeline_run", "fail_pipeline_run",
-    "get_latest_run_per_company", "count_consecutive_failures",
 ]

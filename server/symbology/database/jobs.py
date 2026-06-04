@@ -29,12 +29,15 @@ class JobType(str, Enum):
     COMPANY_INGESTION = "company_ingestion"
     FILING_INGESTION = "filing_ingestion"
     CONTENT_GENERATION = "content_generation"
-    INGEST_PIPELINE = "ingest_pipeline"
-    FULL_PIPELINE = "full_pipeline"
     BULK_INGEST = "bulk_ingest"
     COMPANY_GROUP_PIPELINE = "company_group_pipeline"
     FILING_PAGE_CONTENT = "filing_page_content"
     COMPANY_PAGE_CONTENT = "company_page_content"
+    EMBED_FILING = "embed_filing"
+    BACKFILL_CHUNKS = "backfill_chunks"
+    BACKFILL_EMBEDDINGS = "backfill_embeddings"
+    FILING_DIFF = "filing_diff"
+    COMPANY_DIFF = "company_diff"
     TEST = "test"
 
 

@@ -291,7 +291,7 @@
 										)}; border-radius: 1.5px;"
 									></span>
 								</td>
-								<td class="mono-cell">{j.id}</td>
+								<td class="mono-cell">{j.shortId}</td>
 								<td class="mono-cell" style="color: var(--ink-2);">{j.kind}</td>
 								<td class="mono-cell">{j.company}</td>
 								<td class="serif-cell">{j.target}</td>

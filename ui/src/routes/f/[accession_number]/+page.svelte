@@ -3,6 +3,7 @@
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
+	import DiffView from '$lib/components/DiffView.svelte';
 	import {
 		formatFilingPeriodLong,
 		formatDate,
@@ -19,6 +20,54 @@
 	const documents = $derived(data.documents || []);
 	const filingPageContent = $derived(data.filingPageContent);
 	const timeline = $derived(data.timeline || []);
+	// Structured diffs of this filing vs. the immediately prior one, per section.
+	const priorDiffSets = $derived(data.priorDiffSets ?? []);
+	// The compare section + "what's new" cards focus on shifts in emphasis and
+	// wording of existing disclosures — new/removed topics are excluded.
+	const VISIBLE_KINDS = new Set(['escalated', 'de_emphasised', 'reworded']);
+
+	// "What's new" headline cards — the most significant escalated / de-emphasised
+	// / reworded shifts in this filing vs. the prior one, across all sections.
+	// Mirrors the company page's "What's new" cards (accent per document type).
+	const DOC_COLORS: Record<string, string> = {
+		business_description: 'var(--teal-2)',
+		risk_factors: 'var(--danger)',
+		management_discussion: 'var(--blue)',
+		controls_procedures: 'var(--gold)',
+		market_risk: 'var(--plum)'
+	};
+	const docColor = (t: string): string => DOC_COLORS[t] ?? 'var(--ink-3)';
+	const CHANGE_KIND_LABEL: Record<string, string> = {
+		escalated: 'Escalated',
+		de_emphasised: 'De-emphasised',
+		reworded: 'Reworded'
+	};
+	const changeKindLabel = (k: string): string => CHANGE_KIND_LABEL[k] ?? k;
+
+	// Significance heuristic — mirrors scoreSectionDiff in server/db/diffs.ts
+	// (kept inline to avoid pulling server-only code into the client bundle).
+	const KIND_WEIGHT: Record<string, number> = {
+		escalated: 600,
+		de_emphasised: 500,
+		reworded: 200
+	};
+	const scoreTopic = (t: {
+		changeKind: string;
+		tokensAdded: number;
+		tokensRemoved: number;
+		lengthDelta: number;
+	}): number =>
+		(KIND_WEIGHT[t.changeKind] ?? 100) +
+		(t.tokensAdded ?? 0) +
+		(t.tokensRemoved ?? 0) +
+		Math.abs(t.lengthDelta ?? 0) * 0.1;
+	const changeCards = $derived(
+		priorDiffSets
+			.flatMap((ds) => ds.topics.map((t) => ({ ...t, documentType: ds.documentType })))
+			.filter((t) => VISIBLE_KINDS.has(t.changeKind))
+			.sort((a, b) => scoreTopic(b) - scoreTopic(a))
+			.slice(0, 6)
+	);
 
 	const companyName = $derived(company?.display_name || company?.name || 'Company');
 	const fiscalPeriodLong = $derived(filing ? formatFilingPeriodLong(filing, company) : '');
@@ -39,6 +88,19 @@
 	function formatCount(n: number): string {
 		if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
 		return String(n);
+	}
+
+	// "What's new" cards deep-link to the on-page diff in the Compare section.
+	// Each diff is its own collapsed <details id="diff-{id}">, so open it and
+	// scroll it into view.
+	function openDiff(e: MouseEvent, topicId: string) {
+		e.preventDefault();
+		const el = document.getElementById(`diff-${topicId}`);
+		if (el instanceof HTMLDetailsElement) el.open = true;
+		requestAnimationFrame(() => {
+			el?.scrollIntoView({ behavior: 'smooth' });
+			history.replaceState(null, '', `#diff-${topicId}`);
+		});
 	}
 
 	const hasAnalysis = $derived(
@@ -244,6 +306,54 @@
 		</section>
 	{/if}
 
+	<!-- SECTION: What's new (headline change cards) -->
+	{#if changeCards.length > 0}
+		<section class="hairline-section">
+			<SectionHead eyebrow="CHANGES VS PRIOR FILING" heading="What's new in this filing." />
+			<div class="change-grid">
+				{#each changeCards as c (c.id)}
+					<a
+						href="#diff-{c.id}"
+						onclick={(e) => openDiff(e, c.id)}
+						class="change-card"
+						style="--card-accent: {docColor(c.documentType)};"
+					>
+						<div class="hd">
+							<span class="hd-dot" style="background: {docColor(c.documentType)};"></span>
+							{changeKindLabel(c.changeKind)} · {getAnalysisTypeDisplay(c.documentType)}
+						</div>
+						{#if c.heading}
+							<div class="ti">{c.heading}</div>
+						{/if}
+						{#if c.summary}
+							<div class="bd">{c.summary}</div>
+						{/if}
+						<div class="ft">
+							{#if c.sectionPath}
+								<span class="meta" style="font-family: var(--mono); color: var(--ink-4);"
+									>{c.sectionPath}</span
+								>
+							{:else}
+								<span></span>
+							{/if}
+							<span>Open <ChevronRight class="inline h-3 w-3" /></span>
+						</div>
+					</a>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	<!-- FILING TIMELINE -->
+	{#if timeline}
+		<section class="hairline-section" id="filing-timeline">
+			<SectionHead eyebrow="FILING HISTORY" heading="View other filings:" />
+			<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
+				<FilingTimeline filings={timeline} {company} linkPrefix="/f" />
+			</div>
+		</section>
+	{/if}
+
 	<!-- SECTION 2: Documents -->
 	<section class="hairline-section">
 		<SectionHead
@@ -289,14 +399,48 @@
 		{/if}
 	</section>
 
-	<!-- SECTION 3: Compare with -->
-	<!-- FILING TIMELINE -->
-	{#if timeline}
-		<section class="hairline-section" id="filing-timeline">
-			<SectionHead eyebrow="FILING HISTORY" heading="View other filings:" />
-			<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
-				<FilingTimeline filings={timeline} {company} linkPrefix="/f" />
+	<!-- SECTION 3: Compare with the prior filing -->
+	{#if priorDiffSets.length > 0}
+		<section class="hairline-section">
+			<SectionHead eyebrow="COMPARE WITH" heading="Side-by-side against the prior filing." />
+			<div style="display: flex; gap: 28px; align-items: center; margin-bottom: 8px;">
+				<span class="meta">
+					<span>Key: </span>
+					<span class="del" style="padding: 2px 8px; margin-left: 12px; margin-right: 6px;"
+						>Removed</span
+					>
+					<span class="ins" style="padding: 2px 8px; margin-right: 6px;">Added</span>
+				</span>
 			</div>
+			{#each priorDiffSets as ds (ds.id)}
+				{@const changed = ds.topics.filter((t) => VISIBLE_KINDS.has(t.changeKind))}
+				{#if changed.length > 0}
+					<div class="diff-group">
+						<div class="diff-group-head">
+							<h3 class="diff-group-title">{getAnalysisTypeDisplay(ds.documentType)}</h3>
+							<span class="meta" style="color: var(--ink-4);">
+								{changed.length} change{changed.length === 1 ? '' : 's'} vs. {ds.leftFiling
+									? (ds.leftFiling.periodOfReport ?? ds.leftFiling.filingDate)?.slice(0, 4)
+									: 'prior'}
+							</span>
+							<a
+								href="/c/{company?.ticker}/changes/{ds.documentType}"
+								class="meta"
+								style="margin-left: auto; color: var(--teal-2);">Full report →</a
+							>
+						</div>
+						{#each changed as t (t.id)}
+							<details id="diff-{t.id}" class="diff-details">
+								<summary>
+									<span class="tag tag-new">{(t.changeKind || '').replace('_', '-')}</span>
+									<span class="diff-summary-title">{t.heading ?? t.sectionPath ?? 'Section'}</span>
+								</summary>
+								<DiffView topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
+							</details>
+						{/each}
+					</div>
+				{/if}
+			{/each}
 		</section>
 	{/if}
 {:else}
@@ -306,6 +450,107 @@
 {/if}
 
 <style>
+	/* Document-type group: non-clickable header over its list of change rows. */
+	.diff-group {
+		margin-top: 2rem;
+	}
+	.diff-group-head {
+		display: flex;
+		align-items: baseline;
+		gap: 12px;
+		margin-bottom: 0.25rem;
+	}
+	.diff-group-title {
+		font-family: var(--serif);
+		font-size: 16px;
+		color: var(--ink);
+	}
+
+	.diff-details {
+		border-top: 1px solid var(--rule);
+		padding: 0.25rem 0;
+		scroll-margin-top: 80px;
+	}
+	.diff-details > summary {
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 0.75rem 0;
+		list-style: none;
+	}
+	.diff-details > summary::-webkit-details-marker {
+		display: none;
+	}
+	.diff-summary-title {
+		font-family: var(--serif);
+		font-size: 15px;
+		color: var(--ink);
+	}
+	.diff-details[open] > summary {
+		margin-bottom: 1rem;
+	}
+
+	/* "What's new" headline cards — left accent per document type, mirroring the
+	   company page's cards. */
+	.change-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+		gap: 1rem;
+	}
+	.change-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		padding: 1.25rem 1.5rem;
+		border: 1px solid var(--rule);
+		border-left: 3px solid var(--card-accent, var(--teal-2));
+		border-radius: 0 8px 8px 0;
+		text-decoration: none;
+		color: inherit;
+		transition:
+			border-color 0.15s,
+			background 0.1s;
+	}
+	.change-card:hover {
+		border-color: var(--rule-2);
+		background: var(--paper-2);
+	}
+	.change-card .hd {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 15px;
+		font-weight: 600;
+		color: var(--ink);
+	}
+	.change-card .hd-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 9999px;
+		flex-shrink: 0;
+	}
+	.change-card .ti {
+		font-family: var(--serif);
+		font-size: 16px;
+		line-height: 1.3;
+		color: var(--ink);
+	}
+	.change-card .bd {
+		font-size: 13.5px;
+		line-height: 1.55;
+		color: var(--ink-3);
+	}
+	.change-card .ft {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-top: auto;
+		padding-top: 0.5rem;
+		font-size: 12px;
+		color: var(--ink-4);
+	}
+
 	.filing-hero {
 		display: grid;
 		grid-template-columns: 1fr 380px;

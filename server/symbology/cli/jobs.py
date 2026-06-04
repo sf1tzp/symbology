@@ -51,19 +51,22 @@ def format_job_context(job) -> str:
 
     if jt == JobType.COMPANY_INGESTION:
         parts = pick("ticker")
-    elif jt in (JobType.FILING_INGESTION, JobType.INGEST_PIPELINE):
+    elif jt == JobType.FILING_INGESTION:
         parts = pick("ticker", "form", "count")
     elif jt == JobType.FILING_PAGE_CONTENT:
         parts = pick("ticker", "form", "year")
     elif jt == JobType.COMPANY_PAGE_CONTENT:
         parts = pick("ticker", "form", "lookback")
-    elif jt == JobType.FULL_PIPELINE:
-        parts = pick("ticker")
-        forms = params.get("forms")
-        if forms:
-            parts.append(f"forms={','.join(forms)}")
-        if params.get("force"):
-            parts.append("force")
+    elif jt == JobType.EMBED_FILING:
+        parts = pick("filing_id", "accession_number")
+    elif jt == JobType.FILING_DIFF:
+        left = params.get("from") or params.get("left_filing_id")
+        right = params.get("to") or params.get("right_filing_id")
+        if left and right:
+            parts.append(f"{left} -> {right}")
+        parts += pick("form")
+    elif jt == JobType.COMPANY_DIFF:
+        parts = pick("ticker", "form")
     elif jt == JobType.CONTENT_GENERATION:
         parts = pick("company_ticker", "form_type", "document_type", "content_stage", "description")
     elif jt == JobType.COMPANY_GROUP_PIPELINE:
@@ -121,34 +124,62 @@ def jobs():
     pass
 
 
-@jobs.command("submit")
+@jobs.command("start")
 @click.argument("job_type", type=click.Choice([jt.value for jt in JobType], case_sensitive=False))
-@click.option("--params", "-p", default="{}", help="Job parameters as JSON string")
+@click.option(
+    "--set",
+    "set_kvs",
+    multiple=True,
+    metavar="KEY=VALUE",
+    help="Set a param (repeatable). Auto-typed: 5->int, 1.5->float, true/false->bool, JSON for lists/objects, else string.",
+)
+@click.option("--params", "-p", "params_json", default=None, help="Job parameters as a JSON object (merged after --set pairs)")
 @click.option("--priority", type=int, default=2, help="Priority (0=critical, 4=backlog)")
 @click.option("--max-retries", type=int, default=3, help="Maximum retry attempts")
-def submit_job(job_type: str, params: str, priority: int, max_retries: int):
-    """Submit a new job to the queue.
+def start_job(job_type: str, set_kvs, params_json, priority: int, max_retries: int):
+    """Enqueue a new job of JOB_TYPE.
 
-    JOB_TYPE: One of the registered job types.
+    Params are assembled from repeatable --set KEY=VALUE pairs (auto-typed, same
+    rules as `jobs edit`) and/or a --params JSON object. Both may be combined;
+    --params is merged last so it wins on key conflicts.
+
+    \b
+    Examples:
+      jobs start filing_page_content --set ticker=AAPL --set year=2023
+      jobs start company_page_content --set ticker=MSFT --set lookback=5 --set form=10-Q
+      jobs start bulk_ingest --params '{"filings": []}'
     """
-    import json
-    try:
-        parsed_params = json.loads(params)
-    except json.JSONDecodeError as e:
-        console.print(f"[red]Invalid JSON params: {e}[/red]")
-        sys.exit(1)
+    params = {}
+    for kv in set_kvs:
+        if "=" not in kv:
+            console.print(f"[red]Invalid --set '{kv}', expected KEY=VALUE[/red]")
+            sys.exit(1)
+        key, _, raw = kv.partition("=")
+        params[key.strip()] = coerce_param_value(raw)
+
+    if params_json is not None:
+        try:
+            parsed = json.loads(params_json)
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Invalid JSON params: {e}[/red]")
+            sys.exit(1)
+        if not isinstance(parsed, dict):
+            console.print("[red]--params must be a JSON object[/red]")
+            sys.exit(1)
+        params.update(parsed)
 
     try:
         init_session()
         jt = JobType(job_type)
-        job = create_job(jt, params=parsed_params, priority=priority, max_retries=max_retries)
-        console.print(f"[green]✓[/green] Job submitted: {job.id}")
+        job = create_job(jt, params=params, priority=priority, max_retries=max_retries)
+        console.print(f"[green]✓[/green] Job started: {job.id}")
         console.print(f"  [blue]Type:[/blue]     {job.job_type.value}")
+        console.print(f"  [blue]Context:[/blue]  {format_job_context(job)}")
         console.print(f"  [blue]Priority:[/blue] {job.priority}")
         console.print(f"  [blue]Status:[/blue]   {job.status.value}")
     except Exception as e:
-        console.print(f"[red]Error submitting job: {e}[/red]")
-        logger.exception("Job submission failed")
+        console.print(f"[red]Error starting job: {e}[/red]")
+        logger.exception("Job start failed")
         sys.exit(1)
 
 

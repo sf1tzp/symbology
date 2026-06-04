@@ -3,6 +3,7 @@ import { error } from '@sveltejs/kit';
 import { getCompanyByTicker } from '$lib/server/db/companies';
 import { getCurrentCompanyPageContent } from '$lib/server/db/page-content';
 import { getFilingsTimeline } from '$lib/server/db/filings';
+import { getDiffSetChain } from '$lib/server/db/diffs';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const ticker = params.ticker.toUpperCase();
@@ -29,12 +30,19 @@ export const load: PageServerLoad = async ({ params }) => {
 			(b.period_of_report ?? b.filing_date).localeCompare(a.period_of_report ?? a.filing_date)
 		);
 
+	// Chain of consecutive year-over-year diffs, oldest → newest (may be empty if
+	// no diffs computed yet). The newest pairing drives the masthead counts.
+	const diffChain = await getDiffSetChain(company.id, documentType);
+	const diffSet = diffChain.at(-1) ?? null;
+
 	return {
 		ticker,
 		documentType,
 		company,
 		changeReport,
 		sourceFilings,
+		diffSet,
+		diffChain,
 		createdAt: companyPageContent?.createdAt ?? null
 	};
 };

@@ -29,6 +29,27 @@ from symbology.worker.page_pipelines import (
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _mock_embeddings(monkeypatch):
+    """The filing pipeline now section-chunks + embeds each document; stub the
+    embedding endpoint so tests don't hit the network (mirrors the LLM mock)."""
+    import symbology.llm.content_processing as cp
+    from symbology.utils.config import settings
+
+    dim = settings.openai.embedding_dimensions
+
+    def _fake_embed_texts(texts, **kwargs):
+        out = []
+        for t in texts:
+            v = [0.0] * dim
+            v[int(hashlib.sha256(t.encode()).hexdigest(), 16) % dim] = 1.0
+            out.append(v)
+        return out
+
+    monkeypatch.setattr(cp, "embed_texts", _fake_embed_texts)
+    monkeypatch.setattr(cp, "init_embedding_client", lambda *a, **k: object())
+
+
 def _fake_generate_response(model_config, system_prompt, user_prompt, *args, **kwargs):
     # Derive distinct output per (stage, source) so content-hash dedup doesn't
     # collapse different stages into one row (as it would with constant text).

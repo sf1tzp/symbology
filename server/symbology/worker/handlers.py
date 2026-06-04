@@ -76,8 +76,9 @@ def handle_filing_ingestion(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Ingest filings for a company.
 
     params:
-        company_id (str, required): UUID of the company in the database.
         ticker (str, required): Company ticker symbol.
+        company_id (str, optional): UUID of the company in the database. When
+            omitted, resolved from ``ticker`` (ingesting the company if missing).
         form (str): Filing form type, default "10-K".
         count (int): Number of filings to retrieve, default 5.
         include_documents (bool): Whether to ingest documents, default True.
@@ -86,8 +87,13 @@ def handle_filing_ingestion(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     from symbology.ingestion.ingestion_helpers import ingest_filings
     from symbology.utils.config import settings
 
-    company_id = params["company_id"]
     ticker = params["ticker"]
+    company_id = params.get("company_id")
+    if not company_id:
+        from symbology.database.companies import get_company_by_ticker
+
+        company = get_company_by_ticker(ticker.upper())
+        company_id = company.id if company else handle_company_ingestion({"ticker": ticker})["company_id"]
     form = params.get("form", "10-K")
     count = params.get("count", 5)
     include_documents = params.get("include_documents", True)
@@ -96,8 +102,22 @@ def handle_filing_ingestion(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     edgar_login(settings.edgar_api.edgar_contact)
     results = ingest_filings(company_id, ticker, form, count, include_documents)
     filing_ids = [str(r[3]) for r in results]
+
+    # Chunk + embed + cluster each ingested filing's documents asynchronously, so
+    # diffs/search have vectors without coupling ingestion latency to embedding.
+    if include_documents:
+        for fid in filing_ids:
+            _enqueue_embed_filing(fid)
+
     logger.info("handler_filing_ingestion_done", ticker=ticker, filings_count=len(filing_ids))
     return {"ticker": ticker, "form": form, "filing_ids": filing_ids}
+
+
+def _enqueue_embed_filing(filing_id: str) -> None:
+    """Enqueue an EMBED_FILING job for a freshly-ingested filing (priority 3)."""
+    from symbology.database.jobs import JobType, create_job
+
+    create_job(JobType.EMBED_FILING, params={"filing_id": filing_id}, priority=3)
 
 
 @register_handler(JobType.CONTENT_GENERATION)
@@ -426,244 +446,6 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
     }
 
 
-@register_handler(JobType.INGEST_PIPELINE)
-def handle_ingest_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Full ingestion pipeline: company -> filings -> (optional content generation).
-
-    params:
-        ticker (str, required): Company ticker symbol.
-        form (str): Filing form type, default "10-K".
-        count (int): Number of filings, default 5.
-        include_documents (bool): Ingest documents, default True.
-    """
-    ticker = params["ticker"]
-    form = params.get("form", "10-K")
-    count = params.get("count", 5)
-    include_documents = params.get("include_documents", True)
-
-    logger.info("handler_ingest_pipeline_start", ticker=ticker)
-
-    # Step 1: Company
-    company_result = handle_company_ingestion({"ticker": ticker})
-    company_id = company_result["company_id"]
-
-    # Step 2: Filings
-    filing_result = handle_filing_ingestion({
-        "company_id": company_id,
-        "ticker": ticker,
-        "form": form,
-        "count": count,
-        "include_documents": include_documents,
-    })
-
-    logger.info("handler_ingest_pipeline_done", ticker=ticker)
-    return {
-        "ticker": ticker,
-        "company_id": company_id,
-        "filings": filing_result["filing_ids"],
-    }
-
-
-@register_handler(JobType.FULL_PIPELINE)
-def handle_full_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """End-to-end automated pipeline: company -> filings -> content generation.
-
-    Orchestrates ingestion and 3-stage LLM content generation pipeline.
-    For each form and document type it:
-      1. Ingests the company and filings from EDGAR
-      2. Generates single summaries per filing document
-      3. Generates an aggregate summary from all singles
-      4. Generates a frontpage summary from the aggregate
-
-    params:
-        ticker (str, required): Company ticker symbol.
-        forms (list[str]): Form types to process. Defaults to ["10-K", "10-Q"].
-        counts (dict[str, int]): Number of filings per form.
-        document_types (dict[str, list[str]]): Document types per form.
-        prompts_dir (str): Path to prompts directory.
-        trigger (str): "manual" or "scheduled". Defaults to "manual".
-        force (bool): If True, bypass dedup and regenerate all content.
-    """
-    from pathlib import Path
-    from uuid import UUID
-
-    from symbology.database.base import get_db_session
-    from symbology.database.filings import Filing
-    from symbology.database.pipeline_runs import (
-        PipelineTrigger,
-        complete_pipeline_run,
-        create_pipeline_run,
-        fail_pipeline_run,
-        start_pipeline_run,
-    )
-    from symbology.worker.pipeline import (
-        FORM_DOCUMENT_TYPES,
-        PIPELINE_MODEL_CONFIGS,
-        PIPELINE_PROMPTS,
-        ensure_model_config,
-        ensure_prompt,
-        generate_aggregate_summary,
-        generate_frontpage_summary,
-        generate_single_summaries,
-    )
-
-    ticker = params["ticker"]
-    forms = params.get("forms", ["10-K", "10-Q"])
-    default_counts = {"10-K": 5, "10-Q": 6}
-    counts = params.get("counts", default_counts)
-    doc_types_map = params.get("document_types", FORM_DOCUMENT_TYPES)
-    prompts_dir = Path(params["prompts_dir"]) if "prompts_dir" in params else None
-    trigger_str = params.get("trigger", "manual")
-    trigger = PipelineTrigger(trigger_str)
-    force = params.get("force", False)
-
-    logger.info("handler_full_pipeline_start", ticker=ticker, forms=forms, force=force)
-
-    # Step 1: Company ingestion
-    company_result = handle_company_ingestion({"ticker": ticker})
-    company_id = company_result["company_id"]
-
-    # Create pipeline run record
-    pipeline_run = create_pipeline_run(
-        company_id=company_id,
-        forms=forms,
-        trigger=trigger,
-        run_metadata={"ticker": ticker, "counts": counts},
-    )
-    start_pipeline_run(pipeline_run.id)
-
-    jobs_created = 0
-    jobs_completed = 0
-    jobs_failed = 0
-
-    try:
-        # Step 2: Set up model configs
-        mc_single = ensure_model_config(**PIPELINE_MODEL_CONFIGS["single_summary"])
-        mc_aggregate = ensure_model_config(**PIPELINE_MODEL_CONFIGS["aggregate_summary"])
-        mc_frontpage = ensure_model_config(**PIPELINE_MODEL_CONFIGS["frontpage_summary"])
-
-        # Step 3: Set up shared prompts
-        aggregate_prompt = ensure_prompt(PIPELINE_PROMPTS["aggregate_summary"], prompts_dir)
-        frontpage_prompt = ensure_prompt(PIPELINE_PROMPTS["frontpage_summary"], prompts_dir)
-
-        total_content_generated = 0
-
-        # Step 4: Process each form
-        for form in forms:
-            count = counts.get(form, default_counts.get(form, 5))
-            doc_types = doc_types_map.get(form, [])
-
-            if not doc_types:
-                logger.info("full_pipeline_skip_form", form=form, reason="no document types")
-                continue
-
-            # Ingest filings for this form
-            filing_result = handle_filing_ingestion({
-                "company_id": company_id,
-                "ticker": ticker,
-                "form": form,
-                "count": count,
-                "include_documents": True,
-            })
-            logger.info(
-                "full_pipeline_filings_ingested",
-                form=form,
-                filings_count=len(filing_result["filing_ids"]),
-            )
-
-            # Query filings from DB to get their documents
-            session = get_db_session()
-            filings = (
-                session.query(Filing)
-                .filter(Filing.company_id == UUID(company_id), Filing.form == form)
-                .all()
-            )
-
-            # Step 5: For each document type, run the 3-stage content pipeline
-            for doc_type_str in doc_types:
-                single_prompt = ensure_prompt(doc_type_str, prompts_dir)
-
-                # Stage 1: Single summaries
-                hashes, new, reused, failed = generate_single_summaries(
-                    company_id, ticker, form, doc_type_str,
-                    filings, single_prompt, mc_single, force=force,
-                )
-                jobs_created += new + failed
-                jobs_completed += new + reused
-                jobs_failed += failed
-                total_content_generated += new + reused
-
-                if not hashes:
-                    logger.info("full_pipeline_skip_aggregate", form=form,
-                                doc_type=doc_type_str, reason="no single summaries")
-                    continue
-
-                if new == 0 and not force:
-                    logger.info("full_pipeline_skip_aggregate", form=form,
-                                doc_type=doc_type_str, reason="all single summaries already existed",
-                                existing_count=len(hashes))
-                    continue
-
-                # Stage 2: Aggregate summary
-                jobs_created += 1
-                agg_hash, agg_ok = generate_aggregate_summary(
-                    company_id, ticker, form, doc_type_str,
-                    hashes, aggregate_prompt, mc_aggregate, force=force,
-                )
-                if agg_ok:
-                    jobs_completed += 1
-                    total_content_generated += 1
-
-                    # Stage 3: Frontpage summary
-                    jobs_created += 1
-                    fp_hash, fp_ok = generate_frontpage_summary(
-                        company_id, ticker, form, doc_type_str,
-                        agg_hash, frontpage_prompt, mc_frontpage, force=force,
-                    )
-                    if fp_ok:
-                        jobs_completed += 1
-                        total_content_generated += 1
-                    else:
-                        jobs_failed += 1
-                else:
-                    jobs_failed += 1
-
-        # Mark pipeline run as completed
-        complete_pipeline_run(
-            pipeline_run.id,
-            jobs_created=jobs_created,
-            jobs_completed=jobs_completed,
-            jobs_failed=jobs_failed,
-        )
-
-        logger.info(
-            "handler_full_pipeline_done",
-            ticker=ticker, forms=forms,
-            content_generated=total_content_generated,
-            run_id=str(pipeline_run.id),
-        )
-        return {
-            "ticker": ticker,
-            "company_id": company_id,
-            "forms": forms,
-            "content_generated": total_content_generated,
-            "pipeline_run_id": str(pipeline_run.id),
-            "jobs_created": jobs_created,
-            "jobs_completed": jobs_completed,
-            "jobs_failed": jobs_failed,
-        }
-
-    except Exception as e:
-        fail_pipeline_run(
-            pipeline_run.id,
-            error=str(e),
-            jobs_created=jobs_created,
-            jobs_completed=jobs_completed,
-            jobs_failed=jobs_failed,
-        )
-        raise
-
-
 def _resolve_filing_by_accession(accession_number: str):
     """Return the DB filing for an accession number, ingesting it if missing.
 
@@ -701,6 +483,31 @@ def _resolve_filing_by_accession(accession_number: str):
     filing = get_filing_by_accession_number(accession_number)
     if filing is None:
         raise ValueError(f"Failed to ingest filing for accession {accession_number}")
+    # Freshly ingested here (bypassing handle_filing_ingestion), so trigger
+    # chunk/embed/cluster for it; the already-present path above skips this.
+    _enqueue_embed_filing(str(filing.id))
+    return filing
+
+
+def _resolve_filing_token(value):
+    """Resolve a filing from a UUID string or an EDGAR accession number.
+
+    Lets the embed/diff jobs accept either id form ergonomically: a value that
+    parses as a UUID is looked up by id; anything else is treated as an accession
+    number (ingested on demand via :func:`_resolve_filing_by_accession`).
+    """
+    from uuid import UUID
+
+    from symbology.database.filings import get_filing
+
+    try:
+        UUID(str(value))
+    except (ValueError, AttributeError, TypeError):
+        return _resolve_filing_by_accession(str(value))
+
+    filing = get_filing(value)
+    if filing is None:
+        raise ValueError(f"filing not found: {value}")
     return filing
 
 
@@ -774,9 +581,10 @@ def handle_filing_page_content(params: Dict[str, Any]) -> Optional[Dict[str, Any
     # Ensure the target filing + its documents are present; ingest if missing.
     filing = _find_filing(company_id)
     if filing is None:
+        default_counts = {"10-K": 5, "10-Q": 6}
         handle_filing_ingestion({
             "company_id": str(company_id), "ticker": ticker, "form": form,
-            "count": 10, "include_documents": True,
+            "count": default_counts[form], "include_documents": True,
         })
         filing = _find_filing(company_id)
     if filing is None:
@@ -954,4 +762,417 @@ def _await_filing_page_content(ticker, form, params, exc):
         "unresolved_filing_ids": unresolved,
         "scheduled_at": scheduled_at.isoformat(),
         "successor_job_id": str(successor.id),
+    }
+
+def _backfill_query(params: Dict[str, Any]):
+    """Build the (document_id, company_id, document_type) query for backfill jobs.
+
+    Scopes by optional ticker/company_id/document_types and caps with limit.
+    Selects ids only (Document.content is deferred and loaded per-document later).
+    """
+    from uuid import UUID
+
+    from symbology.database.base import get_db_session
+    from symbology.database.companies import get_company_by_ticker
+    from symbology.database.documents import Document, DocumentType
+
+    session = get_db_session()
+    q = (
+        session.query(Document.id, Document.company_id, Document.document_type)
+        .filter(Document.content_hash.isnot(None))
+    )
+    if params.get("ticker"):
+        company = get_company_by_ticker(params["ticker"].upper())
+        if company is None:
+            raise ValueError(f"company {params['ticker']} not ingested")
+        q = q.filter(Document.company_id == company.id)
+    elif params.get("company_id"):
+        q = q.filter(Document.company_id == UUID(str(params["company_id"])))
+    if params.get("document_types"):
+        q = q.filter(
+            Document.document_type.in_([DocumentType(d) for d in params["document_types"]])
+        )
+    q = q.order_by(Document.company_id, Document.document_type)
+    if params.get("limit"):
+        q = q.limit(int(params["limit"]))
+    return q
+
+
+@register_handler(JobType.EMBED_FILING)
+def handle_embed_filing(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Ensure section chunks + embeddings + topics exist for one filing's documents.
+
+    The sole owner of chunk/embed/cluster for ingested filings (auto-enqueued by
+    filing ingestion). Idempotent: re-chunking carries ``topic_id`` forward by
+    content_hash, so re-runs don't churn topic identity. Non-fatal per document.
+
+    params:
+        filing_id (str): UUID of the filing. OR
+        accession_number (str): EDGAR accession number (ingested on demand).
+    """
+    from symbology.llm.content_processing import chunk_embed_and_cluster_document
+
+    value = params.get("filing_id") or params.get("accession_number")
+    if not value:
+        raise ValueError("embed_filing requires filing_id or accession_number")
+    filing = _resolve_filing_token(value)
+
+    documents = list(filing.documents)
+    processed = 0
+    for doc in documents:
+        try:
+            chunk_embed_and_cluster_document(doc.id, embed=True, cluster=True)
+            processed += 1
+        except Exception as e:
+            logger.error("embed_filing_document_failed", filing_id=str(filing.id),
+                         document_id=str(doc.id), error=str(e), exc_info=True)
+
+    logger.info("handler_embed_filing_done", filing_id=str(filing.id),
+                documents_processed=processed, documents_total=len(documents))
+    return {
+        "filing_id": str(filing.id),
+        "documents_processed": processed,
+        "documents_total": len(documents),
+    }
+
+
+@register_handler(JobType.BACKFILL_CHUNKS)
+def handle_backfill_chunks(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Section-chunk + embed existing documents, then recluster each scope.
+
+    Chunks each document with clustering deferred, then recomputes topics
+    per (company, document_type) from scratch (deterministic) — the clean way to
+    bring existing data up to the section-aware primitive.
+
+    params (all optional):
+        ticker / company_id: limit to one company.
+        document_types: list of DocumentType values to limit to.
+        limit: cap the number of documents processed.
+        embed: embed chunks (default True). recluster: recluster scopes (default True).
+    """
+    from symbology.llm.content_processing import chunk_embed_and_cluster_document
+    from symbology.llm.topic_clustering import recluster_company_doctype
+
+    embed = params.get("embed", True)
+    do_recluster = params.get("recluster", True)
+    rows = _backfill_query(params).all()
+
+    scopes = set()
+    processed = 0
+    for doc_id, company_id, document_type in rows:
+        try:
+            chunk_embed_and_cluster_document(doc_id, embed=embed, cluster=False)
+            processed += 1
+            if company_id and document_type is not None:
+                scopes.add((company_id, document_type))
+        except Exception as e:
+            logger.error("backfill_chunk_document_failed", document_id=str(doc_id),
+                         error=str(e), exc_info=True)
+
+    reclustered = 0
+    if do_recluster and embed:
+        for company_id, document_type in scopes:
+            try:
+                recluster_company_doctype(company_id, document_type)
+                reclustered += 1
+            except Exception as e:
+                logger.error("backfill_recluster_failed", company_id=str(company_id),
+                             document_type=getattr(document_type, "value", str(document_type)),
+                             error=str(e), exc_info=True)
+
+    logger.info("handler_backfill_chunks_done", documents=processed,
+                total=len(rows), scopes_reclustered=reclustered)
+    return {
+        "documents_processed": processed,
+        "total_documents": len(rows),
+        "scopes_reclustered": reclustered,
+    }
+
+
+@register_handler(JobType.BACKFILL_EMBEDDINGS)
+def handle_backfill_embeddings(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Re-embed documents that have any unembedded chunks.
+
+    Finds documents with at least one ``embedding IS NULL`` chunk and re-runs the
+    section chunk+embed+cluster path on them (deterministic re-chunk carries
+    topic_id forward, so only embeddings are filled in). Scope params match
+    :func:`handle_backfill_chunks`.
+    """
+    from symbology.database.base import get_db_session
+    from symbology.database.document_chunks import DocumentChunk
+    from symbology.llm.content_processing import chunk_embed_and_cluster_document
+
+    session = get_db_session()
+    candidate_ids = {row[0] for row in _backfill_query(params).all()}
+    if not candidate_ids:
+        return {"documents_processed": 0}
+
+    # Documents (within scope) that still have an unembedded chunk.
+    unembedded = {
+        doc_id
+        for (doc_id,) in session.query(DocumentChunk.document_id)
+        .filter(DocumentChunk.document_id.in_(candidate_ids), DocumentChunk.embedding.is_(None))
+        .distinct()
+        .all()
+    }
+
+    processed = 0
+    for doc_id in unembedded:
+        try:
+            chunk_embed_and_cluster_document(doc_id, embed=True, cluster=True)
+            processed += 1
+        except Exception as e:
+            logger.error("backfill_embeddings_failed", document_id=str(doc_id),
+                         error=str(e), exc_info=True)
+
+    logger.info("handler_backfill_embeddings_done", documents=processed,
+                candidates=len(unembedded))
+    return {"documents_processed": processed, "candidates": len(unembedded)}
+
+
+def _filing_ready_for_diff(filing_id) -> bool:
+    """Whether a filing has semantic, clustered chunks (i.e. EMBED_FILING has run)."""
+    from symbology.database.base import get_db_session
+    from symbology.database.document_chunks import DocumentChunk
+    from symbology.database.documents import Document
+
+    session = get_db_session()
+    return (
+        session.query(DocumentChunk.id)
+        .join(Document, DocumentChunk.document_id == Document.id)
+        .filter(
+            Document.filing_id == filing_id,
+            DocumentChunk.is_semantic.is_(True),
+            DocumentChunk.topic_id.isnot(None),
+        )
+        .first()
+        is not None
+    )
+
+
+def _order_filings(a, b):
+    """Return ``(older, newer)`` by period_of_report, falling back to filing_date."""
+    from datetime import date
+
+    def sort_key(f):
+        return (f.period_of_report or date.min, f.filing_date or date.min)
+
+    return (a, b) if sort_key(a) <= sort_key(b) else (b, a)
+
+
+def _await_filing_diff_embeddings(not_ready, params):
+    """Enqueue EMBED_FILING for not-yet-embedded filings and defer this diff job.
+
+    Mirrors :func:`_await_filing_page_content`. Returns the deferral payload, or
+    ``None`` when the retry budget is exhausted (the caller then diffs
+    best-effort over whatever chunks exist, rather than failing).
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from symbology.database.jobs import JobType, create_job, get_active_jobs
+    from symbology.worker.config import worker_settings
+
+    in_flight = {(j.params or {}).get("filing_id") for j in get_active_jobs(JobType.EMBED_FILING)}
+
+    queued, waiting = [], []
+    for filing in not_ready:
+        fid = str(filing.id)
+        if fid in in_flight:
+            waiting.append(fid)
+            continue
+        job = create_job(JobType.EMBED_FILING, params={"filing_id": fid}, priority=2)
+        queued.append(fid)
+        logger.info("dep_embed_filing_queued", filing_id=fid, job_id=str(job.id))
+
+    attempts = int(params.get("_dep_wait_attempts", 0)) + 1
+    if attempts > worker_settings.dependency_requeue_max_attempts:
+        logger.error("filing_diff_dep_wait_exhausted", attempts=attempts,
+                     not_ready=[str(f.id) for f in not_ready])
+        return None
+
+    delay = worker_settings.dependency_requeue_delay
+    scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=delay)
+    successor = create_job(
+        job_type=JobType.FILING_DIFF,
+        params={**params, "_dep_wait_attempts": attempts},
+        priority=3,
+        scheduled_at=scheduled_at,
+    )
+    logger.info("filing_diff_requeued_for_deps", attempt=attempts, delay_seconds=delay,
+                scheduled_at=scheduled_at.isoformat(), queued_embeds=queued,
+                waiting_on=waiting, successor_job_id=str(successor.id))
+    return {
+        "status": "requeued_waiting_on_embeddings",
+        "attempt": attempts,
+        "queued_embeds": queued,
+        "waiting_on_in_flight": waiting,
+        "scheduled_at": scheduled_at.isoformat(),
+        "successor_job_id": str(successor.id),
+    }
+
+
+@register_handler(JobType.FILING_DIFF)
+def handle_filing_diff(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Compute + persist section diffs for an explicit ``(from, to)`` filing pair.
+
+    ``from``/``to`` (aliases ``left_filing_id``/``right_filing_id``) each accept a
+    filing UUID or an EDGAR accession number. The pair must be the same company +
+    form; it is reordered so the older filing is the diff's left side.
+
+    If either side lacks chunks/topics, an EMBED_FILING job is enqueued and this
+    job is deferred (bounded by ``dependency_requeue_max_attempts``); once that
+    budget is exhausted it diffs best-effort over whatever chunks exist.
+
+    params:
+        from / left_filing_id (str): older filing (id or accession).
+        to / right_filing_id (str): newer filing (id or accession).
+        form (str, optional): overrides the form inferred from the filings.
+        generate_summaries (bool): per-topic LLM summaries (default True).
+    """
+    from symbology.worker.diff_pipeline import filing_diff_pipeline
+
+    left_token = params.get("from") or params.get("left_filing_id")
+    right_token = params.get("to") or params.get("right_filing_id")
+    if not left_token or not right_token:
+        raise ValueError("filing_diff requires `from` and `to` (filing id or accession)")
+
+    a = _resolve_filing_token(left_token)
+    b = _resolve_filing_token(right_token)
+    if a.id == b.id:
+        raise ValueError("filing_diff: from and to are the same filing")
+    if a.company_id != b.company_id:
+        raise ValueError("filing_diff: from/to belong to different companies")
+    if a.form != b.form:
+        raise ValueError(f"filing_diff: form mismatch ({a.form} vs {b.form})")
+
+    left_filing, right_filing = _order_filings(a, b)
+    form = params.get("form") or right_filing.form
+    generate_summaries = params.get("generate_summaries", True)
+
+    not_ready = [f for f in (left_filing, right_filing) if not _filing_ready_for_diff(f.id)]
+    if not_ready:
+        deferred = _await_filing_diff_embeddings(not_ready, params)
+        if deferred is not None:
+            return deferred
+
+    # Cap how many topics get an LLM "what changed" summary (the rest still render
+    # from heading/section path). Omit `max_summaries` to use the pipeline default.
+    pipeline_kwargs = {}
+    if params.get("max_summaries") is not None:
+        pipeline_kwargs["max_summaries"] = int(params["max_summaries"])
+    diff_sets = filing_diff_pipeline(
+        left_filing, right_filing, form, generate_summaries=generate_summaries, **pipeline_kwargs
+    )
+    logger.info("handler_filing_diff_done", left_filing_id=str(left_filing.id),
+                right_filing_id=str(right_filing.id), form=form, diff_sets=len(diff_sets))
+    return {
+        "left_filing_id": str(left_filing.id),
+        "right_filing_id": str(right_filing.id),
+        "form": form,
+        "diff_sets": len(diff_sets),
+        "document_types": [ds.document_type.value for ds in diff_sets],
+    }
+
+
+def _filing_diff_in_flight(left, right, active_jobs) -> bool:
+    """Whether a FILING_DIFF job for the ``(left, right)`` pair is already active."""
+    left_keys = {str(left.id), left.accession_number}
+    right_keys = {str(right.id), right.accession_number}
+    for job in active_jobs:
+        p = job.params or {}
+        lt = p.get("from") or p.get("left_filing_id")
+        rt = p.get("to") or p.get("right_filing_id")
+        if lt in left_keys and rt in right_keys:
+            return True
+    return False
+
+
+@register_handler(JobType.COMPANY_DIFF)
+def handle_company_diff(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Ensure consecutive year-over-year diffs exist for a company's ``form`` filings.
+
+    Walks the company's ``form`` filings oldest→newest and, for each adjacent pair
+    lacking a current diff set, enqueues a FILING_DIFF job (which embeds first if
+    needed). Idempotent: pairs that already have a diff for that exact pairing, or
+    an in-flight FILING_DIFF, are skipped. This is the orchestrator behind
+    ``jobs start company_diff``.
+
+    params:
+        ticker (str, required): Company ticker.
+        lookback (int): Span only the most recent N filings (so the diff scope
+            matches the company page's). Defaults to DEFAULT_COMPANY_LOOKBACK.
+        form (str): Filing form type. Defaults to "10-K".
+        generate_summaries (bool): forwarded to each FILING_DIFF (default True).
+    """
+    from symbology.database.base import get_db_session
+    from symbology.database.companies import get_company_by_ticker
+    from symbology.database.documents import DocumentType
+    from symbology.database.filings import Filing
+    from symbology.database.jobs import JobType, create_job, get_active_jobs
+    from symbology.database.section_diffs import get_current_diff_set
+    from symbology.worker.config_loader import load_pipeline_config
+    from symbology.worker.page_pipelines import DEFAULT_COMPANY_LOOKBACK
+
+    ticker = params["ticker"]
+    form = params.get("form", "10-K")
+    lookback = int(params.get("lookback", DEFAULT_COMPANY_LOOKBACK))
+    generate_summaries = params.get("generate_summaries", False) # diff summaries get a bit too 'meta', not necessary for the UI rn
+
+    company = get_company_by_ticker(ticker.upper())
+    if company is None:
+        raise ValueError(f"company {ticker} not ingested")
+
+    session = get_db_session()
+    filings = (
+        session.query(Filing)
+        .filter(Filing.company_id == company.id, Filing.form == form)
+        .order_by(Filing.period_of_report.asc().nullslast(), Filing.filing_date.asc())
+        .all()
+    )
+    # Span only the most recent `lookback` filings, matching the company page's
+    # window so the consecutive diff pairs cover the same filings it cites.
+    filings = filings[-lookback:]
+    if len(filings) < 2:
+        logger.info("ensure_company_diffs_insufficient_filings",
+                    ticker=ticker, form=form, lookback=lookback, filings=len(filings))
+        return {"ticker": ticker, "form": form, "pairs": 0, "enqueued": 0, "skipped": 0}
+
+    cfg = load_pipeline_config()
+    doc_types = [DocumentType(d) for d in cfg.form_document_types.get(form, [])]
+    active_diff_jobs = get_active_jobs(JobType.FILING_DIFF)
+
+    enqueued, skipped, enqueued_ids = 0, 0, []
+    for left, right in zip(filings, filings[1:]):
+        # "Complete" = any document type already has a current diff for this exact
+        # pairing; avoids re-enqueuing pairs that produced an empty/partial set.
+        has_diff = False
+        for dt in doc_types:
+            ds = get_current_diff_set(company.id, dt, right_filing_id=right.id)
+            if ds is not None and ds.left_filing_id == left.id:
+                has_diff = True
+                break
+        if has_diff or _filing_diff_in_flight(left, right, active_diff_jobs):
+            skipped += 1
+            continue
+        fd_params = {
+            "left_filing_id": str(left.id),
+            "right_filing_id": str(right.id),
+            "form": form,
+            "generate_summaries": generate_summaries,
+        }
+        if params.get("max_summaries") is not None:
+            fd_params["max_summaries"] = params["max_summaries"]
+        job = create_job(job_type=JobType.FILING_DIFF, params=fd_params, priority=3)
+        enqueued += 1
+        enqueued_ids.append(str(job.id))
+
+    logger.info("handler_ensure_company_diffs_done", ticker=ticker, form=form,
+                lookback=lookback, pairs=len(filings) - 1, enqueued=enqueued, skipped=skipped)
+    return {
+        "ticker": ticker,
+        "form": form,
+        "pairs": len(filings) - 1,
+        "enqueued": enqueued,
+        "skipped": skipped,
+        "filing_diff_job_ids": enqueued_ids,
     }

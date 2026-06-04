@@ -25,7 +25,6 @@ test *ARGS: _create_venv
       --cov=symbology.ingestion \
       --cov=symbology.llm \
       --cov=symbology.worker \
-      --cov=symbology.scheduler \
       tests/ {{ARGS}} | tee test.log
 
 # Database migrations (alembic)
@@ -40,9 +39,6 @@ migration-status: _create_venv
 
 worker *ARGS: _create_venv
     uv run -m symbology.worker.main {{ARGS}}
-
-scheduler *ARGS: _create_venv
-    uv run -m symbology.scheduler.main {{ARGS}}
 
 lint *FLAGS: # lint --fix
     uvx ruff check {{FLAGS}} | tee lint.log

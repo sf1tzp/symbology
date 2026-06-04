@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { ChevronLeft, Sparkles } from '@lucide/svelte';
+	import { onMount } from 'svelte';
+	import { ChevronLeft, ChevronRight, Sparkles } from '@lucide/svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
+	import DiffView from '$lib/components/DiffView.svelte';
 	import {
 		formatFilingPeriod,
 		formatDate,
@@ -21,6 +23,91 @@
 
 	const companyName = $derived(company?.display_name || company?.name || 'Company');
 	const typeDisplay = $derived(getAnalysisTypeDisplay(documentType));
+
+	// Precomputed year-over-year structured diff. `diffSet` is the newest pairing
+	// (drives the masthead + headline cards); `diffChain` is every consecutive
+	// pairing oldest → newest for the multi-year side-by-side.
+	const diffSet = $derived(data.diffSet);
+	const diffChain = $derived(data.diffChain ?? []);
+	const chainDesc = $derived([...diffChain].reverse()); // newest first for display
+	const counts = $derived(diffSet?.counts ?? {});
+	// On-page listings (cards + side-by-side) focus on shifts in emphasis and
+	// wording of existing disclosures — new/removed topics are excluded.
+	const VISIBLE_KINDS = new Set(['escalated', 'de_emphasised', 'reworded']);
+	const changedTopics = $derived(
+		(diffSet?.topics ?? []).filter((t) => VISIBLE_KINDS.has(t.changeKind))
+	);
+
+	type FilingRef = { form: string; filingDate: string | null; periodOfReport: string | null };
+	const fyLabel = (f: FilingRef | null): string => {
+		const d = f?.periodOfReport ?? f?.filingDate;
+		const yr = d ? new Date(d).getFullYear() : null;
+		return yr ? `FY${yr}` : (f?.form ?? '');
+	};
+	const pairLabel = (ds: { leftFiling: FilingRef | null; rightFiling: FilingRef | null }): string =>
+		`${fyLabel(ds.leftFiling)} → ${fyLabel(ds.rightFiling)}`;
+
+	// Deep-link support: a change card on the company page links to #diff-{id};
+	// open + scroll the matching <details> when targeted.
+	function openHashTarget() {
+		if (typeof document === 'undefined' || !location.hash) return;
+		const el = document.getElementById(location.hash.slice(1));
+		if (!el) return;
+		if (el instanceof HTMLDetailsElement) el.open = true;
+		el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+	onMount(openHashTarget);
+
+	// Headline change cards: the changed topics from the most recent pairing
+	// (`diffSet` = the two latest forms), ranked by analyst significance so the
+	// most important surface first. Styled to mirror the company page's
+	// "What's new" cards rather than the kind-grouped grid.
+	const KIND_LABEL: Record<string, string> = {
+		new: 'New disclosure',
+		escalated: 'Escalated',
+		de_emphasised: 'De-emphasised',
+		reworded: 'Reworded',
+		removed: 'Removed'
+	};
+	// One accent per change kind (theme palette), echoing the company cards.
+	const KIND_COLOR: Record<string, string> = {
+		new: 'var(--teal-2)',
+		escalated: 'var(--warn)',
+		de_emphasised: 'var(--blue)',
+		reworded: 'var(--plum)',
+		removed: 'var(--danger)'
+	};
+	const kindColor = (k: string): string => KIND_COLOR[k] ?? 'var(--ink-3)';
+	const kindLabel = (k: string): string => KIND_LABEL[k] ?? k;
+
+	// Significance heuristic — mirrors scoreSectionDiff in server/db/diffs.ts
+	// (kept inline to avoid pulling server-only code into the client bundle).
+	const KIND_WEIGHT: Record<string, number> = {
+		new: 1000,
+		removed: 900,
+		escalated: 600,
+		de_emphasised: 500,
+		reworded: 200,
+		unchanged: 0
+	};
+	const scoreTopic = (t: (typeof changedTopics)[number]): number =>
+		(KIND_WEIGHT[t.changeKind] ?? 100) +
+		(t.tokensAdded ?? 0) +
+		(t.tokensRemoved ?? 0) +
+		Math.abs(t.lengthDelta ?? 0) * 0.1;
+	const headlineCards = $derived([...changedTopics].sort((a, b) => scoreTopic(b) - scoreTopic(a)));
+
+	// Masthead summary like "2 new · 1 removed · 4 escalated".
+	const countLabel = $derived(
+		[
+			counts.new ? `${counts.new} new` : null,
+			counts.removed ? `${counts.removed} removed` : null,
+			counts.escalated ? `${counts.escalated} escalated` : null,
+			counts.de_emphasised ? `${counts.de_emphasised} de-emphasised` : null
+		]
+			.filter(Boolean)
+			.join(' · ')
+	);
 
 	const generationDepth = $derived(
 		changeReport?.report?.generationDepth ?? changeReport?.intro?.generationDepth ?? null
@@ -67,6 +154,8 @@
 	<meta name="description" content="{typeDisplay} change analysis for {companyName}" />
 </svelte:head>
 
+<svelte:window onhashchange={openHashTarget} />
+
 <!-- Back link -->
 <div style="margin-bottom: 3rem;">
 	<a
@@ -97,6 +186,12 @@
 		>
 			{#if spanLabel()}
 				<span class="tag" style="font-family: var(--mono);">{spanLabel()}</span>
+			{/if}
+			{#if diffSet && counts.total_compared}
+				<span class="tag">{counts.total_compared} compared</span>
+			{/if}
+			{#if countLabel}
+				<span class="tag tag-new">{countLabel}</span>
 			{/if}
 			{#if generationDepth != null}
 				<span class="tag tag-new" style="gap: 4px;">
@@ -176,6 +271,76 @@
 	</article>
 </div>
 
+{#if diffSet && headlineCards.length > 0}
+	<section class="hairline-section" style="margin-top: 4rem;">
+		<SectionHead
+			eyebrow="WHAT'S NEW · {pairLabel(diffSet)}"
+			heading="What changed in the latest {typeDisplay}."
+		/>
+		<div class="change-grid">
+			{#each headlineCards as t (t.id)}
+				<a
+					href="#diff-{t.id}"
+					class="change-card"
+					style="--card-accent: {kindColor(t.changeKind)};"
+				>
+					<div class="hd">
+						<span class="hd-dot" style="background: {kindColor(t.changeKind)};"></span>
+						{kindLabel(t.changeKind)}
+					</div>
+					{#if t.heading}
+						<div class="ti">{t.heading}</div>
+					{/if}
+					{#if t.summary}
+						<div class="bd">{t.summary}</div>
+					{/if}
+					<div class="ft">
+						{#if t.sectionPath}
+							<span class="meta" style="font-family: var(--mono); color: var(--ink-4);"
+								>{t.sectionPath}</span
+							>
+						{:else}
+							<span></span>
+						{/if}
+						<span>Open <ChevronRight class="inline h-3 w-3" /></span>
+					</div>
+				</a>
+			{/each}
+		</div>
+	</section>
+{/if}
+
+{#if chainDesc.length > 0}
+	<section class="hairline-section" style="margin-top: 3rem;">
+		<div class="eyebrow" style="margin-bottom: 10px;">
+			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SIDE-BY-SIDE DIFF
+		</div>
+		<h2 class="section" style="margin-bottom: 8px;">Year-over-year, section by section</h2>
+
+		{#each chainDesc as ds (ds.id)}
+			{@const changed = ds.topics.filter((t) => VISIBLE_KINDS.has(t.changeKind))}
+			{#if changed.length > 0}
+				<div class="diff-pair">
+					<h3 class="sub" style="margin: 1.5rem 0 0.5rem; font-family: var(--mono);">
+						{pairLabel(ds)} · {changed.length} change{changed.length === 1 ? '' : 's'}
+					</h3>
+					{#each changed as t (t.id)}
+						<details id="diff-{t.id}" class="diff-details">
+							<summary>
+								<span class="tag {t.changeKind === 'removed' ? '' : 'tag-new'}"
+									>{(t.changeKind || '').replace('_', '-')}</span
+								>
+								<span class="diff-summary-title">{t.heading ?? t.sectionPath ?? 'Section'}</span>
+							</summary>
+							<DiffView topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
+						</details>
+					{/each}
+				</div>
+			{/if}
+		{/each}
+	</section>
+{/if}
+
 <footer
 	style="margin-top: 5rem; padding-top: 1.75rem; border-top: 1px solid var(--rule); color: var(--ink-4);"
 >
@@ -228,5 +393,90 @@
 		.change-toc {
 			position: static;
 		}
+	}
+
+	.diff-details {
+		border-top: 1px solid var(--rule);
+		padding: 0.25rem 0;
+		scroll-margin-top: 90px;
+	}
+	.diff-details > summary {
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 0.75rem 0;
+		list-style: none;
+	}
+	.diff-details > summary::-webkit-details-marker {
+		display: none;
+	}
+	.diff-summary-title {
+		font-family: var(--serif);
+		font-size: 15px;
+		color: var(--ink);
+	}
+	.diff-details[open] > summary {
+		margin-bottom: 1rem;
+	}
+
+	/* Headline change cards — left accent per change kind, mirroring the
+	   company page's "What's new" cards. */
+	.change-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+		gap: 1rem;
+	}
+	.change-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		padding: 1.25rem 1.5rem;
+		border: 1px solid var(--rule);
+		border-left: 3px solid var(--card-accent, var(--teal-2));
+		border-radius: 0 8px 8px 0;
+		text-decoration: none;
+		color: inherit;
+		transition:
+			border-color 0.15s,
+			background 0.1s;
+	}
+	.change-card:hover {
+		border-color: var(--rule-2);
+		background: var(--paper-2);
+	}
+	.change-card .hd {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 15px;
+		font-weight: 600;
+		color: var(--ink);
+	}
+	.change-card .hd-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 9999px;
+		flex-shrink: 0;
+	}
+	.change-card .ti {
+		font-family: var(--serif);
+		font-size: 16px;
+		line-height: 1.3;
+		color: var(--ink);
+	}
+	.change-card .bd {
+		font-size: 13.5px;
+		line-height: 1.55;
+		color: var(--ink-3);
+	}
+	.change-card .ft {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-top: auto;
+		padding-top: 0.5rem;
+		font-size: 12px;
+		color: var(--ink-4);
 	}
 </style>

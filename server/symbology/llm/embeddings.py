@@ -101,6 +101,13 @@ def embed_texts(
     if client is None:
         client = init_embedding_client()
 
+    # Some models (e.g. nomic-embed-text) require a task-instruction prefix on
+    # each input for well-calibrated vectors. Applied uniformly so chunk-vs-chunk
+    # comparisons stay in one space; empty prefix is a no-op for other models.
+    prefix = cfg.embedding_task_prefix
+    if prefix:
+        texts = [prefix + t for t in texts]
+
     logger.info("embedding_texts", count=len(texts), model=model, batch_size=batch_size)
     start_ns = time.time_ns()
 

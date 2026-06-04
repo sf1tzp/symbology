@@ -7,7 +7,7 @@ import type { ColumnType } from "kysely";
 
 export type ContentSourceTypeEnum = "both" | "documents" | "generated_content";
 
-export type ContentStageEnum = "aggregate_summary" | "change_report" | "change_report_intro" | "company_group_analysis" | "company_group_frontpage" | "company_intro" | "company_main_content" | "document_page_intro" | "filing_intro" | "filing_main_content" | "frontpage_summary" | "group_intro" | "group_main_content" | "single_summary";
+export type ContentStageEnum = "aggregate_summary" | "change_report" | "change_report_intro" | "company_group_analysis" | "company_group_frontpage" | "company_intro" | "company_main_content" | "document_page_intro" | "filing_intro" | "filing_main_content" | "frontpage_summary" | "group_intro" | "group_main_content" | "single_summary" | "topic_diff_summary";
 
 export type DocumentTypeEnum = "business_description" | "controls_procedures" | "directors_officers" | "executive_compensation" | "legal_proceedings" | "management_discussion" | "market_risk" | "risk_factors";
 
@@ -17,7 +17,7 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
 
 export type JobStatusEnum = "cancelled" | "completed" | "failed" | "in_progress" | "pending";
 
-export type JobTypeEnum = "backfill_chunks" | "backfill_embeddings" | "bulk_ingest" | "company_group_pipeline" | "company_ingestion" | "company_page_content" | "content_generation" | "filing_ingestion" | "filing_page_content" | "full_pipeline" | "ingest_pipeline" | "pipeline_fan_in_check" | "pipeline_stage" | "test";
+export type JobTypeEnum = "backfill_chunks" | "backfill_embeddings" | "bulk_ingest" | "company_diff" | "company_group_pipeline" | "company_ingestion" | "company_page_content" | "content_generation" | "embed_filing" | "filing_diff" | "filing_ingestion" | "filing_page_content" | "test";
 
 export type Json = JsonValue;
 
@@ -32,10 +32,6 @@ export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Numeric = ColumnType<string, number | string, number | string>;
-
-export type PipelineRunStatusEnum = "completed" | "failed" | "partial" | "pending" | "running";
-
-export type PipelineTriggerEnum = "manual" | "scheduled";
 
 export type Promptrole = "ASSISTANT" | "SYSTEM" | "USER";
 
@@ -91,6 +87,17 @@ export interface AuthVerification {
   value: string;
 }
 
+export interface ChunkTopics {
+  canonical_label: string | null;
+  centroid: string;
+  company_id: string;
+  created_at: Timestamp | null;
+  document_type: DocumentTypeEnum;
+  id: string;
+  member_count: Generated<number>;
+  updated_at: Timestamp | null;
+}
+
 export interface Companies {
   cik: string | null;
   display_name: string | null;
@@ -142,14 +149,32 @@ export interface CompanyPageContentFiling {
   filing_id: string;
 }
 
+export interface DiffSets {
+  company_id: string;
+  counts: Json | null;
+  created_at: Timestamp | null;
+  diff_lib: string | null;
+  document_type: DocumentTypeEnum;
+  form: string | null;
+  id: string;
+  left_filing_id: string | null;
+  right_filing_id: string | null;
+}
+
 export interface DocumentChunks {
+  char_end: number | null;
+  char_start: number | null;
   chunk_index: number;
   content: string;
   content_hash: string | null;
   document_id: string;
   embedding: string | null;
   embedding_model: string | null;
+  heading: string | null;
   id: string;
+  is_semantic: Generated<boolean>;
+  section_path: string | null;
+  topic_id: string | null;
 }
 
 export interface DocumentPageContent {
@@ -299,21 +324,6 @@ export interface ModelConfigs {
   options_json: string;
 }
 
-export interface PipelineRuns {
-  company_id: string;
-  completed_at: Timestamp | null;
-  error: string | null;
-  forms: string[] | null;
-  id: string;
-  jobs_completed: Generated<number>;
-  jobs_created: Generated<number>;
-  jobs_failed: Generated<number>;
-  metadata: Json | null;
-  started_at: Timestamp | null;
-  status: PipelineRunStatusEnum;
-  trigger: PipelineTriggerEnum;
-}
-
 export interface Prompts {
   content: string;
   content_hash: string | null;
@@ -332,6 +342,24 @@ export interface Ratings {
   tags: string[];
 }
 
+export interface SectionDiffs {
+  change_kind: string;
+  diff_set_id: string;
+  heading: string | null;
+  id: string;
+  left_chunk_id: string | null;
+  length_delta: Generated<number | null>;
+  ops: Json | null;
+  ordinal: Generated<number>;
+  right_chunk_id: string | null;
+  section_path: string | null;
+  summary_content_id: string | null;
+  tokens_added: Generated<number | null>;
+  tokens_removed: Generated<number | null>;
+  topic_id: string | null;
+  truncated: Generated<boolean>;
+}
+
 export interface Watchlist {
   company_id: string;
   created_at: Generated<Timestamp>;
@@ -345,12 +373,14 @@ export interface DB {
   "auth.session": AuthSession;
   "auth.user": AuthUser;
   "auth.verification": AuthVerification;
+  chunk_topics: ChunkTopics;
   companies: Companies;
   company_group_membership: CompanyGroupMembership;
   company_groups: CompanyGroups;
   company_page_content: CompanyPageContent;
   company_page_content_change_report: CompanyPageContentChangeReport;
   company_page_content_filing: CompanyPageContentFiling;
+  diff_sets: DiffSets;
   document_chunks: DocumentChunks;
   document_page_content: DocumentPageContent;
   documents: Documents;
@@ -367,8 +397,8 @@ export interface DB {
   group_page_content_company: GroupPageContentCompany;
   jobs: Jobs;
   model_configs: ModelConfigs;
-  pipeline_runs: PipelineRuns;
   prompts: Prompts;
   ratings: Ratings;
+  section_diffs: SectionDiffs;
   watchlist: Watchlist;
 }

@@ -251,6 +251,8 @@ export interface QueueDepthPoint {
 
 export interface ActiveJobRow {
 	id: string;
+	/** First 10 chars of the id, for display only — NOT unique, never use as an {#each} key. */
+	shortId: string;
 	kind: string;
 	priority: number;
 	company: string;
@@ -687,7 +689,8 @@ export async function getActiveJobs(limit: number): Promise<ActiveJobRow[]> {
 		else if (r.retry_count > 0) state = 'backoff';
 
 		return {
-			id: r.id.slice(0, 10),
+			id: r.id,
+			shortId: r.id.slice(0, 10),
 			kind: jobKindLabel(r.job_type),
 			priority: r.priority,
 			company,

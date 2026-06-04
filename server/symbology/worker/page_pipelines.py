@@ -160,6 +160,9 @@ def filing_page_content_pipeline(
         )
         if document is None or not document.content_hash:
             continue  # section genuinely absent from this filing — not a failure
+        # Chunking/embedding/clustering is owned by the EMBED_FILING job (enqueued
+        # at ingestion); page synthesis below reads raw document.content, so it is
+        # independent of chunks and need not trigger them here.
         l1_hash, intro_hash = _generate_document_page_content( # note: DocumentPageContents are published at the end of this pipeline
             filing, document, prompts_dir, force
         )
@@ -425,6 +428,16 @@ def company_page_content_pipeline(
         change_reports=change_reports,
         source_filing_ids=[f.id for f in filings_desc],
     )
+
+    # 5. Precompute the structured year-over-year diffs for the latest filing pair.
+    #    Non-fatal and summary-free here (a separate COMPANY_DIFF job can add the
+    #    per-topic LLM summaries): a diff failure must not block page publication.
+    try:
+        from symbology.worker.diff_pipeline import company_diff_pipeline
+        company_diff_pipeline(company, form=form, prompts_dir=prompts_dir, generate_summaries=False)
+    except Exception as e:
+        logger.error("company_page_diff_failed", company_id=str(company.id),
+                     error=str(e), exc_info=True)
     logger.info(
         "company_page_content_pipeline_done",
         company_id=str(company.id),

@@ -40,7 +40,8 @@ def test_ingest_financial_data_happy_path():
     })
 
     # Configure mocks
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=balance_sheet_df), \
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_xbrl_for_filing', return_value=mock.MagicMock()), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=balance_sheet_df), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_income_statement_values', return_value=income_stmt_df), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cash_flow_statement_values', return_value=cash_flow_df), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cover_page_values', return_value=cover_page_df), \
@@ -78,7 +79,8 @@ def test_ingest_financial_data_with_string_report_date():
         '2023-12-31': [1000000]
     })
 
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=balance_sheet_df), \
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_xbrl_for_filing', return_value=mock.MagicMock()), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=balance_sheet_df), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_income_statement_values', return_value=pd.DataFrame()), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cash_flow_statement_values', return_value=pd.DataFrame()), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cover_page_values', return_value=pd.DataFrame()), \
@@ -113,7 +115,8 @@ def test_ingest_financial_data_skips_missing_values():
         '2023-12-31': [1000000, None]
     })
 
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=balance_sheet_df), \
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_xbrl_for_filing', return_value=mock.MagicMock()), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=balance_sheet_df), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_income_statement_values', return_value=pd.DataFrame()), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cash_flow_statement_values', return_value=pd.DataFrame()), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cover_page_values', return_value=pd.DataFrame()), \
@@ -144,7 +147,8 @@ def test_ingest_financial_data_handles_invalid_numeric_values():
         '2023-12-31': ['not-a-number']  # Invalid numeric value
     })
 
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=pd.DataFrame()), \
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_xbrl_for_filing', return_value=mock.MagicMock()), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=pd.DataFrame()), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_income_statement_values', return_value=income_stmt_df), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cash_flow_statement_values', return_value=pd.DataFrame()), \
          mock.patch('symbology.ingestion.ingestion_helpers.get_cover_page_values', return_value=pd.DataFrame()), \
@@ -168,13 +172,56 @@ def test_ingest_financial_data_handles_invalid_numeric_values():
         )
 
 
+def test_ingest_financial_data_builds_xbrl_once():
+    """XBRL is built once and the same object is passed to all four statement getters."""
+    company_id = uuid7()
+    filing_id = uuid7()
+    mock_filing = mock.MagicMock()
+    mock_filing.period_of_report = date(2023, 12, 31)
+
+    sentinel_xbrl = mock.MagicMock(name="xbrl")
+
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_xbrl_for_filing', return_value=sentinel_xbrl) as m_xbrl, \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values', return_value=pd.DataFrame()) as m_bs, \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_income_statement_values', return_value=pd.DataFrame()) as m_is, \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_cash_flow_statement_values', return_value=pd.DataFrame()) as m_cf, \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_cover_page_values', return_value=pd.DataFrame()) as m_cp, \
+         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_financial_concept'), \
+         mock.patch('symbology.ingestion.ingestion_helpers.upsert_financial_value'):
+
+        ingest_financial_data(company_id, filing_id, mock_filing)
+
+        # Built exactly once...
+        m_xbrl.assert_called_once_with(mock_filing)
+        # ...and threaded into every statement getter (no rebuilds).
+        for getter in (m_bs, m_is, m_cf, m_cp):
+            getter.assert_called_once()
+            assert getter.call_args.kwargs.get('xbrl') is sentinel_xbrl
+
+
+def test_ingest_financial_data_no_xbrl_returns_zero_counts():
+    """A filing with no XBRL data yields zero counts and skips the statement getters."""
+    company_id = uuid7()
+    filing_id = uuid7()
+    mock_filing = mock.MagicMock()
+
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_xbrl_for_filing', return_value=None), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values') as m_bs:
+
+        result = ingest_financial_data(company_id, filing_id, mock_filing)
+
+    assert result == {'balance_sheet': 0, 'income_statement': 0, 'cash_flow': 0, 'cover_page': 0}
+    m_bs.assert_not_called()
+
+
 def test_ingest_financial_data_error_handling():
     """Test error handling when extraction fails."""
     company_id = uuid7()
     filing_id = uuid7()
     mock_filing = mock.MagicMock()
 
-    with mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values',
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_xbrl_for_filing', return_value=mock.MagicMock()), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_balance_sheet_values',
                    side_effect=Exception("Failed to extract data")), \
          mock.patch('symbology.ingestion.ingestion_helpers.logger') as mock_logger:
 

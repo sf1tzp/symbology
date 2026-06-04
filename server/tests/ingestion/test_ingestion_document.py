@@ -74,6 +74,92 @@ def test_ingest_filing_documents_happy_path():
         }
 
 
+def test_ingest_filing_documents_keeps_non_substantive():
+    """Too-short sections are stored (flagged non-substantive), not dropped.
+
+    They must still be persisted (so the original source stays viewable) and
+    appear in the returned mapping, but with is_substantive=False so the
+    generation path skips them.
+    """
+    company_id = uuid7()
+    filing_id = uuid7()
+
+    mock_filing = mock.MagicMock()
+    mock_filing.form = '10-K'
+    mock_filing.period_of_report = '2023-12-31'
+    mock_filing.accession_number = '0000000000-00-000000'
+
+    mock_company = mock.MagicMock()
+    mock_company.name = 'Test Company Inc.'
+
+    # One substantive section and one well below the 1500-char threshold.
+    sections = {
+        DocumentType.DESCRIPTION: _LONG_BUSINESS,
+        DocumentType.LEGAL_PROCEEDINGS: "None.",
+    }
+
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_company', return_value=mock_company), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_sections_for_document_types', return_value=sections), \
+         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as mock_create_document, \
+         mock.patch('symbology.ingestion.ingestion_helpers.logger'):
+
+        business_doc = mock.MagicMock()
+        business_doc.id = uuid7()
+        legal_doc = mock.MagicMock()
+        legal_doc.id = uuid7()
+        mock_create_document.side_effect = [business_doc, legal_doc]
+
+        document_uuids = ingest_filing_documents(company_id, filing_id, mock_filing)
+
+        # Both sections stored — the too-short one is no longer dropped.
+        assert mock_create_document.call_count == 2
+        by_type = {
+            call.kwargs['document_type']: call.kwargs
+            for call in mock_create_document.call_args_list
+        }
+        assert by_type[DocumentType.DESCRIPTION]['is_substantive'] is True
+        assert by_type[DocumentType.LEGAL_PROCEEDINGS]['is_substantive'] is False
+
+        # Both appear in the returned mapping.
+        assert document_uuids == {
+            DocumentType.DESCRIPTION: business_doc.id,
+            DocumentType.LEGAL_PROCEEDINGS: legal_doc.id,
+        }
+
+
+def test_ingest_filing_documents_skips_empty_sections():
+    """Genuinely empty content is dropped entirely (nothing to show)."""
+    company_id = uuid7()
+    filing_id = uuid7()
+
+    mock_filing = mock.MagicMock()
+    mock_filing.form = '10-K'
+    mock_filing.period_of_report = '2023-12-31'
+    mock_filing.accession_number = '0000000000-00-000000'
+
+    mock_company = mock.MagicMock()
+    mock_company.name = 'Test Company Inc.'
+
+    sections = {
+        DocumentType.DESCRIPTION: _LONG_BUSINESS,
+        DocumentType.RISK_FACTORS: "   \n\t  ",  # whitespace-only
+    }
+
+    with mock.patch('symbology.ingestion.ingestion_helpers.get_company', return_value=mock_company), \
+         mock.patch('symbology.ingestion.ingestion_helpers.get_sections_for_document_types', return_value=sections), \
+         mock.patch('symbology.ingestion.ingestion_helpers.find_or_create_document') as mock_create_document, \
+         mock.patch('symbology.ingestion.ingestion_helpers.logger'):
+
+        business_doc = mock.MagicMock()
+        business_doc.id = uuid7()
+        mock_create_document.return_value = business_doc
+
+        document_uuids = ingest_filing_documents(company_id, filing_id, mock_filing)
+
+        assert mock_create_document.call_count == 1
+        assert DocumentType.RISK_FACTORS not in document_uuids
+
+
 def test_ingest_filing_documents_missing_sections():
     """Test document ingestion with missing document sections."""
     company_id = uuid7()

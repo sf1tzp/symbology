@@ -3,8 +3,8 @@ import hashlib
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Boolean, Enum as SQLEnum
+from sqlalchemy import ForeignKey, String, Text, text
 from sqlalchemy.orm import joinedload, Mapped, mapped_column, relationship
 from symbology.database.base import Base, get_db_session
 
@@ -57,6 +57,14 @@ class Document(Base):
 
     content: Mapped[Optional[str]] = mapped_column(Text, deferred=True)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+
+    # Whether the section is substantive prose suitable for content generation.
+    # Non-substantive sections (too short, or structural artifacts like a bare
+    # table of contents) are still stored so the original source is viewable on
+    # the site, but they are excluded from the page-content generation path.
+    is_substantive: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
 
     def __repr__(self) -> str:
         return f"{self.company.ticker} {self.filing.period_of_report.year} {self.filing.filing_type} {self.document_type.value}"
@@ -207,7 +215,7 @@ def delete_document(document_id: Union[UUID, str]) -> bool:
 
 
 def find_or_create_document(company_id: UUID, title: str, document_type: DocumentType, content: Optional[str],
-                           filing_id: Optional[UUID] = None) -> Document:
+                           filing_id: Optional[UUID] = None, is_substantive: bool = True) -> Document:
     """Find a document by company, filing, and name or create it if it doesn't exist.
 
     Args:
@@ -215,6 +223,9 @@ def find_or_create_document(company_id: UUID, title: str, document_type: Documen
         document_name: Name of the document
         content: Content of the document
         filing_id: UUID of the filing (optional)
+        is_substantive: Whether the section is substantive prose eligible for
+            content generation. Stored either way (so the source stays viewable);
+            non-substantive documents are skipped by the generation path.
 
     Returns:
         Found or created Document object
@@ -236,9 +247,11 @@ def find_or_create_document(company_id: UUID, title: str, document_type: Documen
         existing_document = query.first()
 
         if existing_document:
-            # Update content if provided
+            # Update content if provided. is_substantive tracks the content, so
+            # refresh it alongside (a re-ingested section may cross the threshold).
             if content is not None:
                 existing_document.content = content
+                existing_document.is_substantive = is_substantive
                 session.commit()
                 logger.info("updated_document_content",
                            document_id=str(existing_document.id),
@@ -250,7 +263,8 @@ def find_or_create_document(company_id: UUID, title: str, document_type: Documen
                 'company_id': company_id,
                 'title': title,
                 'document_type': document_type,
-                'content': content
+                'content': content,
+                'is_substantive': is_substantive,
             }
             if filing_id:
                 document_data['filing_id'] = filing_id
@@ -267,6 +281,31 @@ def find_or_create_document(company_id: UUID, title: str, document_type: Documen
         session.rollback()
         logger.error("find_or_create_document_failed", error=str(e), exc_info=True)
         raise
+
+
+def select_substantive_document(
+    documents: List[Document], document_type: DocumentType
+) -> Optional[Document]:
+    """Pick the substantive document of a given type for content generation.
+
+    Non-substantive documents (too short, or structural artifacts) are stored so
+    the original source remains viewable on the site, but they are excluded from
+    the page-content generation path. Returns the first matching substantive
+    document, or None if the section is absent / only present as a non-substantive
+    document.
+
+    Args:
+        documents: Documents to select from (e.g. ``filing.documents``).
+        document_type: The section type to select.
+    """
+    return next(
+        (
+            d
+            for d in documents
+            if d.document_type == document_type and d.is_substantive
+        ),
+        None,
+    )
 
 
 # FIXME: This function should not return the document contents

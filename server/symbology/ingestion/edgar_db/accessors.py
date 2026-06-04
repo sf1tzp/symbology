@@ -35,6 +35,14 @@ class FormSection(Enum):
     DIRECTORS_OFFICERS = "directors_officers"
 
 
+# Forms where Item numbers repeat across parts and therefore require a
+# part-qualified lookup key. For a 10-Q, "Item 1" exists in both Part I
+# (Financial Statements) and Part II (Legal Proceedings), so we must pass
+# "PART II, Item 1" to select the right one. 10-K item numbers are unique
+# across parts, so the bare item key suffices.
+_PART_QUALIFIED_FORMS = {"10-Q", "10-Q/A"}
+
+
 class SectionAccessor:
     """Defines how to access a section from a filing object."""
 
@@ -54,36 +62,53 @@ class SectionAccessor:
         self.part = part
         self.fallback_fn = fallback_fn
 
-    def extract(self, filing: Filing) -> Optional[str]:
-        """Extract content using the defined access method."""
-        filing_obj = filing.obj()
+    def extract(self, filing: Filing, filing_obj: Optional[object] = None) -> Optional[str]:
+        """Extract content using the defined access method.
 
-        logger.debug("start_extract_section")
-        # Try direct property access first
-        if self.property_name and hasattr(filing_obj, self.property_name):
-            content = getattr(filing_obj, self.property_name)
+        Args:
+            filing: The Filing to extract a section from.
+            filing_obj: Optional pre-built data object (``filing.obj()``). Build it
+                once and pass it in so the (expensive) parser is shared across every
+                section lookup — ``filing.obj()`` constructs a *fresh* parser on each
+                call, so building it per-section re-parses the multi-MB filing once
+                per section.
+
+        Returns:
+            The section text, or None if the section is not present in the filing.
+        """
+        if filing_obj is None:
+            filing_obj = filing.obj()
+        if filing_obj is None:
+            return None
+
+        # Direct property access first. The data-object properties (business,
+        # risk_factors, ...) resolve internally through the bounded __getitem__
+        # path used below, so they're cheap.
+        if self.property_name:
+            content = getattr(filing_obj, self.property_name, None)
             if content:
                 return content
 
-        logger.debug("attempt_section_lookup_by_item")
-        # Try item/part access if available
+        # Item lookup via __getitem__ (bounded by the fast chunked-document parser).
+        #
+        # We deliberately avoid get_item_with_part(): when a section is absent it
+        # falls back to ParsedHtml10K/ParsedHtml10Q (id_parse_document), a full
+        # re-parse of the document that takes ~150s on a large filing and almost
+        # always returns nothing for Part III items (Item 10 Directors, Item 11
+        # Executive Compensation) that are incorporated by reference from the proxy
+        # (DEF 14A). __getitem__ returns None for those in well under a second.
         if self.item_key:
+            key = self.item_key
+            if self.part and filing.form in _PART_QUALIFIED_FORMS:
+                key = f"{self.part}, {self.item_key}"
             try:
-                if self.part:
-                    logger.debug("attempt_section_lookup_by_part")
-                    content = filing_obj.get_item_with_part(self.part, self.item_key)
-                else:
-                    content = filing_obj[self.item_key]
-
+                content = filing_obj[key]
                 if content:
                     return content
-            except (AttributeError, KeyError):
-                logger.error("section_extraction_error")
-                pass
+            except (AttributeError, KeyError, TypeError):
+                logger.debug("section_lookup_error", form=filing.form, key=key)
 
-        # Try fallback function
-        logger.warn("no_section_found")
-
+        logger.warning("no_section_found", form=filing.form, item_key=self.item_key)
         return None
 
 
@@ -226,13 +251,16 @@ SECTION_TO_DOCUMENT_TYPE: Dict[FormSection, DocumentType] = {
 }
 
 
-def get_form_section(filing: Filing, section: FormSection) -> Optional[str]:
+def get_form_section(filing: Filing, section: FormSection,
+                     filing_obj: Optional[object] = None) -> Optional[str]:
     """
     Extract a standardized section from any supported filing type.
 
     Args:
         filing: A Filing object from the edgar package
         section: The standardized section to extract
+        filing_obj: Optional pre-built data object (``filing.obj()``) to reuse
+            across multiple section lookups. Built on demand if not provided.
 
     Returns:
         The section content as a string or None if not found/supported
@@ -244,16 +272,16 @@ def get_form_section(filing: Filing, section: FormSection) -> Optional[str]:
     # Get the mapping for this form type
     form_mapping = FORM_SECTION_MAPPINGS.get(form_type)
     if not form_mapping:
-        logger.warn("no_section_found")
+        logger.warning("no_section_found", form=form_type)
         return None
 
     # Get the accessor for this section
     accessor = form_mapping.get(section)
     if not accessor:
-        logger.warn("no_accessor_found")
+        logger.warning("no_accessor_found", form=form_type, section=section)
         return None
 
-    return accessor.extract(filing)
+    return accessor.extract(filing, filing_obj=filing_obj)
 
 
 def get_available_sections(filing: Filing) -> List[FormSection]:
@@ -312,35 +340,56 @@ def _process_xbrl_dataframe(df: pd.DataFrame, filing: Filing, columns_to_drop: O
 
     return df
 
-def get_balance_sheet_values(filing: Filing) -> pd.DataFrame:
+def get_xbrl_for_filing(filing: Filing) -> Optional[XBRL]:
+    """
+    Build the XBRL object for a filing.
+
+    ``XBRL.from_filing()`` parses the filing's XBRL attachments and is **not**
+    cached, so a caller that needs several statements should build it once here
+    and pass it to the ``get_*_values`` helpers below rather than letting each one
+    rebuild it.
+
+    Args:
+        filing: Filing object from edgar package
+
+    Returns:
+        The parsed XBRL object, or None if the filing has no XBRL data.
+    """
+    return XBRL.from_filing(filing)
+
+def get_balance_sheet_values(filing: Filing, xbrl: Optional[XBRL] = None) -> pd.DataFrame:
     """
     Extract balance sheet values from a filing.
 
     Args:
         filing: Filing object from edgar package
+        xbrl: Optional pre-built XBRL object to reuse (see get_xbrl_for_filing).
 
     Returns:
         DataFrame containing balance sheet data for the filing's year
     """
-    xbrl = XBRL.from_filing(filing)
+    if xbrl is None:
+        xbrl = XBRL.from_filing(filing)
     df = xbrl.statements.balance_sheet().to_dataframe(view="SUMMARY")
     return _process_xbrl_dataframe(df, filing)
 
-def get_income_statement_values(filing: Filing) -> pd.DataFrame:
+def get_income_statement_values(filing: Filing, xbrl: Optional[XBRL] = None) -> pd.DataFrame:
     """
     Extract income statement values from a filing.
 
     Args:
         filing: Filing object from edgar package
+        xbrl: Optional pre-built XBRL object to reuse (see get_xbrl_for_filing).
 
     Returns:
         DataFrame containing income statement data for the filing's year
     """
-    xbrl = XBRL.from_filing(filing)
+    if xbrl is None:
+        xbrl = XBRL.from_filing(filing)
     df = xbrl.statements.income_statement().to_dataframe(view="SUMMARY")
     return _process_xbrl_dataframe(df, filing)
 
-def get_cash_flow_statement_values(filing: Filing) -> pd.DataFrame:
+def get_cash_flow_statement_values(filing: Filing, xbrl: Optional[XBRL] = None) -> pd.DataFrame:
     """
     Extract cash flow statement values from a filing.
 
@@ -350,15 +399,17 @@ def get_cash_flow_statement_values(filing: Filing) -> pd.DataFrame:
 
     Args:
         filing: Filing object from edgar package
+        xbrl: Optional pre-built XBRL object to reuse (see get_xbrl_for_filing).
 
     Returns:
         DataFrame containing cash flow data for the filing's year
     """
-    xbrl = XBRL.from_filing(filing)
+    if xbrl is None:
+        xbrl = XBRL.from_filing(filing)
     df = xbrl.statements.cashflow_statement().to_dataframe(view="SUMMARY")
     return _process_xbrl_dataframe(df, filing)
 
-def get_cover_page_values(filing: Filing) -> pd.DataFrame:
+def get_cover_page_values(filing: Filing, xbrl: Optional[XBRL] = None) -> pd.DataFrame:
     """
     Extract cover page information from a filing.
 
@@ -368,11 +419,13 @@ def get_cover_page_values(filing: Filing) -> pd.DataFrame:
 
     Args:
         filing: Filing object from edgar package
+        xbrl: Optional pre-built XBRL object to reuse (see get_xbrl_for_filing).
 
     Returns:
         DataFrame containing cover page data for the filing
     """
-    xbrl = XBRL.from_filing(filing)
+    if xbrl is None:
+        xbrl = XBRL.from_filing(filing)
     df = xbrl.statements.cover_page().to_dataframe()
 
     # Remove metadata columns
@@ -479,10 +532,12 @@ def get_all_available_sections(filing: Filing) -> Dict[FormSection, Optional[str
         Dictionary mapping FormSection to extracted content (None if not available)
     """
     result = {}
+    # Build the data object once and share it across every section lookup.
+    filing_obj = filing.obj()
     available_sections = get_available_sections(filing)
 
     for section in available_sections:
-        result[section] = get_form_section(filing, section)
+        result[section] = get_form_section(filing, section, filing_obj=filing_obj)
 
     return result
 
@@ -499,8 +554,21 @@ def get_sections_for_document_types(filing: Filing) -> Dict[DocumentType, Option
     """
     result = {}
 
+    # Only forms we have section mappings for can yield documents; skip the
+    # (non-trivial) data-object build for everything else.
+    if filing.form not in FORM_SECTION_MAPPINGS:
+        return result
+
+    # Build the data object once and reuse it for every section. filing.obj()
+    # constructs a fresh parser on each call, so building it per-section used to
+    # re-parse the (multi-MB) filing once for every section we requested.
+    filing_obj = filing.obj()
+    if filing_obj is None:
+        logger.warning("no_data_object", form=filing.form)
+        return result
+
     for section, doc_type in SECTION_TO_DOCUMENT_TYPE.items():
-        content = get_form_section(filing, section)
+        content = get_form_section(filing, section, filing_obj=filing_obj)
         if content:
             result[doc_type] = content
 

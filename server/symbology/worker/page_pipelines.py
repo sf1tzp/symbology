@@ -15,7 +15,7 @@ the current published page with a degraded/empty version.
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from symbology.database.documents import Document, DocumentType
+from symbology.database.documents import Document, DocumentType, select_substantive_document
 from symbology.database.page_content import (
     get_current_document_page_content,
     get_current_filing_page_content,
@@ -155,13 +155,8 @@ def filing_page_content_pipeline(
     # 1. Generate (no publish) for every present document — all must succeed.
     generated: List[Tuple[Document, str, str]] = []  # (document, l1_hash, intro_hash)
     for doc_type_str in doc_types:
-        document = next(
-            (
-                d
-                for d in filing.documents
-                if d.document_type == DocumentType(doc_type_str)
-            ),
-            None,
+        document = select_substantive_document(
+            filing.documents, DocumentType(doc_type_str)
         )
         if document is None or not document.content_hash:
             continue  # section genuinely absent from this filing — not a failure
@@ -239,9 +234,7 @@ def _published_l1_summary_hashes(filings: List, doc_type_str: str) -> List[str]:
     doc_type = DocumentType(doc_type_str)
     hashes: List[str] = []
     for filing in filings:
-        document = next(
-            (d for d in filing.documents if d.document_type == doc_type), None
-        )
+        document = select_substantive_document(filing.documents, doc_type)
         if document is None or not document.content_hash:
             continue  # section not present in this filing — not a missing dependency
         page = get_current_document_page_content(document.id)

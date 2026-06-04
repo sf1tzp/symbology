@@ -230,7 +230,7 @@ def generate_single_summaries(
     Returns:
         Tuple of (content_hashes, new_count, reused_count, failed_count).
     """
-    from symbology.database.documents import DocumentType
+    from symbology.database.documents import DocumentType, select_substantive_document
     from symbology.database.generated_content import find_existing_content_for_document
     from symbology.worker.handlers import handle_content_generation
 
@@ -241,13 +241,12 @@ def generate_single_summaries(
     failed_count = 0
 
     for filing in filings:
-        matching = [d for d in filing.documents if d.document_type == doc_type]
-        if not matching:
+        doc = select_substantive_document(filing.documents, doc_type)
+        if doc is None:
             logger.debug(
                 "pipeline_no_document", filing_id=str(filing.id), doc_type=doc_type_str
             )
             continue
-        doc = matching[0]
         if not doc.content_hash:
             continue
 

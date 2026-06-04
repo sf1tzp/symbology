@@ -16,6 +16,7 @@ from symbology.ingestion.edgar_db.accessors import (
     get_cover_page_values,
     get_income_statement_values,
     get_sections_for_document_types,
+    get_xbrl_for_filing,
 )
 from symbology.utils.logging import get_logger
 from symbology.utils.text import normalize_filing_text, validate_section_content
@@ -264,54 +265,66 @@ def ingest_filing_documents(company_id: UUID, filing_id: UUID, filing: Filing, c
 
         document_uuids = {}
 
+        # Readable document names per type, used to build each document title.
+        doc_type_names = {
+            DocumentType.DESCRIPTION: "Business Description",
+            DocumentType.RISK_FACTORS: "Risk Factors",
+            DocumentType.MDA: "Management Discussion and Analysis",
+            DocumentType.CONTROLS_PROCEDURES: "Controls and Procedures",
+            DocumentType.LEGAL_PROCEEDINGS: "Legal Proceedings",
+            DocumentType.MARKET_RISK: "Market Risk Disclosures",
+            DocumentType.EXECUTIVE_COMPENSATION: "Executive Compensation",
+            DocumentType.DIRECTORS_OFFICERS: "Directors and Officers"
+        }
+
         # Use the new mapping system to get all available sections for this document type
         sections_content = get_sections_for_document_types(filing)
         logger.debug("sections_content_length", length=sections_content.__len__())
 
+        non_substantive_count = 0
         for doc_type, content in sections_content.items():
-            if content and content.strip():
-                content = normalize_filing_text(content)
+            if not (content and content.strip()):
+                continue
 
-                valid, reason = validate_section_content(content)
-                if not valid:
-                    logger.warning(
-                        "section_content_rejected",
-                        doc_type=doc_type.value,
-                        accession_number=filing.accession_number,
-                        reason=reason,
-                    )
-                    continue
+            content = normalize_filing_text(content)
+            if not content:
+                continue
 
-                # Create a readable document name based on the document type
-                doc_type_names = {
-                    DocumentType.DESCRIPTION: "Business Description",
-                    DocumentType.RISK_FACTORS: "Risk Factors",
-                    DocumentType.MDA: "Management Discussion and Analysis",
-                    DocumentType.CONTROLS_PROCEDURES: "Controls and Procedures",
-                    DocumentType.LEGAL_PROCEEDINGS: "Legal Proceedings",
-                    DocumentType.MARKET_RISK: "Market Risk Disclosures",
-                    DocumentType.EXECUTIVE_COMPENSATION: "Executive Compensation",
-                    DocumentType.DIRECTORS_OFFICERS: "Directors and Officers"
-                }
-
-                document_name = f"{formatted_base_name} - {doc_type_names.get(doc_type, doc_type.value)}"
-
-                doc = find_or_create_document(
-                    company_id=company_id,
-                    filing_id=filing_id,
-                    title=document_name,
-                    document_type=doc_type,
-                    content=content
+            # Non-substantive sections (too short, or structural artifacts like a
+            # bare table of contents) are still stored so the original source stays
+            # viewable on the site, but flagged so the page-content generation path
+            # skips them. Only genuinely empty content is dropped (above).
+            valid, reason = validate_section_content(content)
+            if not valid:
+                non_substantive_count += 1
+                logger.info(
+                    "section_content_non_substantive",
+                    doc_type=doc_type.value,
+                    accession_number=filing.accession_number,
+                    reason=reason,
                 )
-                document_uuids[doc_type] = doc.id
 
-                logger.debug("document_ingested",
-                           document_type=doc_type.value,
-                           document_id=str(doc.id),
-                           content_length=len(content))
+            document_name = f"{formatted_base_name} - {doc_type_names.get(doc_type, doc_type.value)}"
+
+            doc = find_or_create_document(
+                company_id=company_id,
+                filing_id=filing_id,
+                title=document_name,
+                document_type=doc_type,
+                content=content,
+                is_substantive=valid,
+            )
+            document_uuids[doc_type] = doc.id
+
+            logger.debug("document_ingested",
+                       document_type=doc_type.value,
+                       document_id=str(doc.id),
+                       is_substantive=valid,
+                       content_length=len(content))
 
         logger.info("ingest_filing_documents_complete",
                    document_count=len(document_uuids),
+                   non_substantive_count=non_substantive_count,
                    document_types=[doc_type.value for doc_type in document_uuids.keys()])
 
         return document_uuids
@@ -338,7 +351,16 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
     try:
         counts = {'balance_sheet': 0, 'income_statement': 0, 'cash_flow': 0, 'cover_page': 0}
 
-        balance_sheet_df = get_balance_sheet_values(filing)
+        # Build the XBRL object once and reuse it for every statement. XBRL.from_filing()
+        # parses the filing's XBRL attachments and is not cached, so the getters used to
+        # rebuild it once per statement (4× per filing). A filing with no XBRL data
+        # (e.g. older filings) yields zero counts rather than raising.
+        xbrl = get_xbrl_for_filing(filing)
+        if xbrl is None:
+            logger.info("no_xbrl_data", filing_id=str(filing_id))
+            return counts
+
+        balance_sheet_df = get_balance_sheet_values(filing, xbrl=xbrl)
         for _index, row in balance_sheet_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
@@ -384,7 +406,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                                   concept=concept_name,
                                   value=str(value_str))
 
-        income_df = get_income_statement_values(filing)
+        income_df = get_income_statement_values(filing, xbrl=xbrl)
         for _index, row in income_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
@@ -430,7 +452,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                                   concept=concept_name,
                                   value=str(value_str))
 
-        cashflow_df = get_cash_flow_statement_values(filing)
+        cashflow_df = get_cash_flow_statement_values(filing, xbrl=xbrl)
         for _index, row in cashflow_df.iterrows():
             concept_name = row['concept']
             concept_label = row['label'] if 'label' in row else None
@@ -477,7 +499,7 @@ def ingest_financial_data(company_id: UUID, filing_id: UUID, filing: Filing) -> 
                                   value=str(value_str))
 
         try:
-            cover_df = get_cover_page_values(filing)
+            cover_df = get_cover_page_values(filing, xbrl=xbrl)
         except Exception:
             logger.info("cover_page_not_available", filing_id=str(filing_id))
             cover_df = pd.DataFrame()

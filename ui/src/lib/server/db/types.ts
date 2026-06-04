@@ -167,6 +167,7 @@ export interface Documents {
   document_type: DocumentTypeEnum | null;
   filing_id: string | null;
   id: string;
+  is_substantive: Generated<boolean>;
   title: string;
 }
 

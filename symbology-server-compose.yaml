@@ -7,8 +7,8 @@ services:
     environment:
       OPENAI_API_HOST: 10.0.0.95
       OPENAI_MANAGE_CONTEXT: "false"
-      OPENAI_CONTEXT_MIN: 16384
-      OPENAI_OVERFLOW_THRESHOLD_TOKENS: 16384
+      OPENAI_CONTEXT_MIN: 26000
+      OPENAI_OVERFLOW_THRESHOLD_TOKENS: 26000
     networks:
       - caddy_network
 
@@ -20,7 +20,7 @@ services:
     environment:
       OPENAI_API_HOST: 10.0.0.99
       OPENAI_MANAGE_CONTEXT: "false"
-      OPENAI_OVERFLOW_THRESHOLD_TOKENS: 16384
+      OPENAI_OVERFLOW_THRESHOLD_TOKENS: 26000
     networks:
       - caddy_network
 

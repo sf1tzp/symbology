@@ -120,6 +120,7 @@ queue-new-jobs TICKER:
     just cli pipeline filing-content {{ TICKER }} 2023
     just cli pipeline filing-content {{ TICKER }} 2024
     just cli pipeline filing-content {{ TICKER }} 2025
+    just cli pipeline filing-content {{ TICKER }} 2026
     just cli pipeline company-content {{ TICKER }} -n 5
 
 

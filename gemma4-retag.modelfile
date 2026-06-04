@@ -3,4 +3,5 @@
 # `ollama create google/gemma-4-e4b -f gemma4-retag.modelfile`
 
 FROM gemma4:e4b
+PARAMETER num_ctx 28000
 

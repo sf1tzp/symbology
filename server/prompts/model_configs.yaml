@@ -19,34 +19,34 @@ model_configs:
   l2_document_page_intro:
     model: google/gemma-4-e4b
     max_tokens: 1024
-    temperature: 0.5
+    temperature: 0.7
 
   l2_filing_main_content:
     model: google/gemma-4-e4b
     max_tokens: 4096
-    temperature: 0.3
+    temperature: 0.5
   l3_filing_intro_content:
     model: google/gemma-4-e4b
-    max_tokens: 4096
-    temperature: 0.3
+    max_tokens: 1024
+    temperature: 0.7
 
   l2_change_report_content:
     model: google/gemma-4-e4b
     max_tokens: 8192
-    temperature: 0.3
+    temperature: 0.5
   l3_change_report_intro_content:
     model: google/gemma-4-e4b
-    max_tokens: 4096
-    temperature: 0.3
+    max_tokens: 1024
+    temperature: 0.7
 
   l3_company_main_content:
     model: google/gemma-4-e4b
     max_tokens: 4096
-    temperature: 0.3
+    temperature: 0.5
   l4_company_intro_content:
     model: google/gemma-4-e4b
-    max_tokens: 4096
-    temperature: 0.3
+    max_tokens: 1024
+    temperature: 0.7
 
   single_summary:
     model: claude-haiku-4-5-20251001

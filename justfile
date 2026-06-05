@@ -3,24 +3,11 @@
 
 set dotenv-load
 
-secrets-local:
-    sops -d secrets/local.env > .env
-
-edit-secrets HOST:
-    sops secrets/{{HOST}}.env
 
 # Run components
 cli *ARGS:
     just -d server -f server/justfile cli {{ARGS}}
 
-run-worker *ARGS:
-    just -d server -f server/justfile worker {{ARGS}}
-
-run-ui *ARGS:
-    just -d ui -f ui/justfile up {{ARGS}}
-
-run-db:
-    just -d infra -f infra/justfile up
 
 # Testing
 # just test -m integration (run database tests, requires db availability)
@@ -43,10 +30,8 @@ lint-ui *ARGS:
     just -d ui -f ui/justfile format {{ARGS}}
 
 # Dependencies
-deps-server:
+deps:
     just -d server -f server/justfile deps
-
-deps-ui:
     just -d ui -f ui/justfile deps
 
 build-server:

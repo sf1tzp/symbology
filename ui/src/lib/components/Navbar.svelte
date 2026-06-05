@@ -12,12 +12,19 @@
 	// Same user-aware model the MobileTabBar uses, so the two stay in sync.
 	let navItems = $derived(buildNavItems(user));
 	let scrolled = $derived(scrollY > 50);
+
+	// On mobile the top bar eats too much real estate, so it's shown only on the
+	// home screen; everywhere else mobile relies on the bottom MobileTabBar. From
+	// md up the bar is always visible.
+	let isHome = $derived(page.url.pathname === resolve('/'));
 </script>
 
 <svelte:window bind:scrollY />
 
 <nav
-	class="page fixed top-0 right-0 left-0 z-50 transition-all duration-200 {scrolled
+	class="page fixed top-0 right-0 left-0 z-50 transition-all duration-200 {isHome
+		? ''
+		: 'hidden md:block'} {scrolled
 		? 'border-b border-border bg-background/80 backdrop-blur-md'
 		: 'border-b border-border bg-background'}"
 >
@@ -74,5 +81,5 @@
 	</div>
 </nav>
 
-<!-- Spacer to offset fixed navbar -->
-<div class="h-14"></div>
+<!-- Spacer to offset fixed navbar; collapses with the bar when it's hidden -->
+<div class="{isHome ? '' : 'hidden md:block'} h-14"></div>

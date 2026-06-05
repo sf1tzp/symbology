@@ -1,5 +1,8 @@
 set dotenv-load
 
+deps:
+  npm ci
+
 up:
   npm run dev -- --open --host 0.0.0.0
 

@@ -246,6 +246,33 @@
 		letter-spacing: 0.08em;
 		color: var(--ink-3);
 	}
+	/* Pins a section's eyebrow label to the top of the viewport while that section
+	   scrolls past, keeping the reader oriented on long pages. Only works when the
+	   element is a direct child of a tall block (e.g. a <section>) so its
+	   containing block spans the whole section; the opaque background covers
+	   content sliding underneath. */
+	.eyebrow-sticky {
+		z-index: 30;
+		background: var(--background);
+		padding-block: 0.6rem;
+	}
+	/* When the heading rides in the pinned bar too, give it an opaque bottom band
+	   so section content slides cleanly underneath instead of peeking through a
+	   transparent margin. */
+	.eyebrow-sticky--heading {
+		padding-bottom: 1.25rem;
+	}
+	/* Pinning is a mobile-only affordance, so every `sticky` SectionHead is sticky
+	   on phones without each call site opting in. At md+ the top nav stays visible
+	   and there's room for headers in normal flow, so the bar sits static. top:0
+	   because the nav is hidden off the home screen on mobile (see Navbar), leaving
+	   the viewport top free. */
+	@media (max-width: 767.98px) {
+		.eyebrow-sticky {
+			position: sticky;
+			top: 0;
+		}
+	}
 	.meta {
 		font-family: var(--mono);
 		/* font-size: 0.75rem; */
@@ -333,10 +360,51 @@
 		text-decoration: none;
 		padding: 0 2px;
 	}
+	/* DiffView mobile collapse: a small toggle that flips .is-expanded to reveal
+	   the side hidden by change kind. Hidden at md+ (md:hidden in the markup),
+	   where both columns always show. */
+	.compare-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 2px;
+		padding: 6px 0;
+		font-family: var(--mono);
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--ink-3);
+		background: none;
+		border: none;
+		cursor: pointer;
+	}
+	.compare-toggle:hover {
+		color: var(--ink);
+	}
 	@media (max-width: 768px) {
 		.compare {
 			grid-template-columns: 1fr;
 			gap: 1.5rem;
+		}
+	}
+	/* 767.98px (not 768px) so this lines up exactly with Tailwind's md:hidden on the
+	   toggle — otherwise at 768px the secondary side would hide with no way to
+	   reveal it. */
+	@media (max-width: 767.98px) {
+		/* Sequence the single column as: primary side → toggle → secondary side, so
+		   the revealed side appears *below* the toggle rather than jumping above the
+		   primary text (DOM order is removed-then-added). The primary column keeps
+		   the default order: 0. */
+		.compare-toggle {
+			order: 1;
+			justify-self: start;
+		}
+		.compare-col--secondary {
+			display: none;
+			order: 2;
+		}
+		.compare.is-expanded .compare-col--secondary {
+			display: block;
 		}
 	}
 
@@ -419,7 +487,7 @@
 		font-size: 0.6875rem;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-		border-radius: 9999px;
+		border-radius: 4px;
 		border: 1px solid var(--rule);
 		color: var(--ink-3);
 	}

@@ -1,5 +1,14 @@
 <script lang="ts">
-	import { ChevronLeft, ChevronRight, ExternalLink, Sparkles, ScrollText } from '@lucide/svelte';
+	import {
+		ChevronLeft,
+		ChevronRight,
+		ExternalLink,
+		Sparkles,
+		ScrollText,
+		TrendingUp,
+		TrendingDown,
+		TrendingUpDown
+	} from '@lucide/svelte';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
@@ -12,6 +21,7 @@
 	} from '$lib/utils/filings';
 	import type { PageData } from './$types';
 	import FilingTimeline from '$lib/components/filings/FilingTimeline.svelte';
+	import { toTitleCase } from '$lib/utils';
 
 	let { data }: { data: PageData } = $props();
 
@@ -161,7 +171,7 @@
 </svelte:head>
 
 <!-- Back link -->
-<div class="eyebrow" style="margin-bottom: 3rem;">
+<div class="eyebrow hidden md:block" style="margin-bottom: 3rem;">
 	<a
 		href="/c/{company?.ticker}"
 		class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
@@ -176,12 +186,13 @@
 	<section class="filing-hero">
 		<!-- Left column -->
 		<div>
-			<div class="eyebrow" style="margin-bottom: 1rem;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{getFormLabel(filing.form)}
-				&middot; FORM {filing.form}
-			</div>
+			<SectionHead
+				sticky
+				eyebrow="{getFormLabel(filing.form)} &middot; FORM {filing.form}"
+				heading=""
+			/>
 			<h1 class="display" style="margin-bottom: 1.25rem;">
-				{companyName},<br />
+				{toTitleCase(companyName)},<br />
 				<em>{fiscalPeriodLong}.</em>
 			</h1>
 			{#if filingPageContent && filingPageContent.intro?.content}
@@ -202,7 +213,7 @@
 		</div>
 
 		<!-- Right column: Metadata card -->
-		<aside class="metadata-card">
+		<aside class="metadata-card hidden md:block">
 			<h4 class="sub" style="font-size: 12px; color: var(--ink-2); margin-bottom: 1.25rem;">
 				Filing metadata
 			</h4>
@@ -256,7 +267,7 @@
 		<section class="hairline-section">
 			<div class="analysis-layout">
 				<!-- Source-document sidebar -->
-				<aside class="analysis-toc">
+				<aside class="analysis-toc hidden md:block">
 					<h3 class="sub" style="margin-bottom: 14px;">Synthesis Sources</h3>
 					<div style="display: flex; flex-direction: column; gap: 14px;">
 						{#each documents as doc (doc.id)}
@@ -282,8 +293,10 @@
 
 				<article>
 					<SectionHead
+						sticky
+						stickyHeading
 						eyebrow="SYMBOLOGY.ONLINE l{filingPageContent.main?.generationDepth} SYNTHESIS"
-						heading="Form {filing.form} Analysis"
+						heading="{company?.ticker} &middot; Form {filing.form} Analysis"
 						synthesisHelp
 					/>
 
@@ -309,7 +322,13 @@
 	<!-- SECTION: What's new (headline change cards) -->
 	{#if changeCards.length > 0}
 		<section class="hairline-section">
-			<SectionHead eyebrow="CHANGES VS PRIOR FILING" heading="What's new in this filing." />
+			<SectionHead
+				sticky
+				stickyHeading
+				eyebrow="SYMBOLOGY.ONLINE &middot; text diffs"
+				heading="What's changed since the last filing."
+				diffHelp
+			/>
 			<div class="change-grid">
 				{#each changeCards as c (c.id)}
 					<a
@@ -347,7 +366,7 @@
 	<!-- FILING TIMELINE -->
 	{#if timeline}
 		<section class="hairline-section" id="filing-timeline">
-			<SectionHead eyebrow="FILING HISTORY" heading="View other filings:" />
+			<SectionHead sticky stickyHeading eyebrow="FILING HISTORY" heading="View specific filings" />
 			<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
 				<FilingTimeline filings={timeline} {company} linkPrefix="/f" />
 			</div>
@@ -357,8 +376,10 @@
 	<!-- SECTION 2: Documents -->
 	<section class="hairline-section">
 		<SectionHead
+			sticky
+			stickyHeading
 			eyebrow="DOCUMENTS"
-			heading="{documents.length} section{documents.length !== 1 ? 's' : ''}, in filing order."
+			heading="{documents.length} filing document{documents.length !== 1 ? 's' : ''}, in order."
 		/>
 
 		{#if documents.length > 0}
@@ -402,37 +423,46 @@
 	<!-- SECTION 3: Compare with the prior filing -->
 	{#if priorDiffSets.length > 0}
 		<section class="hairline-section">
-			<SectionHead eyebrow="COMPARE WITH" heading="Side-by-side against the prior filing." />
-			<div style="display: flex; gap: 28px; align-items: center; margin-bottom: 8px;">
-				<span class="meta">
-					<span>Key: </span>
-					<span class="del" style="padding: 2px 8px; margin-left: 12px; margin-right: 6px;"
-						>Removed</span
-					>
-					<span class="ins" style="padding: 2px 8px; margin-right: 6px;">Added</span>
-				</span>
-			</div>
 			{#each priorDiffSets as ds (ds.id)}
+				<SectionHead
+					sticky
+					stickyHeading
+					eyebrow="symbology.online &middot; text diffs"
+					heading="Side-by-side against the prior {getAnalysisTypeDisplay(ds.documentType)}."
+					diffHelp
+				/>
 				{@const changed = ds.topics.filter((t) => VISIBLE_KINDS.has(t.changeKind))}
 				{#if changed.length > 0}
 					<div class="diff-group">
 						<div class="diff-group-head">
 							<h3 class="diff-group-title">{getAnalysisTypeDisplay(ds.documentType)}</h3>
 							<span class="meta" style="color: var(--ink-4);">
-								{changed.length} change{changed.length === 1 ? '' : 's'} vs. {ds.leftFiling
-									? (ds.leftFiling.periodOfReport ?? ds.leftFiling.filingDate)?.slice(0, 4)
-									: 'prior'}
+								{changed.length} change{changed.length === 1 ? '' : 's'}
 							</span>
-							<a
+							<!-- <a
 								href="/c/{company?.ticker}/changes/{ds.documentType}"
 								class="meta"
 								style="margin-left: auto; color: var(--teal-2);">Full report →</a
-							>
+							> -->
 						</div>
 						{#each changed as t (t.id)}
 							<details id="diff-{t.id}" class="diff-details">
 								<summary>
-									<span class="tag tag-new">{(t.changeKind || '').replace('_', '-')}</span>
+									<span
+										class="tag {t.changeKind === 'escalated'
+											? 'tag-escalated'
+											: t.changeKind === 'de_emphasised'
+												? 'tag-new'
+												: 'tag'} : 'tag-new'}"
+										>{(t.changeKind || '').replace('_', '-')}
+										{#if t.changeKind === 'escalated'}
+											<TrendingUp class="ml-2 size-3" />
+										{:else if t.changeKind === 'de_emphasised'}
+											<TrendingDown class="ml-2 size-3" />
+										{:else}
+											<TrendingUpDown class="ml-2 size-3" />
+										{/if}
+									</span>
 									<span class="diff-summary-title">{t.heading ?? t.sectionPath ?? 'Section'}</span>
 								</summary>
 								<DiffView topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
@@ -469,7 +499,11 @@
 	.diff-details {
 		border-top: 1px solid var(--rule);
 		padding: 0.25rem 0;
-		scroll-margin-top: 80px;
+		/* Deep links (openDiff) scroll a diff into view. On mobile the Compare
+		   SectionHead pins, so clear its measured height (--md-heading-sticky-top,
+		   published by SectionHead); on desktop it's unset and we fall back to the
+		   fixed-navbar offset. */
+		scroll-margin-top: var(--md-heading-sticky-top, 80px);
 	}
 	.diff-details > summary {
 		cursor: pointer;

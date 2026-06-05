@@ -21,7 +21,11 @@
 
 <div class="status-nav">
 	{#each items as item (item)}
-		<a href={anchors[item] ?? '#'} class="status-nav-item" class:active={item === active}>
+		<a
+			href={anchors[item] ?? '#'}
+			class="status-nav-item hidden md:block"
+			class:active={item === active}
+		>
 			{item}
 		</a>
 	{/each}

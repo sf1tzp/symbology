@@ -1,13 +1,5 @@
 <script lang="ts">
-	import {
-		ChevronLeft,
-		ChevronRight,
-		Sparkles,
-		ScrollText,
-		ExternalLink,
-		Star,
-		Plus
-	} from '@lucide/svelte';
+	import { ChevronLeft, ChevronRight, Sparkles, ScrollText, Star, Plus } from '@lucide/svelte';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
@@ -130,7 +122,7 @@
 	const epsLatest = $derived(epsItem ? getLatestValue(epsItem) : null);
 	const epsChange = $derived(epsItem?.changes.find((c) => c.percent !== null) ?? null);
 
-	const periodsRange = $derived(financialComparison ? getPeriodsRange(financialComparison) : null);
+	const _periodsRange = $derived(financialComparison ? getPeriodsRange(financialComparison) : null);
 
 	function scrollTo(id: string) {
 		document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -149,7 +141,7 @@
 </svelte:head>
 
 <!-- Back link -->
-<div class="eyebrow" style="margin-bottom: 3rem;">
+<div class="eyebrow mb-4 hidden md:block">
 	<a
 		href="/companies"
 		class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
@@ -162,11 +154,12 @@
 <!-- SECTION 1: Masthead — info left, activations right -->
 <section class="company-hero">
 	<div>
-		<div class="eyebrow" style="margin-bottom: 1rem;">
-			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{company?.exchanges?.[0] ??
-				'SEC'}{company?.sic_description ? ` · ${company.sic_description.toUpperCase()}` : ''}
-			{#if trackingSince}&nbsp;·&nbsp;TRACKED SINCE {trackingSince}{/if}
-		</div>
+		<SectionHead
+			class="mt-4"
+			sticky
+			eyebrow="SYMBOLOGY.ONLINE &middot; Company Overview"
+			heading=""
+		/>
 		<h1 class="display" style="margin-bottom: 1.25rem;">
 			{toTitleCase(companyName)}<em>.</em>
 		</h1>
@@ -202,7 +195,7 @@
 				Follow
 			</button>
 		</div>
-		<a
+		<!-- <a
 			href="https://finance.yahoo.com/quote/{company?.ticker}/"
 			target="_blank"
 			rel="noopener noreferrer"
@@ -210,7 +203,7 @@
 		>
 			<ExternalLink class="h-3.5 w-3.5" />
 			Yahoo Finance
-		</a>
+		</a> -->
 	</aside>
 </section>
 
@@ -247,7 +240,7 @@
 	{#if page?.main?.content}
 		<section style="margin-top: 3rem;">
 			<div class="two-col">
-				<div>
+				<div class="hidden md:block">
 					<div class="eyebrow flex items-center" style="margin-bottom: 12px;">
 						<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;THE BRIEF&nbsp;
 					</div>
@@ -281,40 +274,39 @@
 				</div>
 				<div class="analysis-body">
 					<SectionHead
+						sticky
+						stickyHeading
 						eyebrow="SYMBOLOGY.ONLINE l{page.main?.generationDepth} SYNTHESIS"
-						heading=""
+						heading="The Brief on {toTitleCase(companyName)}."
 						synthesisHelp
 					/>
-					<MarkdownContent class="-mt-8" content={page.main.content} />
+					<MarkdownContent class="" content={page.main.content} />
 				</div>
 			</div>
 		</section>
 	{/if}
 
 	<!-- FINANCIAL OVERVIEW -->
-	{#if financialComparison && financialComparison.items.length > 0}
+	{#if financialComparison && financialComparison.items.length > 2}
 		<section id="financials" class="hairline-section" style="scroll-margin-top: 3rem;">
+			<SectionHead
+				sticky
+				stickyHeading
+				eyebrow="{company?.ticker} &middot; FINANCIALS"
+				heading="A glance at finances."
+			/>
 			<div class="two-col-even">
 				<div>
-					<div class="eyebrow" style="margin-bottom: 1.125rem;">
+					<!-- <div class="eyebrow" style="margin-bottom: 1.125rem;">
 						<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{company?.ticker}
 						&middot; FINANCIAL METRICS
 						{#if periodsRange}&middot; {periodsRange}{/if}
 					</div>
-					<h2 class="section-heading" style="margin-bottom: 1.125rem;">The financials</h2>
-					<p class="body-text" style="color: var(--ink-2);">
+					<h2 class="section-heading" style="margin-bottom: 1.125rem;">The financials</h2> -->
+					<!-- <p class="body-text" style="color: var(--ink-2);">
 						{financialComparison.periods.length} reporting periods tracked across income statement, balance
 						sheet, and cash flow data.
-					</p>
-					<div style="margin-top: 1.5rem;">
-						<a
-							href="/c/{company?.ticker}/financials"
-							class="meta no-underline"
-							style="color: var(--teal-2);"
-						>
-							View detailed financials &rarr;
-						</a>
-					</div>
+					</p> -->
 				</div>
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
 					{#if revenueLatest}
@@ -372,13 +364,27 @@
 						</div>
 					{/if}
 				</div>
+				<div style="flex justify-end">
+					<a
+						href="/c/{company?.ticker}/financials"
+						class="meta no-underline"
+						style="color: var(--teal-2);"
+					>
+						View detailed financials &rarr;
+					</a>
+				</div>
 			</div>
 		</section>
 	{/if}
 	<!-- CHANGE CARDS: one colored card per document type -->
 	{#if changeCards.length > 0}
 		<section id="whats-new" class="hairline-section" style="scroll-margin-top: 2rem;">
-			<SectionHead eyebrow="CHANGES SINCE LAST FILING" heading="What's new in the latest filing." />
+			<SectionHead
+				sticky
+				stickyHeading
+				eyebrow="SYMBOLOGY.ONLINE"
+				heading="What's new in the latest filing."
+			/>
 			<div class="change-grid">
 				{#each changeCards as c (c.id)}
 					<a
@@ -388,7 +394,7 @@
 					>
 						<div class="hd">
 							<span class="hd-dot" style="background: {docColor(c.documentType)};"></span>
-							{changeKindLabel(c.changeKind)} · {getAnalysisTypeDisplay(c.documentType)}
+							{getAnalysisTypeDisplay(c.documentType)} · {changeKindLabel(c.changeKind)}
 						</div>
 						{#if c.heading}
 							<div class="ti">{c.heading}</div>
@@ -415,7 +421,13 @@
 	<!-- CHANGE REPORTS -->
 	{#if changeReports.length > 0}
 		<section id="change-reports" class="hairline-section" style="scroll-margin-top: 2rem;">
-			<SectionHead eyebrow="CHANGE ANALYSIS" heading="Each section in detail." />
+			<SectionHead
+				sticky
+				stickyHeading
+				eyebrow="SYMBOLOGY.ONLINE L2 Synthesis"
+				heading="Sections compared over time."
+				synthesisHelp
+			/>
 			<div class="change-grid">
 				{#each changeReports as cr (cr.documentType)}
 					<a
@@ -462,57 +474,10 @@
 
 <!-- FILING TIMELINE -->
 {#if filings.length > 0}
-	<section class="hairline-section" id="filing-timeline">
-		<SectionHead eyebrow="FILING HISTORY" heading="{filings.length} filings tracked" />
+	<section class="hairline-section pb-8" id="filing-timeline">
+		<SectionHead sticky stickyHeading eyebrow="FILING HISTORY" heading="View specific filings" />
 		<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
 			<FilingTimeline {filings} {company} linkPrefix="/f" />
-		</div>
-	</section>
-{/if}
-
-<!-- SOURCE FILINGS -->
-{#if hasAnalysis && sourceFilings.length > 0}
-	<section id="source-filings" class="hairline-section" style="scroll-margin-top: 2rem;">
-		<div class="grid-2" style="align-items: start;">
-			<div>
-				<div class="eyebrow" style="margin-bottom: 10px;">
-					<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SOURCE FILINGS
-				</div>
-				<h2 class="section-heading" style="margin-bottom: 14px;">
-					Derived from {sourceFilings.length} filing{sourceFilings.length !== 1 ? 's' : ''}.
-				</h2>
-				<p class="body-text" style="color: var(--ink-2);">
-					This analysis is synthesised from the most recent annual reports. Each change report
-					compares the same section across these filings.
-				</p>
-			</div>
-			<div style="border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;">
-				<div
-					class="flex-between"
-					style="padding: 0.875rem 1.5rem; border-bottom: 1px solid var(--rule);"
-				>
-					<h4 class="sub" style="font-size: 12px; color: var(--ink-2);">Filings</h4>
-					<span class="meta" style="color: var(--ink-4);">
-						{sourceFilings.length} filing{sourceFilings.length !== 1 ? 's' : ''}
-					</span>
-				</div>
-				<div style="padding: 0.5rem 1.5rem;">
-					{#each sourceFilings as f (f.id)}
-						<a href="/f/{f.accession_number}" class="docrow no-underline" style="color: inherit;">
-							<div>
-								<div style="font-size: 14px; font-weight: 500; color: var(--ink);">
-									{f.form} &middot; {formatFilingPeriod(f, company)}
-								</div>
-								<div class="meta" style="margin-top: 2px; color: var(--ink-4);">
-									Filed {formatDate(f.filing_date)}
-								</div>
-							</div>
-							<div></div>
-							<div><ChevronRight class="h-3.5 w-3.5" style="color: var(--ink-4);" /></div>
-						</a>
-					{/each}
-				</div>
-			</div>
 		</div>
 	</section>
 {/if}

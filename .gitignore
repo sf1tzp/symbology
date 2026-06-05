@@ -4,6 +4,7 @@
 .venv
 .pytest_cache
 .ruff_cache
+server/requirements.lock
 
 *.tar
 *.dump
@@ -23,3 +24,4 @@ ui/dist
 **/node_modules/
 
 old/
+

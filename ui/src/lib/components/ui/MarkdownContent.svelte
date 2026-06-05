@@ -15,9 +15,25 @@
 		const html = typeof result === 'string' ? result : '';
 		// Wrap tables so wide ones scroll horizontally instead of overflowing the page.
 		// marked emits bare <table>…</table>, so a string swap is safe here.
-		return html
+		const withTables = html
 			.replaceAll('<table>', '<div class="table-scroll"><table>')
 			.replaceAll('</table>', '</table></div>');
+		return sectionizeHeadings(withTables);
+	}
+
+	// Wrap each top-level heading and the content that follows it (up to the next
+	// heading) in a <section>. That gives every heading its own containing block,
+	// so on mobile it can stick within just its own section instead of all the
+	// headings sharing .prose and piling up at the top of the viewport. marked
+	// emits headings only at the top level and escapes HTML inside code blocks, so
+	// splitting on heading open-tags is safe.
+	function sectionizeHeadings(html: string): string {
+		return html
+			.split(/(?=<h[1-6][\s>])/i)
+			.map((part) =>
+				/^<h[1-6][\s>]/i.test(part) ? `<section class="md-section">${part}</section>` : part
+			)
+			.join('');
 	}
 </script>
 
@@ -66,13 +82,46 @@
 		letter-spacing: -0.015em;
 	}
 
-	:global(.prose h1:first-child),
-	:global(.prose h2:first-child),
-	:global(.prose h3:first-child),
-	:global(.prose h4:first-child),
-	:global(.prose h5:first-child),
-	:global(.prose h6:first-child) {
+	/* Only the very first heading of the content drops its top margin. Headings are
+	   now each wrapped in their own .md-section (see sectionizeHeadings), so a bare
+	   :first-child would match every heading and collapse the inter-section gap. */
+	:global(.prose > .md-section:first-child > h1),
+	:global(.prose > .md-section:first-child > h2),
+	:global(.prose > .md-section:first-child > h3),
+	:global(.prose > .md-section:first-child > h4),
+	:global(.prose > .md-section:first-child > h5),
+	:global(.prose > .md-section:first-child > h6) {
 		margin-top: 0;
+	}
+
+	/* Mobile-only sticky section headings, mirroring the SectionHead affordance.
+	   Each heading pins within its own .md-section, so as you scroll the nearest
+	   heading stays near the top of the viewport for orientation. The opaque
+	   background + bottom padding (replacing the bottom margin) cover content
+	   sliding underneath.
+
+	   top is --md-heading-sticky-top, which a sticky SectionHead in the same
+	   container publishes as its bar height (see SectionHead) so these headings
+	   stack *beneath* it rather than overlapping. It defaults to 0 when there's no
+	   sticky header above — the top nav is hidden off the home screen on mobile, so
+	   that pins flush to the viewport top. */
+	@media (max-width: 767.98px) {
+		:global(.prose .md-section > h1),
+		:global(.prose .md-section > h2),
+		:global(.prose .md-section > h3),
+		:global(.prose .md-section > h4),
+		:global(.prose .md-section > h5),
+		:global(.prose .md-section > h6) {
+			position: sticky;
+			top: var(--md-heading-sticky-top, 0px);
+			z-index: 20;
+			/* background: var(--background); */
+			margin-bottom: 0;
+			padding-bottom: 0.75rem;
+			background-color: color-mix(in srgb, var(--background) 80%, transparent);
+			backdrop-filter: blur(12px);
+			/* bg-background/90 backdrop-blur-md */
+		}
 	}
 
 	:global(.prose h1) {
@@ -88,21 +137,23 @@
 	}
 
 	/* Teal accent marker before lower-level headings for a touch of color */
-	:global(.prose h3),
-	:global(.prose h4) {
-		display: flex;
-		align-items: baseline;
-		gap: 0.5rem;
-	}
-	:global(.prose h3::before),
-	:global(.prose h4::before) {
-		content: '';
-		flex: none;
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: var(--teal-2);
-		transform: translateY(-2px);
+	@media (min-width: 767.98px) {
+		:global(.prose h3),
+		:global(.prose h4) {
+			display: flex;
+			align-items: baseline;
+			gap: 0.5rem;
+		}
+		:global(.prose h3::before),
+		:global(.prose h4::before) {
+			content: '';
+			flex: none;
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background: var(--teal-2);
+			transform: translateY(-2px);
+		}
 	}
 
 	:global(.prose h3) {

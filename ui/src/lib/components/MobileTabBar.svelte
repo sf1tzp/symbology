@@ -8,6 +8,7 @@
 	import CircleQuestionMark from '@lucide/svelte/icons/circle-question-mark';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
 	import LogIn from '@lucide/svelte/icons/log-in';
+	import { mobileTabBar } from '$lib/state/mobileTabBar.svelte';
 
 	let { user = null }: { user?: NavUser } = $props();
 
@@ -34,7 +35,9 @@
 	The home-indicator gap is handled with `env(safe-area-inset-bottom)`.
 -->
 <nav
-	class="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-background pt-1.5 pb-[calc(0.25rem+env(safe-area-inset-bottom))] md:hidden"
+	class="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-background/80 pt-1.5 pb-[calc(0.25rem+env(safe-area-inset-bottom))] backdrop-blur-md md:hidden {mobileTabBar.hidden
+		? 'hidden'
+		: ''}"
 	aria-label="Primary"
 >
 	{#each items as item (item.href)}

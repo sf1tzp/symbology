@@ -63,7 +63,7 @@
 </script>
 
 {#if count > 0}
-	<section class="hairline-section mt-20">
+	<section class="hairline-section mt-20 mb-4">
 		<div class="flex-between mb-7 items-end">
 			<div>
 				<div class="eyebrow mb-2.5">

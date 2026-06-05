@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Symbology — Mark Studies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..600;1,8..60,300..400&family=Geist:wght@300..600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #faf9f4;
+    --paper-2: #f3f1e9;
+    --ink: #2b3640;
+    --ink-2: #495867;
+    --ink-3: #6f7b85;
+    --ink-4: #98a1aa;
+    --rule: #e6e3d8;
+    --rule-2: #d8d4c5;
+    --sage-2: #e3eed9;
+    --teal: #80ab82;
+    --teal-2: #6c9a6e;
+    --serif: "Source Serif 4", Georgia, serif;
+    --sans: "Geist", ui-sans-serif, sans-serif;
+    --mono: "Geist Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #f0eee9;
+    font-family: var(--sans);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .sheet {
+    max-width: 1180px;
+    margin: 0 auto;
+    background: var(--paper);
+    border-left: 1px solid var(--rule);
+    border-right: 1px solid var(--rule);
+    min-height: 100vh;
+    padding: 64px 72px 96px;
+  }
+
+  /* ---- type ---- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow .dot { color: var(--teal-2); font-size: 9px; }
+  h1.display {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 56px;
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    margin: 22px 0 0;
+  }
+  p.lede {
+    font-family: var(--serif);
+    font-size: 21px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    font-weight: 300;
+    max-width: 56ch;
+    margin: 22px 0 0;
+  }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.01em; }
+  .rule { height: 1px; background: var(--rule); border: 0; margin: 0; }
+
+  /* ---- quick compare row ---- */
+  .compare {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--rule);
+    margin-top: 56px;
+  }
+  .compare .cell {
+    padding: 40px 24px 28px;
+    border-right: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    text-align: center;
+  }
+  .compare .cell:last-child { border-right: 0; }
+  .compare .glyph { color: var(--teal-2); display: inline-flex; }
+  .compare .cap { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-4); }
+  .compare .cell.is-current .glyph { color: var(--ink-4); }
+  .compare .name { font-family: var(--serif); font-size: 19px; letter-spacing: -0.01em; }
+
+  /* ---- detail cards ---- */
+  .study {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .study:first-of-type { border-top: 1px solid var(--rule); }
+  .study .hero {
+    border-right: 1px solid var(--rule);
+    padding: 48px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 23px, rgba(0,0,0,0.022) 23px, rgba(0,0,0,0.022) 24px);
+  }
+  .study .hero .glyph { color: var(--teal-2); }
+  .study .body { padding: 40px 8px 40px 44px; }
+  .study .idx { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--teal-2); text-transform: uppercase; }
+  .study h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 32px;
+    letter-spacing: -0.02em;
+    margin: 10px 0 0;
+  }
+  .study .desc { font-size: 15px; line-height: 1.6; color: var(--ink-2); max-width: 60ch; margin: 14px 0 0; }
+  .specs {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    margin-top: 34px;
+    padding-top: 28px;
+    border-top: 1px solid var(--rule);
+  }
+  .specblock .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-4); margin-bottom: 16px; }
+
+  /* scale strip */
+  .scale { display: flex; align-items: flex-end; gap: 22px; color: var(--ink); }
+  .scale .stop { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  .scale .stop .px { font-family: var(--mono); font-size: 9.5px; color: var(--ink-4); }
+
+  /* inversion chips */
+  .chips { display: flex; gap: 12px; }
+  .chip {
+    width: 64px; height: 64px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--rule);
+  }
+  .chip.paper { background: var(--paper); color: var(--teal-2); }
+  .chip.ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .chip.teal { background: var(--teal-2); color: var(--paper); border-color: var(--teal-2); }
+
+  /* lockup */
+  .lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    font-family: var(--serif);
+    font-size: 25px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .lockup .glyph { color: var(--teal-2); display: inline-flex; }
+
+  /* in-context navbar */
+  .ctx-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 14px 20px;
+    background: var(--paper);
+    margin-top: 16px;
+  }
+  .ctx-nav .left { display: flex; align-items: center; gap: 30px; }
+  .ctx-nav .brand { display: inline-flex; align-items: center; gap: 9px; font-family: var(--serif); font-size: 19px; font-weight: 500; }
+  .ctx-nav .brand .glyph { color: var(--teal-2); display: inline-flex; }
+  .ctx-nav .links { display: flex; gap: 20px; font-size: 12.5px; color: var(--ink-3); }
+  .ctx-nav .links a { text-decoration: none; color: inherit; }
+  .ctx-nav .links a.active { color: var(--ink); }
+
+  .footnote { margin-top: 56px; color: var(--ink-3); font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.02em; display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+  <main class="sheet">
+    <header>
+      <div class="eyebrow"><span class="dot">●</span> MARK STUDIES · EYE OF PROVIDENCE</div>
+      <h1 class="display">Three takes on the mark</h1>
+      <p class="lede">The current mark reads clean but spare — a triangle with a single dot. These three directions keep that geometry and the muted-teal accent, but each gives the eye more to say: one makes it literal, one makes it deep, one makes it radiant.</p>
+    </header>
+
+    <!-- QUICK COMPARE -->
+    <section class="compare" id="compare">
+      <div class="cell is-current">
+        <span class="glyph" data-mark="current" data-size="64"></span>
+        <div>
+          <div class="name" style="color:var(--ink-3)">Current</div>
+          <div class="cap" style="margin-top:6px">Baseline</div>
+        </div>
+      </div>
+      <div class="cell">
+        <span class="glyph" data-mark="lens" data-size="64"></span>
+        <div>
+          <div class="name">Lens</div>
+          <div class="cap" style="margin-top:6px">01 · Literal</div>
+        </div>
+      </div>
+      <div class="cell">
+        <span class="glyph" data-mark="aperture" data-size="64"></span>
+        <div>
+          <div class="name">Aperture</div>
+          <div class="cap" style="margin-top:6px">02 · Deep</div>
+        </div>
+      </div>
+      <div class="cell">
+        <span class="glyph" data-mark="radiant" data-size="64"></span>
+        <div>
+          <div class="name">Radiant</div>
+          <div class="cap" style="margin-top:6px">03 · Emblem</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DETAIL CARDS -->
+    <section style="margin-top:64px">
+      <!-- 01 LENS -->
+      <article class="study">
+        <div class="hero"><span class="glyph" data-mark="lens" data-size="132"></span></div>
+        <div class="body">
+          <div class="idx">01 · Lens</div>
+          <h2>An eye you can actually read</h2>
+          <p class="desc">The dot opens into an almond lens with a pupil — the most direct reading of "eye." It still nests inside the same triangle, so the silhouette is unchanged at a glance, but up close it gains a humanist, watchful character. Best when the mark sits large: covers, the landing masthead, an app icon.</p>
+          <div class="specs">
+            <div class="specblock">
+              <div class="lbl">Scale</div>
+              <div class="scale">
+                <div class="stop"><span class="glyph" data-mark="lens" data-size="48"></span><span class="px">48</span></div>
+                <div class="stop"><span class="glyph" data-mark="lens" data-size="32"></span><span class="px">32</span></div>
+                <div class="stop"><span class="glyph" data-mark="lens" data-size="22"></span><span class="px">22</span></div>
+                <div class="stop"><span class="glyph" data-mark="lens" data-size="16"></span><span class="px">16</span></div>
+              </div>
+            </div>
+            <div class="specblock">
+              <div class="lbl">Inversions</div>
+              <div class="chips">
+                <div class="chip paper"><span class="glyph" data-mark="lens" data-size="34"></span></div>
+                <div class="chip ink"><span class="glyph" data-mark="lens" data-size="34"></span></div>
+                <div class="chip teal"><span class="glyph" data-mark="lens" data-size="34"></span></div>
+              </div>
+            </div>
+            <div class="specblock">
+              <div class="lbl">Lockup</div>
+              <div class="lockup"><span class="glyph" data-mark="lens" data-size="28"></span> Symbology</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 02 APERTURE -->
+      <article class="study">
+        <div class="hero"><span class="glyph" data-mark="aperture" data-size="132"></span></div>
+        <div class="body">
+          <div class="idx">02 · Aperture</div>
+          <h2>Looking deeper into the filing</h2>
+          <p class="desc">Concentric triangles draw the eye inward to the pupil — a lens stopping down, focus tightening. It's the most conceptual fit for the product: reading past the surface of a disclosure to the thing that actually changed. The nested strokes also give the small mark more texture than a lone dot.</p>
+          <div class="specs">
+            <div class="specblock">
+              <div class="lbl">Scale</div>
+              <div class="scale">
+                <div class="stop"><span class="glyph" data-mark="aperture" data-size="48"></span><span class="px">48</span></div>
+                <div class="stop"><span class="glyph" data-mark="aperture" data-size="32"></span><span class="px">32</span></div>
+                <div class="stop"><span class="glyph" data-mark="aperture" data-size="22"></span><span class="px">22</span></div>
+                <div class="stop"><span class="glyph" data-mark="aperture" data-size="16"></span><span class="px">16</span></div>
+              </div>
+            </div>
+            <div class="specblock">
+              <div class="lbl">Inversions</div>
+              <div class="chips">
+                <div class="chip paper"><span class="glyph" data-mark="aperture" data-size="34"></span></div>
+                <div class="chip ink"><span class="glyph" data-mark="aperture" data-size="34"></span></div>
+                <div class="chip teal"><span class="glyph" data-mark="aperture" data-size="34"></span></div>
+              </div>
+            </div>
+            <div class="specblock">
+              <div class="lbl">Lockup</div>
+              <div class="lockup"><span class="glyph" data-mark="aperture" data-size="28"></span> Symbology</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 03 RADIANT -->
+      <article class="study">
+        <div class="hero"><span class="glyph" data-mark="radiant" data-size="132"></span></div>
+        <div class="body">
+          <div class="idx">03 · Radiant</div>
+          <h2>The seal, in our voice</h2>
+          <p class="desc">An iris ring plus a short burst of rays above the apex — the most overt nod to the dollar-bill emblem, pulled back to a thin, restrained engraving rather than anything ornate. It carries authority and a quiet wink. Reads beautifully at hero scale; the rays simplify gracefully toward favicon size.</p>
+          <div class="specs">
+            <div class="specblock">
+              <div class="lbl">Scale</div>
+              <div class="scale">
+                <div class="stop"><span class="glyph" data-mark="radiant" data-size="48"></span><span class="px">48</span></div>
+                <div class="stop"><span class="glyph" data-mark="radiant" data-size="32"></span><span class="px">32</span></div>
+                <div class="stop"><span class="glyph" data-mark="radiant" data-size="22"></span><span class="px">22</span></div>
+                <div class="stop"><span class="glyph" data-mark="radiant" data-size="16"></span><span class="px">16</span></div>
+              </div>
+            </div>
+            <div class="specblock">
+              <div class="lbl">Inversions</div>
+              <div class="chips">
+                <div class="chip paper"><span class="glyph" data-mark="radiant" data-size="34"></span></div>
+                <div class="chip ink"><span class="glyph" data-mark="radiant" data-size="34"></span></div>
+                <div class="chip teal"><span class="glyph" data-mark="radiant" data-size="34"></span></div>
+              </div>
+            </div>
+            <div class="specblock">
+              <div class="lbl">Lockup</div>
+              <div class="lockup"><span class="glyph" data-mark="radiant" data-size="28"></span> Symbology</div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- IN CONTEXT -->
+    <section style="margin-top:64px">
+      <div class="eyebrow"><span class="dot">●</span> IN CONTEXT · NAVBAR AT 22PX</div>
+      <div class="ctx-nav">
+        <div class="left">
+          <span class="brand"><span class="glyph" data-mark="lens" data-size="22"></span> Symbology</span>
+          <span class="links"><a class="active" href="#">Companies</a><a href="#">Watchlist</a><a href="#">Groups</a><a href="#">Filings</a></span>
+        </div>
+        <span class="meta">Lens</span>
+      </div>
+      <div class="ctx-nav">
+        <div class="left">
+          <span class="brand"><span class="glyph" data-mark="aperture" data-size="22"></span> Symbology</span>
+          <span class="links"><a class="active" href="#">Companies</a><a href="#">Watchlist</a><a href="#">Groups</a><a href="#">Filings</a></span>
+        </div>
+        <span class="meta">Aperture</span>
+      </div>
+      <div class="ctx-nav">
+        <div class="left">
+          <span class="brand"><span class="glyph" data-mark="radiant" data-size="22"></span> Symbology</span>
+          <span class="links"><a class="active" href="#">Companies</a><a href="#">Watchlist</a><a href="#">Groups</a><a href="#">Filings</a></span>
+        </div>
+        <span class="meta">Radiant</span>
+      </div>
+    </section>
+
+    <div class="footnote"><span style="color:var(--teal-2)">→</span> All three drop into the existing <span style="color:var(--ink)">&lt;Mark&gt;</span> component — same 64×64 viewBox, currentColor-driven. Tell me which to wire in.</div>
+  </main>
+
+<script>
+  // Each mark renders into a 0 0 64 64 viewBox, stroke/fill = currentColor.
+  // Drop-in compatible with the existing <Mark> component.
+  const MARKS = {
+    current: `
+      <path d="M32 9 L56 53 L8 53 Z" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linejoin="round"/>
+      <circle cx="32" cy="38" r="5.5" fill="currentColor"/>`,
+
+    // 01 — Lens: triangle + almond eye + pupil
+    lens: `
+      <path d="M32 9 L56 53 L8 53 Z" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linejoin="round"/>
+      <path d="M19.5 38 Q32 28.5 44.5 38 Q32 47.5 19.5 38 Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
+      <circle cx="32" cy="38" r="3.1" fill="currentColor"/>`,
+
+    // 02 — Aperture: concentric triangles + central pupil
+    aperture: `
+      <path d="M32 9 L56 53 L8 53 Z" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linejoin="round"/>
+      <path d="M32 23.7 L44 45.7 L20 45.7 Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <circle cx="32" cy="38.3" r="3.4" fill="currentColor"/>`,
+
+    // 03 — Radiant: triangle + iris ring + pupil + rays above apex
+    radiant: `
+      <path d="M32 14 L56 53.5 L8 53.5 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/>
+      <circle cx="32" cy="40" r="6.4" fill="none" stroke="currentColor" stroke-width="2.1"/>
+      <circle cx="32" cy="40" r="2.5" fill="currentColor"/>
+      <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <line x1="32" y1="10.5" x2="32" y2="3"/>
+        <line x1="28" y1="11.4" x2="24" y2="5"/>
+        <line x1="36" y1="11.4" x2="40" y2="5"/>
+      </g>`,
+  };
+
+  document.querySelectorAll('[data-mark]').forEach((el) => {
+    const key = el.getAttribute('data-mark');
+    const size = el.getAttribute('data-size') || 22;
+    el.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none" aria-hidden="true">${MARKS[key] || ''}</svg>`;
+  });
+</script>
+</body>
+</html>

@@ -76,7 +76,7 @@ function contentLabel(stage: string | null, docType: string | null): string {
 	switch (stage) {
 		// Prototype stages (being retired).
 		case 'single_summary':
-			return 'Filing summary';
+			return 'Document summary';
 		case 'frontpage_summary':
 			return 'Frontpage summary';
 		case 'company_group_analysis':

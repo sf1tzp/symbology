@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="Symbology">
+  <path d="M32 9 L56 53 L8 53 Z" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linejoin="round"></path>
+  <path d="M32 23.7 L44 45.7 L20 45.7 Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path>
+  <circle cx="32" cy="38.3" r="3.4" fill="currentColor"></circle>
+</svg>

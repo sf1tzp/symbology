@@ -12,6 +12,7 @@
 <svelte:head>
 	<title>Symbology - Investment Analysis Platform</title>
 	<meta name="description" content="Explore LLM-generated insights on publicly traded companies." />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 	<link rel="icon" href={favicon} />
 	<script
 		defer
@@ -39,7 +40,7 @@
 		letting <main> shrink-wrap to its widest content's intrinsic width (e.g. the
 		featured-carousel's row of slides) and overflow the viewport horizontally.
 	-->
-	<main class="page w-full flex-1 py-8">
+	<main class="page w-full flex-1 py-4 md:py-8">
 		{@render children?.()}
 	</main>
 

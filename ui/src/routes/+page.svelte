@@ -11,7 +11,7 @@
 		earliest_year: number | null;
 	}
 
-	const stats = $derived(data.stats as PlatformStats | null);
+	const _stats = $derived(data.stats as PlatformStats | null);
 	const featured = $derived(data.featured);
 
 	const proofCards = [
@@ -35,7 +35,7 @@
 		}
 	];
 
-	function formatStatValue(n: number): string {
+	function _formatStatValue(n: number): string {
 		if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
 		if (n >= 1_000) return n.toLocaleString();
 		return String(n);
@@ -105,7 +105,7 @@
 <FeaturedIntroCarousel companies={featured} />
 
 <!-- Scale / Stats strip -->
-{#if stats}
+<!-- {#if stats}
 	<section class="hairline-section">
 		<div class="stats">
 			<div class="stat">
@@ -128,4 +128,4 @@
 			{/if}
 		</div>
 	</section>
-{/if}
+{/if} -->

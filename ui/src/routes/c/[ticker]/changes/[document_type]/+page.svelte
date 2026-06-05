@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { ChevronLeft, ChevronRight, Sparkles } from '@lucide/svelte';
+	import {
+		ChevronLeft,
+		ChevronRight,
+		Sparkles,
+		TrendingDown,
+		TrendingUp,
+		TrendingUpDown
+	} from '@lucide/svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
@@ -95,10 +102,12 @@
 		(t.tokensAdded ?? 0) +
 		(t.tokensRemoved ?? 0) +
 		Math.abs(t.lengthDelta ?? 0) * 0.1;
-	const headlineCards = $derived([...changedTopics].sort((a, b) => scoreTopic(b) - scoreTopic(a)));
+	const headlineCards = $derived(
+		[...changedTopics].sort((a, b) => scoreTopic(b) - scoreTopic(a)).slice(0, 6)
+	);
 
 	// Masthead summary like "2 new · 1 removed · 4 escalated".
-	const countLabel = $derived(
+	const _countLabel = $derived(
 		[
 			counts.new ? `${counts.new} new` : null,
 			counts.removed ? `${counts.removed} removed` : null,
@@ -130,6 +139,19 @@
 		return first && last && first !== last ? `FY${first} → FY${last}` : first ? `FY${first}` : '';
 	}
 
+	// "What's new" cards deep-link to the on-page diff in the Compare section.
+	// Each diff is its own collapsed <details id="diff-{id}">, so open it and
+	// scroll it into view.
+	function openDiff(e: MouseEvent, topicId: string) {
+		e.preventDefault();
+		const el = document.getElementById(`diff-${topicId}`);
+		if (el instanceof HTMLDetailsElement) el.open = true;
+		requestAnimationFrame(() => {
+			el?.scrollIntoView({ behavior: 'smooth' });
+			history.replaceState(null, '', `#diff-${topicId}`);
+		});
+	}
+
 	// Find this report's source document (of the same section) within a filing.
 	const docFor = (f: (typeof sourceFilings)[number]) =>
 		f.documents?.find((d) => d.document_type === documentType) ?? null;
@@ -157,7 +179,7 @@
 <svelte:window onhashchange={openHashTarget} />
 
 <!-- Back link -->
-<div style="margin-bottom: 3rem;">
+<div class="hidden md:block" style="margin-bottom: 3rem;">
 	<a
 		href="/c/{company?.ticker}"
 		class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
@@ -170,11 +192,10 @@
 <!-- Masthead with metadata sidebar -->
 <section class="change-hero">
 	<div>
-		<div class="eyebrow" style="margin-bottom: 1.125rem;">
-			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;CHANGE ANALYSIS &middot; {typeDisplay.toUpperCase()}
-		</div>
-		<h1 class="display" style="margin-bottom: 1.125rem;">
-			{typeDisplay}<em>.</em>
+		<SectionHead sticky eyebrow="symbology.online &middot; CHANGE SYNTHESIS" heading="" />
+		<h1 class="display" style="margin-bottom: 1.25rem;">
+			{toTitleCase(companyName)}<br />
+			<em>{typeDisplay} analysis.</em>
 		</h1>
 		{#if changeReport?.intro?.content}
 			<p class="lede" style="max-width: 62ch; color: var(--ink-2);">
@@ -187,23 +208,23 @@
 			{#if spanLabel()}
 				<span class="tag" style="font-family: var(--mono);">{spanLabel()}</span>
 			{/if}
-			{#if diffSet && counts.total_compared}
+			<!-- {#if diffSet && counts.total_compared}
 				<span class="tag">{counts.total_compared} compared</span>
-			{/if}
-			{#if countLabel}
+			{/if} -->
+			<!-- {#if countLabel}
 				<span class="tag tag-new">{countLabel}</span>
-			{/if}
+			{/if} -->
 			{#if generationDepth != null}
 				<span class="tag tag-new" style="gap: 4px;">
 					<Sparkles class="h-2.5 w-2.5" />
-					Synthesis · L{generationDepth}
+					L{generationDepth} Comparitive Synthesis
 				</span>
 			{/if}
 		</div>
 	</div>
 
 	<!-- Report metadata card -->
-	<aside class="metadata-card">
+	<aside class="metadata-card hidden md:block">
 		<h4 class="sub" style="font-size: 12px; color: var(--ink-2); margin-bottom: 1.25rem;">
 			Report metadata
 		</h4>
@@ -228,7 +249,7 @@
 
 <!-- Article with source-filing sidebar -->
 <div class="change-layout">
-	<aside class="change-toc">
+	<aside class="change-toc hidden md:block">
 		<h3 class="sub" style="margin-bottom: 14px;">Synthesis Sources</h3>
 		<div style="display: flex; flex-direction: column; gap: 14px;">
 			{#each sourceFilings as f (f.id)}
@@ -255,8 +276,10 @@
 
 	<article>
 		<SectionHead
-			eyebrow="SYMBOLOGY.ONLINE l{generationDepth} SYNTHESIS"
-			heading="{typeDisplay} Change Report"
+			sticky
+			stickyHeading
+			eyebrow="symbology.online l{generationDepth} SYNTHESIS"
+			heading="{toTitleCase(companyName)} - {typeDisplay} analysis."
 			synthesisHelp
 		/>
 		{#if changeReport?.report?.content}
@@ -274,6 +297,8 @@
 {#if diffSet && headlineCards.length > 0}
 	<section class="hairline-section" style="margin-top: 4rem;">
 		<SectionHead
+			sticky
+			stickyHeading
 			eyebrow="WHAT'S NEW · {pairLabel(diffSet)}"
 			heading="What changed in the latest {typeDisplay}."
 		/>
@@ -281,6 +306,7 @@
 			{#each headlineCards as t (t.id)}
 				<a
 					href="#diff-{t.id}"
+					onclick={(e) => openDiff(e, t.id)}
 					class="change-card"
 					style="--card-accent: {kindColor(t.changeKind)};"
 				>
@@ -312,27 +338,44 @@
 
 {#if chainDesc.length > 0}
 	<section class="hairline-section" style="margin-top: 3rem;">
-		<div class="eyebrow" style="margin-bottom: 10px;">
-			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SIDE-BY-SIDE DIFF
-		</div>
-		<h2 class="section" style="margin-bottom: 8px;">Year-over-year, section by section</h2>
-
 		{#each chainDesc as ds (ds.id)}
 			{@const changed = ds.topics.filter((t) => VISIBLE_KINDS.has(t.changeKind))}
+			<SectionHead
+				sticky
+				stickyHeading
+				eyebrow="{pairLabel(ds)} · {changed.length} change{changed.length === 1 ? '' : 's'}"
+				heading="Side-by-side against the previous {typeDisplay}{typeDisplay.slice(-1) === 's'
+					? ''
+					: 's'}."
+			/>
 			{#if changed.length > 0}
 				<div class="diff-pair">
-					<h3 class="sub" style="margin: 1.5rem 0 0.5rem; font-family: var(--mono);">
-						{pairLabel(ds)} · {changed.length} change{changed.length === 1 ? '' : 's'}
-					</h3>
 					{#each changed as t (t.id)}
 						<details id="diff-{t.id}" class="diff-details">
 							<summary>
-								<span class="tag {t.changeKind === 'removed' ? '' : 'tag-new'}"
-									>{(t.changeKind || '').replace('_', '-')}</span
-								>
+								<span
+									class="tag {t.changeKind === 'escalated'
+										? 'tag-escalated'
+										: t.changeKind === 'de_emphasised'
+											? 'tag-new'
+											: 'tag'} : 'tag-new'}"
+									>{(t.changeKind || '').replace('_', '-')}
+									{#if t.changeKind === 'escalated'}
+										<TrendingUp class="ml-2 size-3" />
+									{:else if t.changeKind === 'de_emphasised'}
+										<TrendingDown class="ml-2 size-3" />
+									{:else}
+										<TrendingUpDown class="ml-2 size-3" />
+									{/if}
+								</span>
 								<span class="diff-summary-title">{t.heading ?? t.sectionPath ?? 'Section'}</span>
 							</summary>
-							<DiffView topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
+							<DiffView
+								showHeader={false}
+								topic={t}
+								leftFiling={ds.leftFiling}
+								rightFiling={ds.rightFiling}
+							/>
 						</details>
 					{/each}
 				</div>
@@ -340,18 +383,6 @@
 		{/each}
 	</section>
 {/if}
-
-<footer
-	style="margin-top: 5rem; padding-top: 1.75rem; border-top: 1px solid var(--rule); color: var(--ink-4);"
->
-	<span class="meta">
-		Synthesised from the {typeDisplay} section across {sourceFilings.length} filing{sourceFilings.length !==
-		1
-			? 's'
-			: ''}{#if model}
-			· {model}{/if}
-	</span>
-</footer>
 
 <style>
 	.change-hero {
@@ -398,7 +429,11 @@
 	.diff-details {
 		border-top: 1px solid var(--rule);
 		padding: 0.25rem 0;
-		scroll-margin-top: 90px;
+		/* Deep links (openDiff) scroll a diff into view. On mobile the Compare
+		   SectionHead pins, so clear its measured height (--md-heading-sticky-top,
+		   published by SectionHead); on desktop it's unset and we fall back to the
+		   fixed-navbar offset. */
+		scroll-margin-top: var(--md-heading-sticky-top, 80px);
 	}
 	.diff-details > summary {
 		cursor: pointer;
@@ -417,6 +452,7 @@
 		color: var(--ink);
 	}
 	.diff-details[open] > summary {
+		padding-top: 2rem;
 		margin-bottom: 1rem;
 	}
 

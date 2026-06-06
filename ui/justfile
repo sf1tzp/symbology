@@ -13,6 +13,14 @@ format:
   npm run format
 
 
+# Config is auto-discovered from src/lib/server/auth.ts; -y skips the interactive
+# confirmation so it's automation-safe. Run after the `auth` schema exists
+# (Alembic r7b8c9d0e1f2) — repo-root `just db-init` sequences this.
+#
+# Create/upgrade Better Auth's tables (user/session/account/verification).
+auth-migrate:
+  npx @better-auth/cli migrate -y
+
 generate-api-types:
   npx openapi-typescript http://localhost:8000/openapi.json -o src/lib/generated-api-types.ts
 

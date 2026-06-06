@@ -18,6 +18,14 @@ logger = get_logger(__name__)
 console = Console()
 
 
+def _init_session():
+    """Initialize the database from settings and return a session."""
+    from symbology.database.base import get_db_session, init_db
+
+    init_db(settings.database.url)
+    return get_db_session()
+
+
 def _format_size(size_bytes: int) -> str:
     """Format byte count as human-readable string."""
     for unit in ("B", "KB", "MB", "GB"):
@@ -72,6 +80,222 @@ def db():
     pass
 
 
+@db.command("status")
+@click.option("--no-disk", is_flag=True, help="Skip per-table disk usage (avoids a catalog scan)")
+def status_cmd(no_disk: bool):
+    """Show stored object counts, embedding/diff stats, and disk usage.
+
+    A snapshot of what's in the database: row counts for each object type,
+    breakdowns of documents by section type and generated content by pipeline
+    stage, embedding coverage on both chunk tables, diff-set statistics, and the
+    on-disk size of each table.
+    """
+    from sqlalchemy import func, text
+
+    from symbology.database.document_chunks import DocumentChunk
+    from symbology.database.documents import Document, DocumentType
+    from symbology.database.filings import Filing
+    from symbology.database.companies import Company
+    from symbology.database.chunk_topics import ChunkTopic
+    from symbology.database.generated_content import ContentStage, GeneratedContent
+    from symbology.database.generated_content_chunks import GeneratedContentChunk
+    from symbology.database.jobs import Job
+    from symbology.database.page_content import (
+        CompanyPageContent,
+        DocumentPageContent,
+        FilingPageContent,
+        GroupPageContent,
+    )
+    from symbology.database.section_diffs import DiffSet, SectionDiff
+
+    from rich.table import Table
+
+    try:
+        session = _init_session()
+    except Exception as e:
+        console.print(f"[red]Error connecting to database: {e}[/red]")
+        sys.exit(1)
+
+    db_settings = settings.database
+    console.print(
+        f"[bold blue]Database:[/bold blue] {db_settings.host}:{db_settings.port}/{db_settings.name}\n"
+    )
+
+    def count(model) -> int:
+        return session.query(func.count()).select_from(model).scalar() or 0
+
+    # --- Object counts -----------------------------------------------------
+    objects = Table(title="Objects", title_style="bold cyan", header_style="bold")
+    objects.add_column("Type")
+    objects.add_column("Rows", justify="right")
+    for label, model in (
+        ("Companies", Company),
+        ("Filings", Filing),
+        ("Documents", Document),
+        ("Document chunks", DocumentChunk),
+        ("Chunk topics", ChunkTopic),
+        ("Generated content", GeneratedContent),
+        ("Generated content chunks", GeneratedContentChunk),
+        ("Diff sets", DiffSet),
+        ("Section diffs", SectionDiff),
+        ("Jobs", Job),
+    ):
+        objects.add_row(label, f"{count(model):,}")
+    console.print(objects)
+    console.print()
+
+    # --- Documents by section type ----------------------------------------
+    doc_rows = (
+        session.query(
+            Document.document_type,
+            func.count(),
+            func.count().filter(Document.is_substantive.is_(True)),
+        )
+        .group_by(Document.document_type)
+        .order_by(func.count().desc())
+        .all()
+    )
+    if doc_rows:
+        docs = Table(title="Documents by type", title_style="bold cyan", header_style="bold")
+        docs.add_column("Document type")
+        docs.add_column("Rows", justify="right")
+        docs.add_column("Substantive", justify="right")
+        for dtype, total, substantive in doc_rows:
+            name = dtype.value if isinstance(dtype, DocumentType) else (dtype or "(none)")
+            docs.add_row(name, f"{total:,}", f"{substantive:,}")
+        console.print(docs)
+        console.print()
+
+    # --- Generated content by pipeline stage ------------------------------
+    gc_rows = (
+        session.query(
+            GeneratedContent.content_stage,
+            func.count(),
+            func.min(GeneratedContent.generation_depth),
+            func.max(GeneratedContent.generation_depth),
+        )
+        .group_by(GeneratedContent.content_stage)
+        .order_by(func.count().desc())
+        .all()
+    )
+    if gc_rows:
+        gc = Table(
+            title="Generated content by stage", title_style="bold cyan", header_style="bold"
+        )
+        gc.add_column("Content stage")
+        gc.add_column("Rows", justify="right")
+        gc.add_column("Depth", justify="right")
+        for stage, total, min_depth, max_depth in gc_rows:
+            name = stage.value if isinstance(stage, ContentStage) else (stage or "(none)")
+            if min_depth is None:
+                depth = "-"
+            elif min_depth == max_depth:
+                depth = str(min_depth)
+            else:
+                depth = f"{min_depth}-{max_depth}"
+            gc.add_row(name, f"{total:,}", depth)
+        console.print(gc)
+        console.print()
+
+    # --- Published page content (the versioned publishing layer) ----------
+    page = Table(
+        title="Published page content", title_style="bold cyan", header_style="bold"
+    )
+    page.add_column("Page type")
+    page.add_column("Versions", justify="right")
+    for label, model in (
+        ("Document pages", DocumentPageContent),
+        ("Filing pages", FilingPageContent),
+        ("Company pages", CompanyPageContent),
+        ("Group pages", GroupPageContent),
+    ):
+        page.add_row(label, f"{count(model):,}")
+    console.print(page)
+    console.print()
+
+    # --- Embedding coverage on both chunk tables --------------------------
+    emb = Table(title="Embeddings", title_style="bold cyan", header_style="bold")
+    emb.add_column("Chunk table")
+    emb.add_column("Total", justify="right")
+    emb.add_column("Embedded", justify="right")
+    emb.add_column("Pending", justify="right")
+    emb.add_column("Coverage", justify="right")
+    for label, model in (
+        ("Document chunks", DocumentChunk),
+        ("Generated content chunks", GeneratedContentChunk),
+    ):
+        total = count(model)
+        embedded = (
+            session.query(func.count())
+            .select_from(model)
+            .filter(model.embedding.is_not(None))
+            .scalar()
+            or 0
+        )
+        pct = f"{embedded / total * 100:.1f}%" if total else "-"
+        emb.add_row(label, f"{total:,}", f"{embedded:,}", f"{total - embedded:,}", pct)
+    console.print(emb)
+    console.print()
+
+    # --- Diff statistics ---------------------------------------------------
+    diff_total = count(SectionDiff)
+    if diff_total:
+        kind_rows = (
+            session.query(SectionDiff.change_kind, func.count())
+            .group_by(SectionDiff.change_kind)
+            .order_by(func.count().desc())
+            .all()
+        )
+        diffs = Table(
+            title="Section diffs by change kind", title_style="bold cyan", header_style="bold"
+        )
+        diffs.add_column("Change kind")
+        diffs.add_column("Rows", justify="right")
+        for kind, total in kind_rows:
+            diffs.add_row(kind or "(none)", f"{total:,}")
+        console.print(diffs)
+        console.print()
+
+    # --- On-disk size ------------------------------------------------------
+    if not no_disk:
+        rows = session.execute(
+            text(
+                """
+                SELECT c.relname AS name,
+                       pg_total_relation_size(c.oid) AS total_bytes,
+                       pg_relation_size(c.oid) AS table_bytes,
+                       pg_indexes_size(c.oid) AS index_bytes
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relkind = 'r'
+                ORDER BY pg_total_relation_size(c.oid) DESC
+                LIMIT 15
+                """
+            )
+        ).all()
+        disk = Table(title="Disk usage (top 15)", title_style="bold cyan", header_style="bold")
+        disk.add_column("Table")
+        disk.add_column("Total", justify="right")
+        disk.add_column("Table", justify="right")
+        disk.add_column("Indexes", justify="right")
+        disk.add_column("TOAST", justify="right")  # embeddings + large text live here
+        for name, total_bytes, table_bytes, index_bytes in rows:
+            toast_bytes = total_bytes - table_bytes - index_bytes
+            disk.add_row(
+                name,
+                _format_size(total_bytes),
+                _format_size(table_bytes),
+                _format_size(index_bytes),
+                _format_size(toast_bytes),
+            )
+        console.print(disk)
+
+        db_bytes = session.execute(
+            text("SELECT pg_database_size(current_database())")
+        ).scalar()
+        console.print(f"\n[bold]Total database size:[/bold] {_format_size(db_bytes)}")
+
+
 @db.command("dump")
 @click.option("--output", "-o", type=click.Path(), default=None, help="Output filename (default: timestamped)")
 @click.option("--upload-s3", "s3_uri", default=None, help="Upload dump to S3 URI (e.g. s3://bucket/backups/)")
@@ -85,7 +309,7 @@ def dump_cmd(output: str | None, s3_uri: str | None):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_path = Path(f"symbology_{timestamp}.dump")
 
-    console.print(f"[bold blue]Dumping database: {db_settings.host}:{db_settings.port}/{db_settings.database_name}[/bold blue]")
+    console.print(f"[bold blue]Dumping database: {db_settings.host}:{db_settings.port}/{db_settings.name}[/bold blue]")
 
     try:
         env = os.environ.copy()
@@ -97,7 +321,7 @@ def dump_cmd(output: str | None, s3_uri: str | None):
             "-h", db_settings.host,
             "-p", str(db_settings.port),
             "-U", db_settings.user,
-            "-d", db_settings.database_name,
+            "-d", db_settings.name,
             "-f", str(out_path),
         ]
 

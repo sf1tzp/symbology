@@ -116,5 +116,11 @@ doc_type_prompts:
   market_risk: l1/market_risk
 
 form_document_types:
-  10-K: [business_description, risk_factors, management_discussion, controls_procedures]
+  10-K: [business_description, risk_factors, management_discussion, controls_procedures, market_risk]
   10-Q: [risk_factors, management_discussion, controls_procedures, market_risk]
+
+# The document type each form's company main content (L3) is built from. A 10-K
+# leads with its business description; a 10-Q has none, so it leads with the MD&A.
+form_main_content_source:
+  10-K: business_description
+  10-Q: management_discussion

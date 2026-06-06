@@ -15,7 +15,7 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
 
-export type JobStatusEnum = "cancelled" | "completed" | "failed" | "in_progress" | "pending";
+export type JobStatusEnum = "backoff" | "cancelled" | "completed" | "failed" | "in_progress" | "pending";
 
 export type JobTypeEnum = "backfill_chunks" | "backfill_embeddings" | "bulk_ingest" | "company_diff" | "company_group_pipeline" | "company_ingestion" | "company_page_content" | "content_generation" | "embed_filing" | "filing_diff" | "filing_ingestion" | "filing_page_content" | "test";
 
@@ -132,6 +132,7 @@ export interface CompanyGroups {
 export interface CompanyPageContent {
   company_id: string;
   created_at: Timestamp | null;
+  form: string;
   id: string;
   intro_content_id: string | null;
   main_content_id: string | null;
@@ -298,6 +299,7 @@ export interface GroupPageContentCompany {
 }
 
 export interface Jobs {
+  backoff_count: Generated<number>;
   completed_at: Timestamp | null;
   created_at: Timestamp;
   duration: number | null;

@@ -31,6 +31,27 @@ export function accountNavItem(user: NavUser): NavItem {
 	return user ? { href: '/account', label: 'Account' } : { href: '/login', label: 'Sign in' };
 }
 
+/**
+ * "Back to company" destination shown in place of the center mobile tab while on
+ * a company-context route (the company page itself, a filing, or a document).
+ */
+export function companyNavItem(ticker: string): NavItem {
+	return { href: `/c/${ticker}`, label: ticker };
+}
+
+/**
+ * The company ticker for the current page when on a company-context route
+ * (`/c`, `/f`, `/d`), or `null` elsewhere. The company page carries it in the
+ * route param; filing/document pages resolve it into `data.company`.
+ */
+export function companyContextTicker(
+	pathname: string,
+	data: { company?: { ticker?: string | null } | null } | null | undefined
+): string | null {
+	if (!/^\/(c|f|d)\//.test(pathname)) return null;
+	return data?.company?.ticker ?? null;
+}
+
 /** Whether `href` is the active destination for the current `pathname`. */
 export function isCurrentPath(pathname: string, href: string): boolean {
 	if (href === '/') return pathname === '/';

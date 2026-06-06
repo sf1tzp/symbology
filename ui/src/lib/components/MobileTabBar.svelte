@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { buildNavItems, accountNavItem, isCurrentPath, type NavUser } from '$lib/nav';
+	import {
+		buildNavItems,
+		accountNavItem,
+		companyNavItem,
+		companyContextTicker,
+		isCurrentPath,
+		type NavUser
+	} from '$lib/nav';
 	import House from '@lucide/svelte/icons/house';
 	import Building2 from '@lucide/svelte/icons/building-2';
 	import Star from '@lucide/svelte/icons/star';
@@ -26,7 +33,16 @@
 	// Same destinations as the desktop Navbar, plus the account/sign-in entry
 	// the Navbar shows as an avatar — surfaced here as a trailing tab so mobile
 	// users can reach their account without a separate menu.
-	let items = $derived([...buildNavItems(user), accountNavItem(user)]);
+	let baseItems = $derived([...buildNavItems(user), accountNavItem(user)]);
+
+	// On a company-context route (company/filing/document), swap the center Status
+	// tab for a quick link back to the company's main page.
+	let ticker = $derived(companyContextTicker(page.url.pathname, page.data));
+	let items = $derived(
+		ticker
+			? baseItems.map((item) => (item.href === '/status' ? companyNavItem(ticker) : item))
+			: baseItems
+	);
 </script>
 
 <!--
@@ -42,7 +58,7 @@
 >
 	{#each items as item (item.href)}
 		{@const active = isCurrentPath(page.url.pathname, item.href)}
-		{@const Icon = icons[item.href]}
+		{@const Icon = icons[item.href] ?? Building2}
 		<a
 			href={item.href}
 			aria-current={active ? 'page' : undefined}

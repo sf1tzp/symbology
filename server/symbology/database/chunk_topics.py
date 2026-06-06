@@ -90,20 +90,38 @@ def _normalize(vector: Sequence[float]) -> List[float]:
     return [v / norm for v in vector]
 
 
+# A single whitespace-delimited token longer than this marks a run-on label.
+# Real headings are spaced phrases; table-header artifacts arrive as smashed-
+# together camelCase (e.g. "CareBenefitsHealthServices...ConsolidatedTotals").
+# English heading words top out well below this, so a legitimate heading is safe.
+MAX_HEADING_TOKEN = 30
+
+
 def is_noise_label(label: Optional[str]) -> bool:
     """True when a topic/heading label carries no readable content.
 
-    These arise when the section chunker mistakes a separator artifact for a
-    heading — e.g. an underline rule (``"__________"``) between officer/signature
-    rows. Such labels are not used: the topic keeps its body but the diff
-    pipeline substitutes a readable member heading (or the section path) so a
-    change card never shows the artifact.
+    Two artifact shapes are treated as noise:
+
+    1. **Separator rules** — the section chunker mistakes an underline
+       (``"__________"``) or punctuation rule between officer/signature rows for
+       a heading. These have no alphanumeric character.
+    2. **Run-on table headers** — column labels concatenated without spaces
+       (``"CareBenefitsHealthServicesPharmacy &Consumer...Totals"``). These have
+       alphanumerics but an implausibly long single token; they break the UI and
+       read as garbage.
+
+    Noisy labels are not used: the topic keeps its body but the diff pipeline
+    substitutes a readable member heading (or the section path) so a change card
+    never shows the artifact.
 
     An *absent* label (``None`` / blank) is **not** noise: a real topic can
-    legitimately lack a heading and fall back to its section path. Only a
-    non-empty label with no alphanumeric character is treated as noise.
+    legitimately lack a heading and fall back to its section path.
     """
-    return bool(label and label.strip()) and not any(ch.isalnum() for ch in label)
+    if not (label and label.strip()):
+        return False
+    if not any(ch.isalnum() for ch in label):
+        return True
+    return any(len(token) > MAX_HEADING_TOKEN for token in label.split())
 
 
 def get_topics_for_scope(

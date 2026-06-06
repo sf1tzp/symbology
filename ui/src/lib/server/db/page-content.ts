@@ -123,12 +123,14 @@ export async function getCurrentDocumentPageContent(
  * L3 intro), and source-filing provenance, all resolved from generated_content.
  */
 export async function getCurrentCompanyPageContent(
-	companyId: string
+	companyId: string,
+	form?: string
 ): Promise<CompanyPageContentResponse | null> {
 	const page = await db
 		.selectFrom('company_page_content')
 		.select(['id', 'main_content_id', 'intro_content_id', 'created_at'])
 		.where('company_id', '=', companyId)
+		.$if(!!form, (qb) => qb.where('form', '=', form!))
 		.orderBy('created_at', 'desc')
 		.limit(1)
 		.executeTakeFirst();
@@ -165,6 +167,21 @@ export async function getCurrentCompanyPageContent(
 		})),
 		sourceFilingIds: filings.map((f) => f.filing_id)
 	};
+}
+
+/**
+ * The distinct filing forms a company has published page content for (e.g.
+ * ["10-K", "10-Q"]). Drives the page's form toggle — only render it when a
+ * company has more than one.
+ */
+export async function getCompanyPageForms(companyId: string): Promise<string[]> {
+	const rows = await db
+		.selectFrom('company_page_content')
+		.select('form')
+		.distinct()
+		.where('company_id', '=', companyId)
+		.execute();
+	return rows.map((r) => r.form);
 }
 
 /**

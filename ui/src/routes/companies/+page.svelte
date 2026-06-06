@@ -178,7 +178,6 @@
 <section class="">
 	<SectionHead
 		sticky
-		stickyHeading
 		eyebrow="{searchTerm.trim()
 			? 'Search results: ' + searchTerm
 			: 'All companies'} &middot; {total > 0 ? total.toLocaleString() + ' results' : ''}  results"
@@ -235,8 +234,7 @@
 			{#each companies as c (c.id)}
 				<a
 					href="/c/{c.ticker}"
-					class="docrow"
-					style="grid-template-columns: 70px 1fr auto auto 24px; text-decoration: none; color: inherit;"
+					class="docrow grid grid-cols-[45px_1fr_auto_auto_24px] text-inherit no-underline sm:grid-cols-[70px_1fr_auto_auto_24px]"
 				>
 					<div>
 						<span class="tag" style="font-size: 11px; font-weight: 500; color: var(--ink);">
@@ -248,7 +246,10 @@
 							{titleCase((c.display_name || c.name).toLowerCase())}
 						</div>
 						{#if c.sic_description}
-							<div class="meta" style="margin-top: 2px; color: var(--ink-4);">
+							<div
+								class="font-mono text-xs text-ink-3"
+								style="margin-top: 2px; color: var(--ink-4);"
+							>
 								{c.sic_description}
 							</div>
 						{/if}

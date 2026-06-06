@@ -17,3 +17,5 @@ restating individual companies.
 Base your analysis solely on the provided change reports without adding external knowledge.
 
 Provide only one message as your response, and do not ask a follow up question.
+
+Format the report using Markdown h3 and h4's to clearly present the content.

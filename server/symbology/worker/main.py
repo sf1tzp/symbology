@@ -9,11 +9,11 @@ import uuid
 
 from symbology.database.base import init_db, close_session
 from symbology.database.jobs import (
+    backoff_job,
     claim_next_job,
     complete_job,
     fail_job,
     heartbeat_job,
-    mark_stale_jobs_as_failed,
     requeue_job_for_shutdown,
 )
 from symbology.utils.config import settings
@@ -24,7 +24,7 @@ from symbology.llm.client import (
     set_shutdown_flag,
     reset_shutdown_flag,
 )
-from symbology.worker.handlers import get_handler, list_handlers
+from symbology.worker.handlers import DependencyNotReady, get_handler, list_handlers
 
 # Import handlers module so decorators run and register themselves
 
@@ -55,6 +55,12 @@ def _execute_job(job, db_session) -> None:
         result = handler(job.params or {})
         complete_job(job.id, result=result)
         logger.info("job_completed", job_id=str(job.id))
+    except DependencyNotReady as exc:
+        # Not a failure: a dependency isn't ready yet. Defer (BACKOFF) without
+        # burning a retry; the job polls until the dependency lands.
+        db_session.rollback()
+        logger.info("job_backoff", job_id=str(job.id), reason=str(exc))
+        backoff_job(job.id, reason=str(exc))
     except ShutdownRequested:
         # retry_backoff broke out of a backoff sleep cleanly. Requeue without
         # burning a retry; idempotent with the main loop's stuck-job path.
@@ -97,19 +103,7 @@ def run_worker() -> None:
     # the pool bounded (and makes running several workers in parallel safe).
     engine, db_session = init_db(settings.database.url)
 
-    last_stale_check = time.monotonic()
-
     while not shutdown_requested:
-        # Periodic stale-job sweep
-        now = time.monotonic()
-        if now - last_stale_check >= worker_settings.stale_check_interval:
-            try:
-                stale = mark_stale_jobs_as_failed(worker_settings.stale_threshold)
-                if stale:
-                    logger.info("stale_sweep_complete", recovered=len(stale))
-            except Exception:
-                logger.exception("stale_sweep_error")
-            last_stale_check = now
 
         # Try to claim work
         try:

@@ -153,7 +153,7 @@ function jobContext(
 			break;
 		case 'filing_ingestion':
 		case 'ingest_pipeline':
-			detailParts = [str('form'), str('count') ? `×${str('count')}` : null];
+			detailParts = [str('form'), str('count') ? `${str('count')}` : null];
 			break;
 		case 'full_pipeline': {
 			const forms = list('forms');
@@ -273,8 +273,8 @@ export interface WorkerRow {
 
 // ── Queries ──
 
-export async function getHeroStats(): Promise<HeroStats> {
-	const stat_window = sql<Date>`now() - interval '12 hours'`;
+export async function getHeroStats(window: number): Promise<HeroStats> {
+	const stat_window = sql<Date>`now() - make_interval(hours => ${window})`;
 
 	const [jobDurRes, gensRes, completedRes, workersRes, spendRes, p95Res] = await Promise.all([
 		// p95 job duration (wall-clock) over jobs completed in last 7d
@@ -286,14 +286,14 @@ export async function getHeroStats(): Promise<HeroStats> {
 			.where('duration', 'is not', null)
 			.executeTakeFirst(),
 
-		// Generations in last 7d
+		// Count of Generations
 		db
 			.selectFrom('generated_content')
 			.select(sql<number>`count(*)::int`.as('count'))
 			.where('created_at', '>=', stat_window)
 			.executeTakeFirstOrThrow(),
 
-		// Completed jobs in last 7d
+		// Count of Completed jobs
 		db
 			.selectFrom('jobs')
 			.select(sql<number>`count(*)::int`.as('count'))
@@ -309,7 +309,7 @@ export async function getHeroStats(): Promise<HeroStats> {
 			.where('worker_id', 'is not', null)
 			.executeTakeFirstOrThrow(),
 
-		// LLM spend in 12hr
+		// Estimated LLM spend
 		db
 			.selectFrom('generated_content')
 			.leftJoin('model_configs', 'model_configs.id', 'generated_content.model_config_id')
@@ -322,7 +322,7 @@ export async function getHeroStats(): Promise<HeroStats> {
 			.where('generated_content.created_at', '>=', stat_window)
 			.execute(),
 
-		// p95 latency
+		// p95 llm latency
 		db
 			.selectFrom('generated_content')
 			.select(sql<number>`percentile_cont(0.95) within group (order by total_duration)`.as('p95'))
@@ -592,14 +592,12 @@ export async function getJobQueueStats(): Promise<JobQueueStats> {
 			.selectFrom('jobs')
 			.select(sql<number>`count(*)::int`.as('count'))
 			.where('status', '=', 'pending')
-			.where('retry_count', '=', 0)
 			.executeTakeFirstOrThrow(),
 
 		db
 			.selectFrom('jobs')
 			.select(sql<number>`count(*)::int`.as('count'))
-			.where('status', '=', 'pending')
-			.where('retry_count', '>', 0)
+			.where('status', '=', 'backoff')
 			.executeTakeFirstOrThrow(),
 
 		db
@@ -636,7 +634,7 @@ export async function getJobQueueDepth(hours: number): Promise<QueueDepthPoint[]
 		left join jobs j on
 			j.created_at <= b.bucket_time
 			and (j.completed_at is null or j.completed_at > b.bucket_time)
-			and j.status in ('pending', 'in_progress', 'failed', 'cancelled')
+			and j.status in ('pending', 'backoff', 'in_progress', 'failed', 'cancelled')
 		group by b.bucket_time
 		order by b.bucket_time
 	`.execute(db);
@@ -659,7 +657,7 @@ export async function getActiveJobs(limit: number): Promise<ActiveJobRow[]> {
 			'created_at',
 			'started_at'
 		])
-		.where('status', 'in', ['pending', 'in_progress'])
+		.where('status', 'in', ['pending', 'backoff', 'in_progress'])
 		.orderBy(sql`case when status = 'in_progress' then 0 else 1 end`)
 		.orderBy('priority', 'desc')
 		.orderBy('created_at', 'asc')
@@ -686,7 +684,7 @@ export async function getActiveJobs(limit: number): Promise<ActiveJobRow[]> {
 
 		let state: 'running' | 'queued' | 'backoff' = 'queued';
 		if (r.status === 'in_progress') state = 'running';
-		else if (r.retry_count > 0) state = 'backoff';
+		else if (r.status === 'backoff') state = 'backoff';
 
 		return {
 			id: r.id,
@@ -776,4 +774,66 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 				rate: `${rate} / hr`
 			};
 		});
+}
+
+// ── Consolidated snapshot ──
+//
+// The default time window (in days for throughput, hours for queue depth) used
+// across the status dashboard's windowed stats. Shared by the SSR `load` and
+// the `/api/status` polling endpoint so both render the same scope.
+export const STAT_WINDOW = 6;
+
+export interface StatusSnapshot {
+	hero: HeroStats;
+	ingestionDays: IngestionDayRow[];
+	recentFilings: RecentFilingRow[];
+	contentBreakdown: ContentBreakdownRow[];
+	contentThroughput: ThroughputDayRow[];
+	contentLog: ContentLogRow[];
+	queueStats: JobQueueStats;
+	queueDepth: QueueDepthPoint[];
+	activeJobs: ActiveJobRow[];
+	workers: WorkerRow[];
+}
+
+// Single source of truth for the status dashboard payload. Both the page's
+// server `load` (initial SSR) and `GET /api/status` (60s poll) call this with
+// the same window, so the two never drift.
+export async function collectStatus(window: number = STAT_WINDOW): Promise<StatusSnapshot> {
+	const [
+		hero,
+		ingestionDays,
+		recentFilings,
+		contentBreakdown,
+		contentThroughput,
+		contentLog,
+		queueStats,
+		queueDepth,
+		activeJobs,
+		workers
+	] = await Promise.all([
+		getHeroStats(window),
+		getFilingIngestionByDay(14),
+		getRecentFilings(8),
+		getContentBreakdown(),
+		getContentThroughput(window),
+		getContentLog(9),
+		getJobQueueStats(),
+		getJobQueueDepth(window),
+		getActiveJobs(10),
+		getWorkerSummary()
+	]);
+
+	return {
+		hero,
+		ingestionDays,
+		recentFilings,
+		contentBreakdown,
+		contentThroughput,
+		contentLog,
+		queueStats,
+		queueDepth,
+		activeJobs,
+		workers
+	};
 }

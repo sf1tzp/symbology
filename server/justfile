@@ -31,6 +31,11 @@ test *ARGS: _create_venv
 migrate *ARGS: _create_venv
     uv run alembic upgrade head {{ARGS}}
 
+# Upgrade only as far as a specific revision (repo-root `db-init` uses this to
+# stop at the auth-schema checkpoint before Better Auth runs).
+migrate-to REV: _create_venv
+    uv run alembic upgrade {{REV}}
+
 migration-create message: _create_venv
     uv run alembic revision --autogenerate -m "{{message}}"
 

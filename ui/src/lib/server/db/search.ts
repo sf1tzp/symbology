@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { sql, type RawBuilder } from 'kysely';
+import { companyIsVisible } from './predicates';
 import type { SearchResponse } from '$lib/api-types';
 
 interface SearchOptions {
@@ -41,7 +42,7 @@ export async function unifiedSearch(
 				name as title, ticker as subtitle, null::text as date_value
 			FROM companies
 			WHERE search_vector @@ websearch_to_tsquery('english', ${query})
-				AND EXISTS (SELECT 1 FROM company_page_content cpc WHERE cpc.company_id = companies.id)
+				AND ${companyIsVisible('companies')}
 		`;
 		if (sic) {
 			q = sql`${q} AND sic = ${sic}`;
@@ -149,7 +150,7 @@ export async function unifiedSearch(
 			FROM companies
 			WHERE (ticker ILIKE ${query + '%'} OR name ILIKE ${'%' + query + '%'})
 				AND NOT (search_vector @@ websearch_to_tsquery('english', ${query}))
-				AND EXISTS (SELECT 1 FROM company_page_content cpc WHERE cpc.company_id = companies.id)
+				AND ${companyIsVisible('companies')}
 			ORDER BY ticker ASC
 			LIMIT ${limit}
 		`.execute(db);
@@ -165,7 +166,7 @@ export async function unifiedSearch(
 					SELECT count(*) as count FROM companies
 					WHERE (ticker ILIKE ${query + '%'} OR name ILIKE ${'%' + query + '%'})
 						AND NOT (search_vector @@ websearch_to_tsquery('english', ${query}))
-						AND EXISTS (SELECT 1 FROM company_page_content cpc WHERE cpc.company_id = companies.id)
+						AND ${companyIsVisible('companies')}
 				`.execute(db);
 				total += Number(fuzzyCount.rows[0]?.count ?? 0);
 

@@ -1,10 +1,10 @@
 """Database models and CRUD functions for background job queue."""
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, Index, Integer, String, Text, func, text
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text, cast, func, or_, text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
@@ -19,6 +19,10 @@ class JobStatus(str, Enum):
     """Job lifecycle states."""
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
+    # Waiting on an unmet dependency (e.g. source filing pages still generating).
+    # Distinct from a failure: it consumes no retry budget, polls until the dep
+    # lands (re-claimed when `scheduled_at` arrives), and has no give-up ceiling.
+    BACKOFF = "backoff"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -76,9 +80,14 @@ class Job(Base):
     # machinery (which retries immediately and burns max_retries).
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    # Retry
+    # Retry (genuine errors only)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     max_retries: Mapped[int] = mapped_column(Integer, default=3)
+
+    # Dependency-wait backoff. Counts how many times the job has re-deferred
+    # itself waiting on an unmet dependency; drives the exponential backoff
+    # delay. Separate from retry_count so a benign wait never looks like a crash.
+    backoff_count: Mapped[int] = mapped_column(Integer, default=0)
 
     # Result / error
     result: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON)
@@ -149,19 +158,39 @@ def get_job(job_id: Union[UUID, str]) -> Optional[Job]:
 
 
 def list_jobs(
-    status: Optional[JobStatus] = None,
+    status: Optional[Union[JobStatus, Sequence[JobStatus]]] = None,
     job_type: Optional[JobType] = None,
+    ticker: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> List[Job]:
-    """List jobs with optional filters."""
+    """List jobs with optional filters.
+
+    ``status`` may be a single ``JobStatus`` or a sequence of them, in which
+    case jobs matching any of the given statuses are returned.
+
+    ``ticker`` filters to jobs whose params reference a company by ticker. The
+    key varies by job type (``ticker``, ``company_ticker``, or a ``tickers``
+    list), so all are checked, case-insensitively.
+    """
     try:
         session = get_db_session()
         query = session.query(Job)
         if status:
-            query = query.filter(Job.status == status)
+            statuses = [status] if isinstance(status, JobStatus) else list(status)
+            query = query.filter(Job.status.in_(statuses))
         if job_type:
             query = query.filter(Job.job_type == job_type)
+        if ticker:
+            t = ticker.upper()
+            query = query.filter(
+                or_(
+                    func.upper(Job.params["ticker"].astext) == t,
+                    func.upper(Job.params["company_ticker"].astext) == t,
+                    # tickers is a JSON array; match the quoted element in its text form.
+                    func.upper(cast(Job.params["tickers"], String)).like(f'%"{t}"%'),
+                )
+            )
         query = query.order_by(Job.created_at.desc())
         jobs = query.offset(offset).limit(limit).all()
         logger.debug("listed_jobs", count=len(jobs), status=status, job_type=job_type)
@@ -292,10 +321,13 @@ def claim_next_job(worker_id: str) -> Optional[Job]:
     ``UPDATE`` can land on different backends, so two workers can claim the same
     row. A single statement is atomic under every pooling mode.
 
-    Deferred jobs (``scheduled_at`` in the future) are skipped until their time
-    arrives; a NULL ``scheduled_at`` is eligible immediately. The enum labels
-    (``'pending'`` / ``'in_progress'``) are inlined as untyped literals so they
-    coerce to ``job_status_enum`` without a bound-parameter cast.
+    Both ``pending`` and ``backoff`` (dependency-wait) jobs are eligible: a
+    ``backoff`` job is just a deferred job that's still waiting on a dependency,
+    re-claimed the same way once its time arrives. Deferred jobs (``scheduled_at``
+    in the future) are skipped until their time arrives; a NULL ``scheduled_at``
+    is eligible immediately. The enum labels (``'pending'`` / ``'backoff'`` /
+    ``'in_progress'``) are inlined as untyped literals so they coerce to
+    ``job_status_enum`` without a bound-parameter cast.
     """
     try:
         session = get_db_session()
@@ -312,7 +344,7 @@ def claim_next_job(worker_id: str) -> Optional[Job]:
                     started_at = now()
                 WHERE id = (
                     SELECT id FROM jobs
-                    WHERE status = 'pending'
+                    WHERE status IN ('pending', 'backoff')
                       AND (scheduled_at IS NULL OR scheduled_at <= :now)
                     ORDER BY priority, created_at
                     FOR UPDATE SKIP LOCKED
@@ -387,6 +419,47 @@ def fail_job(job_id: Union[UUID, str], error: str) -> Optional[Job]:
     except Exception as e:
         session.rollback()
         logger.error("fail_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
+        raise
+
+
+def backoff_job(job_id: Union[UUID, str], reason: str) -> Optional[Job]:
+    """Defer a job that's waiting on an unmet dependency.
+
+    Unlike :func:`fail_job`, this is NOT a failure: it consumes no retry budget
+    and never gives up. The job goes to BACKOFF with ``scheduled_at`` set by an
+    exponential backoff (floor ``dependency_requeue_delay``, ceiling
+    ``dependency_requeue_delay_max``) keyed off ``backoff_count``, so the first
+    re-check is quick (deps usually land within a minute or two) and later ones
+    back off to a cheap poll. It is re-claimed by :func:`claim_next_job` once its
+    time arrives. ``reason`` is stored in ``error`` for visibility.
+    """
+    from symbology.worker.config import worker_settings
+
+    try:
+        session = get_db_session()
+        job = session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            logger.warning("backoff_job_not_found", job_id=str(job_id))
+            return None
+        job.backoff_count += 1
+        delay = min(
+            worker_settings.dependency_requeue_delay * (2 ** (job.backoff_count - 1)),
+            worker_settings.dependency_requeue_delay_max,
+        )
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        job.scheduled_at = now + timedelta(seconds=delay)
+        job.status = JobStatus.BACKOFF
+        job.worker_id = None
+        job.started_at = None
+        job.error = reason
+        session.commit()
+        logger.info("backoff_job", job_id=str(job.id), backoff_count=job.backoff_count,
+                    delay_seconds=delay, scheduled_at=job.scheduled_at.isoformat(),
+                    reason=reason)
+        return job
+    except Exception as e:
+        session.rollback()
+        logger.error("backoff_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
         raise
 
 
@@ -495,28 +568,41 @@ def requeue_failed_jobs(job_type: Optional[JobType] = None) -> List[Job]:
 
 
 def requeue_job(job_id: Union[UUID, str]) -> Optional[Job]:
-    """Reset a single FAILED job to PENDING so it can be retried.
+    """Requeue a single FAILED, CANCELLED, or BACKOFF job for immediate execution.
 
-    Clears retry_count, worker_id, error, started_at, and completed_at. Returns
-    None if the job does not exist or is not in FAILED status.
+    A FAILED or CANCELLED job is reset to PENDING with its retry budget cleared
+    (retry_count, worker_id, error, started_at, completed_at). A BACKOFF job —
+    still on the queue, just deferred while waiting on a dependency — is left in
+    BACKOFF but has its ``scheduled_at`` pulled forward to now so the next poll
+    claims it immediately instead of waiting out the backoff delay. Returns None
+    if the job does not exist or is not in a requeuable status.
     """
     try:
         session = get_db_session()
         job = (
             session.query(Job)
-            .filter(Job.id == job_id, Job.status == JobStatus.FAILED)
+            .filter(
+                Job.id == job_id,
+                Job.status.in_([JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.BACKOFF]),
+            )
             .first()
         )
         if not job:
             return None
-        job.status = JobStatus.PENDING
-        job.retry_count = 0
-        job.worker_id = None
-        job.error = None
-        job.started_at = None
-        job.completed_at = None
+        if job.status == JobStatus.BACKOFF:
+            # Already eligible for claiming once scheduled_at arrives; just bring
+            # that forward to now. Keep backoff_count so a later self-deferral
+            # resumes the exponential schedule rather than restarting it.
+            job.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        else:
+            job.status = JobStatus.PENDING
+            job.retry_count = 0
+            job.worker_id = None
+            job.error = None
+            job.started_at = None
+            job.completed_at = None
         session.commit()
-        logger.info("requeued_job", job_id=str(job.id))
+        logger.info("requeued_job", job_id=str(job.id), status=job.status.value)
         return job
     except Exception as e:
         session.rollback()
@@ -524,21 +610,43 @@ def requeue_job(job_id: Union[UUID, str]) -> Optional[Job]:
         raise
 
 
-def cancel_failed_jobs(job_type: Optional[JobType] = None) -> int:
-    """Bulk-cancel FAILED jobs (FAILED → CANCELLED). Returns count affected."""
+def cancel_jobs_by_status(
+    statuses: Union[JobStatus, Iterable[JobStatus]],
+    job_type: Optional[JobType] = None,
+) -> int:
+    """Bulk-cancel jobs in the given status(es) (→ CANCELLED). Returns count affected.
+
+    Accepts a single status or an iterable of statuses; CANCELLED and COMPLETED
+    jobs are never re-cancelled even if requested.
+    """
+    if isinstance(statuses, JobStatus):
+        statuses = [statuses]
+    statuses = [s for s in statuses if s not in (JobStatus.CANCELLED, JobStatus.COMPLETED)]
+    if not statuses:
+        return 0
     try:
         session = get_db_session()
-        query = session.query(Job).filter(Job.status == JobStatus.FAILED)
+        query = session.query(Job).filter(Job.status.in_(statuses))
         if job_type:
             query = query.filter(Job.job_type == job_type)
-        count = query.update({Job.status: JobStatus.CANCELLED})
+        count = query.update({Job.status: JobStatus.CANCELLED}, synchronize_session=False)
         session.commit()
-        logger.info("cancelled_failed_jobs", count=count, job_type=job_type)
+        logger.info(
+            "cancelled_jobs_by_status",
+            count=count,
+            statuses=[s.value for s in statuses],
+            job_type=job_type,
+        )
         return count
     except Exception as e:
         session.rollback()
-        logger.error("cancel_failed_jobs_failed", error=str(e), exc_info=True)
+        logger.error("cancel_jobs_by_status_failed", error=str(e), exc_info=True)
         raise
+
+
+def cancel_failed_jobs(job_type: Optional[JobType] = None) -> int:
+    """Bulk-cancel FAILED jobs (FAILED → CANCELLED). Returns count affected."""
+    return cancel_jobs_by_status(JobStatus.FAILED, job_type=job_type)
 
 
 def mark_stale_jobs_as_failed(stale_threshold_seconds: int = 600) -> List[Job]:

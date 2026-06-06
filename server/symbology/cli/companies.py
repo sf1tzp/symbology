@@ -1,6 +1,7 @@
 """CLI commands for company management."""
 
 import sys
+from datetime import date
 
 import click
 from rich.console import Console
@@ -20,6 +21,37 @@ def init_session():
     """Initialize database session."""
     init_db(settings.database.url)
     return get_db_session()
+
+
+def _fye_on(year: int, fye: date) -> date:
+    """The fiscal-year-end falling in ``year`` (clamps a 02-29 FYE on non-leap years)."""
+    day = fye.day
+    while True:
+        try:
+            return date(year, fye.month, day)
+        except ValueError:
+            day -= 1  # e.g. Feb 29 -> Feb 28 in a non-leap year
+
+
+def current_fiscal_quarter_label(fye: date, today: date) -> str:
+    """Where a company is in its fiscal year *right now*, e.g. "FY2026 Q3".
+
+    Derived from the fiscal-year-end day and today: the fiscal year is named for
+    the calendar year it ends in, and the quarter is the count of (whole) three-
+    month blocks elapsed since the fiscal year began (the day after the prior
+    year-end). Day-accurate so a company mid-quarter isn't bumped to the next one.
+    """
+    # End of the fiscal year we're currently in: the first FYE on or after today.
+    fye_end = _fye_on(today.year, fye)
+    if fye_end < today:
+        fye_end = _fye_on(today.year + 1, fye)
+    # Fiscal year started the day after the previous year-end.
+    fy_start = _fye_on(fye_end.year - 1, fye)
+    months = (today.year - fy_start.year) * 12 + (today.month - fy_start.month)
+    if today.day <= fy_start.day:  # not yet a full month past the year-end day
+        months -= 1
+    quarter = min(max(months // 3 + 1, 1), 4)
+    return f"FY{fye_end.year} Q{quarter}"
 
 
 @click.group()
@@ -128,13 +160,19 @@ def list_companies(limit: int, sector: str, industry: str):
         table.add_column("Name", style="white")
         table.add_column("Sector", style="magenta")
         table.add_column("Industry", style="yellow")
+        table.add_column("Fiscal Year End", style="green")
+        table.add_column("Current Quarter", style="green")
 
+        today = date.today()
         for company in companies_list:
+            fye = company.fiscal_year_end
             table.add_row(
                 company.ticker,
                 company.name[:40] + "..." if len(company.name) > 40 else company.name,
                 company.sic or "Unknown",
                 company.sic_description[:30] + "..." if company.sic_description and len(company.sic_description) > 30 else (company.sic_description or "Unknown"),
+                fye.strftime("%m-%d") if fye else "—",
+                current_fiscal_quarter_label(fye, today) if fye else "—",
             )
 
         console.print(table)

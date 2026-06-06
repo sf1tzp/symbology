@@ -6,7 +6,7 @@ per-document-type L1 prompts, and the form->document-types map. The YAML is the
 source of truth for the *current* config; ModelConfig/Prompt rows are still
 created lazily by ``ensure_*`` at run time and deduped by content hash.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -35,6 +35,13 @@ class PipelineConfig:
     prompts: Dict[str, str]
     doc_type_prompts: Dict[str, str]
     form_document_types: Dict[str, List[str]]
+    # Per-form document type the company main content (L3) is anchored on. A 10-K
+    # leads with its business description; a 10-Q has none, so it leads with MD&A.
+    form_main_content_source: Dict[str, str] = field(default_factory=dict)
+
+    def main_content_source(self, form: str) -> str:
+        """The change-report document type to anchor a form's company main content."""
+        return self.form_main_content_source.get(form, "business_description")
 
     def model_config_options(self, stage: str) -> Dict:
         """The ``{model, max_tokens, temperature}`` for a stage."""
@@ -113,6 +120,7 @@ def load_pipeline_config(prompts_dir: Optional[Union[str, Path]] = None) -> Pipe
         prompts=data["prompts"],
         doc_type_prompts=data["doc_type_prompts"],
         form_document_types=data["form_document_types"],
+        form_main_content_source=data.get("form_main_content_source", {}),
     )
 
 

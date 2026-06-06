@@ -30,6 +30,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Ordering guard: the FK below targets auth."user", which is created by
+    # `@better-auth/cli migrate`, NOT Alembic. If someone runs a straight
+    # `alembic upgrade head` on a fresh DB they'd otherwise hit a cryptic
+    # `relation "auth.user" does not exist`. Fail early with an actionable
+    # message instead. (`just db-init` from the repo root sequences this for you.)
+    if op.get_bind().execute(sa.text('SELECT to_regclass(\'auth."user"\')')).scalar() is None:
+        raise RuntimeError(
+            'auth."user" is missing — run `npx @better-auth/cli migrate` (from ui/) '
+            "before continuing this migration. From the repo root, `just db-init` "
+            "sequences the whole bootstrap. See server/alembic/README."
+        )
+
     op.create_table(
         'watchlist',
         sa.Column('id', sa.Uuid(), primary_key=True, server_default=sa.text('gen_random_uuid()')),

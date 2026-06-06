@@ -30,6 +30,7 @@
 		'Self-hosted generations are metered by compute time at that rate; Claude API calls are counted at Anthropic per-token rates.';
 
 	// Mutable state for polling
+	let stat_window = $state<number | null>(data.stat_window);
 	let hero = $state<HeroStats | null>(data.hero);
 	let ingestionDays = $state<IngestionDayRow[]>(data.ingestionDays);
 	let recentFilings = $state<RecentFilingRow[]>(data.recentFilings);
@@ -45,7 +46,7 @@
 	let lastRefreshed = $state(new Date());
 	let refreshAgo = $state('just now');
 
-	// Poll every 10s
+	// Poll every 60s
 	$effect(() => {
 		const interval = setInterval(async () => {
 			try {
@@ -67,7 +68,7 @@
 			} catch {
 				/* silent */
 			}
-		}, 10_000);
+		}, 60_000);
 		return () => clearInterval(interval);
 	});
 
@@ -167,7 +168,7 @@
 				<span class="stat-value" style="font-size: 2rem;">{hero.workersOnline} </span>
 			</div>
 			<div class="stat" style="padding: 1rem 0;">
-				<span class="stat-label">Completed jobs &middot; 12hr</span>
+				<span class="stat-label">Completed jobs &middot; {stat_window}hr</span>
 				<span class="stat-value" style="font-size: 2rem;">{hero.completedCount}</span>
 			</div>
 			<div class="stat" style="padding: 1rem 0;">
@@ -178,21 +179,23 @@
 			</div>
 			<div class="stat" style="padding: 1rem 0; border-top: 1px solid var(--rule);">
 				<span class="stat-label flex items-center gap-1">
-					LLM spend &middot; 12hr
+					LLM spend &middot; {stat_window}hr
+				</span>
+				<span class="stat-value" style="font-size: 2rem;">${hero.llmSpend.toFixed(2)}</span>
+				<span class="" style="color: var(--ink-4);"
+					>Estimated
+
 					<span
 						class="spec-help"
 						title={HOST_SPECS}
 						style="display: inline-flex; align-items: center; color: var(--ink-4); cursor: help;"
 					>
-						<CircleQuestionMark style="width: 11px; height: 11px;" />
+						<CircleQuestionMark class="size-3" />
 					</span>
 				</span>
-				<span class="stat-value" style="font-size: 2rem;">${hero.llmSpend.toFixed(2)}</span>
-				<span class="meta" style="color: var(--ink-3);">${hero.avgCostPerGen.toFixed(3)} / gen</span
-				>
 			</div>
 			<div class="stat" style="padding: 1rem 0; border-top: 1px solid var(--rule);">
-				<span class="stat-label">Generations &middot; 12hr</span>
+				<span class="stat-label">Generations &middot; {stat_window}hr</span>
 				<span class="stat-value" style="font-size: 2rem;">{hero.generationsCount}</span>
 			</div>
 			<div class="stat" style="padding: 1rem 0; border-top: 1px solid var(--rule);">
@@ -221,7 +224,7 @@
 		{#if queueDepth.length > 0}
 			<div class="status-card" style="padding: 1.75rem;">
 				<div class="flex-between" style="margin-bottom: 1.125rem;">
-					<h3 class="sub">Depth &middot; last 24h</h3>
+					<h3 class="sub">Depth &middot; last {stat_window}hr</h3>
 					<span class="meta">peak {Math.max(...queueDepth.map((d) => d.v))}</span>
 				</div>
 				<AreaChart data={queueDepth} color="var(--ink-2)" height={170} />
@@ -236,7 +239,7 @@
 					<span class="meta">{totalPending} pending &middot; {queueStats.running} running</span>
 				</div>
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem;">
-					{#each [{ k: 'Running', v: queueStats.running, c: '#3d8bff', sub: '' }, { k: 'Queued', v: queueStats.queued, c: 'var(--ink-2)', sub: 'FIFO within priority' }, { k: 'Scheduled', v: queueStats.backoff, c: 'var(--warn)', sub: 'Not Implemented' }, { k: 'Failed · 24h', v: queueStats.failed24h, c: 'var(--danger)', sub: 'dead-letter' }] as s (s.k)}
+					{#each [{ k: 'Running', v: queueStats.running, c: '#3d8bff', sub: '' }, { k: 'Queued', v: queueStats.queued, c: 'var(--ink-2)', sub: 'FIFO within priority' }, { k: 'Backoff', v: queueStats.backoff, c: 'var(--warn)', sub: 'waiting on deps' }, { k: 'Failed · 24h', v: queueStats.failed24h, c: 'var(--danger)', sub: 'dead-letter' }] as s (s.k)}
 						<div
 							style="padding: 1rem 1.125rem; border: 1px solid var(--rule); border-radius: 10px;"
 						>
@@ -479,7 +482,7 @@
 			</div>
 		</div>
 
-		<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+		<div class="flex flex-col gap-8">
 			{#each workers as w (w.id)}
 				<div
 					class="status-card"
@@ -560,7 +563,7 @@
 {/if}
 
 <!-- ═══════════ INGESTION ═══════════ -->
-<section class="hairline-section" id="ingestion">
+<section class="hairline-section mb-4" id="ingestion">
 	<div class="flex-between" style="align-items: flex-end; margin-bottom: 1.75rem;">
 		<div>
 			<div class="eyebrow" style="margin-bottom: 0.625rem;">
@@ -577,7 +580,7 @@
 				segments={['k', 'q', '_8k', 'other']}
 				colors={['var(--teal-2)', 'var(--olive)', 'var(--ink-2)', 'var(--ink-4)']}
 				height={220}
-			/>
+			/> // fix me: type error
 			<div
 				style="display: flex; gap: 1.75rem; margin-top: 0.875rem; padding-top: 1.125rem; border-top: 1px solid var(--rule); flex-wrap: wrap;"
 			>
@@ -640,14 +643,6 @@
 		</div>
 	{/if}
 </section>
-
-<!-- ═══════════ FOOTER ═══════════ -->
-<footer
-	style="margin-top: 5rem; padding-top: 1.75rem; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; color: var(--ink-4);"
->
-	<div class="meta">Operator console &middot; symbology-ops</div>
-	<div class="meta">All times UTC &middot; auto-refresh 10s</div>
-</footer>
 
 <style>
 	/* ── Card surface ── */

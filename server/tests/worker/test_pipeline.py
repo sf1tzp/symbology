@@ -151,8 +151,9 @@ class TestPipelineConstants:
     def test_form_document_types_coverage(self):
         assert "10-K" in FORM_DOCUMENT_TYPES
         assert "10-Q" in FORM_DOCUMENT_TYPES
-        assert len(FORM_DOCUMENT_TYPES["10-K"]) == 4
+        assert len(FORM_DOCUMENT_TYPES["10-K"]) == 5
         assert len(FORM_DOCUMENT_TYPES["10-Q"]) == 4
+        assert "market_risk" in FORM_DOCUMENT_TYPES["10-K"]
 
     def test_pipeline_prompts_stages(self):
         assert "aggregate_summary" in PIPELINE_PROMPTS

@@ -11,7 +11,7 @@ const { Pool } = pg;
  * Dedicated pool for Better Auth. Same database as the app's Kysely pool, but
  * `search_path=auth` so Better Auth's tables (user/session/account/
  * verification) live in the `auth` schema. The `auth` schema is created by the
- * Alembic migration `p5f6a7b8c9d0`; the tables inside are created by
+ * Alembic migration `r7b8c9d0e1f2`; the tables inside are created by
  * `@better-auth/cli migrate`. Alembic owns `public` and never touches `auth`.
  */
 const authPool = new Pool({

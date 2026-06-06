@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CircleQuestionMark } from '@lucide/svelte';
 
-	let { size = 10 }: { size?: number } = $props();
+	let { size = 8 }: { size?: number } = $props();
 </script>
 
 <a
@@ -10,7 +10,7 @@
 	title="What are synthesis levels?"
 	aria-label="What are synthesis levels?"
 >
-	<CircleQuestionMark style="width: {size}px; height: {size}px;" />
+	<CircleQuestionMark class="-mt-1 -ml-1" style="width: {size}px; height: {size}px;" />
 </a>
 
 <style>

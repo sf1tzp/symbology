@@ -24,19 +24,18 @@ class WorkerSettings(BaseSettings):
         default=60.0, description="Seconds between stale-job sweeps"
     )
     dependency_requeue_delay: float = Field(
-        default=600.0,
+        default=120.0,
         description=(
-            "Seconds a company page job waits before re-checking when its source "
-            "filing pages are still being generated (deferred via Job.scheduled_at)."
+            "Base seconds a job in BACKOFF waits before re-checking when its source "
+            "filing pages / embeddings are still being generated (deferred via "
+            "Job.scheduled_at). Floor of the exponential backoff in backoff_job(), "
+            "so the first re-check is quick and later ones back off (keyed off "
+            "Job.backoff_count)."
         ),
     )
-    dependency_requeue_max_attempts: int = Field(
-        default=6,
-        description=(
-            "Max times a company page job reschedules itself waiting on in-flight "
-            "filing page content before failing loudly. Bounds the wait separately "
-            "from max_retries (which counts genuine crashes, retried immediately)."
-        ),
+    dependency_requeue_delay_max: float = Field(
+        default=600.0,
+        description="Ceiling (seconds) for the exponential dep-wait backoff.",
     )
 
     model_config = SettingsConfigDict(

@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 import { db } from '../db';
 import type {
 	FilingResponse,
@@ -6,10 +7,28 @@ import type {
 	CompanyResponse
 } from '$lib/api-types';
 
+/**
+ * Estimate the total document input tokens across a set of filings — the volume
+ * of source text the synthesis considered. No per-document token count is stored,
+ * so we sum the substantive document content length and approximate at the common
+ * ~4 chars/token ratio. Returns 0 for an empty filing set.
+ */
+export async function getSourceFilingInputTokens(filingIds: string[]): Promise<number> {
+	if (filingIds.length === 0) return 0;
+	const row = await db
+		.selectFrom('documents')
+		.select((eb) => eb.fn.sum<number>(sql`char_length(content)`).as('chars'))
+		.where('filing_id', 'in', filingIds)
+		.where('is_substantive', '=', true)
+		.executeTakeFirst();
+	const chars = Number(row?.chars ?? 0);
+	return Math.round(chars / 4);
+}
+
 export async function getFilingsTimeline(
 	ticker: string,
 	limit: number = 20,
-	form?: string
+	form?: string | string[]
 ): Promise<FilingTimelineResponse[]> {
 	// 1. Get company ID
 	const company = await db
@@ -20,10 +39,13 @@ export async function getFilingsTimeline(
 
 	if (!company) return [];
 
-	// 2. Get filings ordered by period_of_report ASC (optionally filtered by form)
+	// 2. Get filings ordered by period_of_report ASC (optionally filtered by one
+	//    form or a set of forms, e.g. ['10-K','10-Q'] for the company timeline).
 	let query = db.selectFrom('filings').selectAll().where('company_id', '=', company.id);
 
-	if (form) {
+	if (Array.isArray(form)) {
+		if (form.length > 0) query = query.where('form', 'in', form);
+	} else if (form) {
 		query = query.where('form', '=', form);
 	}
 

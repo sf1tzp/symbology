@@ -544,6 +544,14 @@
 		border-left-color: var(--ink-4);
 	}
 
+	/* Responsive grid wrapping the ChangeCard component. min(300px, 100%) keeps a
+	   single card from forcing overflow on phones narrower than 300px of content. */
+	.change-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+		gap: 1rem;
+	}
+
 	/* ── Document rows ── */
 	.docrow {
 		display: grid;

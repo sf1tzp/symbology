@@ -25,6 +25,8 @@
 		 * sits directly under the eyebrow in the pinned bar.
 		 */
 		stickyHeading?: boolean;
+		/** Colour of the eyebrow dot. Defaults to teal; the 10-Q page passes plum. */
+		accent?: string;
 		class?: string;
 	}
 	let {
@@ -35,6 +37,7 @@
 		diffHelp = false,
 		sticky = false,
 		stickyHeading = false,
+		accent = 'var(--teal-2)',
 		class: className = ''
 	}: Props = $props();
 
@@ -88,11 +91,8 @@
 			: ''} bg-background/80 backdrop-blur-md"
 	>
 		{#if eyebrow}
-			<div
-				class="eyebrow flex"
-				style="align-items: center; {stickyHeading ? 'margin-bottom: 8px;' : ''}"
-			>
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{eyebrow}&nbsp;
+			<div class="eyebrow flex align-baseline" style={stickyHeading ? 'margin-bottom: 8px;' : ''}>
+				<span style="color: {accent};">&#9679;</span>&nbsp;&nbsp;{eyebrow}&nbsp;
 				{#if synthesisHelp}<SynthesisHelp />{/if}
 				{#if diffHelp}<DiffHelp />{/if}
 			</div>
@@ -117,7 +117,7 @@
 		<div>
 			{#if eyebrow}
 				<div class="eyebrow flex" style="margin-bottom: 10px; align-items: center;">
-					<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{eyebrow}&nbsp;
+					<span style="color: {accent};">&#9679;</span>&nbsp;&nbsp;{eyebrow}&nbsp;
 					{#if synthesisHelp}<SynthesisHelp />{/if}
 					{#if diffHelp}<DiffHelp />{/if}
 				</div>

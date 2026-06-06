@@ -11,6 +11,17 @@ from symbology.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
+class DependencyNotReady(Exception):
+    """Signal that a job can't proceed yet because a dependency isn't ready.
+
+    A benign control-flow signal, NOT a crash. The worker catches it and defers
+    the job (``backoff_job``) instead of failing it: no retry budget is consumed
+    and the job polls until the dependency lands. Handlers raise this after
+    ensuring the missing dependency has a job in flight.
+    """
+
+
 # handler signature: (params: dict) -> Optional[dict]
 HandlerFn = Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]
 _registry: Dict[JobType, HandlerFn] = {}
@@ -141,10 +152,13 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     from symbology.database.companies import get_company_by_ticker
     from symbology.database.documents import Document
     from symbology.database.generated_content import (
+        ContentStage,
         compute_generation_depth,
         create_generated_content,
+        find_existing_generated_content,
         get_generated_content_by_hash,
     )
+    from symbology.database.documents import DocumentType
     from symbology.database.prompts import Prompt
     from symbology.llm.client import get_generate_response
     from symbology.llm.prompts import format_user_prompt_content
@@ -158,6 +172,7 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     document_type_str = params.get("document_type")
     form_type = params.get("form_type")
     content_stage_str = params.get("content_stage")
+    force = params.get("force", False)
     # Subject/scope FKs (set per page-content kind; company_id is derived from ticker below).
     company_group_id = params.get("company_group_id")
     filing_id = params.get("filing_id")
@@ -204,6 +219,35 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
         model_config, f"{system_prompt.content}\n{user_prompt_text}"
     )
 
+    # Resolve structured metadata (needed for the dedup key below).
+    resolved_document_type = DocumentType(document_type_str) if document_type_str else None
+    resolved_content_stage = ContentStage(content_stage_str) if content_stage_str else None
+
+    # Centralized dedup: skip the LLM call if content already exists for the same
+    # (sources, prompt, *resolved* model, stage). This runs after overflow
+    # resolution, so the key matches what we store — unlike the pre-overflow
+    # stage-level checks, which miss whenever a prompt overflows to Anthropic.
+    if not force:
+        existing = find_existing_generated_content(
+            content_stage=resolved_content_stage,
+            system_prompt_id=system_prompt.id,
+            model_config_id=model_config.id,
+            source_document_ids=[d.id for d in source_documents] or None,
+            source_content_ids=[c.id for c in source_content] or None,
+        )
+        if existing and existing.content_hash:
+            logger.info(
+                "handler_content_generation_reuse",
+                description=description,
+                content_id=str(existing.id),
+                content_hash=existing.content_hash[:12],
+            )
+            return {
+                "content_id": str(existing.id),
+                "content_hash": existing.content_hash,
+                "was_created": False,
+            }
+
     # Call LLM
     logger.info("handler_content_generation_start", description=description)
     response, warning = get_generate_response(model_config, system_prompt.content, user_prompt_text)
@@ -214,12 +258,6 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
         company = get_company_by_ticker(company_ticker)
         if company:
             company_id = company.id
-
-    # Resolve structured metadata
-    from symbology.database.documents import DocumentType
-    from symbology.database.generated_content import ContentStage
-    resolved_document_type = DocumentType(document_type_str) if document_type_str else None
-    resolved_content_stage = ContentStage(content_stage_str) if content_stage_str else None
 
     # Save generated content
     content_data = {
@@ -646,9 +684,9 @@ def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, An
     except FilingPageContentNotReady as exc:
         # Dependency gate, not a real failure: the source filing pages aren't
         # published yet. Ensure each missing filing has a page job in flight
-        # (queue one if not) and defer this company page rather than burning
-        # retries on a tight crash loop.
-        return _await_filing_page_content(ticker, form, params, exc)
+        # (queue one if not), then raise DependencyNotReady so the worker defers
+        # this same job (BACKOFF) rather than burning retries on a crash loop.
+        _await_filing_page_content(ticker, form, exc)
 
     logger.info("handler_company_page_content_done", ticker=ticker,
                 form=form, company_id=str(company.id))
@@ -688,24 +726,23 @@ def _filing_page_job_in_flight(filing, active_jobs) -> bool:
     return False
 
 
-def _await_filing_page_content(ticker, form, params, exc):
-    """React to missing source filing pages: enqueue what's absent, defer the rest.
+def _await_filing_page_content(ticker, form, exc):
+    """React to missing source filing pages: enqueue what's absent, then defer.
 
     For each missing filing id from ``exc``: if a filing page job is already in
     flight, leave it; otherwise queue a fresh one by accession number (covers the
     never-queued case *and* a prior job that died transiently — it's no longer in
-    flight, so we re-queue). Then reschedule this company page job
-    ``dependency_requeue_delay`` seconds out via ``scheduled_at``, bounded by
-    ``dependency_requeue_max_attempts`` so a permanently-broken filing can't keep
-    it pending forever.
+    flight, so we re-queue). Then raise :class:`DependencyNotReady`, which the
+    worker turns into a BACKOFF defer of this same company page job (no retry
+    burned, no copy spawned). A company page is pure synthesis and can't degrade
+    to a partial, so it waits until its filing pages land rather than emitting a
+    page that cites unpublished analysis.
     """
-    from datetime import datetime, timedelta, timezone
     from uuid import UUID
 
     from symbology.database.base import get_db_session
     from symbology.database.filings import Filing
     from symbology.database.jobs import JobType, create_job, get_active_jobs
-    from symbology.worker.config import worker_settings
 
     session = get_db_session()
     active_filing_jobs = get_active_jobs(JobType.FILING_PAGE_CONTENT)
@@ -731,38 +768,13 @@ def _await_filing_page_content(ticker, form, params, exc):
         logger.info("dep_filing_page_queued", filing_id=fid,
                     accession_number=filing.accession_number, job_id=str(job.id))
 
-    attempts = int(params.get("_dep_wait_attempts", 0)) + 1
-    if attempts > worker_settings.dependency_requeue_max_attempts:
-        logger.error("company_page_dep_wait_exhausted", ticker=ticker, form=form,
-                     attempts=attempts, missing=exc.missing_filing_ids,
-                     unresolved=unresolved)
-        # Out of patience — fail loudly so it lands in failed jobs.
-        raise exc
-
-    delay = worker_settings.dependency_requeue_delay
-    scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=delay)
-    successor = create_job(
-        job_type=JobType.COMPANY_PAGE_CONTENT,
-        params={**params, "_dep_wait_attempts": attempts},
-        priority=2,
-        scheduled_at=scheduled_at,
+    logger.info("company_page_waiting_on_filing_pages", ticker=ticker, form=form,
+                queued_filing_pages=queued, waiting_on=waiting, unresolved=unresolved)
+    raise DependencyNotReady(
+        f"company page {ticker} {form} waiting on filing pages "
+        f"(queued={len(queued)}, in_flight={len(waiting)}, unresolved={len(unresolved)})"
     )
-    logger.info("company_page_requeued_for_deps", ticker=ticker, form=form,
-                attempt=attempts, max_attempts=worker_settings.dependency_requeue_max_attempts,
-                delay_seconds=delay, scheduled_at=scheduled_at.isoformat(),
-                queued_filing_pages=queued, waiting_on=waiting,
-                successor_job_id=str(successor.id))
-    return {
-        "ticker": ticker,
-        "form": form,
-        "status": "requeued_waiting_on_filing_pages",
-        "attempt": attempts,
-        "queued_filing_pages": queued,
-        "waiting_on_in_flight": waiting,
-        "unresolved_filing_ids": unresolved,
-        "scheduled_at": scheduled_at.isoformat(),
-        "successor_job_id": str(successor.id),
-    }
+
 
 def _backfill_query(params: Dict[str, Any]):
     """Build the (document_id, company_id, document_type) query for backfill jobs.
@@ -960,17 +972,16 @@ def _order_filings(a, b):
     return (a, b) if sort_key(a) <= sort_key(b) else (b, a)
 
 
-def _await_filing_diff_embeddings(not_ready, params):
-    """Enqueue EMBED_FILING for not-yet-embedded filings and defer this diff job.
+def _await_filing_diff_embeddings(not_ready):
+    """Enqueue EMBED_FILING for not-yet-embedded filings, then defer this diff job.
 
-    Mirrors :func:`_await_filing_page_content`. Returns the deferral payload, or
-    ``None`` when the retry budget is exhausted (the caller then diffs
-    best-effort over whatever chunks exist, rather than failing).
+    Mirrors :func:`_await_filing_page_content`. Queues an embed job for each
+    not-yet-embedded side that doesn't already have one in flight, then raises
+    :class:`DependencyNotReady` so the worker defers this same diff job (BACKOFF)
+    until the embeddings land — rather than diffing best-effort over partial
+    chunks.
     """
-    from datetime import datetime, timedelta, timezone
-
     from symbology.database.jobs import JobType, create_job, get_active_jobs
-    from symbology.worker.config import worker_settings
 
     in_flight = {(j.params or {}).get("filing_id") for j in get_active_jobs(JobType.EMBED_FILING)}
 
@@ -984,31 +995,10 @@ def _await_filing_diff_embeddings(not_ready, params):
         queued.append(fid)
         logger.info("dep_embed_filing_queued", filing_id=fid, job_id=str(job.id))
 
-    attempts = int(params.get("_dep_wait_attempts", 0)) + 1
-    if attempts > worker_settings.dependency_requeue_max_attempts:
-        logger.error("filing_diff_dep_wait_exhausted", attempts=attempts,
-                     not_ready=[str(f.id) for f in not_ready])
-        return None
-
-    delay = worker_settings.dependency_requeue_delay
-    scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=delay)
-    successor = create_job(
-        job_type=JobType.FILING_DIFF,
-        params={**params, "_dep_wait_attempts": attempts},
-        priority=3,
-        scheduled_at=scheduled_at,
+    logger.info("filing_diff_waiting_on_embeddings", queued_embeds=queued, waiting_on=waiting)
+    raise DependencyNotReady(
+        f"filing diff waiting on embeddings (queued={len(queued)}, in_flight={len(waiting)})"
     )
-    logger.info("filing_diff_requeued_for_deps", attempt=attempts, delay_seconds=delay,
-                scheduled_at=scheduled_at.isoformat(), queued_embeds=queued,
-                waiting_on=waiting, successor_job_id=str(successor.id))
-    return {
-        "status": "requeued_waiting_on_embeddings",
-        "attempt": attempts,
-        "queued_embeds": queued,
-        "waiting_on_in_flight": waiting,
-        "scheduled_at": scheduled_at.isoformat(),
-        "successor_job_id": str(successor.id),
-    }
 
 
 @register_handler(JobType.FILING_DIFF)
@@ -1020,8 +1010,7 @@ def handle_filing_diff(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     form; it is reordered so the older filing is the diff's left side.
 
     If either side lacks chunks/topics, an EMBED_FILING job is enqueued and this
-    job is deferred (bounded by ``dependency_requeue_max_attempts``); once that
-    budget is exhausted it diffs best-effort over whatever chunks exist.
+    job is deferred (BACKOFF) until the embeddings land, then re-runs.
 
     params:
         from / left_filing_id (str): older filing (id or accession).
@@ -1051,9 +1040,8 @@ def handle_filing_diff(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     not_ready = [f for f in (left_filing, right_filing) if not _filing_ready_for_diff(f.id)]
     if not_ready:
-        deferred = _await_filing_diff_embeddings(not_ready, params)
-        if deferred is not None:
-            return deferred
+        # Raises DependencyNotReady → worker defers (BACKOFF) until embeddings land.
+        _await_filing_diff_embeddings(not_ready)
 
     # Cap how many topics get an LLM "what changed" summary (the rest still render
     # from heading/section path). Omit `max_summaries` to use the pipeline default.
@@ -1120,7 +1108,11 @@ def handle_company_diff(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     company = get_company_by_ticker(ticker.upper())
     if company is None:
-        raise ValueError(f"company {ticker} not ingested")
+        # Likely a race: company_diff is often enqueued at high priority alongside
+        # the ingestion it depends on and can win the claim before the company row
+        # exists. Defer (BACKOFF) rather than fail — it's re-claimed once ingestion
+        # lands. (A genuinely bad ticker simply backs off, visible + cancellable.)
+        raise DependencyNotReady(f"company {ticker} not ingested yet")
 
     session = get_db_session()
     filings = (

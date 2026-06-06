@@ -58,6 +58,18 @@ def test_form_document_types_present():
     cfg = load_pipeline_config()
     assert "10-K" in cfg.form_document_types
     assert "business_description" in cfg.form_document_types["10-K"]
+    # Item 7A market-risk disclosures are in scope for 10-Ks too (present in the
+    # filings; needed so a 10-Q page's anchor 10-K has a market_risk summary).
+    assert "market_risk" in cfg.form_document_types["10-K"]
+
+
+def test_main_content_source_per_form():
+    cfg = load_pipeline_config()
+    # A 10-K leads with its business description; a 10-Q (no business
+    # description) leads with the MD&A. Unknown forms fall back to the former.
+    assert cfg.main_content_source("10-K") == "business_description"
+    assert cfg.main_content_source("10-Q") == "management_discussion"
+    assert cfg.main_content_source("8-K") == "business_description"
 
 
 def test_load_prompt_content_prefers_flat(tmp_path):

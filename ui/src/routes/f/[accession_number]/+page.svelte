@@ -1,18 +1,12 @@
 <script lang="ts">
-	import {
-		ChevronLeft,
-		ChevronRight,
-		ExternalLink,
-		Sparkles,
-		ScrollText,
-		TrendingUp,
-		TrendingDown,
-		TrendingUpDown
-	} from '@lucide/svelte';
+	import { ChevronLeft, ChevronRight, ExternalLink, Sparkles, ScrollText } from '@lucide/svelte';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
-	import DiffView from '$lib/components/DiffView.svelte';
+	import ChangeCard from '$lib/components/ChangeCard.svelte';
+	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
+	import DiffRow from '$lib/components/DiffRow.svelte';
+	import { changeKindColor, scoreTopic, isVisibleTopic } from '$lib/utils/changes';
 	import {
 		formatFilingPeriodLong,
 		formatDate,
@@ -21,6 +15,7 @@
 	} from '$lib/utils/filings';
 	import type { PageData } from './$types';
 	import FilingTimeline from '$lib/components/filings/FilingTimeline.svelte';
+	import PendingContentNotice from '$lib/components/PendingContentNotice.svelte';
 	import { toTitleCase } from '$lib/utils';
 
 	let { data }: { data: PageData } = $props();
@@ -32,55 +27,20 @@
 	const timeline = $derived(data.timeline || []);
 	// Structured diffs of this filing vs. the immediately prior one, per section.
 	const priorDiffSets = $derived(data.priorDiffSets ?? []);
-	// The compare section + "what's new" cards focus on shifts in emphasis and
-	// wording of existing disclosures — new/removed topics are excluded.
-	const VISIBLE_KINDS = new Set(['escalated', 'de_emphasised', 'reworded']);
 
 	// "What's new" headline cards — the most significant escalated / de-emphasised
 	// / reworded shifts in this filing vs. the prior one, across all sections.
 	// Mirrors the company page's "What's new" cards (accent per document type).
-	const DOC_COLORS: Record<string, string> = {
-		business_description: 'var(--teal-2)',
-		risk_factors: 'var(--danger)',
-		management_discussion: 'var(--blue)',
-		controls_procedures: 'var(--gold)',
-		market_risk: 'var(--plum)'
-	};
-	const docColor = (t: string): string => DOC_COLORS[t] ?? 'var(--ink-3)';
-	const CHANGE_KIND_LABEL: Record<string, string> = {
-		escalated: 'Escalated',
-		de_emphasised: 'De-emphasised',
-		reworded: 'Reworded'
-	};
-	const changeKindLabel = (k: string): string => CHANGE_KIND_LABEL[k] ?? k;
-
-	// Significance heuristic — mirrors scoreSectionDiff in server/db/diffs.ts
-	// (kept inline to avoid pulling server-only code into the client bundle).
-	const KIND_WEIGHT: Record<string, number> = {
-		escalated: 600,
-		de_emphasised: 500,
-		reworded: 200
-	};
-	const scoreTopic = (t: {
-		changeKind: string;
-		tokensAdded: number;
-		tokensRemoved: number;
-		lengthDelta: number;
-	}): number =>
-		(KIND_WEIGHT[t.changeKind] ?? 100) +
-		(t.tokensAdded ?? 0) +
-		(t.tokensRemoved ?? 0) +
-		Math.abs(t.lengthDelta ?? 0) * 0.1;
 	const changeCards = $derived(
 		priorDiffSets
 			.flatMap((ds) => ds.topics.map((t) => ({ ...t, documentType: ds.documentType })))
-			.filter((t) => VISIBLE_KINDS.has(t.changeKind))
+			.filter(isVisibleTopic)
 			.sort((a, b) => scoreTopic(b) - scoreTopic(a))
 			.slice(0, 6)
 	);
 
 	const companyName = $derived(company?.display_name || company?.name || 'Company');
-	const fiscalPeriodLong = $derived(filing ? formatFilingPeriodLong(filing, company) : '');
+	const fiscalPeriodLong = $derived(filing ? formatFilingPeriodLong(filing, company) : ''); // fixme type error
 
 	function getFormLabel(form: string): string {
 		if (form.includes('10-K')) return 'ANNUAL REPORT';
@@ -317,6 +277,10 @@
 				</article>
 			</div>
 		</section>
+	{:else}
+		<section class="hairline-section">
+			<PendingContentNotice label="filing synthesis" />
+		</section>
 	{/if}
 
 	<!-- SECTION: What's new (headline change cards) -->
@@ -331,33 +295,30 @@
 			/>
 			<div class="change-grid">
 				{#each changeCards as c (c.id)}
-					<a
+					<ChangeCard
 						href="#diff-{c.id}"
 						onclick={(e) => openDiff(e, c.id)}
-						class="change-card"
-						style="--card-accent: {docColor(c.documentType)};"
+						accent={changeKindColor(c.changeKind)}
+						dot={false}
+						heading={c.heading}
+						summary={c.summary}
 					>
-						<div class="hd">
-							<span class="hd-dot" style="background: {docColor(c.documentType)};"></span>
-							{changeKindLabel(c.changeKind)} · {getAnalysisTypeDisplay(c.documentType)}
-						</div>
-						{#if c.heading}
-							<div class="ti">{c.heading}</div>
-						{/if}
-						{#if c.summary}
-							<div class="bd">{c.summary}</div>
-						{/if}
-						<div class="ft">
+						{#snippet header()}
+							<div class="flex w-full justify-between">
+								<p><em>In the {getAnalysisTypeDisplay(c.documentType)}:</em></p>
+								<p>
+									<ChangeKindTag changeKind={c.changeKind} />
+								</p>
+							</div>
+						{/snippet}
+						{#snippet footerLeft()}
 							{#if c.sectionPath}
 								<span class="meta" style="font-family: var(--mono); color: var(--ink-4);"
 									>{c.sectionPath}</span
 								>
-							{:else}
-								<span></span>
 							{/if}
-							<span>Open <ChevronRight class="inline h-3 w-3" /></span>
-						</div>
-					</a>
+						{/snippet}
+					</ChangeCard>
 				{/each}
 			</div>
 		</section>
@@ -386,20 +347,19 @@
 			<div style="border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;">
 				{#each documents as doc, i (doc.id)}
 					<a href="/d/{filing.accession_number}/{doc.short_hash}" class="docrow-filing">
-						<div class="meta" style="color: var(--ink-3);">&sect;{i + 1}</div>
+						<div class="meta text-xs" style="color: var(--ink-3);">&sect;{i + 1}</div>
 						<div>
-							<div style="font-size: 14px; font-weight: 500; color: var(--ink);">
+							<div class="text-lg font-[450] text-ink-2">
 								{getAnalysisTypeDisplay(doc.document_type)}
 							</div>
-							<div class="meta" style="margin-top: 2px; color: var(--ink-4);">
+							<!-- <div class="meta" style="margin-top: 2px; color: var(--ink-4);">
 								{doc.document_type}
-							</div>
+							</div> -->
 						</div>
 						<div>
 							{#if doc.has_analysis}
 								<span class="tag tag-new" style="font-size: 10px; gap: 4px;">
 									<Sparkles class="h-2.5 w-2.5" />
-									Synthesis
 								</span>
 							{/if}
 							<span class="tag hidden text-olive md:inline-flex" style="font-size: 10px; gap: 4px;">
@@ -431,7 +391,7 @@
 					heading="Side-by-side against the prior {getAnalysisTypeDisplay(ds.documentType)}."
 					diffHelp
 				/>
-				{@const changed = ds.topics.filter((t) => VISIBLE_KINDS.has(t.changeKind))}
+				{@const changed = ds.topics.filter(isVisibleTopic)}
 				{#if changed.length > 0}
 					<div class="diff-group">
 						<div class="diff-group-head">
@@ -446,27 +406,7 @@
 							> -->
 						</div>
 						{#each changed as t (t.id)}
-							<details id="diff-{t.id}" class="diff-details">
-								<summary>
-									<span
-										class="tag {t.changeKind === 'escalated'
-											? 'tag-escalated'
-											: t.changeKind === 'de_emphasised'
-												? 'tag-new'
-												: 'tag'} : 'tag-new'}"
-										>{(t.changeKind || '').replace('_', '-')}
-										{#if t.changeKind === 'escalated'}
-											<TrendingUp class="ml-2 size-3" />
-										{:else if t.changeKind === 'de_emphasised'}
-											<TrendingDown class="ml-2 size-3" />
-										{:else}
-											<TrendingUpDown class="ml-2 size-3" />
-										{/if}
-									</span>
-									<span class="diff-summary-title">{t.heading ?? t.sectionPath ?? 'Section'}</span>
-								</summary>
-								<DiffView topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
-							</details>
+							<DiffRow topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
 						{/each}
 					</div>
 				{/if}
@@ -494,95 +434,6 @@
 		font-family: var(--serif);
 		font-size: 16px;
 		color: var(--ink);
-	}
-
-	.diff-details {
-		border-top: 1px solid var(--rule);
-		padding: 0.25rem 0;
-		/* Deep links (openDiff) scroll a diff into view. On mobile the Compare
-		   SectionHead pins, so clear its measured height (--md-heading-sticky-top,
-		   published by SectionHead); on desktop it's unset and we fall back to the
-		   fixed-navbar offset. */
-		scroll-margin-top: var(--md-heading-sticky-top, 80px);
-	}
-	.diff-details > summary {
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 0.75rem 0;
-		list-style: none;
-	}
-	.diff-details > summary::-webkit-details-marker {
-		display: none;
-	}
-	.diff-summary-title {
-		font-family: var(--serif);
-		font-size: 15px;
-		color: var(--ink);
-	}
-	.diff-details[open] > summary {
-		margin-bottom: 1rem;
-	}
-
-	/* "What's new" headline cards — left accent per document type, mirroring the
-	   company page's cards. */
-	.change-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
-		gap: 1rem;
-	}
-	.change-card {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		padding: 1.25rem 1.5rem;
-		border: 1px solid var(--rule);
-		border-left: 3px solid var(--card-accent, var(--teal-2));
-		border-radius: 0 8px 8px 0;
-		text-decoration: none;
-		color: inherit;
-		transition:
-			border-color 0.15s,
-			background 0.1s;
-	}
-	.change-card:hover {
-		border-color: var(--rule-2);
-		background: var(--paper-2);
-	}
-	.change-card .hd {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 15px;
-		font-weight: 600;
-		color: var(--ink);
-	}
-	.change-card .hd-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 9999px;
-		flex-shrink: 0;
-	}
-	.change-card .ti {
-		font-family: var(--serif);
-		font-size: 16px;
-		line-height: 1.3;
-		color: var(--ink);
-	}
-	.change-card .bd {
-		font-size: 13.5px;
-		line-height: 1.55;
-		color: var(--ink-3);
-	}
-	.change-card .ft {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-top: auto;
-		padding-top: 0.5rem;
-		font-size: 12px;
-		color: var(--ink-4);
 	}
 
 	.filing-hero {

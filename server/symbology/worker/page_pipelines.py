@@ -255,20 +255,22 @@ def _generate_change_report(
     company,
     filings: List,
     doc_type_str: str,
+    form: str,
     prompts_dir: Optional[Path],
 ) -> Optional[Tuple[str, str]]:
     """Generate an L2 change report + L3 intro for one document type (no publish).
 
     Aggregates the *already-published* L1 summaries for ``doc_type_str`` across
     ``filings`` (ordered oldest -> newest so the change narrative reads
-    chronologically). Returns ``(change_report_hash, intro_hash)``, or ``None``
-    if the section is genuinely absent across the lookback. Raises
-    PageContentGenerationError if a dependency summary is missing or a generation
-    step fails (all-or-nothing).
+    chronologically). ``form`` is the page's form (the content is tagged with it);
+    it is passed in rather than inferred from ``filings`` because a quarterly page
+    anchors on a 10-K whose form must not relabel the page as annual. Returns
+    ``(change_report_hash, intro_hash)``, or ``None`` if the section is genuinely
+    absent across the lookback. Raises PageContentGenerationError if a dependency
+    summary is missing or a generation step fails (all-or-nothing).
     """
     cfg = load_pipeline_config(prompts_dir)
     ticker = company.ticker
-    form = filings[0].form if filings else COMPANY_CHANGE_REPORT_FORM
 
     hashes = _published_l1_summary_hashes(filings, doc_type_str)
     if not hashes:
@@ -310,6 +312,68 @@ def _generate_change_report(
     return cr_hash, cri_hash
 
 
+QUARTERLY_FORM = "10-Q"
+
+
+def _select_source_filings(session, company, form: str, lookback: int) -> List:
+    """The source filings for a company page, newest first.
+
+    For an annual form (10-K) this is simply the most recent ``lookback`` filings
+    of that form. For the quarterly form (10-Q) a naive "most recent N quarters"
+    can straddle a 10-K — the annual report stands in for Q4, so no Q4 10-Q is
+    ever filed — and silently skip the annual, comparing quarters whose
+    disclosures are written against *different* baselines. Instead we anchor on
+    the most recent 10-K and take the quarters filed since it: a contiguous,
+    gap-free "since the annual report, here's each quarter" run. ``lookback``
+    counts total source filings, so the anchor 10-K plus up to ``lookback - 1``
+    of its most recent quarters are returned. Falls back to the previous annual's
+    cycle when no quarter has been filed since the most recent 10-K yet, and to a
+    plain most-recent-quarters slice for a company with no 10-K at all.
+    """
+    from symbology.database.filings import Filing
+
+    base = session.query(Filing).filter(Filing.company_id == company.id)
+    if form != QUARTERLY_FORM:
+        return (
+            base.filter(Filing.form == form)
+            .order_by(Filing.period_of_report.desc().nullslast(), Filing.filing_date.desc())
+            .limit(lookback)
+            .all()
+        )
+
+    def _key(f):  # period of report drives chronology, filing date as a fallback
+        return f.period_of_report or f.filing_date
+
+    annuals = (
+        base.filter(Filing.form == COMPANY_CHANGE_REPORT_FORM)
+        .order_by(Filing.period_of_report.desc().nullslast(), Filing.filing_date.desc())
+        .all()
+    )
+    quarters = (
+        base.filter(Filing.form == QUARTERLY_FORM)
+        .order_by(Filing.period_of_report.desc().nullslast(), Filing.filing_date.desc())
+        .all()
+    )
+    max_quarters = max(lookback - 1, 1)  # leave room for the anchor annual
+
+    # Anchor on the most recent 10-K that has at least one quarter in its cycle
+    # (the window between it and the next-newer 10-K).
+    for i, annual in enumerate(annuals):
+        lo = _key(annual)
+        hi = _key(annuals[i - 1]) if i > 0 else None
+        cycle = [
+            q for q in quarters
+            if _key(q) and lo and _key(q) > lo and (hi is None or _key(q) < hi)
+        ]
+        if cycle:
+            # `quarters` is newest-first; keep the most recent of the cycle, then
+            # the anchor annual last so the set reads newest -> oldest.
+            return cycle[:max_quarters] + [annual]
+
+    # No 10-K with a subsequent quarter (or no 10-K at all): best-effort quarters.
+    return quarters[:lookback]
+
+
 def company_page_content_pipeline(
     company,
     lookback: int = DEFAULT_COMPANY_LOOKBACK,
@@ -318,12 +382,14 @@ def company_page_content_pipeline(
 ):
     """Publish a CompanyPageContent version for one company.
 
-    Pure synthesis over *already-published* page content: for the company's most
-    recent ``lookback`` ``form`` filings it requires each filing to have a
-    published FilingPageContent and each constituent document a published
+    Pure synthesis over *already-published* page content: it selects the source
+    filings for ``form`` (the most recent ``lookback`` 10-Ks for an annual page;
+    the most recent 10-K plus the quarters filed since it for a 10-Q page — see
+    ``_select_source_filings``), requires each to have a published
+    FilingPageContent and each constituent document a published
     DocumentPageContent, then builds a per-document-type change report (+intro),
-    the company main content (L3, from the business-description change report)
-    and a company intro (L4). Only after all of that succeeds is a new immutable
+    the company main content (L3, from the form's lead-section change report) and
+    a company intro (L4). Only after all of that succeeds is a new immutable
     CompanyPageContent published.
 
     Raises PageContentGenerationError if there are no filings, if any source
@@ -331,19 +397,13 @@ def company_page_content_pipeline(
     that isn't itself on the site), or if a generation step fails.
     """
     from symbology.database.base import get_db_session
-    from symbology.database.filings import Filing
 
     cfg = load_pipeline_config(prompts_dir)
     session = get_db_session()
 
-    # Most recent `lookback` filings, newest first (for provenance + selection).
-    filings_desc = (
-        session.query(Filing)
-        .filter(Filing.company_id == company.id, Filing.form == form)
-        .order_by(Filing.period_of_report.desc().nullslast(), Filing.filing_date.desc())
-        .limit(lookback)
-        .all()
-    )
+    # Source filings, newest first (for provenance + selection). For 10-Q this
+    # anchors on the most recent 10-K + its subsequent quarters (see helper).
+    filings_desc = _select_source_filings(session, company, form, lookback)
     if not filings_desc:
         raise PageContentGenerationError(
             f"no {form} filings for company {company.id} ({company.ticker})"
@@ -372,7 +432,7 @@ def company_page_content_pipeline(
     change_reports: Dict[str, Tuple[str, str]] = {}
     for doc_type_str in doc_types:
         result = _generate_change_report(
-            company, filings_chrono, doc_type_str, prompts_dir
+            company, filings_chrono, doc_type_str, form, prompts_dir
         )
         if result is not None:
             change_reports[doc_type_str] = result
@@ -382,13 +442,16 @@ def company_page_content_pipeline(
             f"no change reports generated for company {company.ticker}"
         )
 
-    # 2. Company main content (L3) from the business-description change report.
-    bd = change_reports.get("business_description")
-    if bd is None:
+    # 2. Company main content (L3) anchored on the form's lead section's change
+    #    report — business description for a 10-K, MD&A for a 10-Q (which has none).
+    anchor_doc_type = cfg.main_content_source(form)
+    anchor = change_reports.get(anchor_doc_type)
+    if anchor is None:
         raise PageContentGenerationError(
-            f"business_description change report required for {company.ticker} main content"
+            f"{anchor_doc_type} change report required for {company.ticker} "
+            f"({form}) main content"
         )
-    bd_cr_hash, _ = bd
+    bd_cr_hash, _ = anchor
     main_prompt = ensure_prompt(cfg.prompt_path("company_main_content"), prompts_dir)
     mc_main = ensure_stage_model_config("l3_company_main_content", prompts_dir)
     main_hash, main_ok = generate_page_content(
@@ -423,6 +486,7 @@ def company_page_content_pipeline(
     # 4. All generation succeeded — publish the company page version.
     page = publish_company_page_content(
         company.id,
+        form=form,
         main_hash=main_hash,
         intro_hash=intro_hash,
         change_reports=change_reports,

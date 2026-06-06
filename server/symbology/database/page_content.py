@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, TYPE_CHECKING, Union
 from uuid import UUID
 
-from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, func, Index, Table
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, func, Index, String, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from symbology.database.base import Base, get_db_session
 from symbology.database.documents import DocumentType
@@ -116,10 +116,16 @@ class CompanyPageContent(Base):
     """A published version of a company page (main + intro + change reports)."""
 
     __tablename__ = "company_page_content"
-    __table_args__ = (Index("ix_company_page_content_scope", "company_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_company_page_content_scope", "company_id", "created_at"),
+        Index("ix_company_page_content_scope_form", "company_id", "form", "created_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    # The filing form this page was synthesised from (e.g. "10-K", "10-Q"); a
+    # company publishes one current page per form and the UI fetches by form.
+    form: Mapped[str] = mapped_column(String(10), nullable=False)
     main_content_id: Mapped[Optional[UUID]] = mapped_column(
         ForeignKey("generated_content.id", ondelete="RESTRICT"), nullable=True
     )
@@ -232,6 +238,7 @@ def publish_document_page_content(
 
 def publish_company_page_content(
     company_id: Union[UUID, str],
+    form: str,
     main_hash: Optional[str] = None,
     intro_hash: Optional[str] = None,
     change_reports: Optional[Dict[Union["DocumentType", str], tuple]] = None,
@@ -239,6 +246,8 @@ def publish_company_page_content(
 ) -> "CompanyPageContent":
     """Insert a new immutable CompanyPageContent version.
 
+    ``form`` is the filing form the page was synthesised from (e.g. "10-K",
+    "10-Q"); a company keeps one current page per form.
     ``change_reports`` maps a document type (``DocumentType`` or its value) to a
     ``(change_report_hash, change_report_intro_hash)`` tuple; the intro hash may
     be ``None``. ``source_filing_ids`` records the filings the page was derived
@@ -247,6 +256,7 @@ def publish_company_page_content(
     session = get_db_session()
     page = CompanyPageContent(
         company_id=company_id,
+        form=form,
         main_content_id=_content_id(main_hash),
         intro_content_id=_content_id(intro_hash),
     )
@@ -272,6 +282,7 @@ def publish_company_page_content(
     logger.info(
         "published_company_page_content",
         company_id=str(company_id),
+        form=form,
         page_id=str(page.id),
         change_reports=len(page.change_reports),
     )
@@ -326,15 +337,21 @@ def get_current_filing_page_content(filing_id: Union[UUID, str]) -> Optional[Fil
     )
 
 
-def get_current_company_page_content(company_id: Union[UUID, str]) -> Optional[CompanyPageContent]:
-    """The latest published company page version for a company."""
+def get_current_company_page_content(
+    company_id: Union[UUID, str], form: Optional[str] = None
+) -> Optional[CompanyPageContent]:
+    """The latest published company page version for a company.
+
+    When ``form`` is given, returns the latest page synthesised from that filing
+    form (e.g. "10-Q"); otherwise the latest page of any form.
+    """
     session = get_db_session()
-    return (
-        session.query(CompanyPageContent)
-        .filter(CompanyPageContent.company_id == company_id)
-        .order_by(CompanyPageContent.created_at.desc())
-        .first()
+    query = session.query(CompanyPageContent).filter(
+        CompanyPageContent.company_id == company_id
     )
+    if form is not None:
+        query = query.filter(CompanyPageContent.form == form)
+    return query.order_by(CompanyPageContent.created_at.desc()).first()
 
 
 def get_current_group_page_content(company_group_id: Union[UUID, str]) -> Optional[GroupPageContent]:

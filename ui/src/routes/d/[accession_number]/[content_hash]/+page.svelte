@@ -4,13 +4,14 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import {
 		formatDate,
-		formatFilingPeriodLong,
+		formatFilingPeriod,
 		getAnalysisTypeDisplay,
 		shortModelName
 	} from '$lib/utils/filings';
 	import type { PageData } from './$types';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
+	import PendingContentNotice from '$lib/components/PendingContentNotice.svelte';
 	import { toTitleCase } from '$lib/utils';
 
 	let { data }: { data: PageData } = $props();
@@ -78,7 +79,7 @@
 </svelte:head>
 
 <!-- Back link -->
-<div class="text-md mt-4 mb-8">
+<div class="text-md mt-4 mb-8 hidden md:block">
 	{#if filing}
 		<a
 			href="/f/{filing.accession_number}"
@@ -87,7 +88,7 @@
 			<ChevronLeft class="h-3 w-3" />
 			<FileText class="h-3 w-3" />
 			{toTitleCase(company?.name ?? '')} &middot; {filing.form}
-			{#if filing.period_of_report}&middot; {formatDate(filing.period_of_report)}{/if}
+			{#if filing.period_of_report}&middot; {formatFilingPeriod(filing, company)}{/if}
 		</a>
 	{:else}
 		<a
@@ -104,15 +105,14 @@
 <section class="doc-hero">
 	<!-- Left column -->
 	<div>
-		<div class="eyebrow" style="margin-bottom: 1rem;">
-			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;{formatFilingPeriodLong(
-				filing,
-				company
-			)} &middot; {typeDisplay}
-		</div>
-		<h1 class="display" style="margin-bottom: 1.25rem;">
-			{typeDisplay}<em>.</em>
-		</h1>
+		<SectionHead
+			sticky
+			stickyHeading
+			eyebrow="{company?.display_name} &middot; {filing.period_of_report
+				? formatFilingPeriod(filing, company)
+				: ''}"
+			heading={typeDisplay}
+		/>
 		{#if pageContent?.intro?.content}
 			<p class="lede" style="color: var(--ink-2); max-width: 60ch; margin-bottom: 1.5rem;">
 				{pageContent.intro.content}
@@ -122,21 +122,17 @@
 			style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;"
 		>
 			<span class="tag" style="font-weight: 500; color: var(--ink);">{company?.ticker}</span>
-			{#if filing}
-				<span class="tag">{filing.form}</span>
-				<span class="tag">{formatDate(filing.filing_date)}</span>
-			{/if}
 			{#if hasAnalysis}
 				<span class="tag tag-new" style="gap: 4px;">
 					<Sparkles class="h-2.5 w-2.5" />
-					Synthesis
+					L1 Synthesis
 				</span>
 			{/if}
 		</div>
 	</div>
 
 	<!-- Right column: Document Metadata card -->
-	<aside class="metadata-card">
+	<aside class="metadata-card hidden md:block">
 		<h4 class="sub" style="font-size: 12px; color: var(--ink-2); margin-bottom: 1.25rem;">
 			Document metadata
 		</h4>
@@ -200,45 +196,50 @@
 <!-- Analysis + source document, tabbed -->
 <section class="hairline-section">
 	<Tabs.Root value={hasAnalysis ? 'analysis' : 'document'}>
-		<Tabs.List class="gap-1 bg-paper-2 p-1">
-			{#if hasAnalysis}
-				<Tabs.Trigger
-					value="analysis"
-					class="cursor-pointer px-4 text-ink-3 hover:text-ink data-active:font-semibold data-active:text-teal-2"
-				>
-					<Sparkles class="h-3.5 w-3.5" />
-					Synthesis
-				</Tabs.Trigger>
-			{/if}
+		<Tabs.List variant="default" class="flex w-full justify-between bg-paper-2 p-2">
+			<Tabs.Trigger
+				value="analysis"
+				class="active:tag-new cursor-pointer hover:text-ink active:text-teal-2"
+			>
+				<Sparkles class="h-3.5 w-3.5" />
+				L1 Synthesis
+			</Tabs.Trigger>
 			<Tabs.Trigger
 				value="document"
-				class="cursor-pointer px-4 text-ink-3 hover:text-ink data-active:font-semibold data-active:text-ink"
+				class="data-active:tag-new cursor-pointer px-4 text-ink-3 data-active:text-teal-2"
 			>
 				<ScrollText class="h-3.5 w-3.5" />
-				Source Document
+				View Source
 			</Tabs.Trigger>
 		</Tabs.List>
 
-		{#if hasAnalysis}
-			<Tabs.Content value="analysis">
+		<Tabs.Content value="analysis">
+			{#if hasAnalysis && pageContent?.summary?.content}
 				<section style="margin-top: 1.5rem;">
 					<SectionHead
+						sticky
+						stickyHeading
 						eyebrow="SYMBOLOGY.ONLINE l{generationDepth} SYNTHESIS"
-						heading="{typeDisplay} Analysis"
+						heading="{company ? toTitleCase(company.name) : ''} {typeDisplay} Analysis"
 						synthesisHelp
 					/>
-					{#if pageContent?.summary?.content}
-						<div class="body-text" style="color: var(--ink-2);">
-							<MarkdownContent content={pageContent.summary.content} />
-						</div>
-					{/if}
+					<div class="body-text" style="color: var(--ink-2);">
+						<MarkdownContent content={pageContent.summary.content} />
+					</div>
 				</section>
-			</Tabs.Content>
-		{/if}
+			{:else}
+				<PendingContentNotice label="document synthesis" />
+			{/if}
+		</Tabs.Content>
 
 		<Tabs.Content value="document">
-			<article style="margin-top: 1.5rem;">
-				<SectionHead eyebrow="Source Document Text" heading="Source Document" />
+			<section style="margin-top: 1.5rem;">
+				<SectionHead
+					sticky
+					stickyHeading
+					eyebrow="{company?.display_name} &middot; {formatFilingPeriod(filing, company)}"
+					heading={typeDisplay}
+				/>
 				{#if doc.content}
 					<div class="analysis-body">
 						<MarkdownContent content={doc.content} />
@@ -248,13 +249,13 @@
 						No content available for this document.
 					</p>
 				{/if}
-			</article>
+			</section>
 		</Tabs.Content>
 	</Tabs.Root>
 </section>
 
 <!-- Footer -->
-{#if filing}
+<!-- {#if filing}
 	<footer
 		style="margin-top: 5rem; padding-top: 1.75rem; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;"
 	>
@@ -281,7 +282,7 @@
 			</a>
 		{/if}
 	</footer>
-{/if}
+{/if} -->
 
 <style>
 	.doc-hero {

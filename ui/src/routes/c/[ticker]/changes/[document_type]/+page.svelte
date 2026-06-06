@@ -1,17 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import {
-		ChevronLeft,
-		ChevronRight,
-		Sparkles,
-		TrendingDown,
-		TrendingUp,
-		TrendingUpDown
-	} from '@lucide/svelte';
+	import { ChevronLeft, Sparkles } from '@lucide/svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
-	import DiffView from '$lib/components/DiffView.svelte';
+	import ChangeCard from '$lib/components/ChangeCard.svelte';
+	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
+	import DiffRow from '$lib/components/DiffRow.svelte';
+	import PendingContentNotice from '$lib/components/PendingContentNotice.svelte';
+	import { changeKindColor, scoreTopic, VISIBLE_KINDS } from '$lib/utils/changes';
 	import {
 		formatFilingPeriod,
 		formatDate,
@@ -28,6 +25,11 @@
 	const changeReport = $derived(data.changeReport);
 	const sourceFilings = $derived(data.sourceFilings ?? []);
 
+	// Match the form the reader came from: plum accents + back-link on the 10-Q page.
+	const selectedForm = $derived(data.selectedForm ?? '10-K');
+	const accent = $derived(selectedForm === '10-Q' ? 'var(--plum)' : 'var(--teal-2)');
+	const formQuery = $derived(selectedForm === '10-K' ? '' : `?form=${selectedForm}`);
+
 	const companyName = $derived(company?.display_name || company?.name || 'Company');
 	const typeDisplay = $derived(getAnalysisTypeDisplay(documentType));
 
@@ -39,8 +41,7 @@
 	const chainDesc = $derived([...diffChain].reverse()); // newest first for display
 	const counts = $derived(diffSet?.counts ?? {});
 	// On-page listings (cards + side-by-side) focus on shifts in emphasis and
-	// wording of existing disclosures — new/removed topics are excluded.
-	const VISIBLE_KINDS = new Set(['escalated', 'de_emphasised', 'reworded']);
+	// wording of existing disclosures — new/removed topics are excluded (VISIBLE_KINDS).
 	const changedTopics = $derived(
 		(diffSet?.topics ?? []).filter((t) => VISIBLE_KINDS.has(t.changeKind))
 	);
@@ -69,39 +70,6 @@
 	// (`diffSet` = the two latest forms), ranked by analyst significance so the
 	// most important surface first. Styled to mirror the company page's
 	// "What's new" cards rather than the kind-grouped grid.
-	const KIND_LABEL: Record<string, string> = {
-		new: 'New disclosure',
-		escalated: 'Escalated',
-		de_emphasised: 'De-emphasised',
-		reworded: 'Reworded',
-		removed: 'Removed'
-	};
-	// One accent per change kind (theme palette), echoing the company cards.
-	const KIND_COLOR: Record<string, string> = {
-		new: 'var(--teal-2)',
-		escalated: 'var(--warn)',
-		de_emphasised: 'var(--blue)',
-		reworded: 'var(--plum)',
-		removed: 'var(--danger)'
-	};
-	const kindColor = (k: string): string => KIND_COLOR[k] ?? 'var(--ink-3)';
-	const kindLabel = (k: string): string => KIND_LABEL[k] ?? k;
-
-	// Significance heuristic — mirrors scoreSectionDiff in server/db/diffs.ts
-	// (kept inline to avoid pulling server-only code into the client bundle).
-	const KIND_WEIGHT: Record<string, number> = {
-		new: 1000,
-		removed: 900,
-		escalated: 600,
-		de_emphasised: 500,
-		reworded: 200,
-		unchanged: 0
-	};
-	const scoreTopic = (t: (typeof changedTopics)[number]): number =>
-		(KIND_WEIGHT[t.changeKind] ?? 100) +
-		(t.tokensAdded ?? 0) +
-		(t.tokensRemoved ?? 0) +
-		Math.abs(t.lengthDelta ?? 0) * 0.1;
 	const headlineCards = $derived(
 		[...changedTopics].sort((a, b) => scoreTopic(b) - scoreTopic(a)).slice(0, 6)
 	);
@@ -181,7 +149,7 @@
 <!-- Back link -->
 <div class="hidden md:block" style="margin-bottom: 3rem;">
 	<a
-		href="/c/{company?.ticker}"
+		href="/c/{company?.ticker}{formQuery}"
 		class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
 	>
 		<ChevronLeft class="h-3 w-3" />
@@ -192,7 +160,7 @@
 <!-- Masthead with metadata sidebar -->
 <section class="change-hero">
 	<div>
-		<SectionHead sticky eyebrow="symbology.online &middot; CHANGE SYNTHESIS" heading="" />
+		<SectionHead sticky {accent} eyebrow="symbology.online COMPARATIVE SYNTHESIS" heading="" />
 		<h1 class="display" style="margin-bottom: 1.25rem;">
 			{toTitleCase(companyName)}<br />
 			<em>{typeDisplay} analysis.</em>
@@ -278,6 +246,7 @@
 		<SectionHead
 			sticky
 			stickyHeading
+			{accent}
 			eyebrow="symbology.online l{generationDepth} SYNTHESIS"
 			heading="{toTitleCase(companyName)} - {typeDisplay} analysis."
 			synthesisHelp
@@ -287,9 +256,7 @@
 				<MarkdownContent content={changeReport.report.content} />
 			</div>
 		{:else}
-			<p class="body-text" style="color: var(--ink-3); padding: 2rem 0;">
-				No change report content available.
-			</p>
+			<PendingContentNotice label="change report" />
 		{/if}
 	</article>
 </div>
@@ -299,38 +266,31 @@
 		<SectionHead
 			sticky
 			stickyHeading
+			{accent}
 			eyebrow="WHAT'S NEW · {pairLabel(diffSet)}"
 			heading="What changed in the latest {typeDisplay}."
 		/>
 		<div class="change-grid">
 			{#each headlineCards as t (t.id)}
-				<a
+				<ChangeCard
 					href="#diff-{t.id}"
 					onclick={(e) => openDiff(e, t.id)}
-					class="change-card"
-					style="--card-accent: {kindColor(t.changeKind)};"
+					accent={changeKindColor(t.changeKind)}
+					dot={false}
+					heading={t.heading}
+					summary={t.summary}
 				>
-					<div class="hd">
-						<span class="hd-dot" style="background: {kindColor(t.changeKind)};"></span>
-						{kindLabel(t.changeKind)}
-					</div>
-					{#if t.heading}
-						<div class="ti">{t.heading}</div>
-					{/if}
-					{#if t.summary}
-						<div class="bd">{t.summary}</div>
-					{/if}
-					<div class="ft">
+					{#snippet header()}
+						<ChangeKindTag changeKind={t.changeKind} />
+					{/snippet}
+					{#snippet footerLeft()}
 						{#if t.sectionPath}
 							<span class="meta" style="font-family: var(--mono); color: var(--ink-4);"
 								>{t.sectionPath}</span
 							>
-						{:else}
-							<span></span>
 						{/if}
-						<span>Open <ChevronRight class="inline h-3 w-3" /></span>
-					</div>
-				</a>
+					{/snippet}
+				</ChangeCard>
 			{/each}
 		</div>
 	</section>
@@ -343,7 +303,9 @@
 			<SectionHead
 				sticky
 				stickyHeading
-				eyebrow="{pairLabel(ds)} · {changed.length} change{changed.length === 1 ? '' : 's'}"
+				{accent}
+				diffHelp={true}
+				eyebrow="{pairLabel(ds)} Text Diffs"
 				heading="Side-by-side against the previous {typeDisplay}{typeDisplay.slice(-1) === 's'
 					? ''
 					: 's'}."
@@ -351,32 +313,7 @@
 			{#if changed.length > 0}
 				<div class="diff-pair">
 					{#each changed as t (t.id)}
-						<details id="diff-{t.id}" class="diff-details">
-							<summary>
-								<span
-									class="tag {t.changeKind === 'escalated'
-										? 'tag-escalated'
-										: t.changeKind === 'de_emphasised'
-											? 'tag-new'
-											: 'tag'} : 'tag-new'}"
-									>{(t.changeKind || '').replace('_', '-')}
-									{#if t.changeKind === 'escalated'}
-										<TrendingUp class="ml-2 size-3" />
-									{:else if t.changeKind === 'de_emphasised'}
-										<TrendingDown class="ml-2 size-3" />
-									{:else}
-										<TrendingUpDown class="ml-2 size-3" />
-									{/if}
-								</span>
-								<span class="diff-summary-title">{t.heading ?? t.sectionPath ?? 'Section'}</span>
-							</summary>
-							<DiffView
-								showHeader={false}
-								topic={t}
-								leftFiling={ds.leftFiling}
-								rightFiling={ds.rightFiling}
-							/>
-						</details>
+						<DiffRow topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
 					{/each}
 				</div>
 			{/if}
@@ -424,95 +361,5 @@
 		.change-toc {
 			position: static;
 		}
-	}
-
-	.diff-details {
-		border-top: 1px solid var(--rule);
-		padding: 0.25rem 0;
-		/* Deep links (openDiff) scroll a diff into view. On mobile the Compare
-		   SectionHead pins, so clear its measured height (--md-heading-sticky-top,
-		   published by SectionHead); on desktop it's unset and we fall back to the
-		   fixed-navbar offset. */
-		scroll-margin-top: var(--md-heading-sticky-top, 80px);
-	}
-	.diff-details > summary {
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 0.75rem 0;
-		list-style: none;
-	}
-	.diff-details > summary::-webkit-details-marker {
-		display: none;
-	}
-	.diff-summary-title {
-		font-family: var(--serif);
-		font-size: 15px;
-		color: var(--ink);
-	}
-	.diff-details[open] > summary {
-		padding-top: 2rem;
-		margin-bottom: 1rem;
-	}
-
-	/* Headline change cards — left accent per change kind, mirroring the
-	   company page's "What's new" cards. */
-	.change-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
-		gap: 1rem;
-	}
-	.change-card {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		padding: 1.25rem 1.5rem;
-		border: 1px solid var(--rule);
-		border-left: 3px solid var(--card-accent, var(--teal-2));
-		border-radius: 0 8px 8px 0;
-		text-decoration: none;
-		color: inherit;
-		transition:
-			border-color 0.15s,
-			background 0.1s;
-	}
-	.change-card:hover {
-		border-color: var(--rule-2);
-		background: var(--paper-2);
-	}
-	.change-card .hd {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 15px;
-		font-weight: 600;
-		color: var(--ink);
-	}
-	.change-card .hd-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 9999px;
-		flex-shrink: 0;
-	}
-	.change-card .ti {
-		font-family: var(--serif);
-		font-size: 16px;
-		line-height: 1.3;
-		color: var(--ink);
-	}
-	.change-card .bd {
-		font-size: 13.5px;
-		line-height: 1.55;
-		color: var(--ink-3);
-	}
-	.change-card .ft {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-top: auto;
-		padding-top: 0.5rem;
-		font-size: 12px;
-		color: var(--ink-4);
 	}
 </style>

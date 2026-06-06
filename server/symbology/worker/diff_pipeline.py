@@ -286,6 +286,37 @@ def filing_diff_pipeline(
     return diff_sets
 
 
+def _previous_period_pair(session, company):
+    """The latest 10-Q and the periodic filing immediately before it.
+
+    A 10-K stands in for Q4 (no Q4 10-Q is filed), so the period *before* a
+    quarter is the prior quarter of its cycle, or — for the first quarter after
+    an annual — the 10-K itself. The older side is therefore the most recent
+    10-K/10-Q filed before the latest 10-Q, which never straddles the annual to a
+    quarter of the previous cycle. Returns ``(left, right)`` (older, newer); either
+    may be ``None`` when there aren't enough filings.
+    """
+    filings = (
+        session.query(Filing)
+        .filter(Filing.company_id == company.id, Filing.form.in_(["10-K", "10-Q"]))
+        .order_by(Filing.period_of_report.desc().nullslast(), Filing.filing_date.desc())
+        .all()
+    )
+
+    def _key(f):
+        return f.period_of_report or f.filing_date
+
+    right = next((f for f in filings if f.form == "10-Q"), None)
+    if right is None:
+        return None, None
+    rkey = _key(right)
+    left = next(
+        (f for f in filings if f.id != right.id and _key(f) and rkey and _key(f) < rkey),
+        None,
+    )
+    return left, right
+
+
 def company_diff_pipeline(
     company,
     form: str = "10-K",
@@ -293,24 +324,33 @@ def company_diff_pipeline(
     generate_summaries: bool = False,
     max_summaries: int = MAX_TOPIC_SUMMARIES,
 ) -> List[DiffSet]:
-    """Compute year-over-year diffs for a company's most recent ``form`` filing pair.
+    """Compute the most recent period-over-period diffs for a company.
 
-    Thin wrapper over :func:`filing_diff_pipeline` that resolves the two most
-    recent ``form`` filings. Returns the published diff sets (empty if <2 filings).
+    Thin wrapper over :func:`filing_diff_pipeline`. For an annual page (10-K) this
+    is the two most recent 10-Ks (year over year). For a quarterly page (10-Q) the
+    latest 10-Q is paired with the periodic filing immediately before it — the
+    prior quarter, or the anchoring 10-K when it's the first quarter after an
+    annual — so the diff never straddles the annual (see ``_previous_period_pair``).
+    Returns the published diff sets (empty if there's no comparable pair).
     """
     session = get_db_session()
-    filings = (
-        session.query(Filing)
-        .filter(Filing.company_id == company.id, Filing.form == form)
-        .order_by(Filing.period_of_report.desc().nullslast(), Filing.filing_date.desc())
-        .limit(2)
-        .all()
-    )
-    if len(filings) < 2:
+    if form == "10-Q":
+        left_filing, right_filing = _previous_period_pair(session, company)
+    else:
+        filings = (
+            session.query(Filing)
+            .filter(Filing.company_id == company.id, Filing.form == form)
+            .order_by(Filing.period_of_report.desc().nullslast(), Filing.filing_date.desc())
+            .limit(2)
+            .all()
+        )
+        right_filing = filings[0] if filings else None
+        left_filing = filings[1] if len(filings) >= 2 else None
+
+    if left_filing is None or right_filing is None:
         logger.info("company_diff_pipeline_insufficient_filings",
-                    company_id=str(company.id), form=form, filings=len(filings))
+                    company_id=str(company.id), form=form)
         return []
-    right_filing, left_filing = filings[0], filings[1]
     return filing_diff_pipeline(
         left_filing, right_filing, form, prompts_dir, generate_summaries, max_summaries
     )

@@ -9,6 +9,7 @@ from symbology.database.jobs import (
     Job,
     JobStatus,
     JobType,
+    backoff_job,
     cancel_failed_jobs,
     cancel_job,
     claim_next_job,
@@ -233,6 +234,82 @@ class TestCompleteAndFail:
             assert result is None
 
 
+class TestBackoffJob:
+    """The dependency-wait defer path: distinct from failure, no retry consumed."""
+
+    def test_sets_backoff_status_and_schedules_future(self, db_session):
+        from symbology.worker.config import worker_settings
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST)
+            job.status = JobStatus.IN_PROGRESS
+            job.worker_id = "worker-1"
+            job.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db_session.commit()
+
+            before = datetime.now(timezone.utc).replace(tzinfo=None)
+            backed = backoff_job(job.id, reason="waiting on deps")
+
+            assert backed.status == JobStatus.BACKOFF
+            assert backed.backoff_count == 1
+            assert backed.worker_id is None
+            assert backed.started_at is None
+            assert backed.error == "waiting on deps"
+            # First defer uses the floor delay (~dependency_requeue_delay).
+            offset = (backed.scheduled_at - before).total_seconds()
+            assert abs(offset - worker_settings.dependency_requeue_delay) < 5
+
+    def test_does_not_consume_retry_budget(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST, max_retries=3)
+            job.status = JobStatus.IN_PROGRESS
+            job.retry_count = 2
+            db_session.commit()
+            backed = backoff_job(job.id, reason="still waiting")
+            # retry_count is reserved for genuine crashes — untouched by a wait.
+            assert backed.retry_count == 2
+            assert backed.backoff_count == 1
+
+    def test_delay_grows_then_caps(self, db_session):
+        from symbology.worker.config import worker_settings as w
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST)
+            job.status = JobStatus.IN_PROGRESS
+            db_session.commit()
+
+            def defer_offset():
+                before = datetime.now(timezone.utc).replace(tzinfo=None)
+                backed = backoff_job(job.id, reason="waiting")
+                return (backed.scheduled_at - before).total_seconds()
+
+            first = defer_offset()  # backoff_count 1 → floor
+            second = defer_offset()  # backoff_count 2 → grown
+            assert second > first
+            # Drive it well past the doubling horizon; delay caps at the ceiling.
+            for _ in range(10):
+                capped = defer_offset()
+            assert abs(capped - w.dependency_requeue_delay_max) < 5
+
+    def test_backoff_job_is_claimable_once_due(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST)
+            job.status = JobStatus.IN_PROGRESS
+            db_session.commit()
+            backoff_job(job.id, reason="waiting")
+            # Scheduled into the future → not yet claimable.
+            assert claim_next_job("worker-1") is None
+            # Once its time arrives, it's re-claimed like any deferred pending job.
+            fresh = db_session.query(Job).filter(Job.id == job.id).first()
+            fresh.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
+            db_session.commit()
+            claimed = claim_next_job("worker-1")
+            assert claimed is not None and claimed.id == job.id
+            assert claimed.status == JobStatus.IN_PROGRESS
+
+    def test_backoff_nonexistent_returns_none(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            assert backoff_job(uuid7(), reason="nope") is None
+
+
 class TestStaleDetection:
     """Test stale job recovery."""
 
@@ -401,8 +478,24 @@ class TestRequeueFailedJobs:
 
     def test_requeue_single_job_not_failed_returns_none(self, db_session):
         with patch("symbology.database.jobs.get_db_session", return_value=db_session):
-            job = create_job(JobType.TEST)  # PENDING, not FAILED
+            job = create_job(JobType.TEST)  # PENDING, neither FAILED nor BACKOFF
             assert requeue_job(job.id) is None
+
+    def test_requeue_backoff_job_pulls_scheduled_at_forward(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST)
+            backoff_job(job.id, reason="waiting on deps")
+            assert job.status == JobStatus.BACKOFF
+            assert job.scheduled_at > datetime.now(timezone.utc).replace(tzinfo=None)
+            prior_backoff_count = job.backoff_count
+
+            requeued = requeue_job(job.id)
+            assert requeued is not None
+            # Stays BACKOFF (still queue-eligible) but now claimable immediately.
+            assert requeued.status == JobStatus.BACKOFF
+            assert requeued.scheduled_at <= datetime.now(timezone.utc).replace(tzinfo=None)
+            # backoff_count is preserved so the exponential schedule resumes.
+            assert requeued.backoff_count == prior_backoff_count
 
     def test_requeue_single_job_nonexistent_returns_none(self, db_session):
         with patch("symbology.database.jobs.get_db_session", return_value=db_session):

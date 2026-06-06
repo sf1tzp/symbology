@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { isNumericNoise } from '$lib/utils/changes';
 import type { DocumentTypeEnum } from './types';
 
 export interface DiffOp {
@@ -41,6 +42,22 @@ export interface DiffSetView {
 
 const toIso = (v: unknown): string | null =>
 	v ? new Date(v as string | Date).toISOString() : null;
+
+/**
+ * Whether a company has any computed diff set — the visibility gate for the
+ * company page and change views. A pending company (diffs but no narrative page
+ * content) is visible and renders a slimmed-down page.
+ */
+export async function companyHasDiffSets(companyId: string, form?: string): Promise<boolean> {
+	const row = await db
+		.selectFrom('diff_sets')
+		.select('id')
+		.where('company_id', '=', companyId)
+		.$if(!!form, (qb) => qb.where('form', '=', form!))
+		.limit(1)
+		.executeTakeFirst();
+	return !!row;
+}
 
 async function loadFilingRefs(ids: (string | null)[]): Promise<Map<string, DiffFilingRef>> {
 	const real = ids.filter((x): x is string => x !== null);
@@ -187,13 +204,15 @@ export async function getDiffSetsByRightFiling(rightFilingId: string): Promise<D
 export async function getDiffSetChain(
 	companyId: string,
 	documentType: DocumentTypeEnum | string,
-	limit = 6
+	limit = 6,
+	form?: string
 ): Promise<DiffSetView[]> {
 	const sets = await db
 		.selectFrom('diff_sets')
 		.select(DIFF_SET_COLUMNS)
 		.where('company_id', '=', companyId)
 		.where('document_type', '=', documentType as DocumentTypeEnum)
+		.$if(!!form, (qb) => qb.where('form', '=', form!))
 		.orderBy('created_at', 'desc')
 		.limit(limit)
 		.execute();
@@ -251,13 +270,15 @@ export const CARD_CHANGE_KINDS = ['escalated', 'de_emphasised', 'reworded'] as c
  */
 export async function getLatestChangeCards(
 	companyId: string,
-	limit = 6
+	limit = 6,
+	form?: string
 ): Promise<ChangeCardView[]> {
-	// Latest diff set per document type for the company.
+	// Latest diff set per document type for the company (optionally for one form).
 	const sets = await db
 		.selectFrom('diff_sets')
 		.select(['id', 'document_type', 'right_filing_id'])
 		.where('company_id', '=', companyId)
+		.$if(!!form, (qb) => qb.where('form', '=', form!))
 		.distinctOn('document_type')
 		.orderBy('document_type')
 		.orderBy('created_at', 'desc')
@@ -274,6 +295,7 @@ export async function getLatestChangeCards(
 			'section_path',
 			'heading',
 			'change_kind',
+			'ops',
 			'length_delta',
 			'tokens_added',
 			'tokens_removed',
@@ -286,14 +308,17 @@ export async function getLatestChangeCards(
 		)
 		.where('change_kind', 'in', [...CARD_CHANGE_KINDS])
 		.execute();
-	if (sections.length === 0) return [];
+	// Drop figures-only changes (year-over-year tables) — same gate the on-page
+	// listings apply, here on the server since cards are assembled without ops.
+	const visible = sections.filter((s) => !isNumericNoise(s.ops as unknown as DiffOp[]));
+	if (visible.length === 0) return [];
 
 	const [filings, summaries] = await Promise.all([
 		loadFilingRefs(sets.map((s) => s.right_filing_id)),
-		loadSummaries(sections.map((s) => s.summary_content_id))
+		loadSummaries(visible.map((s) => s.summary_content_id))
 	]);
 
-	const cards: ChangeCardView[] = sections.map((s) => {
+	const cards: ChangeCardView[] = visible.map((s) => {
 		const meta = setMeta.get(s.diff_set_id);
 		const rightId = meta?.right_filing_id ?? null;
 		return {

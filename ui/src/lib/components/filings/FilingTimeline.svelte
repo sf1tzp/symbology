@@ -276,6 +276,11 @@
 		background: var(--ink-4);
 		border-color: var(--ink);
 	}
+	/* Quarterly (10-Q) filings read in plum to set them apart from annual data. */
+	.tl-dot.quarterly {
+		background: var(--plum);
+		border-color: var(--plum);
+	}
 	.tl-dot.other {
 		border-style: dashed;
 	}
@@ -372,6 +377,10 @@
 	.m-year-dot.annual {
 		background: var(--ink);
 		border-color: var(--ink);
+	}
+	.m-year-dot.quarterly {
+		background: var(--plum);
+		border-color: var(--plum);
 	}
 	.m-year-dot.other {
 		border-style: dashed;

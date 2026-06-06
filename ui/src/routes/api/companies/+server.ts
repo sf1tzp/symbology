@@ -2,10 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { sql } from 'kysely';
-
-// Only companies that have generated PageContent are published/discoverable.
-// (Reused across the list queries below, which select from `companies as c`.)
-const hasPageContent = sql<boolean>`EXISTS (SELECT 1 FROM company_page_content cpc WHERE cpc.company_id = c.id)`;
+import { companyIsVisible } from '$lib/server/db/predicates';
 
 export const GET: RequestHandler = async ({ url }) => {
 	const search = url.searchParams.get('search');
@@ -43,7 +40,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		])
 		.groupBy('c.id')
 		.having(sql`count(f.id)`, '>', 0)
-		.where(hasPageContent);
+		.where(companyIsVisible('c'));
 
 	// Apply sort
 	if (sort === 'name') {
@@ -59,7 +56,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		db
 			.selectFrom('companies')
 			.select(sql<number>`count(*)::int`.as('total'))
-			.where(sql`EXISTS (SELECT 1 FROM company_page_content WHERE company_id = companies.id)`)
+			.where(companyIsVisible('companies'))
 			.executeTakeFirstOrThrow()
 	]);
 
@@ -95,7 +92,7 @@ async function searchCompanies(query: string, limit: number, skip: number = 0) {
 			)
 			.groupBy('c.id')
 			.having(sql`count(f.id)`, '>', 0)
-			.where(hasPageContent)
+			.where(companyIsVisible('c'))
 			.orderBy('c.ticker', 'asc')
 			.offset(skip)
 			.limit(limit)
@@ -127,7 +124,7 @@ async function searchCompanies(query: string, limit: number, skip: number = 0) {
 		.where(sql<boolean>`c.search_vector @@ websearch_to_tsquery('english', ${query})`)
 		.groupBy('c.id')
 		.having(sql`count(f.id)`, '>', 0)
-		.where(hasPageContent)
+		.where(companyIsVisible('c'))
 		.orderBy(sql`ts_rank(c.search_vector, websearch_to_tsquery('english', ${query}))`, 'desc')
 		.offset(skip)
 		.limit(limit)
@@ -159,7 +156,7 @@ async function searchCompanies(query: string, limit: number, skip: number = 0) {
 			)
 			.groupBy('c.id')
 			.having(sql`count(f.id)`, '>', 0)
-			.where(hasPageContent)
+			.where(companyIsVisible('c'))
 			.orderBy('c.ticker', 'asc')
 			.offset(skip)
 			.limit(limit)
@@ -175,7 +172,7 @@ async function countSearchResults(query: string): Promise<number> {
 			.selectFrom('companies')
 			.select(sql<number>`count(*)::int`.as('total'))
 			.where((eb) => eb.or([eb('ticker', 'ilike', `${query}%`), eb('name', 'ilike', `${query}%`)]))
-			.where(sql`EXISTS (SELECT 1 FROM company_page_content WHERE company_id = companies.id)`)
+			.where(companyIsVisible('companies'))
 			.executeTakeFirstOrThrow();
 		return result.total;
 	}
@@ -184,7 +181,7 @@ async function countSearchResults(query: string): Promise<number> {
 		.selectFrom('companies')
 		.select(sql<number>`count(*)::int`.as('total'))
 		.where(sql<boolean>`search_vector @@ websearch_to_tsquery('english', ${query})`)
-		.where(sql`EXISTS (SELECT 1 FROM company_page_content WHERE company_id = companies.id)`)
+		.where(companyIsVisible('companies'))
 		.executeTakeFirstOrThrow();
 
 	if (result.total === 0) {
@@ -194,7 +191,7 @@ async function countSearchResults(query: string): Promise<number> {
 			.where((eb) =>
 				eb.or([eb('ticker', 'ilike', `%${query}%`), eb('name', 'ilike', `%${query}%`)])
 			)
-			.where(sql`EXISTS (SELECT 1 FROM company_page_content WHERE company_id = companies.id)`)
+			.where(companyIsVisible('companies'))
 			.executeTakeFirstOrThrow();
 	}
 

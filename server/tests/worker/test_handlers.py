@@ -212,63 +212,42 @@ class TestAwaitFilingPageContent:
             patch("symbology.database.jobs.create_job", side_effect=fake_create_job),
         )
 
-    def test_queues_filing_job_when_not_in_flight(self):
-        from symbology.worker.handlers import _await_filing_page_content
+    def test_queues_filing_job_then_raises_dependency_not_ready(self):
+        import pytest
+        from symbology.worker.handlers import _await_filing_page_content, DependencyNotReady
         from symbology.worker.page_pipelines import FilingPageContentNotReady
+        from symbology.database.jobs import JobType
 
         filing = _fake_filing("acc-X", "AAPL")
         exc = FilingPageContentNotReady("missing", [str(filing.id)])
         created = []
         p1, p2, p3 = self._patches([filing], active_jobs=[], created=created)
-        with p1, p2, p3:
-            result = _await_filing_page_content("AAPL", "10-K", {}, exc)
+        with p1, p2, p3, pytest.raises(DependencyNotReady):
+            _await_filing_page_content("AAPL", "10-K", exc)
 
-        from symbology.database.jobs import JobType
+        # The missing filing page is enqueued; crucially, NO company-page successor
+        # copy is spawned — the worker defers this same job (BACKOFF) instead.
         filing_jobs = [j for j in created if j.job_type == JobType.FILING_PAGE_CONTENT]
         company_jobs = [j for j in created if j.job_type == JobType.COMPANY_PAGE_CONTENT]
         assert len(filing_jobs) == 1
         assert filing_jobs[0].params == {"accession_number": "acc-X"}
-        # Company job deferred into the future with an incremented attempt counter.
-        assert len(company_jobs) == 1
-        assert company_jobs[0].scheduled_at is not None
-        assert company_jobs[0].params["_dep_wait_attempts"] == 1
-        assert result["status"] == "requeued_waiting_on_filing_pages"
-        assert result["queued_filing_pages"] == ["acc-X"]
+        assert company_jobs == []
 
     def test_waits_without_requeuing_filing_when_in_flight(self):
-        from symbology.worker.handlers import _await_filing_page_content
+        import pytest
+        from symbology.worker.handlers import _await_filing_page_content, DependencyNotReady
         from symbology.worker.page_pipelines import FilingPageContentNotReady
-        from symbology.database.jobs import JobType
 
         filing = _fake_filing("acc-Y", "AAPL")
         exc = FilingPageContentNotReady("missing", [str(filing.id)])
         active = [SimpleNamespace(params={"accession_number": "acc-Y"})]
         created = []
         p1, p2, p3 = self._patches([filing], active_jobs=active, created=created)
-        with p1, p2, p3:
-            result = _await_filing_page_content("AAPL", "10-K", {}, exc)
+        with p1, p2, p3, pytest.raises(DependencyNotReady):
+            _await_filing_page_content("AAPL", "10-K", exc)
 
-        assert not [j for j in created if j.job_type == JobType.FILING_PAGE_CONTENT]
-        assert result["waiting_on_in_flight"] == [str(filing.id)]
-        assert [j for j in created if j.job_type == JobType.COMPANY_PAGE_CONTENT]
-
-    def test_raises_when_attempts_exhausted(self):
-        import pytest
-        from symbology.worker.handlers import _await_filing_page_content
-        from symbology.worker.page_pipelines import FilingPageContentNotReady
-        from symbology.worker.config import worker_settings
-
-        filing = _fake_filing("acc-Z", "AAPL")
-        exc = FilingPageContentNotReady("missing", [str(filing.id)])
-        created = []
-        active = [SimpleNamespace(params={"accession_number": "acc-Z"})]
-        p1, p2, p3 = self._patches([filing], active_jobs=active, created=created)
-        params = {"_dep_wait_attempts": worker_settings.dependency_requeue_max_attempts}
-        with p1, p2, p3, pytest.raises(FilingPageContentNotReady):
-            _await_filing_page_content("AAPL", "10-K", params, exc)
-        # No successor enqueued once the bound is hit.
-        from symbology.database.jobs import JobType
-        assert not [j for j in created if j.job_type == JobType.COMPANY_PAGE_CONTENT]
+        # Already in flight → nothing new is enqueued (no filing job, no successor).
+        assert created == []
 
 
 def _fake_diff_filing(accession, company_id, form="10-K", period_year=2024, filed_year=2024):
@@ -419,7 +398,8 @@ class TestHandleFilingDiff:
         assert result["document_types"] == ["risk_factors"]
 
     def test_defers_when_not_embedded(self):
-        from symbology.worker.handlers import handle_filing_diff
+        import pytest
+        from symbology.worker.handlers import handle_filing_diff, DependencyNotReady
         cid = uuid7()
         a = _fake_diff_filing("accA", cid, period_year=2023)
         b = _fake_diff_filing("accB", cid, period_year=2024)
@@ -434,15 +414,15 @@ class TestHandleFilingDiff:
         with patch("symbology.worker.handlers._resolve_filing_token", side_effect=[a, b]), \
              patch("symbology.worker.handlers._filing_ready_for_diff", return_value=False), \
              patch("symbology.database.jobs.get_active_jobs", return_value=[]), \
-             patch("symbology.database.jobs.create_job", side_effect=fake_create_job):
-            result = handle_filing_diff({"from": "accA", "to": "accB"})
+             patch("symbology.database.jobs.create_job", side_effect=fake_create_job), \
+             pytest.raises(DependencyNotReady):
+            handle_filing_diff({"from": "accA", "to": "accB"})
 
         from symbology.database.jobs import JobType
         embeds = [j for j in created if j.job_type == JobType.EMBED_FILING]
         successors = [j for j in created if j.job_type == JobType.FILING_DIFF]
-        assert len(embeds) == 2  # both sides not ready
-        assert len(successors) == 1 and successors[0].scheduled_at is not None
-        assert result["status"] == "requeued_waiting_on_embeddings"
+        assert len(embeds) == 2  # both sides not ready → an embed job each
+        assert successors == []  # no FILING_DIFF successor copy; worker defers this job
 
 
 class TestHandleCompanyDiffEnsure:
@@ -522,3 +502,12 @@ class TestHandleCompanyDiffEnsure:
         # The single pair is the most recent one (2023 -> 2024).
         assert diff_jobs[0].params["right_filing_id"] == str(filings[-1].id)
         assert diff_jobs[0].params["left_filing_id"] == str(filings[-2].id)
+
+    def test_defers_when_company_not_ingested_yet(self):
+        """Lost the race against ingestion → BACKOFF (DependencyNotReady), not a crash."""
+        import pytest
+        from symbology.worker.handlers import handle_company_diff, DependencyNotReady
+
+        with patch("symbology.database.companies.get_company_by_ticker", return_value=None), \
+             pytest.raises(DependencyNotReady):
+            handle_company_diff({"ticker": "NVDA", "form": "10-K"})

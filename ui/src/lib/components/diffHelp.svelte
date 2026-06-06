@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { CircleQuestionMark } from '@lucide/svelte';
 
-	let { size = 10 }: { size?: number } = $props();
+	let { size = 8 }: { size?: number } = $props();
 </script>
 
 <a
 	href="/faq#text-diffs"
 	class="synthesis-help"
-	title="What are context aware diffs?"
-	aria-label="What are context aware diffs?"
+	title="What are text diffs?"
+	aria-label="What are text diffs?"
 >
-	<CircleQuestionMark style="width: {size}px; height: {size}px;" />
+	<CircleQuestionMark class="-mt-1 -ml-1" style="width: {size}px; height: {size}px;" />
 </a>
 
 <style>

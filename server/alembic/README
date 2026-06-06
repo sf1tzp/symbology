@@ -1,1 +1,26 @@
 Generic single-database configuration.
+
+
+# fresh deployments
+
+At a certain point in the migration chain we create an `auth` schema that is
+owned by Better Auth. Better Auth's CLI must run at that point — before the
+later symbology migrations that reference `auth."user"` (the watchlist FK in
+s8c9d0e1f2a3). So a straight `alembic upgrade head` fails on a fresh DB.
+
+Use the automated bootstrap from the repo root (source of truth):
+
+    just db-init
+
+It sequences the three phases and is idempotent, so it also works as the
+everyday migrate entrypoint on an existing DB.
+
+If you need to run the phases by hand, it does the equivalent of:
+
+    cd server && uv run alembic upgrade r7b8c9d0e1f2   # create auth schema
+    cd ../ui  && npx @better-auth/cli migrate -y       # create auth."user", etc.
+    cd ../server && uv run alembic upgrade head         # apply remaining migrations
+
+The watchlist migration (s8c9d0e1f2a3) guards against running out of order: if
+auth."user" is missing it raises an actionable error instead of a cryptic
+`relation "auth.user" does not exist`.

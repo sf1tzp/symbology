@@ -9,7 +9,7 @@ load_dotenv()
 class DatabaseSettings(BaseSettings):
     user: str = Field(default="postgres")
     password: str = Field(default="postgres")
-    database_name: str = Field(default="symbology")
+    name: str = Field(default="symbology")
     host: str = Field(default="localhost")
     port: int = Field(default=5432)
 
@@ -22,7 +22,7 @@ class DatabaseSettings(BaseSettings):
     @property
     def url(self) -> str:
         """Construct database URL."""
-        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database_name}"
+        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
 
 
 class EdgarApiSettings(BaseSettings):

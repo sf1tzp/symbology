@@ -823,6 +823,77 @@ def find_existing_page_content(
     return None
 
 
+def find_existing_generated_content(
+    *,
+    content_stage: Union[str, "ContentStage", None],
+    system_prompt_id: Union[UUID, str],
+    model_config_id: Union[UUID, str],
+    source_document_ids: Optional[List[Union[UUID, str]]] = None,
+    source_content_ids: Optional[List[Union[UUID, str]]] = None,
+) -> Optional[GeneratedContent]:
+    """Find content already generated for the same (sources, stage, prompt, model).
+
+    Centralized dedup used by ``handle_content_generation`` *after* model-config
+    overflow resolution, so the key matches what actually gets stored (the
+    resolved model config). The stage-level checks
+    (:func:`find_existing_content_for_document`,
+    :func:`find_existing_page_content`) run *before* overflow resolution and so
+    miss whenever a prompt overflows to a different model; this one does not.
+
+    Exactly one source set is expected: document sources OR generated-content
+    sources. The candidate's source set must equal the requested set exactly
+    (same members, same cardinality) — not a superset. Returns None when no
+    sources are given (no reliable key can be formed).
+
+    Returns:
+        The first matching GeneratedContent, or None.
+    """
+    session = get_db_session()
+    stage = ContentStage(content_stage) if isinstance(content_stage, str) else content_stage
+
+    if source_document_ids:
+        assoc = generated_content_document_association
+        parent_col = assoc.c.generated_content_id
+        child_col = assoc.c.document_id
+        wanted = source_document_ids
+    elif source_content_ids:
+        assoc = generated_content_source_association
+        parent_col = assoc.c.parent_content_id
+        child_col = assoc.c.source_content_id
+        wanted = source_content_ids
+    else:
+        return None
+
+    n = len({str(i) for i in wanted})
+
+    # Candidates: same stage/prompt/model linked to all requested sources; the
+    # HAVING guarantees every requested source is present, the per-candidate
+    # total-source check below enforces exact equality (no superset reuse).
+    candidates = (
+        session.query(GeneratedContent)
+        .join(assoc, GeneratedContent.id == parent_col)
+        .filter(
+            GeneratedContent.content_stage == stage,
+            GeneratedContent.system_prompt_id == system_prompt_id,
+            GeneratedContent.model_config_id == model_config_id,
+            child_col.in_(wanted),
+        )
+        .group_by(GeneratedContent.id)
+        .having(func.count(func.distinct(child_col)) == n)
+        .all()
+    )
+    for candidate in candidates:
+        total_sources = (
+            session.query(func.count())
+            .select_from(assoc)
+            .filter(parent_col == candidate.id)
+            .scalar()
+        )
+        if total_sources == n:
+            return candidate
+    return None
+
+
 def get_generated_content_by_source_document(document_id: Union[UUID, str]) -> List[GeneratedContent]:
     """Get all generated content that uses a specific document as a source.
 

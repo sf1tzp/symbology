@@ -96,6 +96,70 @@ class TestCompanyDiffPipeline:
         assert out == ["ds"]
 
 
+def _pf(form, period):
+    """A filing stub with a comparable (date) period for pairing tests."""
+    return SimpleNamespace(id=uuid7(), form=form, period_of_report=period, filing_date=period)
+
+
+class TestQuarterlyDiffPair:
+    """A 10-Q page pairs the latest quarter with the immediately preceding 10-K /
+    10-Q, never straddling the annual to a quarter of the prior cycle."""
+
+    def _run(self, filings):
+        from symbology.worker import diff_pipeline
+
+        q = SimpleNamespace()
+        q.filter = lambda *a, **k: q
+        q.order_by = lambda *a, **k: q
+        q.limit = lambda *a, **k: q
+        q.all = lambda: filings
+        session = SimpleNamespace(query=lambda *a, **k: q)
+        captured = {}
+
+        def fake_pipeline(left, right, form, prompts_dir, generate_summaries, max_summaries):
+            captured["left"], captured["right"], captured["form"] = left, right, form
+            return ["ds"]
+
+        with patch("symbology.worker.diff_pipeline.get_db_session", return_value=session), \
+             patch("symbology.worker.diff_pipeline.filing_diff_pipeline", side_effect=fake_pipeline):
+            out = diff_pipeline.company_diff_pipeline(SimpleNamespace(id=uuid7()), form="10-Q")
+        return captured, out
+
+    def test_first_quarter_pairs_with_anchor_10k(self):
+        from datetime import date
+
+        # Newest-first, as the desc-ordered query returns. The latest 10-Q (Q1-26)
+        # follows the FY25 10-K; it must pair with that annual, not the prior Q3-25.
+        filings = [
+            _pf("10-Q", date(2026, 3, 31)),
+            _pf("10-K", date(2025, 12, 31)),
+            _pf("10-Q", date(2025, 9, 30)),
+        ]
+        captured, out = self._run(filings)
+        assert captured["right"] is filings[0]
+        assert captured["left"] is filings[1]  # the anchor 10-K
+        assert captured["form"] == "10-Q"
+        assert out == ["ds"]
+
+    def test_mid_cycle_pairs_with_prior_quarter(self):
+        from datetime import date
+
+        filings = [
+            _pf("10-Q", date(2025, 6, 30)),
+            _pf("10-Q", date(2025, 3, 31)),
+            _pf("10-K", date(2024, 12, 31)),
+        ]
+        captured, _ = self._run(filings)
+        assert captured["right"] is filings[0]
+        assert captured["left"] is filings[1]  # prior quarter of the same cycle
+
+    def test_no_quarter_returns_empty(self):
+        from datetime import date
+
+        _, out = self._run([_pf("10-K", date(2025, 12, 31))])
+        assert out == []
+
+
 def _sd(kind, added=0, removed=0, ldelta=0):
     return SimpleNamespace(
         id=uuid7(), change_kind=kind, tokens_added=added, tokens_removed=removed,
@@ -118,6 +182,9 @@ class TestNoiseLabel:
             (None, False),          # absent label is not noise (falls back to path)
             ("", False),
             ("   ", False),         # blank is absent, not garbage
+            # Run-on table headers: column labels concatenated without spaces.
+            ("CareBenefitsHealthServicesPharmacy &ConsumerWellnessCorporate/OtherConsolidatedTotals", True),
+            ("Health Care Benefits Segment", False),  # spaced phrase stays readable
         ],
     )
     def test_is_noise_label(self, label, expected):

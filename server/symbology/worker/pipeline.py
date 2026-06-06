@@ -56,13 +56,15 @@ PIPELINE_PROMPTS = {
     "company_group_frontpage": "company-group-frontpage",
 }
 
-# Document types per form (mirrors ingest.just)
+# Document types per form. The live pipelines read this from model_configs.yaml
+# via config_loader; this constant mirrors it and must stay in sync.
 FORM_DOCUMENT_TYPES = {
     "10-K": [
         "business_description",
         "risk_factors",
         "management_discussion",
         "controls_procedures",
+        "market_risk",
     ],
     "10-Q": [
         "risk_factors",

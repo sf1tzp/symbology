@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { FeaturedCompanyIntro } from '$lib/api-types';
 	import { titleCase } from 'title-case';
-	import { cleanContent } from '$lib/utils/filings';
 	import { ArrowRight, ChevronLeft, ChevronRight } from '@lucide/svelte';
+	import { previewContent } from '$lib/utils';
 
 	let { companies }: { companies: FeaturedCompanyIntro[] } = $props();
 
@@ -51,14 +51,6 @@
 
 	function displayName(c: FeaturedCompanyIntro): string {
 		return titleCase((c.display_name || c.name).toLowerCase());
-	}
-
-	/** First few sentences of the intro, cleaned of markdown/footnote noise. */
-	function preview(text: string | null): string {
-		const cleaned = cleanContent(text ?? '') ?? '';
-		const sentences = cleaned.match(/[^.!?]+[.!?]+/g);
-		if (!sentences) return cleaned.substring(0, 320);
-		return sentences.slice(0, 3).join('').trim();
 	}
 </script>
 
@@ -126,19 +118,12 @@
 									<p
 										class="m-0 line-clamp-8 font-serif text-[17px] leading-[1.65] text-ink-2 md:px-8"
 									>
-										{preview(c.intro)}
+										{previewContent(c.intro)}
 									</p>
 								{:else if c.sic_description}
 									<p class="m-0 line-clamp-4 font-serif text-[17px] leading-[1.65] text-ink-2">
 										{c.sic_description}
 									</p>
-								{/if}
-								{#if active}
-									<a
-										href="/c/{active.ticker}"
-										class="meta whitespace-nowrap text-teal-2 no-underline"
-									>
-									</a>
 								{/if}
 								<p class="mt-auto flex justify-end pt-4 font-serif text-teal-2 md:hidden">
 									Open {active.ticker} &rarr;

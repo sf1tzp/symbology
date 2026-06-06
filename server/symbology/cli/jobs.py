@@ -2,6 +2,7 @@
 
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 
 import click
 from rich.console import Console
@@ -10,8 +11,8 @@ from symbology.database.base import get_db_session, init_db
 from symbology.database.jobs import (
     JobStatus,
     JobType,
-    cancel_failed_jobs,
     cancel_job,
+    cancel_jobs_by_status,
     count_jobs_by_status,
     create_job,
     get_job,
@@ -136,7 +137,21 @@ def jobs():
 @click.option("--params", "-p", "params_json", default=None, help="Job parameters as a JSON object (merged after --set pairs)")
 @click.option("--priority", type=int, default=2, help="Priority (0=critical, 4=backlog)")
 @click.option("--max-retries", type=int, default=3, help="Maximum retry attempts")
-def start_job(job_type: str, set_kvs, params_json, priority: int, max_retries: int):
+@click.option(
+    "--delay",
+    "delay_seconds",
+    type=float,
+    default=None,
+    help="Defer the job by N seconds (sets scheduled_at = now + N, naive UTC).",
+)
+@click.option(
+    "--scheduled-at",
+    "scheduled_at_iso",
+    default=None,
+    help="Defer until an ISO-8601 timestamp (UTC). Mutually exclusive with --delay.",
+)
+def start_job(job_type: str, set_kvs, params_json, priority: int, max_retries: int,
+              delay_seconds, scheduled_at_iso):
     """Enqueue a new job of JOB_TYPE.
 
     Params are assembled from repeatable --set KEY=VALUE pairs (auto-typed, same
@@ -168,15 +183,41 @@ def start_job(job_type: str, set_kvs, params_json, priority: int, max_retries: i
             sys.exit(1)
         params.update(parsed)
 
+    if delay_seconds is not None and scheduled_at_iso is not None:
+        console.print("[red]Pass only one of --delay / --scheduled-at[/red]")
+        sys.exit(1)
+
+    scheduled_at = None
+    if delay_seconds is not None:
+        scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
+            seconds=delay_seconds
+        )
+    elif scheduled_at_iso is not None:
+        try:
+            dt = datetime.fromisoformat(scheduled_at_iso)
+        except ValueError as e:
+            console.print(f"[red]Invalid --scheduled-at: {e}[/red]")
+            sys.exit(1)
+        # Normalize to naive UTC to match the scheduled_at storage convention.
+        scheduled_at = dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt
+
     try:
         init_session()
         jt = JobType(job_type)
-        job = create_job(jt, params=params, priority=priority, max_retries=max_retries)
+        job = create_job(
+            jt,
+            params=params,
+            priority=priority,
+            max_retries=max_retries,
+            scheduled_at=scheduled_at,
+        )
         console.print(f"[green]✓[/green] Job started: {job.id}")
         console.print(f"  [blue]Type:[/blue]     {job.job_type.value}")
         console.print(f"  [blue]Context:[/blue]  {format_job_context(job)}")
         console.print(f"  [blue]Priority:[/blue] {job.priority}")
         console.print(f"  [blue]Status:[/blue]   {job.status.value}")
+        if scheduled_at is not None:
+            console.print(f"  [blue]Scheduled:[/blue] {scheduled_at.isoformat()}")
     except Exception as e:
         console.print(f"[red]Error starting job: {e}[/red]")
         logger.exception("Job start failed")
@@ -205,6 +246,8 @@ def job_status(job_id: str):
         table.add_row("[bold blue]Priority:[/bold blue]", str(job.priority))
         table.add_row("[bold blue]Worker:[/bold blue]", job.worker_id or "-")
         table.add_row("[bold blue]Created:[/bold blue]", str(job.created_at))
+        if job.scheduled_at is not None:
+            table.add_row("[bold blue]Scheduled:[/bold blue]", str(job.scheduled_at))
         # "Attempt N/total" — matches the status page convention. retry_count is
         # the number of *completed* attempts, so the current one is +1.
         table.add_row("[bold blue]Attempt:[/bold blue]", f"{job.retry_count + 1}/{job.max_retries}")
@@ -297,27 +340,39 @@ def edit_job(job_id, set_kvs, params_json, replace_params, priority, max_retries
 @click.option("--status", "status_filter", type=click.Choice([s.value for s in JobStatus], case_sensitive=False), help="Filter by status")
 @click.option("--running", "shortcut_running", is_flag=True, help="Show only in-progress jobs")
 @click.option("--pending", "shortcut_pending", is_flag=True, help="Show only pending jobs")
+@click.option("--backoff", "shortcut_backoff", is_flag=True, help="Show only backoff jobs")
 @click.option("--failed", "shortcut_failed", is_flag=True, help="Show only failed jobs")
 @click.option("--completed", "shortcut_completed", is_flag=True, help="Show only completed jobs")
+@click.option("--cancelled", "--canceled", "shortcut_cancelled", is_flag=True, help="Show only cancelled jobs")
 @click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="Filter by job type")
+@click.option("--ticker", "ticker_filter", default=None, help="Filter by company ticker referenced in job params")
 @click.option("--limit", default=20, help="Maximum number of jobs to show")
-def list_jobs_cmd(status_filter: str, type_filter: str, limit: int, shortcut_running: bool, shortcut_pending: bool, shortcut_failed: bool, shortcut_completed: bool):
+def list_jobs_cmd(status_filter: str, type_filter: str, ticker_filter: str, limit: int, shortcut_running: bool, shortcut_pending: bool, shortcut_backoff: bool, shortcut_failed: bool, shortcut_completed: bool, shortcut_cancelled: bool):
     """List jobs in the queue."""
     try:
-        # Resolve status from shortcut flags (last one wins if multiple given)
+        # Collect statuses from --status plus any shortcut flags; jobs matching
+        # any of them are shown (e.g. --running --pending).
+        statuses: list[JobStatus] = []
+        if status_filter:
+            statuses.append(JobStatus(status_filter))
         if shortcut_running:
-            status_filter = JobStatus.IN_PROGRESS.value
-        elif shortcut_pending:
-            status_filter = JobStatus.PENDING.value
-        elif shortcut_failed:
-            status_filter = JobStatus.FAILED.value
-        elif shortcut_completed:
-            status_filter = JobStatus.COMPLETED.value
+            statuses.append(JobStatus.IN_PROGRESS)
+        if shortcut_pending:
+            statuses.append(JobStatus.PENDING)
+        if shortcut_backoff:
+            statuses.append(JobStatus.BACKOFF)
+        if shortcut_failed:
+            statuses.append(JobStatus.FAILED)
+        if shortcut_completed:
+            statuses.append(JobStatus.COMPLETED)
+        if shortcut_cancelled:
+            statuses.append(JobStatus.CANCELLED)
+        # De-dupe while preserving order.
+        statuses = list(dict.fromkeys(statuses))
 
         init_session()
-        js = JobStatus(status_filter) if status_filter else None
         jt = JobType(type_filter) if type_filter else None
-        job_list = list_jobs(status=js, job_type=jt, limit=limit)
+        job_list = list_jobs(status=statuses or None, job_type=jt, ticker=ticker_filter, limit=limit)
 
         if not job_list:
             console.print("[yellow]No jobs found[/yellow]")
@@ -333,7 +388,9 @@ def list_jobs_cmd(status_filter: str, type_filter: str, limit: int, shortcut_run
         table.add_column("Status", style="white")
         table.add_column("Priority")
         table.add_column("Attempt")
+        table.add_column("Worker", style="dim")
         table.add_column("Created")
+        table.add_column("Scheduled")
         table.add_column("Started")
         table.add_column("Completed")
 
@@ -341,6 +398,7 @@ def list_jobs_cmd(status_filter: str, type_filter: str, limit: int, shortcut_run
             status_style = {
                 JobStatus.PENDING: "yellow",
                 JobStatus.IN_PROGRESS: "blue",
+                JobStatus.BACKOFF: "cyan",
                 JobStatus.COMPLETED: "green",
                 JobStatus.FAILED: "red",
                 JobStatus.CANCELLED: "dim",
@@ -353,7 +411,9 @@ def list_jobs_cmd(status_filter: str, type_filter: str, limit: int, shortcut_run
                 f"[{status_style}]{job.status.value}[/{status_style}]",
                 str(job.priority),
                 f"{job.retry_count + 1}/{job.max_retries}",
+                job.worker_id or "-",
                 fmt_ts(job.created_at),
+                fmt_ts(job.scheduled_at),
                 fmt_ts(job.started_at),
                 fmt_ts(job.completed_at),
             )
@@ -421,7 +481,11 @@ def stop_job_cmd(job_id: str):
 @click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="With --all, filter by job type")
 @click.option("--dry-run", is_flag=True, help="Show counts without making changes")
 def retry_cmd(job_id: str, retry_all: bool, type_filter: str, dry_run: bool):
-    """Reset FAILED jobs back to PENDING for retry.
+    """Requeue FAILED, CANCELLED, or BACKOFF jobs for retry.
+
+    A FAILED or CANCELLED job is reset to PENDING with its retry budget cleared.
+    A BACKOFF job (deferred while waiting on a dependency) is requeued
+    immediately by pulling its scheduled_at forward to now.
 
     JOB_ID: UUID of the job to retry. Read from stdin if not given as an
     argument. Ignored when --all is set, which retries every failed job.
@@ -452,46 +516,85 @@ def retry_cmd(job_id: str, retry_all: bool, type_filter: str, dry_run: bool):
             console.print("[red]No job id provided (pass an argument, pipe via stdin, or use --all)[/red]")
             sys.exit(1)
 
+        requeuable = (JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.BACKOFF)
         if dry_run:
             job = get_job(job_id)
-            if not job or job.status != JobStatus.FAILED:
-                console.print(f"[red]Job not found or not in FAILED status: {job_id}[/red]")
+            if not job or job.status not in requeuable:
+                console.print(f"[red]Job not found or not in FAILED/CANCELLED/BACKOFF status: {job_id}[/red]")
                 sys.exit(1)
             console.print(f"Would requeue: [cyan]{job.id}[/cyan]")
             return
 
         job = requeue_job(job_id)
         if not job:
-            console.print(f"[red]Job not found or not in FAILED status: {job_id}[/red]")
+            console.print(f"[red]Job not found or not in FAILED/CANCELLED/BACKOFF status: {job_id}[/red]")
             sys.exit(1)
-        console.print(f"[green]✓[/green] Requeued job to PENDING: {job.id}")
+        # A BACKOFF job stays BACKOFF (now immediately eligible); a FAILED or
+        # CANCELLED job is reset to PENDING.
+        console.print(f"[green]✓[/green] Requeued job ({job.status.value}): {job.id}")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         logger.exception("Failed to retry jobs")
         sys.exit(1)
 
 
-@jobs.command("clear-failed")
+# Statuses that can be cleared (cancelled) from the queue. COMPLETED/CANCELLED
+# are terminal and excluded.
+_CLEARABLE_STATUSES = [
+    JobStatus.PENDING,
+    JobStatus.IN_PROGRESS,
+    JobStatus.BACKOFF,
+    JobStatus.FAILED,
+]
+
+
+@jobs.command("clear")
+@click.option("--pending", is_flag=True, help="Clear PENDING jobs")
+@click.option("--in-progress", "in_progress", is_flag=True, help="Clear IN_PROGRESS jobs")
+@click.option("--backoff", is_flag=True, help="Clear BACKOFF jobs")
+@click.option("--failed", is_flag=True, help="Clear FAILED jobs")
 @click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="Filter by job type")
 @click.option("--dry-run", is_flag=True, help="Show counts without making changes")
-def clear_failed_cmd(type_filter: str, dry_run: bool):
-    """Mark FAILED jobs as CANCELLED (clear them from the queue)."""
+def clear_cmd(pending: bool, in_progress: bool, backoff: bool, failed: bool, type_filter: str, dry_run: bool):
+    """Mark jobs in the selected status(es) as CANCELLED (clear them from the queue).
+
+    Defaults to FAILED when no status flag is given. Combine flags to clear
+    multiple statuses, e.g. `jobs clear --pending --backoff`.
+    """
     try:
         init_session()
         jt = JobType(type_filter) if type_filter else None
-        count = count_jobs_by_status(JobStatus.FAILED, job_type=jt)
 
-        if count == 0:
-            console.print("[yellow]No failed jobs found[/yellow]")
+        selected = [
+            status
+            for flag, status in (
+                (pending, JobStatus.PENDING),
+                (in_progress, JobStatus.IN_PROGRESS),
+                (backoff, JobStatus.BACKOFF),
+                (failed, JobStatus.FAILED),
+            )
+            if flag
+        ]
+        # Preserve the old `clear-failed` behaviour when no status is specified.
+        if not selected:
+            selected = [JobStatus.FAILED]
+
+        counts = {s: count_jobs_by_status(s, job_type=jt) for s in selected}
+        total = sum(counts.values())
+
+        label = ", ".join(s.value for s in selected)
+        if total == 0:
+            console.print(f"[yellow]No jobs found in status: {label}[/yellow]")
             return
 
+        breakdown = ", ".join(f"{counts[s]} {s.value}" for s in selected if counts[s])
         if dry_run:
-            console.print(f"Would cancel: [cyan]{count}[/cyan] failed jobs")
+            console.print(f"Would cancel: [cyan]{total}[/cyan] jobs ({breakdown})")
             return
 
-        cancelled = cancel_failed_jobs(job_type=jt)
-        console.print(f"[green]✓[/green] Cancelled {cancelled} failed jobs")
+        cancelled = cancel_jobs_by_status(selected, job_type=jt)
+        console.print(f"[green]✓[/green] Cancelled {cancelled} jobs ({breakdown})")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        logger.exception("Failed to clear failed jobs")
+        logger.exception("Failed to clear jobs")
         sys.exit(1)

@@ -22,6 +22,7 @@ from symbology.database.page_content import (
 )
 from symbology.llm.client import ShutdownRequested
 from symbology.worker.page_pipelines import (
+    FilingHasNoPageableDocuments,
     PageContentGenerationError,
     filing_page_content_pipeline,
 )
@@ -81,6 +82,31 @@ def filing_with_docs(db_session):
         ))
     db_session.flush()
     return filing
+
+
+@pytest.fixture
+def filing_without_docs(db_session):
+    company = Company(name="No Docs Co", ticker="NODOC", exchanges=["NYSE"])
+    db_session.add(company)
+    db_session.flush()
+    filing = Filing(
+        company_id=company.id, accession_number="0001234567-26-000099",
+        form="10-Q", filing_date=date(2026, 5, 5), period_of_report=date(2026, 3, 31),
+    )
+    db_session.add(filing)
+    db_session.flush()
+    return filing  # no Document rows — none of the form's pageable sections present
+
+
+def test_no_pageable_documents_is_a_benign_skip(db_session, filing_without_docs):
+    """A filing carrying none of its form's document types raises the benign
+    FilingHasNoPageableDocuments (a skip, not a hard failure) and publishes nothing."""
+    with pytest.raises(FilingHasNoPageableDocuments):
+        filing_page_content_pipeline(filing_without_docs)
+
+    assert get_current_filing_page_content(filing_without_docs.id) is None
+    assert db_session.query(FilingPageContent).count() == 0
+    assert db_session.query(DocumentPageContent).count() == 0
 
 
 def test_filing_pipeline_generates_and_publishes(db_session, filing_with_docs):

@@ -162,14 +162,10 @@ def get_rating(rating_id: str):
     try:
         session = init_session()
 
-        # Try to parse as UUID
-        from uuid import UUID
-        try:
-            uuid_obj = UUID(rating_id)
-            rating = session.query(Rating).filter(Rating.id == uuid_obj).first()
-        except ValueError:
-            console.print(f"[red]Error: Invalid rating ID format '{rating_id}'[/red]")
-            sys.exit(1)
+        # Accept a full UUID or a short id (the UUID's last segment).
+        from symbology.cli.shortid import resolve_id
+        rating_id = resolve_id(Rating, rating_id, kind="rating")
+        rating = session.query(Rating).filter(Rating.id == rating_id).first()
 
         if not rating:
             console.print(f"[red]Error: Rating with ID '{rating_id}' not found[/red]")

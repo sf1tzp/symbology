@@ -10,6 +10,7 @@ This is pure synthesis over already chunked+clustered data (run the filing page
 pipeline / backfill first). It is idempotent per filing pair: the prior diff set
 for the pair is replaced on each run.
 """
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -45,7 +46,7 @@ _KIND_ORDER = {
 # so a filing with 100+ changed topics is slow; we rank by significance and
 # summarise only the most material. Override per-job with the ``max_summaries``
 # param. Mirrors the UI's ``scoreSectionDiff`` ranking.
-MAX_TOPIC_SUMMARIES = 10
+MAX_TOPIC_SUMMARIES = 6
 
 _KIND_WEIGHT = {
     text_diff.NEW: 1000,
@@ -61,6 +62,44 @@ def _significance(sd) -> float:
     """Heuristic 'analyst significance' of a section diff (kind + edit volume)."""
     kind = _KIND_WEIGHT.get(sd.change_kind, 100)
     return kind + (sd.tokens_added or 0) + (sd.tokens_removed or 0) + abs(sd.length_delta or 0) * 0.1
+
+
+# Change kinds the UI actually surfaces (cards + side-by-side): shifts in emphasis /
+# wording of existing disclosures. Brand-new and removed topics are not shown — and
+# a per-topic "what changed" summary (prior vs current prose) is meaningless for them
+# anyway — so they aren't worth an LLM call. Mirrors VISIBLE_KINDS in
+# ui/src/lib/utils/changes.ts.
+DISPLAYED_CHANGE_KINDS = frozenset(
+    {text_diff.ESCALATED, text_diff.DE_EMPHASISED, text_diff.REWORDED}
+)
+
+# Numeric-noise gate, mirroring isNumericNoise() in ui/src/lib/utils/changes.ts: a
+# change whose *edited* text is essentially just figures (year-over-year tables where
+# only the numbers moved) is hidden on-page, so it isn't summarised either.
+_NUMERIC_NOISE_MIN_CHARS = 8
+_NUMERIC_NOISE_MAX_ALPHA = 0.2
+
+
+def _is_numeric_noise(ops) -> bool:
+    if not ops:
+        return False
+    changed = "".join(o.get("text", "") for o in ops if o.get("op") != "equal")
+    letters = len(re.findall(r"[^\W\d_]", changed))
+    digits = len(re.findall(r"\d", changed))
+    if digits == 0 or letters + digits < _NUMERIC_NOISE_MIN_CHARS:
+        return False
+    return letters / (letters + digits) < _NUMERIC_NOISE_MAX_ALPHA
+
+
+def is_displayed_change(sd) -> bool:
+    """Whether a SectionDiff is one the UI shows — and thus worth summarising.
+
+    Mirrors ``isVisibleTopic`` in the UI: an emphasis/wording shift (DISPLAYED_CHANGE_KINDS)
+    whose change is more than just figures. Keeps the per-topic summary budget aimed
+    at exactly the topics that appear as change cards / list rows, instead of spending
+    it on never-shown new/removed (or figures-only) rows.
+    """
+    return sd.change_kind in DISPLAYED_CHANGE_KINDS and not _is_numeric_noise(sd.ops)
 
 
 def _document_for(filing_id, document_type: DocumentType) -> Optional[Document]:
@@ -356,24 +395,28 @@ def company_diff_pipeline(
     )
 
 
-def _generate_topic_summaries(
+def summarize_diff_set(
+    diff_set: DiffSet,
     company,
-    diff_sets: List[DiffSet],
     form: str,
-    prompts_dir,
-    max_summaries: int = MAX_TOPIC_SUMMARIES,
-) -> None:
-    """LLM-summarise the most significant changed topics across a filing's sections.
+    max_summaries: Optional[int] = MAX_TOPIC_SUMMARIES,
+    prompts_dir=None,
+    force: bool = False,
+) -> int:
+    """LLM-summarise the most significant *unsummarised* changed topics in one diff set.
 
-    Each summary is one LLM call, so a filing with 100+ changed topics is slow.
-    We rank every changed topic by :func:`_significance` and summarise only the
-    top ``max_summaries`` (pass ``None`` for no cap); the rest keep
-    ``summary_content_id`` NULL and the UI falls back to heading/section path.
-    Direct LLM call (the page-content generator only accepts GeneratedContent
-    sources, not raw chunk text). Non-fatal per topic.
+    Ranks the set's changed topics by :func:`_significance` and summarises the top
+    ``max_summaries`` that don't already have a summary (pass ``None`` for no cap),
+    setting each ``summary_content_id``. Resume-friendly: already-summarised topics
+    are skipped, so retries / re-runs don't redo work. Each summary is one LLM call
+    (direct — the page-content generator only accepts GeneratedContent sources, not
+    raw chunk text); non-fatal per topic. Returns the number summarised.
+
+    Decoupled from the structural diff so it can run as its own low-priority
+    DIFF_SUMMARY job, keeping the diff itself available without waiting on LLM calls.
     """
     from symbology.database.generated_content import ContentStage, create_generated_content
-    from symbology.llm.client import get_generate_response
+    from symbology.llm.client import get_generate_response, remove_thinking_tags
     from symbology.worker.config_loader import (
         ensure_stage_model_config,
         load_pipeline_config,
@@ -388,26 +431,35 @@ def _generate_topic_summaries(
         base_model_config = ensure_stage_model_config("l2_topic_diff_summary", prompts_dir)
     except Exception as e:
         logger.error("topic_summary_setup_failed", error=str(e), exc_info=True)
-        return
+        return 0
 
-    # Rank all changed topics across the filing's sections; summarise only the
-    # most significant `max_summaries` to bound LLM calls.
+    # Rank the set's *displayed*, not-yet-summarised topics; summarise only the most
+    # significant `max_summaries`. Restricting to displayed topics (vs all changed)
+    # keeps the budget on the rows that actually appear as change cards / list items,
+    # so cards reliably get prose instead of the budget being spent on never-shown
+    # new/removed (or figures-only) topics.
+    # Normally skip topics that already have a summary; ``force`` re-summarises every
+    # displayed topic (replacing the old summary_content_id) — e.g. to backfill blanks
+    # left by an earlier failed/empty run.
     candidates = [
-        (ds, sd)
-        for ds in diff_sets
-        for sd in ds.section_diffs
-        if sd.change_kind != text_diff.UNCHANGED
+        sd for sd in diff_set.section_diffs
+        if is_displayed_change(sd) and (force or sd.summary_content_id is None)
     ]
-    candidates.sort(key=lambda pair: _significance(pair[1]), reverse=True)
+    candidates.sort(key=_significance, reverse=True)
     selected = candidates if max_summaries is None else candidates[:max_summaries]
-    logger.info("topic_summaries_selected", total_changed=len(candidates),
-                summarising=len(selected), max_summaries=max_summaries)
+    logger.info("topic_summaries_selected", diff_set_id=str(diff_set.id),
+                total_changed=len(candidates), summarising=len(selected),
+                max_summaries=max_summaries)
 
-    for diff_set, sd in selected:
-        left = session.get(DocumentChunk, sd.left_chunk_id) if sd.left_chunk_id else None
-        right = session.get(DocumentChunk, sd.right_chunk_id) if sd.right_chunk_id else None
-        prev_text = left.content if left else "(not present in the prior filing)"
-        curr_text = right.content if right else "(removed — not present in the current filing)"
+    summarized = 0
+    for sd in selected:
+        # Feed the *full* topic text on each side (all of the topic's clustered
+        # chunks), not just the representative chunk — a single chunk (e.g. one table
+        # row) often lacks the context needed to describe the change.
+        prev_text = _topic_text(diff_set.left_filing_id, diff_set.document_type, sd.topic_id) \
+            or "(not present in the prior filing)"
+        curr_text = _topic_text(diff_set.right_filing_id, diff_set.document_type, sd.topic_id) \
+            or "(removed — not present in the current filing)"
         user_prompt = (
             f"<prior_period>\n{prev_text}\n</prior_period>\n\n"
             f"<current_period>\n{curr_text}\n</current_period>"
@@ -419,8 +471,17 @@ def _generate_topic_summaries(
             response, warning = get_generate_response(
                 model_config, system_prompt.content, user_prompt
             )
+            # Strip any reasoning tags and require real prose. A reasoning model that
+            # runs out of tokens mid-think returns empty content — don't store that
+            # (it would render a blank card) and don't mark the topic summarised, so a
+            # later DIFF_SUMMARY run can retry it instead of skipping it forever.
+            summary_text = (remove_thinking_tags(response.response) or "").strip()
+            if not summary_text:
+                logger.warning("topic_summary_empty", section_diff_id=str(sd.id),
+                               output_tokens=response.output_tokens)
+                continue
             generated, _ = create_generated_content({
-                "content": response.response,
+                "content": summary_text,
                 "company_id": company.id,
                 "filing_id": diff_set.right_filing_id,
                 "document_type": diff_set.document_type,
@@ -437,7 +498,42 @@ def _generate_topic_summaries(
             })
             sd.summary_content_id = generated.id
             session.commit()
+            summarized += 1
         except Exception as e:
             session.rollback()
             logger.error("topic_summary_failed", section_diff_id=str(sd.id),
                          error=str(e), exc_info=True)
+    return summarized
+
+
+def _topic_text(filing_id, document_type: DocumentType, topic_id) -> str:
+    """The full text of one topic on one side: its clustered chunks, concatenated.
+
+    Returns "" when the filing/topic is absent or the section has no clustered chunks
+    for that topic (e.g. a topic present only on the other side).
+    """
+    if filing_id is None or topic_id is None:
+        return ""
+    document = _document_for(filing_id, document_type)
+    if document is None:
+        return ""
+    parts = [
+        chunk.content
+        for chunk in get_chunks_by_document(document.id)
+        if chunk.topic_id == topic_id and chunk.content
+    ]
+    return "\n\n".join(parts)
+
+
+def _generate_topic_summaries(
+    company,
+    diff_sets: List[DiffSet],
+    form: str,
+    prompts_dir,
+    max_summaries: int = MAX_TOPIC_SUMMARIES,
+) -> None:
+    """Inline summariser kept for direct pipeline use (e.g. ``filing_diff_pipeline``
+    with ``generate_summaries=True``). Summarises each diff set's top topics; the
+    job path uses :func:`summarize_diff_set` per set instead."""
+    for ds in diff_sets:
+        summarize_diff_set(ds, company, form, max_summaries=max_summaries, prompts_dir=prompts_dir)

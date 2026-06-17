@@ -81,7 +81,7 @@
 <section class="hairline-section">
 	<div class="grid-3 pt-2">
 		{#each proofCards as card (card.num)}
-			<div>
+			<div class="hidden md:block">
 				<div class="mb-[18px] font-mono text-[11px] text-ink-4">
 					{card.num}
 				</div>

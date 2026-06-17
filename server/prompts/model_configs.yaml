@@ -43,7 +43,10 @@ model_configs:
   # focused call over just the two chunk texts.
   l2_topic_diff_summary:
     model: google/gemma-4-e4b
-    max_tokens: 512
+    # gemma-4-e4b is a reasoning model: it spends tokens "thinking" before emitting
+    # the answer. 512 was too tight — it hit the cap mid-reasoning and returned empty
+    # content. Give it room to finish the (still short, 1–2 sentence) summary.
+    max_tokens: 2048
     temperature: 0.3
 
   l3_company_main_content:

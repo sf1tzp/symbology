@@ -17,7 +17,7 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
 
 export type JobStatusEnum = "backoff" | "cancelled" | "completed" | "failed" | "in_progress" | "pending";
 
-export type JobTypeEnum = "backfill_chunks" | "backfill_embeddings" | "bulk_ingest" | "company_diff" | "company_group_pipeline" | "company_ingestion" | "company_page_content" | "content_generation" | "embed_filing" | "filing_diff" | "filing_ingestion" | "filing_page_content" | "test";
+export type JobTypeEnum = "backfill_chunks" | "backfill_embeddings" | "bulk_ingest" | "company_diff" | "company_group_pipeline" | "company_ingestion" | "company_page_content" | "content_generation" | "diff_summary" | "embed_filing" | "filing_diff" | "filing_ingestion" | "filing_page_content" | "test";
 
 export type Json = JsonValue;
 
@@ -36,6 +36,8 @@ export type Numeric = ColumnType<string, number | string, number | string>;
 export type Promptrole = "ASSISTANT" | "SYSTEM" | "USER";
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export type WorkerStatusEnum = "dead" | "idle" | "running" | "stopped";
 
 export interface AlembicVersion {
   version_num: string;
@@ -369,6 +371,18 @@ export interface Watchlist {
   user_id: string;
 }
 
+export interface Workers {
+  created_at: Generated<Timestamp>;
+  current_job_id: string | null;
+  hostname: string | null;
+  id: string;
+  last_heartbeat: Generated<Timestamp>;
+  pid: number | null;
+  started_at: Generated<Timestamp>;
+  status: Generated<WorkerStatusEnum>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface DB {
   alembic_version: AlembicVersion;
   "auth.account": AuthAccount;
@@ -403,4 +417,5 @@ export interface DB {
   ratings: Ratings;
   section_diffs: SectionDiffs;
   watchlist: Watchlist;
+  workers: Workers;
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { ChevronLeft, ExternalLink, Sparkles, ScrollText, FileText } from '@lucide/svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
-	import * as Tabs from '$lib/components/ui/tabs';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import {
 		formatDate,
 		formatFilingPeriod,
@@ -12,6 +12,9 @@
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
 	import PendingContentNotice from '$lib/components/PendingContentNotice.svelte';
+	import ChangeCard from '$lib/components/ChangeCard.svelte';
+	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
+	import { changeKindColor, topChangeCards } from '$lib/utils/changes';
 	import { toTitleCase } from '$lib/utils';
 
 	let { data }: { data: PageData } = $props();
@@ -22,9 +25,24 @@
 	const shortHash = $derived(doc.short_hash || data.content_hash.substring(0, 8));
 	const typeDisplay = $derived(getAnalysisTypeDisplay(doc.document_type));
 	const pageContent = $derived(data.documentPageContent);
+
+	// "What changed" headline cards for THIS section vs. the prior filing — the same
+	// top-N displayed shifts shown on the company / filing pages, scoped to this
+	// document's section. Empty when there's no prior filing or no shown changes.
+	const sectionDiff = $derived(data.sectionDiff);
+	const changeCards = $derived(sectionDiff ? topChangeCards(sectionDiff.topics) : []);
 	const hasAnalysis = $derived(
 		!!(pageContent && (pageContent.intro?.content || pageContent.summary?.content))
 	);
+
+	// L1-synthesis ⇄ source-text switch. Default to the synthesis when it exists,
+	// else land on the source so the reader sees content rather than a pending notice.
+	const _pc = data.documentPageContent;
+	let view = $state(_pc && (_pc.intro?.content || _pc.summary?.content) ? 'analysis' : 'document');
+	const viewOptions = [
+		{ value: 'analysis', label: 'L1 Synthesis', icon: Sparkles, accent: 'var(--teal-2)' },
+		{ value: 'document', label: 'View Source', icon: ScrollText }
+	];
 
 	// ── Derived stats about the source document and generated analysis ──
 	function wordCount(text: string | null | undefined): number {
@@ -193,65 +211,83 @@
 	</aside>
 </section>
 
-<!-- Analysis + source document, tabbed -->
+<!-- SECTION: What changed in this section vs. the prior filing -->
+{#if changeCards.length > 0}
+	<section class="hairline-section">
+		<SectionHead
+			sticky
+			stickyHeading
+			eyebrow="SYMBOLOGY.ONLINE &middot; text diffs"
+			heading="What changed in the {typeDisplay}."
+			diffHelp
+		/>
+		<div class="change-grid">
+			{#each changeCards as c (c.id)}
+				<ChangeCard
+					href="/c/{company?.ticker}/changes/{doc.document_type}#diff-{c.id}"
+					accent={changeKindColor(c.changeKind)}
+					dot={false}
+					heading={c.heading}
+					summary={c.summary}
+				>
+					{#snippet header()}
+						<ChangeKindTag changeKind={c.changeKind} />
+					{/snippet}
+					{#snippet footerLeft()}
+						{#if c.sectionPath}
+							<span class="meta" style="font-family: var(--mono); color: var(--ink-4);"
+								>{c.sectionPath}</span
+							>
+						{/if}
+					{/snippet}
+				</ChangeCard>
+			{/each}
+		</div>
+	</section>
+{/if}
+
+<!-- Analysis + source document, switchable -->
 <section class="hairline-section">
-	<Tabs.Root value={hasAnalysis ? 'analysis' : 'document'}>
-		<Tabs.List variant="default" class="flex w-full justify-between bg-paper-2 p-2">
-			<Tabs.Trigger
-				value="analysis"
-				class="active:tag-new cursor-pointer hover:text-ink active:text-teal-2"
-			>
-				<Sparkles class="h-3.5 w-3.5" />
-				L1 Synthesis
-			</Tabs.Trigger>
-			<Tabs.Trigger
-				value="document"
-				class="data-active:tag-new cursor-pointer px-4 text-ink-3 data-active:text-teal-2"
-			>
-				<ScrollText class="h-3.5 w-3.5" />
-				View Source
-			</Tabs.Trigger>
-		</Tabs.List>
+	<div style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
+		<SegmentedControl options={viewOptions} bind:value={view} ariaLabel="Document view" />
+	</div>
 
-		<Tabs.Content value="analysis">
-			{#if hasAnalysis && pageContent?.summary?.content}
-				<section style="margin-top: 1.5rem;">
-					<SectionHead
-						sticky
-						stickyHeading
-						eyebrow="SYMBOLOGY.ONLINE l{generationDepth} SYNTHESIS"
-						heading="{company ? toTitleCase(company.name) : ''} {typeDisplay} Analysis"
-						synthesisHelp
-					/>
-					<div class="body-text" style="color: var(--ink-2);">
-						<MarkdownContent content={pageContent.summary.content} />
-					</div>
-				</section>
-			{:else}
-				<PendingContentNotice label="document synthesis" />
-			{/if}
-		</Tabs.Content>
-
-		<Tabs.Content value="document">
-			<section style="margin-top: 1.5rem;">
+	{#if view === 'analysis'}
+		{#if hasAnalysis && pageContent?.summary?.content}
+			<section>
 				<SectionHead
 					sticky
 					stickyHeading
-					eyebrow="{company?.display_name} &middot; {formatFilingPeriod(filing, company)}"
-					heading={typeDisplay}
+					eyebrow="SYMBOLOGY.ONLINE l{generationDepth} SYNTHESIS"
+					heading="{company ? toTitleCase(company.name) : ''} {typeDisplay} Analysis"
+					synthesisHelp
 				/>
-				{#if doc.content}
-					<div class="analysis-body">
-						<MarkdownContent content={doc.content} />
-					</div>
-				{:else}
-					<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">
-						No content available for this document.
-					</p>
-				{/if}
+				<div class="body-text" style="color: var(--ink-2);">
+					<MarkdownContent content={pageContent.summary.content} />
+				</div>
 			</section>
-		</Tabs.Content>
-	</Tabs.Root>
+		{:else}
+			<PendingContentNotice label="document synthesis" />
+		{/if}
+	{:else}
+		<section>
+			<SectionHead
+				sticky
+				stickyHeading
+				eyebrow="{company?.display_name} &middot; {formatFilingPeriod(filing, company)}"
+				heading={typeDisplay}
+			/>
+			{#if doc.content}
+				<div class="analysis-body">
+					<MarkdownContent content={doc.content} />
+				</div>
+			{:else}
+				<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">
+					No content available for this document.
+				</p>
+			{/if}
+		</section>
+	{/if}
 </section>
 
 <!-- Footer -->

@@ -29,7 +29,11 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
 	const [companyPageContent, timeline, changeCards, hasDiffSets] = await Promise.all([
 		getCurrentCompanyPageContent(company.id, selectedForm),
-		getFilingsTimeline(ticker, 80, ['10-K']), // '10-Q'
+		// Full periodic history (annual + quarterly), independent of the selected
+		// form's source window — the timeline is comprehensive and links each filing
+		// to /f, which shows its diffs even without generated content. High limit so
+		// quarterlies (ordered period ASC) don't push recent filings past the cutoff.
+		getFilingsTimeline(ticker, 400, ['10-K', '10-Q']),
 		getLatestChangeCards(company.id, 6, selectedForm),
 		companyHasDiffSets(company.id)
 	]);

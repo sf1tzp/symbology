@@ -116,19 +116,28 @@ def handle_filing_ingestion(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     # Chunk + embed + cluster each ingested filing's documents asynchronously, so
     # diffs/search have vectors without coupling ingestion latency to embedding.
+    # Also enqueue the filing's period-over-period diff here: diffs are filing-domain
+    # (they need only the two sides embedded), so they're triggered at ingestion —
+    # the FILING_DIFF job backs off until the embeddings land.
     if include_documents:
         for fid in filing_ids:
             _enqueue_embed_filing(fid)
+            _enqueue_filing_diff_for(fid)
 
     logger.info("handler_filing_ingestion_done", ticker=ticker, filings_count=len(filing_ids))
     return {"ticker": ticker, "form": form, "filing_ids": filing_ids}
 
 
 def _enqueue_embed_filing(filing_id: str) -> None:
-    """Enqueue an EMBED_FILING job for a freshly-ingested filing (priority 3)."""
-    from symbology.database.jobs import JobType, create_job
+    """Enqueue an EMBED_FILING job for a freshly-ingested filing (INGEST band).
 
-    create_job(JobType.EMBED_FILING, params={"filing_id": filing_id}, priority=3)
+    Chunk+embed is fast, required feedstock — diffs and content both wait on it —
+    so it rides in the INGEST band ahead of generated content, not alongside it.
+    """
+    from symbology.database.jobs import JobPriority, JobType, create_job
+
+    create_job(JobType.EMBED_FILING, params={"filing_id": filing_id},
+               priority=JobPriority.INGEST)
 
 
 @register_handler(JobType.CONTENT_GENERATION)
@@ -522,8 +531,10 @@ def _resolve_filing_by_accession(accession_number: str):
     if filing is None:
         raise ValueError(f"Failed to ingest filing for accession {accession_number}")
     # Freshly ingested here (bypassing handle_filing_ingestion), so trigger
-    # chunk/embed/cluster for it; the already-present path above skips this.
+    # chunk/embed/cluster and its period-over-period diff; the already-present path
+    # above skips this.
     _enqueue_embed_filing(str(filing.id))
+    _enqueue_filing_diff_for(str(filing.id))
     return filing
 
 
@@ -553,13 +564,18 @@ def _resolve_filing_token(value):
 def handle_filing_page_content(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Generate + publish document and filing page content for one filing.
 
-    Ensures the company and the target filing (with documents) are ingested
-    (delegating to the existing ingestion handlers), then runs the filing page
-    pipeline which produces DocumentPageContent per document and a
-    FilingPageContent version.
+    Runs the filing page pipeline (producing DocumentPageContent per document and a
+    FilingPageContent version) once the target filing is present.
 
     The target filing can be selected either by ticker + fiscal year (the
-    default) or directly by EDGAR accession number.
+    default) or directly by EDGAR accession number. On the ticker/year path, a
+    missing company/filing is treated as a dependency: the handler queues
+    FILING_INGESTION and defers itself (BACKOFF) until the filing lands, rather
+    than ingesting inline (a requested fiscal year that stays absent after
+    ingestion is still a hard error). The accession-number path resolves (and, if
+    truly absent, ingests) the single filing inline, since it needs an EDGAR
+    metadata lookup to learn the company/form before any ingestion job could be
+    keyed.
 
     params:
         accession_number (str, optional): EDGAR accession number of the target
@@ -574,12 +590,21 @@ def handle_filing_page_content(params: Dict[str, Any]) -> Optional[Dict[str, Any
     from symbology.database.base import get_db_session
     from symbology.database.companies import get_company_by_ticker
     from symbology.database.filings import Filing
-    from symbology.worker.page_pipelines import filing_page_content_pipeline
+    from symbology.worker.page_pipelines import (
+        FilingHasNoPageableDocuments,
+        filing_page_content_pipeline,
+    )
 
     accession_number = params.get("accession_number")
     if accession_number:
         filing = _resolve_filing_by_accession(accession_number)
-        page = filing_page_content_pipeline(filing)
+        try:
+            page = filing_page_content_pipeline(filing)
+        except FilingHasNoPageableDocuments:
+            logger.info("filing_page_skipped_no_documents",
+                        accession_number=accession_number, filing_id=str(filing.id))
+            return {"accession_number": accession_number,
+                    "filing_id": str(filing.id), "skipped": "no_documents"}
         logger.info("handler_filing_page_content_done",
                     accession_number=accession_number, filing_id=str(filing.id))
         return {
@@ -608,27 +633,44 @@ def handle_filing_page_content(params: Dict[str, Any]) -> Optional[Dict[str, Any
                 return f
         return None
 
-    # Resolve the company from the DB first; only ingest from EDGAR if missing
-    # (so the common "already ingested" path doesn't require the edgar module).
+    # Ingestion dependency gate (mirrors the company page): rather than ingesting
+    # inline, treat a missing company/filing as a dependency — queue FILING_INGESTION
+    # (which ingests the company too) and defer (BACKOFF) until it lands.
+    from symbology.database.jobs import JobType, get_active_jobs
+
     company = get_company_by_ticker(ticker.upper())
     if company is None:
-        company_id = handle_company_ingestion({"ticker": ticker})["company_id"]
-    else:
-        company_id = company.id
+        _await_filing_ingestion(
+            ticker, [form],
+            reason_subject=f"filing page {ticker} {year} {form}",
+        )  # raises DependencyNotReady
 
-    # Ensure the target filing + its documents are present; ingest if missing.
-    filing = _find_filing(company_id)
+    # Company present; locate the target fiscal year's filing.
+    filing = _find_filing(company.id)
     if filing is None:
-        default_counts = {"10-K": 5, "10-Q": 6}
-        handle_filing_ingestion({
-            "company_id": str(company_id), "ticker": ticker, "form": form,
-            "count": default_counts[form], "include_documents": True,
-        })
-        filing = _find_filing(company_id)
-    if filing is None:
-        raise ValueError(f"No {form} filing for {ticker} fiscal year {year} after ingestion")
+        # Wait while an ingestion for this form is still running; once it has
+        # finished, decide between "year genuinely absent" (hard fail, bounded) and
+        # "never ingested this form yet" (queue + backoff).
+        if _filing_ingestion_in_flight(ticker, form, get_active_jobs(JobType.FILING_INGESTION)):
+            raise DependencyNotReady(
+                f"filing page {ticker} {year} {form} waiting on in-flight ingestion"
+            )
+        if _company_has_filings(company.id, form):
+            raise ValueError(
+                f"No {form} filing for {ticker} fiscal year {year} after ingestion"
+            )
+        _await_filing_ingestion(
+            ticker, [form],
+            reason_subject=f"filing page {ticker} {year} {form}",
+        )  # raises DependencyNotReady
 
-    page = filing_page_content_pipeline(filing)
+    try:
+        page = filing_page_content_pipeline(filing)
+    except FilingHasNoPageableDocuments:
+        logger.info("filing_page_skipped_no_documents", ticker=ticker, year=year,
+                    form=form, filing_id=str(filing.id))
+        return {"ticker": ticker, "year": year, "form": form,
+                "filing_id": str(filing.id), "skipped": "no_documents"}
 
     logger.info("handler_filing_page_content_done", ticker=ticker, year=year,
                 form=form, filing_id=str(filing.id))
@@ -645,12 +687,14 @@ def handle_filing_page_content(params: Dict[str, Any]) -> Optional[Dict[str, Any
 def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Publish company page content by synthesizing already-published pages.
 
-    Pure synthesis: it does *not* ingest filings or generate the underlying
-    document/filing pages. The company page pipeline requires each source filing
-    (and its documents) to already have published page content, and fails
-    otherwise — so a CompanyPageContent never cites analysis that isn't itself
-    available on the site. Run the filing page pipeline for the lookback filings
-    first.
+    Pure synthesis: it does *not* ingest or generate inline. The company page
+    pipeline requires each source filing (and its documents) to already have
+    published page content — so a CompanyPageContent never cites analysis that
+    isn't itself available on the site. Rather than fail when a prerequisite is
+    absent, the handler resolves it as a *dependency*: it queues the missing work
+    (FILING_INGESTION when the company/filings aren't ingested; FILING_PAGE_CONTENT
+    when filing pages aren't published) and defers itself (BACKOFF) until the
+    dependency lands, consuming no retry budget.
 
     params:
         ticker (str, required): Company ticker.
@@ -658,10 +702,12 @@ def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, An
         form (str): Filing form type. Defaults to "10-K".
     """
     from symbology.database.companies import get_company_by_ticker
+    from symbology.database.jobs import JobType, get_active_jobs
     from symbology.worker.page_pipelines import (
+        COMPANY_CHANGE_REPORT_FORM,
         DEFAULT_COMPANY_LOOKBACK,
+        QUARTERLY_FORM,
         FilingPageContentNotReady,
-        PageContentGenerationError,
         company_page_content_pipeline,
     )
 
@@ -672,11 +718,28 @@ def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, An
     logger.info("handler_company_page_content_start", ticker=ticker,
                 lookback=lookback, form=form)
 
+    # Ingestion dependency gate: the company page is pure synthesis over published
+    # filing pages, which in turn need the filings (and company) ingested. If the
+    # primary form isn't ingested yet, queue FILING_INGESTION (which ingests the
+    # company too) and defer (BACKOFF) — for a 10-Q page we also opportunistically
+    # ingest the 10-K it anchors on. A genuinely bad ticker simply backs off
+    # forever (visible + cancellable).
     company = get_company_by_ticker(ticker.upper())
-    if company is None:
-        raise PageContentGenerationError(
-            f"company {ticker} not ingested; ingest it and generate its filing "
-            f"page content before the company page"
+    if company is None or not _company_has_filings(company.id, form):
+        _await_filing_ingestion(
+            ticker, _required_company_forms(form), lookback=lookback,
+            reason_subject=f"company page {ticker} {form}",
+        )  # raises DependencyNotReady
+
+    # Primary form present. For a 10-Q page, wait out an in-flight 10-K-anchor
+    # ingestion so the page anchors on the annual rather than the quarter-only
+    # fallback. Bounded: the job always terminates; if the company files no 10-K it
+    # completes empty and the next poll proceeds via _select_source_filings.
+    if form == QUARTERLY_FORM and _filing_ingestion_in_flight(
+        ticker, COMPANY_CHANGE_REPORT_FORM, get_active_jobs(JobType.FILING_INGESTION)
+    ):
+        raise DependencyNotReady(
+            f"company page {ticker} 10-Q waiting on 10-K anchor ingestion"
         )
 
     try:
@@ -688,6 +751,9 @@ def handle_company_page_content(params: Dict[str, Any]) -> Optional[Dict[str, An
         # this same job (BACKOFF) rather than burning retries on a crash loop.
         _await_filing_page_content(ticker, form, exc)
 
+    # Diffs are not triggered here: they're filing-domain and enqueued at ingestion
+    # (see _enqueue_filing_diff_for), so by the time the company page publishes its
+    # source filings' period-over-period diffs are already in flight or done.
     logger.info("handler_company_page_content_done", ticker=ticker,
                 form=form, company_id=str(company.id))
     return {
@@ -742,7 +808,7 @@ def _await_filing_page_content(ticker, form, exc):
 
     from symbology.database.base import get_db_session
     from symbology.database.filings import Filing
-    from symbology.database.jobs import JobType, create_job, get_active_jobs
+    from symbology.database.jobs import JobPriority, JobType, create_job, get_active_jobs
 
     session = get_db_session()
     active_filing_jobs = get_active_jobs(JobType.FILING_PAGE_CONTENT)
@@ -762,7 +828,8 @@ def _await_filing_page_content(ticker, form, exc):
         job = create_job(
             job_type=JobType.FILING_PAGE_CONTENT,
             params={"accession_number": filing.accession_number},
-            priority=1,
+            # A company page is parked waiting on this — unblock it ahead of the queue.
+            priority=JobPriority.DEP_UNBLOCK,
         )
         queued.append(filing.accession_number)
         logger.info("dep_filing_page_queued", filing_id=fid,
@@ -773,6 +840,101 @@ def _await_filing_page_content(ticker, form, exc):
     raise DependencyNotReady(
         f"company page {ticker} {form} waiting on filing pages "
         f"(queued={len(queued)}, in_flight={len(waiting)}, unresolved={len(unresolved)})"
+    )
+
+
+# Default filing counts to ingest per form when a page job triggers ingestion.
+_INGEST_DEFAULT_COUNTS = {"10-K": 5, "10-Q": 6}
+
+# The periodic forms that may be diffed against each other (a 10-K stands in for
+# Q4, so a cycle's first 10-Q diffs against the anchoring 10-K).
+_PERIODIC_FORMS = {"10-K", "10-Q"}
+
+
+def _filing_ingestion_in_flight(ticker, form, active_jobs) -> bool:
+    """Whether a FILING_INGESTION job for ``ticker``+``form`` is PENDING/IN_PROGRESS.
+
+    Mirrors :func:`_filing_page_job_in_flight`. FILING_INGESTION jobs are keyed by
+    ``ticker`` (case-insensitive) and ``form`` (defaulting to ``"10-K"``), so match
+    on both — used to avoid enqueuing a duplicate ingestion before deferring.
+    """
+    t = ticker.upper()
+    for job in active_jobs:
+        p = job.params or {}
+        if (p.get("ticker") or "").upper() == t and p.get("form", "10-K") == form:
+            return True
+    return False
+
+
+def _company_has_filings(company_id, form) -> bool:
+    """Whether the company already has at least one ingested filing of ``form``."""
+    from symbology.database.base import get_db_session
+    from symbology.database.filings import Filing
+
+    session = get_db_session()
+    return (
+        session.query(Filing.id)
+        .filter(Filing.company_id == company_id, Filing.form == form)
+        .first()
+        is not None
+    )
+
+
+def _required_company_forms(form: str):
+    """Forms whose filings a company page for ``form`` needs ingested.
+
+    Just ``[form]`` for an annual page; a 10-Q page also anchors on a 10-K (see
+    ``_select_source_filings``), so the annual form is appended for it.
+    """
+    from symbology.worker.page_pipelines import (
+        COMPANY_CHANGE_REPORT_FORM,
+        QUARTERLY_FORM,
+    )
+
+    forms = [form]
+    if form == QUARTERLY_FORM and COMPANY_CHANGE_REPORT_FORM not in forms:
+        forms.append(COMPANY_CHANGE_REPORT_FORM)
+    return forms
+
+
+def _await_filing_ingestion(ticker, forms, *, lookback=None, reason_subject):
+    """Enqueue FILING_INGESTION for each missing form, then defer this job (BACKOFF).
+
+    The ingestion analogue of :func:`_await_filing_page_content`: for each form not
+    already in flight, queue a high-priority FILING_INGESTION job (which ingests the
+    company too when missing — see :func:`handle_filing_ingestion`), then raise
+    :class:`DependencyNotReady` so the worker defers this same page job rather than
+    burning retries. ``lookback`` (when given) bumps the ingest count so enough
+    filings land to cover the page's span.
+    """
+    from symbology.database.jobs import JobPriority, JobType, create_job, get_active_jobs
+
+    active = get_active_jobs(JobType.FILING_INGESTION)
+    queued, waiting = [], []
+    for form in forms:
+        if _filing_ingestion_in_flight(ticker, form, active):
+            waiting.append(form)
+            logger.info("dep_filing_ingestion_in_flight", ticker=ticker, form=form)
+            continue
+        count = _INGEST_DEFAULT_COUNTS.get(form, 5)
+        if lookback:
+            count = max(count, lookback + 1)
+        job = create_job(
+            JobType.FILING_INGESTION,
+            params={"ticker": ticker, "form": form, "count": count,
+                    "include_documents": True},
+            # A page job is parked waiting on this ingestion — unblock it first.
+            priority=JobPriority.DEP_UNBLOCK,
+        )
+        queued.append(form)
+        logger.info("dep_filing_ingestion_queued", ticker=ticker, form=form,
+                    count=count, job_id=str(job.id))
+
+    logger.info("page_waiting_on_ingestion", ticker=ticker, subject=reason_subject,
+                queued=queued, waiting_on=waiting)
+    raise DependencyNotReady(
+        f"{reason_subject} waiting on filing ingestion "
+        f"(queued={queued}, in_flight={waiting})"
     )
 
 
@@ -981,7 +1143,7 @@ def _await_filing_diff_embeddings(not_ready):
     until the embeddings land — rather than diffing best-effort over partial
     chunks.
     """
-    from symbology.database.jobs import JobType, create_job, get_active_jobs
+    from symbology.database.jobs import JobPriority, JobType, create_job, get_active_jobs
 
     in_flight = {(j.params or {}).get("filing_id") for j in get_active_jobs(JobType.EMBED_FILING)}
 
@@ -991,7 +1153,9 @@ def _await_filing_diff_embeddings(not_ready):
         if fid in in_flight:
             waiting.append(fid)
             continue
-        job = create_job(JobType.EMBED_FILING, params={"filing_id": fid}, priority=2)
+        # A diff job is parked waiting on these embeddings — unblock it first.
+        job = create_job(JobType.EMBED_FILING, params={"filing_id": fid},
+                         priority=JobPriority.DEP_UNBLOCK)
         queued.append(fid)
         logger.info("dep_embed_filing_queued", filing_id=fid, job_id=str(job.id))
 
@@ -1031,35 +1195,162 @@ def handle_filing_diff(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         raise ValueError("filing_diff: from and to are the same filing")
     if a.company_id != b.company_id:
         raise ValueError("filing_diff: from/to belong to different companies")
-    if a.form != b.form:
-        raise ValueError(f"filing_diff: form mismatch ({a.form} vs {b.form})")
+    # Same form, or the {10-K, 10-Q} anchor pairing (a 10-K stands in for Q4, so the
+    # first quarter of a cycle diffs against the annual). Topics are scoped by
+    # (company, document_type) — not form — so cross-form alignment is sound. Any
+    # other mix (e.g. 8-K vs 10-K) is rejected.
+    if a.form != b.form and {a.form, b.form} != _PERIODIC_FORMS:
+        raise ValueError(f"filing_diff: incompatible forms ({a.form} vs {b.form})")
 
     left_filing, right_filing = _order_filings(a, b)
+    # Tag the diff with the newer side's form (so a 10-K→10-Q anchor pair is a
+    # quarterly diff using the 10-Q's document types), unless explicitly overridden.
     form = params.get("form") or right_filing.form
     generate_summaries = params.get("generate_summaries", True)
 
     not_ready = [f for f in (left_filing, right_filing) if not _filing_ready_for_diff(f.id)]
     if not_ready:
+        from symbology.worker.config_loader import load_pipeline_config
+        from symbology.worker.page_pipelines import _filing_has_pageable_documents
+
+        # A not-ready side with no pageable documents can never be embedded — skip
+        # the diff (complete) rather than back off forever. Sides that *have*
+        # documents are just pending embedding, so those still defer (BACKOFF).
+        doc_types = load_pipeline_config().form_document_types.get(form, [])
+        undocumented = [f for f in not_ready if not _filing_has_pageable_documents(f, doc_types)]
+        if undocumented:
+            logger.info("filing_diff_skipped_no_documents", form=form,
+                        filing_ids=[str(f.id) for f in undocumented])
+            return {
+                "left_filing_id": str(left_filing.id),
+                "right_filing_id": str(right_filing.id),
+                "form": form,
+                "skipped": "no_documents",
+            }
         # Raises DependencyNotReady → worker defers (BACKOFF) until embeddings land.
         _await_filing_diff_embeddings(not_ready)
 
-    # Cap how many topics get an LLM "what changed" summary (the rest still render
-    # from heading/section path). Omit `max_summaries` to use the pipeline default.
-    pipeline_kwargs = {}
-    if params.get("max_summaries") is not None:
-        pipeline_kwargs["max_summaries"] = int(params["max_summaries"])
+    # Compute the structural diff only — fast, no LLM. Per-topic "what changed"
+    # summaries are decoupled into a separate low-priority DIFF_SUMMARY job so the
+    # diff itself is available immediately rather than waiting on a string of LLM
+    # calls (`generate_summaries` now means "enqueue the summary job", not "do it
+    # inline"). `max_summaries` (if given) caps topics summarised per set.
+    max_summaries = int(params["max_summaries"]) if params.get("max_summaries") is not None else None
     diff_sets = filing_diff_pipeline(
-        left_filing, right_filing, form, generate_summaries=generate_summaries, **pipeline_kwargs
+        left_filing, right_filing, form, generate_summaries=False
+    )
+    summary_jobs = (
+        _enqueue_diff_summaries(diff_sets, form, max_summaries) if generate_summaries else []
     )
     logger.info("handler_filing_diff_done", left_filing_id=str(left_filing.id),
-                right_filing_id=str(right_filing.id), form=form, diff_sets=len(diff_sets))
+                right_filing_id=str(right_filing.id), form=form, diff_sets=len(diff_sets),
+                summary_jobs=len(summary_jobs))
     return {
         "left_filing_id": str(left_filing.id),
         "right_filing_id": str(right_filing.id),
         "form": form,
         "diff_sets": len(diff_sets),
         "document_types": [ds.document_type.value for ds in diff_sets],
+        "summary_jobs_enqueued": len(summary_jobs),
     }
+
+
+def _diff_summary_in_flight(diff_set_id, active_jobs) -> bool:
+    """Whether a DIFF_SUMMARY job for ``diff_set_id`` is already PENDING/IN_PROGRESS."""
+    for job in active_jobs:
+        if (job.params or {}).get("diff_set_id") == diff_set_id:
+            return True
+    return False
+
+
+def _enqueue_diff_summaries(diff_sets, form, max_summaries=None):
+    """Enqueue one low-priority DIFF_SUMMARY job per diff set with displayed changes.
+
+    Only enqueues for sets that have a *displayed* (card/list) topic still lacking a
+    summary — matching what summarize_diff_set will actually do — and skips sets that
+    already have a DIFF_SUMMARY in flight. The SUMMARY band keeps summaries below the
+    structural diffs / ingestion / page content so they fill in as spare capacity
+    allows. Returns the ids of the jobs created.
+    """
+    from symbology.database.jobs import JobPriority, JobType, create_job, get_active_jobs
+    from symbology.worker.diff_pipeline import is_displayed_change
+
+    active = get_active_jobs(JobType.DIFF_SUMMARY)
+    enqueued = []
+    for ds in diff_sets:
+        has_work = any(
+            is_displayed_change(sd) and sd.summary_content_id is None
+            for sd in ds.section_diffs
+        )
+        if not has_work:
+            continue
+        if _diff_summary_in_flight(str(ds.id), active):
+            continue
+        job_params = {"diff_set_id": str(ds.id), "form": form}
+        if max_summaries is not None:
+            job_params["max_summaries"] = max_summaries
+        job = create_job(JobType.DIFF_SUMMARY, params=job_params,
+                         priority=JobPriority.SUMMARY)
+        enqueued.append(str(job.id))
+        logger.info("diff_summary_enqueued", diff_set_id=str(ds.id), form=form,
+                    job_id=str(job.id))
+    return enqueued
+
+
+@register_handler(JobType.DIFF_SUMMARY)
+def handle_diff_summary(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Generate per-topic "what changed" summaries for one diff set (low priority).
+
+    Decoupled from FILING_DIFF so the structural diff is available immediately; this
+    fills in ``summary_content_id`` for the most significant changed topics and is
+    resume-friendly (already-summarised topics are skipped). A no-op if the diff set
+    was re-computed away (deleted/replaced) before this ran.
+
+    params:
+        diff_set_id (str, required): the DiffSet to summarise.
+        form (str, optional): overrides the form stored on the diff set.
+        max_summaries (int, optional): cap on topics summarised (default
+            ``MAX_TOPIC_SUMMARIES``; pass an explicit value to widen/narrow).
+        force (bool, optional): re-summarise topics that already have a summary
+            (replacing it), rather than only filling in missing ones.
+    """
+    from uuid import UUID
+
+    from symbology.database.base import get_db_session
+    from symbology.database.companies import get_company
+    from symbology.database.section_diffs import DiffSet
+    from symbology.worker.diff_pipeline import MAX_TOPIC_SUMMARIES, summarize_diff_set
+
+    diff_set_id = params.get("diff_set_id")
+    if not diff_set_id:
+        raise ValueError("diff_summary requires diff_set_id")
+
+    session = get_db_session()
+    diff_set = session.query(DiffSet).filter(DiffSet.id == UUID(str(diff_set_id))).first()
+    if diff_set is None:
+        # The diff was re-computed (delete + re-create) before this ran; the fresh
+        # FILING_DIFF enqueues a new summary job for the new set, so just stop.
+        logger.info("diff_summary_set_gone", diff_set_id=diff_set_id)
+        return {"diff_set_id": diff_set_id, "summarized": 0, "skipped": "set_gone"}
+
+    company = get_company(diff_set.company_id)
+    if company is None:
+        logger.warning("diff_summary_company_missing", diff_set_id=diff_set_id,
+                       company_id=str(diff_set.company_id))
+        return {"diff_set_id": diff_set_id, "summarized": 0}
+
+    form = params.get("form") or diff_set.form
+    max_summaries = (
+        int(params["max_summaries"]) if params.get("max_summaries") is not None
+        else MAX_TOPIC_SUMMARIES
+    )
+    # `force` (set by `jobs retry --force`) re-summarises topics that already have a
+    # summary — used to backfill blanks from an earlier run.
+    force = bool(params.get("force"))
+    summarized = summarize_diff_set(diff_set, company, form, max_summaries=max_summaries, force=force)
+    logger.info("handler_diff_summary_done", diff_set_id=diff_set_id,
+                summarized=summarized, force=force)
+    return {"diff_set_id": diff_set_id, "summarized": summarized}
 
 
 def _filing_diff_in_flight(left, right, active_jobs) -> bool:
@@ -1075,96 +1366,109 @@ def _filing_diff_in_flight(left, right, active_jobs) -> bool:
     return False
 
 
-@register_handler(JobType.COMPANY_DIFF)
-def handle_company_diff(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Ensure consecutive year-over-year diffs exist for a company's ``form`` filings.
+def _pair_has_current_diff(company_id, doc_types, left_id, right_id) -> bool:
+    """Whether any document type already has a current diff for this exact pairing.
 
-    Walks the company's ``form`` filings oldest→newest and, for each adjacent pair
-    lacking a current diff set, enqueues a FILING_DIFF job (which embeds first if
-    needed). Idempotent: pairs that already have a diff for that exact pairing, or
-    an in-flight FILING_DIFF, are skipped. This is the orchestrator behind
-    ``jobs start company_diff``.
-
-    params:
-        ticker (str, required): Company ticker.
-        lookback (int): Span only the most recent N filings (so the diff scope
-            matches the company page's). Defaults to DEFAULT_COMPANY_LOOKBACK.
-        form (str): Filing form type. Defaults to "10-K".
-        generate_summaries (bool): forwarded to each FILING_DIFF (default True).
+    "Complete" for a ``(left, right)`` pair means at least one doc type has a current
+    DiffSet whose left side matches ``left_id`` — avoids re-enqueuing pairs that
+    already produced a diff (even an empty/partial one).
     """
-    from symbology.database.base import get_db_session
-    from symbology.database.companies import get_company_by_ticker
-    from symbology.database.documents import DocumentType
-    from symbology.database.filings import Filing
-    from symbology.database.jobs import JobType, create_job, get_active_jobs
     from symbology.database.section_diffs import get_current_diff_set
-    from symbology.worker.config_loader import load_pipeline_config
-    from symbology.worker.page_pipelines import DEFAULT_COMPANY_LOOKBACK
 
-    ticker = params["ticker"]
-    form = params.get("form", "10-K")
-    lookback = int(params.get("lookback", DEFAULT_COMPANY_LOOKBACK))
-    generate_summaries = params.get("generate_summaries", False) # diff summaries get a bit too 'meta', not necessary for the UI rn
+    for dt in doc_types:
+        ds = get_current_diff_set(company_id, dt, right_filing_id=right_id)
+        if ds is not None and ds.left_filing_id == left_id:
+            return True
+    return False
 
-    company = get_company_by_ticker(ticker.upper())
-    if company is None:
-        # Likely a race: company_diff is often enqueued at high priority alongside
-        # the ingestion it depends on and can win the claim before the company row
-        # exists. Defer (BACKOFF) rather than fail — it's re-claimed once ingestion
-        # lands. (A genuinely bad ticker simply backs off, visible + cancellable.)
-        raise DependencyNotReady(f"company {ticker} not ingested yet")
 
-    session = get_db_session()
-    filings = (
+def _previous_periodic_filing(session, filing):
+    """The company's filing immediately preceding ``filing`` for diff purposes.
+
+    For a 10-Q the predecessor is the most recent *periodic* filing — the prior
+    quarter, or the anchoring 10-K when ``filing`` is the first quarter of a cycle
+    (a 10-K stands in for Q4) — so the quarterly chain never straddles the annual.
+    For any other form (e.g. a 10-K) it's the most recent filing of the same form.
+    Chronology keys off period_of_report (filing_date as fallback), matching the
+    rest of the diff code. Returns None when there's no earlier filing.
+    """
+    from datetime import date
+
+    from symbology.database.filings import Filing
+
+    def _key(f):
+        return (f.period_of_report or date.min, f.filing_date or date.min)
+
+    forms = list(_PERIODIC_FORMS) if filing.form == "10-Q" else [filing.form]
+    candidates = (
         session.query(Filing)
-        .filter(Filing.company_id == company.id, Filing.form == form)
-        .order_by(Filing.period_of_report.asc().nullslast(), Filing.filing_date.asc())
+        .filter(
+            Filing.company_id == filing.company_id,
+            Filing.form.in_(forms),
+            Filing.id != filing.id,
+        )
         .all()
     )
-    # Span only the most recent `lookback` filings, matching the company page's
-    # window so the consecutive diff pairs cover the same filings it cites.
-    filings = filings[-lookback:]
-    if len(filings) < 2:
-        logger.info("ensure_company_diffs_insufficient_filings",
-                    ticker=ticker, form=form, lookback=lookback, filings=len(filings))
-        return {"ticker": ticker, "form": form, "pairs": 0, "enqueued": 0, "skipped": 0}
+    this_key = _key(filing)
+    earlier = [f for f in candidates if _key(f) < this_key]
+    return max(earlier, key=_key) if earlier else None
 
-    cfg = load_pipeline_config()
-    doc_types = [DocumentType(d) for d in cfg.form_document_types.get(form, [])]
-    active_diff_jobs = get_active_jobs(JobType.FILING_DIFF)
 
-    enqueued, skipped, enqueued_ids = 0, 0, []
-    for left, right in zip(filings, filings[1:]):
-        # "Complete" = any document type already has a current diff for this exact
-        # pairing; avoids re-enqueuing pairs that produced an empty/partial set.
-        has_diff = False
-        for dt in doc_types:
-            ds = get_current_diff_set(company.id, dt, right_filing_id=right.id)
-            if ds is not None and ds.left_filing_id == left.id:
-                has_diff = True
-                break
-        if has_diff or _filing_diff_in_flight(left, right, active_diff_jobs):
-            skipped += 1
-            continue
-        fd_params = {
-            "left_filing_id": str(left.id),
-            "right_filing_id": str(right.id),
-            "form": form,
-            "generate_summaries": generate_summaries,
-        }
-        if params.get("max_summaries") is not None:
-            fd_params["max_summaries"] = params["max_summaries"]
-        job = create_job(job_type=JobType.FILING_DIFF, params=fd_params, priority=3)
-        enqueued += 1
-        enqueued_ids.append(str(job.id))
+def _enqueue_filing_diff_for(filing_id) -> None:
+    """Enqueue a FILING_DIFF of a freshly-ingested filing vs the previous periodic one.
 
-    logger.info("handler_ensure_company_diffs_done", ticker=ticker, form=form,
-                lookback=lookback, pairs=len(filings) - 1, enqueued=enqueued, skipped=skipped)
-    return {
-        "ticker": ticker,
-        "form": form,
-        "pairs": len(filings) - 1,
-        "enqueued": enqueued,
-        "skipped": skipped,
-        "filing_diff_job_ids": enqueued_ids,
-    }
+    Diffs are filing-domain: a filing only needs both sides *embedded* to be
+    diffed, so this is triggered at ingestion (alongside EMBED_FILING) rather than
+    by page generation. Skips when there's no prior filing, when a current diff
+    already covers the pair, or when a FILING_DIFF for it is already in flight. The
+    FILING_DIFF job embeds first (EMBED_FILING + BACKOFF) if the sides aren't
+    chunked yet. Non-fatal: a hiccup here must not fail the ingestion.
+    """
+    from uuid import UUID
+
+    try:
+        from symbology.database.base import get_db_session
+        from symbology.database.documents import DocumentType
+        from symbology.database.filings import Filing
+        from symbology.database.jobs import JobPriority, JobType, create_job, get_active_jobs
+        from symbology.worker.config_loader import load_pipeline_config
+
+        session = get_db_session()
+        filing = session.query(Filing).filter(Filing.id == UUID(str(filing_id))).first()
+        if filing is None:
+            return
+        prev = _previous_periodic_filing(session, filing)
+        if prev is None:
+            logger.info("filing_diff_skip_no_prior", filing_id=str(filing.id),
+                        form=filing.form)
+            return
+
+        from symbology.worker.page_pipelines import _filing_has_pageable_documents
+
+        cfg = load_pipeline_config()
+        doc_types_str = cfg.form_document_types.get(filing.form, [])
+        doc_types = [DocumentType(d) for d in doc_types_str]
+        # A side with no pageable documents can never be embedded/chunked, so a diff
+        # involving it would back off forever waiting on embeddings. Skip it.
+        if not _filing_has_pageable_documents(filing, doc_types_str) or not _filing_has_pageable_documents(
+            prev, doc_types_str
+        ):
+            logger.info("filing_diff_skip_no_documents", filing_id=str(filing.id),
+                        prev_id=str(prev.id), form=filing.form)
+            return
+        if _pair_has_current_diff(filing.company_id, doc_types, prev.id, filing.id):
+            return
+        if _filing_diff_in_flight(prev, filing, get_active_jobs(JobType.FILING_DIFF)):
+            return
+
+        job = create_job(
+            JobType.FILING_DIFF,
+            params={"left_filing_id": str(prev.id), "right_filing_id": str(filing.id),
+                    "form": filing.form},
+            # Required derived data — outranks generated content, behind ingest/embed.
+            priority=JobPriority.DIFF,
+        )
+        logger.info("filing_diff_enqueued", left_filing_id=str(prev.id),
+                    right_filing_id=str(filing.id), form=filing.form, job_id=str(job.id))
+    except Exception:
+        logger.error("filing_diff_enqueue_failed", filing_id=str(filing_id), exc_info=True)

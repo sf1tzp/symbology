@@ -60,6 +60,20 @@ class FilingPageContentNotReady(PageContentGenerationError):
         self.missing_filing_ids = missing_filing_ids
 
 
+class FilingHasNoPageableDocuments(PageContentGenerationError):
+    """The filing carries none of its form's pageable document types — nothing to publish.
+
+    Not a failure: some filings (e.g. certain 10-Qs) include none of our tracked
+    sections, so there is simply no filing page to generate. Callers should treat
+    this as a benign skip (complete the job, don't retry) rather than an error, and
+    the company page must not block waiting on a page such a filing can never have.
+    """
+
+    def __init__(self, filing_id):
+        super().__init__(f"filing {filing_id} has no pageable documents")
+        self.filing_id = str(filing_id)
+
+
 def _generate_document_page_content(
     filing,
     document,
@@ -169,9 +183,9 @@ def filing_page_content_pipeline(
         generated.append((document, l1_hash, intro_hash))
 
     if not generated:
-        raise PageContentGenerationError(
-            f"no document content generated for filing {filing.id}"
-        )
+        # The filing has none of this form's pageable sections — a benign skip, not
+        # a failure (don't burn retries; the company page won't wait on its page).
+        raise FilingHasNoPageableDocuments(filing.id)
 
     # 2. Generate filing main content (L2) + intro (L3) — both must succeed.
     l1_hashes = [l1_hash for _, l1_hash, _ in generated]
@@ -225,14 +239,31 @@ def filing_page_content_pipeline(
     return page
 
 
+def _filing_has_pageable_documents(filing, doc_types: List[str]) -> bool:
+    """Whether ``filing`` has any substantive, content-bearing document of ``doc_types``.
+
+    A filing with none can never have a published filing page, so the company page
+    must not block waiting on one (and the change report simply skips it).
+    """
+    for doc_type_str in doc_types:
+        document = select_substantive_document(filing.documents, DocumentType(doc_type_str))
+        if document is not None and document.content_hash:
+            return True
+    return False
+
+
 def _published_l1_summary_hashes(filings: List, doc_type_str: str) -> List[str]:
     """L1 summary hashes from the *published* document pages for one doc type.
 
     Gathers each filing's current DocumentPageContent summary slot (in the order
     given). A section genuinely absent from a filing is skipped; but a document
-    that exists without a published page summary raises PageContentGenerationError
-    — the company page must not synthesize from content that isn't itself
-    available on the site.
+    that exists without a published page summary raises
+    :class:`FilingPageContentNotReady` — a dependency, not a hard failure. The
+    filing may carry a published *filing* page (so it passes the coarse gate in
+    :func:`company_page_content_pipeline`) yet still lack this individual
+    document's page summary; signalling it as not-ready lets the company page
+    re-queue the filing page and back off (forever, if need be) rather than
+    dead-lettering on a missing dependency.
     """
     doc_type = DocumentType(doc_type_str)
     hashes: List[str] = []
@@ -243,9 +274,10 @@ def _published_l1_summary_hashes(filings: List, doc_type_str: str) -> List[str]:
         page = get_current_document_page_content(document.id)
         summary = page.summary_content if page else None
         if summary is None or not summary.content_hash:
-            raise PageContentGenerationError(
+            raise FilingPageContentNotReady(
                 f"document page content missing for {doc_type_str} in filing "
-                f"{filing.id}; generate the filing page content first"
+                f"{filing.id}; generate the filing page content first",
+                missing_filing_ids=[str(filing.id)],
             )
         hashes.append(summary.content_hash)
     return hashes
@@ -409,9 +441,15 @@ def company_page_content_pipeline(
             f"no {form} filings for company {company.id} ({company.ticker})"
         )
 
-    # Dependency gate: every source filing must already be published as a page.
+    # Dependency gate: every source filing that *can* have a page must already have
+    # one published. A filing with none of the form's pageable documents (e.g. a 10-Q
+    # carrying no tracked sections) never will — exclude it so the page doesn't wait
+    # forever; the change-report step below already skips its absent sections.
+    form_doc_types = cfg.form_document_types.get(form, [])
     missing_pages = [
-        f for f in filings_desc if get_current_filing_page_content(f.id) is None
+        f for f in filings_desc
+        if get_current_filing_page_content(f.id) is None
+        and _filing_has_pageable_documents(f, form_doc_types)
     ]
     if missing_pages:
         missing_ids = [str(f.id) for f in missing_pages]
@@ -493,15 +531,11 @@ def company_page_content_pipeline(
         source_filing_ids=[f.id for f in filings_desc],
     )
 
-    # 5. Precompute the structured year-over-year diffs for the latest filing pair.
-    #    Non-fatal and summary-free here (a separate COMPANY_DIFF job can add the
-    #    per-topic LLM summaries): a diff failure must not block page publication.
-    try:
-        from symbology.worker.diff_pipeline import company_diff_pipeline
-        company_diff_pipeline(company, form=form, prompts_dir=prompts_dir, generate_summaries=False)
-    except Exception as e:
-        logger.error("company_page_diff_failed", company_id=str(company.id),
-                     error=str(e), exc_info=True)
+    # Structured period-over-period diffs are not computed here. Diffs are
+    # filing-domain and enqueued at ingestion (see _enqueue_filing_diff_for): each
+    # filing's FILING_DIFF vs the prior periodic filing fills in the chain, with a
+    # separate low-priority DIFF_SUMMARY job for the per-topic prose. Keeps page
+    # publication decoupled from diff computation.
     logger.info(
         "company_page_content_pipeline_done",
         company_id=str(company.id),

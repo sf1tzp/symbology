@@ -7,6 +7,7 @@
 	import PendingContentNotice from '$lib/components/PendingContentNotice.svelte';
 	import ChangeCard from '$lib/components/ChangeCard.svelte';
 	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import { docColor, changeKindColor } from '$lib/utils/changes';
 	import { formatDate, getAnalysisTypeDisplay, shortModelName } from '$lib/utils/filings';
 	import { formatHeadlineStat, pickHeadlineStats, getPeriodsRange } from '$lib/utils/financials';
@@ -30,6 +31,17 @@
 	// Carry the selected form onto change-report sub-page links (10-K is the default,
 	// so it needs no query param).
 	const formQuery = $derived(selectedForm === '10-K' ? '' : `?form=${selectedForm}`);
+
+	// Version switch (10-K ⇄ 10-Q): ?form= links so the load re-runs per form. Each
+	// segment's active fill matches its form accent (teal for annual, plum for 10-Q).
+	const formOptions = $derived(
+		availableForms.map((f) => ({
+			value: f,
+			label: f,
+			href: `?form=${f}`,
+			accent: f === '10-Q' ? 'var(--plum)' : 'var(--teal-2)'
+		}))
+	);
 
 	const companyName = $derived(company?.display_name || company?.name || 'Company');
 
@@ -172,21 +184,8 @@
 				</span>
 			{/if}
 			{#if availableForms.length > 1}
-				<!-- Switch between the 10-K- and 10-Q-derived pages. Anchor links so the
-				     server load re-runs for the chosen form (and works without JS). -->
-				<span class="form-toggle" role="group" aria-label="Filing form">
-					{#each availableForms as f (f)}
-						<a
-							href="?form={f}"
-							class="form-toggle-opt"
-							class:active={selectedForm === f}
-							style={selectedForm === f && f === '10-Q' ? 'color: var(--plum);' : ''}
-							aria-current={selectedForm === f ? 'true' : undefined}
-						>
-							{f}
-						</a>
-					{/each}
-				</span>
+				<!-- Switch between the 10-K- and 10-Q-derived pages (SSR ?form= links). -->
+				<SegmentedControl options={formOptions} value={selectedForm} ariaLabel="Filing form" />
 			{/if}
 		</div>
 	</div>
@@ -532,36 +531,6 @@
 	.activation-btn:disabled {
 		opacity: 0.55;
 		cursor: not-allowed;
-	}
-
-	/* 10-K / 10-Q page toggle in the masthead tag row. */
-	.form-toggle {
-		display: inline-flex;
-		gap: 2px;
-		padding: 2px;
-		background: var(--paper-2);
-		border: 1px solid var(--rule);
-		border-radius: 8px;
-	}
-	.form-toggle-opt {
-		padding: 3px 10px;
-		border-radius: 6px;
-		font-family: var(--mono);
-		font-size: 11px;
-		letter-spacing: 0.02em;
-		color: var(--ink-3);
-		text-decoration: none;
-		transition:
-			background 0.12s,
-			color 0.12s;
-	}
-	.form-toggle-opt:hover {
-		color: var(--ink);
-	}
-	.form-toggle-opt.active {
-		background: var(--paper);
-		color: var(--ink);
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	}
 
 	/* Year-over-year delta on the lead financial stat in the data row. */

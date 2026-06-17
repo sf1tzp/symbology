@@ -32,6 +32,7 @@ import symbology.database.model_configs  # noqa: F401
 import symbology.database.prompts  # noqa: F401
 import symbology.database.ratings  # noqa: F401
 import symbology.database.jobs  # noqa: F401
+import symbology.database.workers  # noqa: F401
 import symbology.database.watchlist  # noqa: F401
 
 target_metadata = Base.metadata

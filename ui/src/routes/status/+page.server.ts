@@ -17,7 +17,7 @@ export const load: PageServerLoad = async () => {
 			contentLog: [],
 			queueStats: null,
 			queueDepth: [],
-			activeJobs: [],
+			recentJobs: [],
 			workers: [],
 			error: error instanceof Error ? error.message : 'Unknown error'
 		};

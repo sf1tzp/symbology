@@ -2,10 +2,12 @@ services:
   symbology-worker-1:
     image: symbology-server:latest
     container_name: symbology-worker-1
-    restart: always
+    restart: unless-stopped
     command: ["python", "-m", "symbology.worker.main"]
+    stop_grace_period: 30s
     environment:
-      OPENAI_API_HOST: 10.0.0.95
+      WORKER_NAME: symbology-worker-1
+      OPENAI_API_HOST: 10.0.0.99
       OPENAI_MANAGE_CONTEXT: "false"
       OPENAI_CONTEXT_MIN: 26000
       OPENAI_OVERFLOW_THRESHOLD_TOKENS: 26000
@@ -15,11 +17,29 @@ services:
   symbology-worker-2:
     image: symbology-server:latest
     container_name: symbology-worker-2
-    restart: always
+    restart: unless-stopped
     command: ["python", "-m", "symbology.worker.main"]
+    stop_grace_period: 30s
     environment:
+      WORKER_NAME: symbology-worker-2
       OPENAI_API_HOST: 10.0.0.99
       OPENAI_MANAGE_CONTEXT: "false"
+      OPENAI_CONTEXT_MIN: 26000
+      OPENAI_OVERFLOW_THRESHOLD_TOKENS: 26000
+    networks:
+      - caddy_network
+
+  symbology-worker-3:
+    image: symbology-server:latest
+    container_name: symbology-worker-3
+    restart: unless-stopped
+    command: ["python", "-m", "symbology.worker.main"]
+    stop_grace_period: 30s
+    environment:
+      WORKER_NAME: symbology-worker-3
+      OPENAI_API_HOST: 10.0.0.95
+      OPENAI_MANAGE_CONTEXT: "false"
+      OPENAI_CONTEXT_MIN: 26000
       OPENAI_OVERFLOW_THRESHOLD_TOKENS: 26000
     networks:
       - caddy_network

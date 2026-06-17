@@ -41,8 +41,39 @@ class JobType(str, Enum):
     BACKFILL_CHUNKS = "backfill_chunks"
     BACKFILL_EMBEDDINGS = "backfill_embeddings"
     FILING_DIFF = "filing_diff"
-    COMPANY_DIFF = "company_diff"
+    DIFF_SUMMARY = "diff_summary"
     TEST = "test"
+
+
+class JobPriority:
+    """Queue priority bands (lower = claimed sooner).
+
+    The guiding rule: fast/required pipeline jobs (ingestion, chunk+embed, diff)
+    outrank generated-content stages, so the data feedstock is always ready before
+    the prose that cites it. The bands are deliberately coarse so there's an
+    unambiguous home for each job type.
+
+    These are only the *starting* priorities. ``claim_next_job`` decays a job's
+    effective priority with age (see ``WorkerSettings.priority_aging_interval``),
+    so a content job that's been waiting long enough still overtakes a steady
+    drip of fresh ingestion rather than starving.
+    """
+
+    # A backed-off job is actively blocked on this one — jump the whole queue so
+    # the waiting chain unblocks fast (filing pages / ingestion / embeddings a
+    # page or diff is parked on).
+    DEP_UNBLOCK = 0
+    # Fast, required feedstock that everything else builds on: filing ingestion,
+    # chunk+embed, and the backfills.
+    INGEST = 1
+    # Structural filing diffs — required derived data, depends on embeddings.
+    DIFF = 2
+    # Generated page content (company/filing) and raw content generation.
+    PAGE = 3
+    # Multi-company group pipelines.
+    GROUP = 4
+    # Diff prose summaries — deepest, least urgent generated content.
+    SUMMARY = 5
 
 
 class Job(Base):
@@ -243,11 +274,13 @@ def cancel_job(job_id: Union[UUID, str]) -> Optional[Job]:
 def stop_job(job_id: Union[UUID, str]) -> Optional[Job]:
     """Manually stop a job by marking it CANCELLED.
 
-    Unlike :func:`cancel_job` (which only touches PENDING jobs), this also stops
-    an IN_PROGRESS job. Note this only updates DB state — a worker already
-    executing the job will keep running until its current task finishes; the
-    CANCELLED status simply prevents it from being picked up / retried and flags
-    intent. Returns None if the job is missing or already in a terminal state.
+    Unlike :func:`cancel_job` (which only touches PENDING jobs), this stops any
+    *active* job — PENDING, IN_PROGRESS, or BACKOFF (a deferred job waiting on a
+    dependency is still on the queue, not terminal). Note this only updates DB
+    state — a worker already executing the job will keep running until its current
+    task finishes; the CANCELLED status simply prevents it from being picked up /
+    retried and flags intent. Returns None if the job is missing or already in a
+    terminal state (COMPLETED / FAILED / CANCELLED).
     """
     try:
         session = get_db_session()
@@ -255,7 +288,7 @@ def stop_job(job_id: Union[UUID, str]) -> Optional[Job]:
         if not job:
             logger.warning("stop_job_not_found", job_id=str(job_id))
             return None
-        if job.status not in (JobStatus.PENDING, JobStatus.IN_PROGRESS):
+        if job.status not in (JobStatus.PENDING, JobStatus.IN_PROGRESS, JobStatus.BACKOFF):
             logger.warning("stop_job_not_stoppable", job_id=str(job_id), status=job.status.value)
             return None
         job.status = JobStatus.CANCELLED
@@ -313,6 +346,17 @@ def update_job(
 def claim_next_job(worker_id: str) -> Optional[Job]:
     """Atomically claim the highest-priority eligible pending job.
 
+    Selection is by *effective* priority, not the stored one: a job's effective
+    priority is ``priority - floor(age_seconds / priority_aging_interval)``,
+    floored at 0, so a long-waiting low-priority job gradually overtakes fresh
+    high-priority work. This keeps fast/required jobs (ingest, embed, diff) ahead
+    of generated content under steady load, while guaranteeing content isn't
+    starved as ingestion piles up — at the default 3600s interval, a 1h-old
+    priority-2 job ties a fresh priority-1 job and, being older, wins the
+    ``created_at`` tiebreak. ``created_at`` remains the tiebreak within a band, so
+    aging is monotonic (older always weakly preferred). Set the interval <= 0 to
+    fall back to strict ``priority, created_at`` order.
+
     Claiming is a SINGLE statement — ``UPDATE ... WHERE id = (SELECT ... FOR
     UPDATE SKIP LOCKED LIMIT 1) RETURNING`` — rather than a ``SELECT FOR UPDATE``
     followed by a separate ``UPDATE``. The two-statement form only holds the row
@@ -329,15 +373,33 @@ def claim_next_job(worker_id: str) -> Optional[Job]:
     ``'in_progress'``) are inlined as untyped literals so they coerce to
     ``job_status_enum`` without a bound-parameter cast.
     """
+    from symbology.worker.config import worker_settings
+
     try:
         session = get_db_session()
         # Compare scheduled_at against a Python-side naive UTC "now" (matching how
         # scheduled_at is written and the stale-sweep convention) so a non-UTC DB
-        # session timezone can't shift the timestamp/timestamptz comparison.
+        # session timezone can't shift the timestamp/timestamptz comparison. The
+        # same :now drives the age term in the priority decay below — created_at is
+        # naive UTC too, so the subtraction is tz-independent.
         now = datetime.now(timezone.utc).replace(tzinfo=None)
+        aging = worker_settings.priority_aging_interval
+        # Effective priority decays one step per `aging` seconds of age, floored at
+        # 0. aging <= 0 disables decay (strict priority). created_at stays the
+        # tiebreak so older jobs win within a band.
+        if aging and aging > 0:
+            # Inner GREATEST(0, ...) clamps a slightly-negative age (clock skew on a
+            # just-created job) so FLOOR can't go to -1 and wrongly raise priority.
+            order_by = (
+                "GREATEST(0, priority - FLOOR("
+                "GREATEST(0, EXTRACT(EPOCH FROM (:now - created_at))) / :aging"
+                ")), created_at"
+            )
+        else:
+            order_by = "priority, created_at"
         claimed_id = session.execute(
             text(
-                """
+                f"""
                 UPDATE jobs
                 SET status = 'in_progress',
                     worker_id = :wid,
@@ -346,14 +408,14 @@ def claim_next_job(worker_id: str) -> Optional[Job]:
                     SELECT id FROM jobs
                     WHERE status IN ('pending', 'backoff')
                       AND (scheduled_at IS NULL OR scheduled_at <= :now)
-                    ORDER BY priority, created_at
+                    ORDER BY {order_by}
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
                 )
                 RETURNING id
                 """
             ),
-            {"wid": worker_id, "now": now},
+            {"wid": worker_id, "now": now, "aging": aging},
         ).scalar()
         if claimed_id is None:
             session.commit()
@@ -396,7 +458,20 @@ def complete_job(job_id: Union[UUID, str], result: Optional[Dict[str, Any]] = No
 
 
 def fail_job(job_id: Union[UUID, str], error: str) -> Optional[Job]:
-    """Mark a job as failed. Re-queues if retries remain."""
+    """Mark a job as failed, retrying with backoff if retries remain.
+
+    A retryable failure goes to BACKOFF (not PENDING) with ``scheduled_at`` set
+    by an exponential delay (floor ``retry_backoff_delay``, ceiling
+    ``retry_backoff_delay_max``) keyed off the now-incremented ``retry_count``.
+    That defers re-claim instead of letting a worker pick the job up on the very
+    next poll — a transient failure (rate limit, flaky upstream) gets time to
+    clear rather than being retried straight back into the same error.
+    :func:`claim_next_job` re-claims a BACKOFF job once its ``scheduled_at``
+    arrives, the same path used for dependency-wait deferrals. Once retries are
+    exhausted the job is dead-lettered to FAILED.
+    """
+    from symbology.worker.config import worker_settings
+
     try:
         session = get_db_session()
         job = session.query(Job).filter(Job.id == job_id).first()
@@ -406,10 +481,18 @@ def fail_job(job_id: Union[UUID, str], error: str) -> Optional[Job]:
         job.error = error
         job.retry_count += 1
         if job.retry_count < job.max_retries:
-            job.status = JobStatus.PENDING
+            delay = min(
+                worker_settings.retry_backoff_delay * (2 ** (job.retry_count - 1)),
+                worker_settings.retry_backoff_delay_max,
+            )
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            job.scheduled_at = now + timedelta(seconds=delay)
+            job.status = JobStatus.BACKOFF
             job.worker_id = None
             job.started_at = None
-            logger.info("requeued_job", job_id=str(job.id), retry_count=job.retry_count, max_retries=job.max_retries)
+            logger.info("requeued_job", job_id=str(job.id), retry_count=job.retry_count,
+                        max_retries=job.max_retries, delay_seconds=delay,
+                        scheduled_at=job.scheduled_at.isoformat())
         else:
             job.status = JobStatus.FAILED
             job.completed_at = func.now()
@@ -460,37 +543,6 @@ def backoff_job(job_id: Union[UUID, str], reason: str) -> Optional[Job]:
     except Exception as e:
         session.rollback()
         logger.error("backoff_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
-        raise
-
-
-def heartbeat_job(job_id: Union[UUID, str], worker_id: str) -> bool:
-    """Bump an in-progress job's ``updated_at`` to signal the worker is alive.
-
-    Stale detection keys off ``updated_at``, but a handler doesn't touch its row
-    while it runs (a long LLM generation can go minutes without a write), so
-    without a heartbeat ``updated_at`` reflects last-state-change, not liveness —
-    forcing ``stale_threshold`` to stay high to avoid reclaiming live jobs. A
-    periodic heartbeat lets the threshold drop so a dead worker's job is
-    recovered in a minute or two instead of ~17.
-
-    Scoped to the owning worker (``worker_id`` guard) so a worker that has lost
-    its claim — e.g. its job was already reclaimed by the stale sweep — can't
-    revive a row another worker now owns. Returns whether a row was updated.
-    """
-    try:
-        session = get_db_session()
-        updated = (
-            session.query(Job)
-            .filter(Job.id == job_id)
-            .filter(Job.status == JobStatus.IN_PROGRESS)
-            .filter(Job.worker_id == worker_id)
-            .update({Job.updated_at: func.now()}, synchronize_session=False)
-        )
-        session.commit()
-        return updated > 0
-    except Exception as e:
-        session.rollback()
-        logger.error("heartbeat_job_failed", job_id=str(job_id), error=str(e), exc_info=True)
         raise
 
 
@@ -567,29 +619,43 @@ def requeue_failed_jobs(job_type: Optional[JobType] = None) -> List[Job]:
         raise
 
 
-def requeue_job(job_id: Union[UUID, str]) -> Optional[Job]:
-    """Requeue a single FAILED, CANCELLED, or BACKOFF job for immediate execution.
+def requeue_job(
+    job_id: Union[UUID, str],
+    force: bool = False,
+    extra_params: Optional[Dict[str, Any]] = None,
+) -> Optional[Job]:
+    """Requeue a single job for immediate execution.
 
-    A FAILED or CANCELLED job is reset to PENDING with its retry budget cleared
-    (retry_count, worker_id, error, started_at, completed_at). A BACKOFF job —
-    still on the queue, just deferred while waiting on a dependency — is left in
-    BACKOFF but has its ``scheduled_at`` pulled forward to now so the next poll
-    claims it immediately instead of waiting out the backoff delay. Returns None
-    if the job does not exist or is not in a requeuable status.
+    By default only FAILED, CANCELLED, or BACKOFF jobs are requeuable: a FAILED or
+    CANCELLED job is reset to PENDING with its retry budget cleared (retry_count,
+    worker_id, error, started_at, completed_at), while a BACKOFF job — still on the
+    queue, just deferred — is left in BACKOFF with its ``scheduled_at`` pulled
+    forward to now.
+
+    ``force=True`` additionally allows re-running a COMPLETED job (reset to PENDING)
+    — e.g. to regenerate output after a fix — and resets BACKOFF fully to PENDING
+    rather than merely pulling it forward. IN_PROGRESS jobs are never requeuable
+    (use ``stop`` first). ``extra_params`` is merged into the job's params before
+    requeue, which is how a forced retry passes ``{"force": True}`` through to a
+    handler that supports regeneration (e.g. diff_summary). Returns None if the job
+    does not exist or is not in a requeuable status.
     """
     try:
         session = get_db_session()
+        requeuable = [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.BACKOFF]
+        if force:
+            requeuable.append(JobStatus.COMPLETED)
         job = (
             session.query(Job)
-            .filter(
-                Job.id == job_id,
-                Job.status.in_([JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.BACKOFF]),
-            )
+            .filter(Job.id == job_id, Job.status.in_(requeuable))
             .first()
         )
         if not job:
             return None
-        if job.status == JobStatus.BACKOFF:
+        if extra_params:
+            # Reassign a fresh dict — the JSON column doesn't track in-place mutation.
+            job.params = {**(job.params or {}), **extra_params}
+        if job.status == JobStatus.BACKOFF and not force:
             # Already eligible for claiming once scheduled_at arrives; just bring
             # that forward to now. Keep backoff_count so a later self-deferral
             # resumes the exponential schedule rather than restarting it.
@@ -601,8 +667,9 @@ def requeue_job(job_id: Union[UUID, str]) -> Optional[Job]:
             job.error = None
             job.started_at = None
             job.completed_at = None
+            job.scheduled_at = None
         session.commit()
-        logger.info("requeued_job", job_id=str(job.id), status=job.status.value)
+        logger.info("requeued_job", job_id=str(job.id), status=job.status.value, force=force)
         return job
     except Exception as e:
         session.rollback()
@@ -647,36 +714,3 @@ def cancel_jobs_by_status(
 def cancel_failed_jobs(job_type: Optional[JobType] = None) -> int:
     """Bulk-cancel FAILED jobs (FAILED → CANCELLED). Returns count affected."""
     return cancel_jobs_by_status(JobStatus.FAILED, job_type=job_type)
-
-
-def mark_stale_jobs_as_failed(stale_threshold_seconds: int = 600) -> List[Job]:
-    """Find IN_PROGRESS jobs not updated within the threshold and mark them failed."""
-    try:
-        session = get_db_session()
-        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=stale_threshold_seconds)
-        stale_jobs = (
-            session.query(Job)
-            .filter(Job.status == JobStatus.IN_PROGRESS)
-            .filter(Job.updated_at < cutoff)
-            .all()
-        )
-        for job in stale_jobs:
-            job.error = f"Stale: no update for {stale_threshold_seconds}s"
-            job.retry_count += 1
-            if job.retry_count < job.max_retries:
-                job.status = JobStatus.PENDING
-                job.worker_id = None
-                job.started_at = None
-                logger.info("requeued_stale_job", job_id=str(job.id), retry_count=job.retry_count)
-            else:
-                job.status = JobStatus.FAILED
-                job.completed_at = func.now()
-                logger.warning("stale_job_exhausted_retries", job_id=str(job.id))
-        if stale_jobs:
-            session.commit()
-            logger.info("marked_stale_jobs", count=len(stale_jobs))
-        return stale_jobs
-    except Exception as e:
-        session.rollback()
-        logger.error("mark_stale_jobs_failed", error=str(e), exc_info=True)
-        raise

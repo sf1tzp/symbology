@@ -160,11 +160,11 @@ class TestQuarterlyDiffPair:
         assert out == []
 
 
-def _sd(kind, added=0, removed=0, ldelta=0):
+def _sd(kind, added=0, removed=0, ldelta=0, ops=None):
     return SimpleNamespace(
         id=uuid7(), change_kind=kind, tokens_added=added, tokens_removed=removed,
-        length_delta=ldelta, left_chunk_id=None, right_chunk_id=uuid7(),
-        heading="h", section_path="1A.1", summary_content_id=None,
+        length_delta=ldelta, topic_id=uuid7(), left_chunk_id=None, right_chunk_id=uuid7(),
+        heading="h", section_path="1A.1", ops=ops or [], summary_content_id=None,
     )
 
 
@@ -202,28 +202,46 @@ class TestTopicSummaryCap:
         unchanged = _sd(text_diff.UNCHANGED, added=10, removed=10, ldelta=10)
         assert _significance(new) > _significance(reworded) > _significance(unchanged)
 
-    def test_summarises_only_top_max_summaries(self):
+    def test_is_displayed_change_matches_the_ui_gate(self):
+        from symbology.worker.diff_pipeline import is_displayed_change
+        from symbology.utils import text_diff
+
+        assert is_displayed_change(_sd(text_diff.ESCALATED)) is True
+        assert is_displayed_change(_sd(text_diff.REWORDED)) is True
+        # Never shown in the UI → not summarised.
+        assert is_displayed_change(_sd(text_diff.NEW)) is False
+        assert is_displayed_change(_sd(text_diff.REMOVED)) is False
+        assert is_displayed_change(_sd(text_diff.UNCHANGED)) is False
+        # A figures-only "reworded" edit is hidden on-page → excluded too.
+        noise = _sd(text_diff.REWORDED, ops=[{"op": "delete", "text": "$112,718"},
+                                             {"op": "insert", "text": "$91,650"}])
+        assert is_displayed_change(noise) is False
+
+    def test_summarises_only_top_displayed_topics(self):
         from symbology.worker import diff_pipeline
         from symbology.utils import text_diff
 
-        high1 = _sd(text_diff.NEW, added=100, ldelta=100)
-        high2 = _sd(text_diff.REMOVED, removed=90, ldelta=-90)
-        low1 = _sd(text_diff.REWORDED, added=1, removed=1, ldelta=1)
-        low2 = _sd(text_diff.REWORDED, added=2, removed=2, ldelta=2)
+        esc = _sd(text_diff.ESCALATED, added=100, ldelta=100)   # displayed, highest
+        rew_mid = _sd(text_diff.REWORDED, added=50, removed=50)  # displayed, mid
+        rew_low = _sd(text_diff.REWORDED, added=1, removed=1)    # displayed, lowest
+        new = _sd(text_diff.NEW, added=200, ldelta=200)          # excluded (not shown)
+        noise = _sd(text_diff.REWORDED,                          # excluded (figures only)
+                    ops=[{"op": "delete", "text": "$112,718"}, {"op": "insert", "text": "$91,650"}])
         ds = SimpleNamespace(
-            section_diffs=[low1, high1, low2, high2],
+            id=uuid7(),
+            section_diffs=[rew_low, new, esc, noise, rew_mid],
+            left_filing_id=uuid7(),
             right_filing_id=uuid7(),
             document_type=SimpleNamespace(value="risk_factors"),
         )
         company = SimpleNamespace(id=uuid7())
 
-        session = MagicMock()
-        session.get.return_value = SimpleNamespace(content="chunk text")
         resp = SimpleNamespace(response="summary", total_duration=1, input_tokens=1, output_tokens=1)
         gen = MagicMock(return_value=(resp, None))
         cfg = SimpleNamespace(prompt_path=lambda k: "p")
 
-        with patch("symbology.worker.diff_pipeline.get_db_session", return_value=session), \
+        with patch("symbology.worker.diff_pipeline.get_db_session", return_value=MagicMock()), \
+             patch("symbology.worker.diff_pipeline._topic_text", return_value="full topic text"), \
              patch("symbology.worker.config_loader.load_pipeline_config", return_value=cfg), \
              patch("symbology.worker.config_loader.ensure_stage_model_config", return_value=SimpleNamespace(id=uuid7())), \
              patch("symbology.worker.config_loader.resolve_generation_model_config", return_value=SimpleNamespace(id=uuid7())), \
@@ -233,9 +251,75 @@ class TestTopicSummaryCap:
                    return_value=(SimpleNamespace(id=uuid7()), True)):
             diff_pipeline._generate_topic_summaries(company, [ds], "10-K", None, max_summaries=2)
 
-        # Only the two most significant topics hit the LLM and got summaries.
+        # Only the two most significant *displayed* topics hit the LLM; new/removed
+        # and figures-only rows are never summarised regardless of significance.
         assert gen.call_count == 2
-        assert high1.summary_content_id is not None
-        assert high2.summary_content_id is not None
-        assert low1.summary_content_id is None
-        assert low2.summary_content_id is None
+        assert esc.summary_content_id is not None
+        assert rew_mid.summary_content_id is not None
+        assert rew_low.summary_content_id is None   # displayed but below the cap
+        assert new.summary_content_id is None        # excluded kind
+        assert noise.summary_content_id is None      # numeric noise
+
+    def test_skips_empty_summary_so_it_can_retry(self):
+        # A reasoning model that runs out of tokens mid-think returns empty content;
+        # we must not store a blank row or mark the topic summarised.
+        from symbology.worker import diff_pipeline
+        from symbology.utils import text_diff
+
+        sd = _sd(text_diff.ESCALATED, added=10, ldelta=10)
+        ds = SimpleNamespace(
+            id=uuid7(), section_diffs=[sd], left_filing_id=uuid7(),
+            right_filing_id=uuid7(), document_type=SimpleNamespace(value="risk_factors"),
+        )
+        company = SimpleNamespace(id=uuid7())
+        resp = SimpleNamespace(response="", total_duration=1, input_tokens=1, output_tokens=512)
+        created = MagicMock()
+
+        with patch("symbology.worker.diff_pipeline.get_db_session", return_value=MagicMock()), \
+             patch("symbology.worker.diff_pipeline._topic_text", return_value="full topic text"), \
+             patch("symbology.worker.config_loader.load_pipeline_config",
+                   return_value=SimpleNamespace(prompt_path=lambda k: "p")), \
+             patch("symbology.worker.config_loader.ensure_stage_model_config", return_value=SimpleNamespace(id=uuid7())), \
+             patch("symbology.worker.config_loader.resolve_generation_model_config", return_value=SimpleNamespace(id=uuid7())), \
+             patch("symbology.worker.pipeline.ensure_prompt", return_value=SimpleNamespace(content="sys", id=uuid7())), \
+             patch("symbology.llm.client.get_generate_response", return_value=(resp, None)), \
+             patch("symbology.database.generated_content.create_generated_content", new=created):
+            n = diff_pipeline.summarize_diff_set(ds, company, "10-K", max_summaries=6)
+
+        assert n == 0
+        assert sd.summary_content_id is None      # not marked → a later run retries it
+        created.assert_not_called()                # no blank row stored
+
+    def test_force_resummarises_already_summarised_topics(self):
+        # `jobs retry --force` path: re-summarise a displayed topic that already has a
+        # summary (e.g. to backfill blanks), replacing summary_content_id.
+        from symbology.worker import diff_pipeline
+        from symbology.utils import text_diff
+
+        sd = _sd(text_diff.ESCALATED, added=10, ldelta=10)
+        sd.summary_content_id = uuid7()           # already "summarised"
+        ds = SimpleNamespace(
+            id=uuid7(), section_diffs=[sd], left_filing_id=uuid7(),
+            right_filing_id=uuid7(), document_type=SimpleNamespace(value="risk_factors"),
+        )
+        company = SimpleNamespace(id=uuid7())
+        resp = SimpleNamespace(response="fresh summary", total_duration=1, input_tokens=1, output_tokens=10)
+        new_id = uuid7()
+
+        with patch("symbology.worker.diff_pipeline.get_db_session", return_value=MagicMock()), \
+             patch("symbology.worker.diff_pipeline._topic_text", return_value="full topic text"), \
+             patch("symbology.worker.config_loader.load_pipeline_config",
+                   return_value=SimpleNamespace(prompt_path=lambda k: "p")), \
+             patch("symbology.worker.config_loader.ensure_stage_model_config", return_value=SimpleNamespace(id=uuid7())), \
+             patch("symbology.worker.config_loader.resolve_generation_model_config", return_value=SimpleNamespace(id=uuid7())), \
+             patch("symbology.worker.pipeline.ensure_prompt", return_value=SimpleNamespace(content="sys", id=uuid7())), \
+             patch("symbology.llm.client.get_generate_response", return_value=(resp, None)), \
+             patch("symbology.database.generated_content.create_generated_content",
+                   return_value=(SimpleNamespace(id=new_id), True)):
+            # Without force the topic is skipped (already summarised); with force it's redone.
+            n_skip = diff_pipeline.summarize_diff_set(ds, company, "10-K", max_summaries=6)
+            n_force = diff_pipeline.summarize_diff_set(ds, company, "10-K", max_summaries=6, force=True)
+
+        assert n_skip == 0
+        assert n_force == 1
+        assert sd.summary_content_id == new_id    # replaced with the fresh summary

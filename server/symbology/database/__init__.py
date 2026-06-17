@@ -67,7 +67,17 @@ from symbology.database.jobs import (
     JobStatus,
     JobType,
     list_jobs,
-    mark_stale_jobs_as_failed,
+)
+
+# Workers (first-class, self-heartbeating registry)
+from symbology.database.workers import (
+    heartbeat_worker,
+    list_live_workers,
+    mark_worker_stopped,
+    reap_dead_workers,
+    register_worker,
+    Worker,
+    WorkerStatus,
 )
 
 from symbology.database.generated_content import (
@@ -181,6 +191,7 @@ __all__ = [
     "Company", "Filing", "Document", "FinancialConcept", "FinancialValue",
     "Completion", "Aggregate", "Rating", "Prompt", "PromptRole",
     "Job", "JobStatus", "JobType",
+    "Worker", "WorkerStatus",
     "DocumentChunk", "GeneratedContentChunk", "ChunkTopic",
 
     # Page content (publishing layer)
@@ -227,5 +238,9 @@ __all__ = [
 
     # Job functions
     "create_job", "get_job", "list_jobs", "cancel_job",
-    "claim_next_job", "complete_job", "fail_job", "mark_stale_jobs_as_failed",
+    "claim_next_job", "complete_job", "fail_job",
+
+    # Worker functions
+    "register_worker", "heartbeat_worker", "mark_worker_stopped",
+    "reap_dead_workers", "list_live_workers",
 ]

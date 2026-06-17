@@ -7,8 +7,10 @@ from datetime import datetime, timedelta, timezone
 import click
 from rich.console import Console
 from rich.table import Table
+from symbology.cli.shortid import maybe_short_id, resolve_id, short_id
 from symbology.database.base import get_db_session, init_db
 from symbology.database.jobs import (
+    Job,
     JobStatus,
     JobType,
     cancel_job,
@@ -35,17 +37,131 @@ def init_session():
     return get_db_session()
 
 
-def format_job_context(job) -> str:
+def resolve_job_id(partial: str) -> str:
+    """Resolve a full UUID or short id (the UUID's last segment) to a job id.
+
+    Thin wrapper over the shared :func:`resolve_id`; see ``jobs list`` for the short
+    ids (e.g. ``155db36481c5``).
+    """
+    return resolve_id(Job, partial, kind="job")
+
+
+def _relative(dt) -> str:
+    """A compact relative time for a naive-UTC timestamp: '3h ago', 'in 2m', 'now'."""
+    if not dt:
+        return "-"
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    secs = (now - dt).total_seconds()
+    future = secs < 0
+    secs = abs(secs)
+    for size, unit in ((86400, "d"), (3600, "h"), (60, "m")):
+        if secs >= size:
+            val = f"{int(secs // size)}{unit}"
+            break
+    else:
+        val = f"{int(secs)}s"
+    return f"in {val}" if future else f"{val} ago"
+
+
+def format_job_when(job) -> str:
+    """One status-aware relative timestamp: the job's most recent / pending event.
+
+    Condenses created/scheduled/started/completed into a single column — e.g.
+    'done 3h ago' (completed), 'started 2m ago' (running), 'retry in 1m' (backoff,
+    a future scheduled_at), 'queued 5m ago' (pending). Full timestamps are still on
+    ``jobs status``.
+    """
+    s = job.status
+    if s in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
+        verb = {JobStatus.COMPLETED: "done", JobStatus.FAILED: "failed",
+                JobStatus.CANCELLED: "cancelled"}[s]
+        return f"{verb} {_relative(job.completed_at or job.updated_at)}"
+    if s == JobStatus.IN_PROGRESS:
+        return f"started {_relative(job.started_at)}"
+    if s == JobStatus.BACKOFF:
+        return f"retry {_relative(job.scheduled_at)}"
+    return f"queued {_relative(job.created_at)}"  # pending
+
+
+def filing_meta_for_jobs(jobs) -> dict:
+    """Map a filing key (``filing_id`` or ``accession_number``, str) -> (ticker, form).
+
+    The filing-keyed job types carry no ticker/form of their own, so the context
+    column can't show which company/form they belong to without a lookup:
+    ``embed_filing`` and ``filing_diff`` reference filing ids, while dep-enqueued
+    ``filing_page_content`` jobs carry only an accession number. Collect every
+    referenced key across the given jobs and resolve them in one query per key kind
+    (rather than N+1 per row), returning a map :func:`format_job_context` consults.
+    The two key spaces don't collide (a UUID never looks like an accession number),
+    so they share one dict.
+    """
+    from uuid import UUID
+
+    from symbology.database.companies import Company
+    from symbology.database.filings import Filing
+
+    filing_ids, accessions = set(), set()
+    for job in jobs:
+        p = job.params or {}
+        if job.job_type == JobType.EMBED_FILING:
+            if p.get("filing_id"):
+                filing_ids.add(p["filing_id"])
+        elif job.job_type == JobType.FILING_DIFF:
+            for k in ("from", "left_filing_id", "to", "right_filing_id"):
+                if p.get(k):
+                    filing_ids.add(p[k])
+        elif job.job_type == JobType.FILING_PAGE_CONTENT:
+            # Only the dep-enqueued ones lack a ticker param and need a lookup.
+            if p.get("accession_number") and not p.get("ticker"):
+                accessions.add(p["accession_number"])
+
+    uuids = []
+    for i in filing_ids:
+        try:
+            uuids.append(UUID(str(i)))
+        except (ValueError, TypeError):
+            continue  # malformed id in params — skip, just no meta for that row
+
+    session = get_db_session()
+    result = {}
+    if uuids:
+        for fid, ticker, form in (
+            session.query(Filing.id, Company.ticker, Filing.form)
+            .join(Company, Filing.company_id == Company.id)
+            .filter(Filing.id.in_(uuids))
+            .all()
+        ):
+            result[str(fid)] = (ticker, form)
+    if accessions:
+        for acc, ticker, form in (
+            session.query(Filing.accession_number, Company.ticker, Filing.form)
+            .join(Company, Filing.company_id == Company.id)
+            .filter(Filing.accession_number.in_(accessions))
+            .all()
+        ):
+            result[acc] = (ticker, form)
+    return result
+
+
+def format_job_context(job, meta=None) -> str:
     """Build a compact, human-readable context string from a job's params.
 
     Job types carry heterogeneous payloads, so we curate the most meaningful
     fields per type (ticker / form / year / etc.) rather than dumping raw JSON.
     Falls back to the first couple of scalar params for unknown types.
+
+    ``meta`` is an optional ``filing key -> (ticker, form)`` map (see
+    :func:`filing_meta_for_jobs`) used to surface a company/form on the otherwise
+    filing-id-only ``embed_filing`` / ``filing_diff`` / dep ``filing_page_content``
+    rows.
     """
     params = job.params or {}
+    meta = meta or {}
 
     def pick(*keys):
-        return [f"{k}={params[k]}" for k in keys if params.get(k) not in (None, "", [])]
+        # Shorten any UUID-valued field (filing_id, diff_set_id, …) to its short id;
+        # non-UUID values (accession numbers, tickers, forms) pass through unchanged.
+        return [f"{k}={maybe_short_id(params[k])}" for k in keys if params.get(k) not in (None, "", [])]
 
     jt = job.job_type
     parts: list = []
@@ -55,25 +171,41 @@ def format_job_context(job) -> str:
     elif jt == JobType.FILING_INGESTION:
         parts = pick("ticker", "form", "count")
     elif jt == JobType.FILING_PAGE_CONTENT:
-        parts = pick("ticker", "form", "year")
+        # Dep-enqueued jobs carry only an accession number; resolve ticker + form.
+        if not params.get("ticker"):
+            ticker, form = meta.get(str(params.get("accession_number")), (None, None))
+            if ticker:
+                parts.append(f"ticker={ticker}")
+            if form:
+                parts.append(f"form={form}")
+        parts += pick("ticker", "form", "year", "accession_number")
     elif jt == JobType.COMPANY_PAGE_CONTENT:
         parts = pick("ticker", "form", "lookback")
     elif jt == JobType.EMBED_FILING:
-        parts = pick("filing_id", "accession_number")
+        ticker, form = meta.get(str(params.get("filing_id")), (None, None))
+        if ticker:
+            parts.append(f"ticker={ticker}")
+        if form:
+            parts.append(f"form={form}")
+        parts += pick("filing_id", "accession_number")
     elif jt == JobType.FILING_DIFF:
         left = params.get("from") or params.get("left_filing_id")
         right = params.get("to") or params.get("right_filing_id")
+        # Both sides are the same company; show its ticker once (prefer the left).
+        ticker = (meta.get(str(left)) or meta.get(str(right)) or (None,))[0]
+        if ticker:
+            parts.append(f"ticker={ticker}")
         if left and right:
-            parts.append(f"{left} -> {right}")
-        parts += pick("form")
-    elif jt == JobType.COMPANY_DIFF:
-        parts = pick("ticker", "form")
+            parts.append(f"{maybe_short_id(left)} -> {maybe_short_id(right)}")
+        parts += pick("form")  # filing_diff already carries its form in params
+    elif jt == JobType.DIFF_SUMMARY:
+        parts = pick("diff_set_id", "form")
     elif jt == JobType.CONTENT_GENERATION:
         parts = pick("company_ticker", "form_type", "document_type", "content_stage", "description")
     elif jt == JobType.COMPANY_GROUP_PIPELINE:
-        tickers = params.get("tickers")
-        if tickers:
-            parts.append(f"tickers={','.join(tickers)}")
+        group_tickers = params.get("tickers")
+        if group_tickers:
+            parts.append(f"tickers={','.join(group_tickers)}")
         parts += pick("group_slug")
     elif jt == JobType.BULK_INGEST:
         filings = params.get("filings") or []
@@ -135,7 +267,9 @@ def jobs():
     help="Set a param (repeatable). Auto-typed: 5->int, 1.5->float, true/false->bool, JSON for lists/objects, else string.",
 )
 @click.option("--params", "-p", "params_json", default=None, help="Job parameters as a JSON object (merged after --set pairs)")
-@click.option("--priority", type=int, default=2, help="Priority (0=critical, 4=backlog)")
+@click.option("--priority", type=int, default=2,
+              help="Priority, lower=sooner (0=dep-unblock, 1=ingest/embed, 2=diff, "
+                   "3=page, 4=group, 5=summary). Effective priority ages up over time.")
 @click.option("--max-retries", type=int, default=3, help="Maximum retry attempts")
 @click.option(
     "--delay",
@@ -213,7 +347,7 @@ def start_job(job_type: str, set_kvs, params_json, priority: int, max_retries: i
         )
         console.print(f"[green]✓[/green] Job started: {job.id}")
         console.print(f"  [blue]Type:[/blue]     {job.job_type.value}")
-        console.print(f"  [blue]Context:[/blue]  {format_job_context(job)}")
+        console.print(f"  [blue]Context:[/blue]  {format_job_context(job, filing_meta_for_jobs([job]))}")
         console.print(f"  [blue]Priority:[/blue] {job.priority}")
         console.print(f"  [blue]Status:[/blue]   {job.status.value}")
         if scheduled_at is not None:
@@ -233,6 +367,7 @@ def job_status(job_id: str):
     """
     try:
         init_session()
+        job_id = resolve_job_id(job_id)
         job = get_job(job_id)
         if not job:
             console.print(f"[red]Job not found: {job_id}[/red]")
@@ -241,7 +376,7 @@ def job_status(job_id: str):
         table = Table(show_header=False, box=None, padding=(0, 1))
         table.add_row("[bold blue]ID:[/bold blue]", str(job.id))
         table.add_row("[bold blue]Type:[/bold blue]", job.job_type.value)
-        table.add_row("[bold blue]Context:[/bold blue]", format_job_context(job))
+        table.add_row("[bold blue]Context:[/bold blue]", format_job_context(job, filing_meta_for_jobs([job])))
         table.add_row("[bold blue]Status:[/bold blue]", job.status.value)
         table.add_row("[bold blue]Priority:[/bold blue]", str(job.priority))
         table.add_row("[bold blue]Worker:[/bold blue]", job.worker_id or "-")
@@ -273,7 +408,9 @@ def job_status(job_id: str):
 )
 @click.option("--params", "params_json", default=None, help="Merge a JSON object into params")
 @click.option("--replace-params", is_flag=True, help="Replace params wholesale instead of merging")
-@click.option("--priority", type=int, default=None, help="New priority (0=critical, 4=backlog)")
+@click.option("--priority", type=int, default=None,
+              help="New priority, lower=sooner (0=dep-unblock, 1=ingest/embed, 2=diff, "
+                   "3=page, 4=group, 5=summary)")
 @click.option("--max-retries", type=int, default=None, help="New maximum retry attempts")
 def edit_job(job_id, set_kvs, params_json, replace_params, priority, max_retries):
     """Edit an editable job's params, priority, or max-retries.
@@ -313,6 +450,7 @@ def edit_job(job_id, set_kvs, params_json, replace_params, priority, max_retries
 
     try:
         init_session()
+        job_id = resolve_job_id(job_id)
         job = update_job(
             job_id,
             params=params_delta or None,
@@ -327,7 +465,7 @@ def edit_job(job_id, set_kvs, params_json, replace_params, priority, max_retries
             sys.exit(1)
         console.print(f"[green]✓[/green] Job updated: {job.id}")
         console.print(f"  [blue]Type:[/blue]     {job.job_type.value}")
-        console.print(f"  [blue]Context:[/blue]  {format_job_context(job)}")
+        console.print(f"  [blue]Context:[/blue]  {format_job_context(job, filing_meta_for_jobs([job]))}")
         console.print(f"  [blue]Priority:[/blue] {job.priority}")
         console.print(f"  [blue]Status:[/blue]   {job.status.value}")
     except Exception as e:
@@ -347,7 +485,8 @@ def edit_job(job_id, set_kvs, params_json, replace_params, priority, max_retries
 @click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="Filter by job type")
 @click.option("--ticker", "ticker_filter", default=None, help="Filter by company ticker referenced in job params")
 @click.option("--limit", default=20, help="Maximum number of jobs to show")
-def list_jobs_cmd(status_filter: str, type_filter: str, ticker_filter: str, limit: int, shortcut_running: bool, shortcut_pending: bool, shortcut_backoff: bool, shortcut_failed: bool, shortcut_completed: bool, shortcut_cancelled: bool):
+@click.option("--all", "show_all", is_flag=True, help="Show all matching jobs (ignore --limit)")
+def list_jobs_cmd(status_filter: str, type_filter: str, ticker_filter: str, limit: int, show_all: bool, shortcut_running: bool, shortcut_pending: bool, shortcut_backoff: bool, shortcut_failed: bool, shortcut_completed: bool, shortcut_cancelled: bool):
     """List jobs in the queue."""
     try:
         # Collect statuses from --status plus any shortcut flags; jobs matching
@@ -372,14 +511,15 @@ def list_jobs_cmd(status_filter: str, type_filter: str, ticker_filter: str, limi
 
         init_session()
         jt = JobType(type_filter) if type_filter else None
-        job_list = list_jobs(status=statuses or None, job_type=jt, ticker=ticker_filter, limit=limit)
+        # --all lifts the cap (effectively unbounded); otherwise honour --limit.
+        effective_limit = 1_000_000 if show_all else limit
+        job_list = list_jobs(status=statuses or None, job_type=jt, ticker=ticker_filter, limit=effective_limit)
 
         if not job_list:
             console.print("[yellow]No jobs found[/yellow]")
             return
 
-        def fmt_ts(ts):
-            return str(ts)[:19] if ts else "-"
+        meta = filing_meta_for_jobs(job_list)
 
         table = Table(title="Jobs")
         table.add_column("ID", style="dim", no_wrap=True)
@@ -389,10 +529,7 @@ def list_jobs_cmd(status_filter: str, type_filter: str, ticker_filter: str, limi
         table.add_column("Priority")
         table.add_column("Attempt")
         table.add_column("Worker", style="dim")
-        table.add_column("Created")
-        table.add_column("Scheduled")
-        table.add_column("Started")
-        table.add_column("Completed")
+        table.add_column("When", style="dim", no_wrap=True)
 
         for job in job_list:
             status_style = {
@@ -405,23 +542,20 @@ def list_jobs_cmd(status_filter: str, type_filter: str, ticker_filter: str, limi
             }.get(job.status, "white")
 
             table.add_row(
-                str(job.id),
+                short_id(job.id),
                 job.job_type.value,
-                format_job_context(job),
+                format_job_context(job, meta),
                 f"[{status_style}]{job.status.value}[/{status_style}]",
                 str(job.priority),
                 f"{job.retry_count + 1}/{job.max_retries}",
                 job.worker_id or "-",
-                fmt_ts(job.created_at),
-                fmt_ts(job.scheduled_at),
-                fmt_ts(job.started_at),
-                fmt_ts(job.completed_at),
+                format_job_when(job),
             )
 
         console.print(table)
 
-        if len(job_list) == limit:
-            console.print(f"\n[yellow]Showing first {limit} results. Use --limit to see more.[/yellow]")
+        if not show_all and len(job_list) == limit:
+            console.print(f"\n[yellow]Showing first {limit} results. Use --limit or --all to see more.[/yellow]")
 
     except Exception as e:
         console.print(f"[red]Error listing jobs: {e}[/red]")
@@ -438,6 +572,7 @@ def cancel_job_cmd(job_id: str):
     """
     try:
         init_session()
+        job_id = resolve_job_id(job_id)
         job = cancel_job(job_id)
         if not job:
             console.print(f"[red]Job not found or not in PENDING status: {job_id}[/red]")
@@ -462,6 +597,7 @@ def stop_job_cmd(job_id: str):
     """
     try:
         init_session()
+        job_id = resolve_job_id(job_id)
         job = stop_job(job_id)
         if not job:
             console.print(
@@ -480,15 +616,20 @@ def stop_job_cmd(job_id: str):
 @click.option("--all", "retry_all", is_flag=True, help="Retry all FAILED jobs")
 @click.option("--type", "type_filter", type=click.Choice([jt.value for jt in JobType], case_sensitive=False), help="With --all, filter by job type")
 @click.option("--dry-run", is_flag=True, help="Show counts without making changes")
-def retry_cmd(job_id: str, retry_all: bool, type_filter: str, dry_run: bool):
-    """Requeue FAILED, CANCELLED, or BACKOFF jobs for retry.
+@click.option("--force", is_flag=True, help="Also re-run a COMPLETED job, and ask handlers that support it (e.g. diff_summary) to regenerate work they'd otherwise skip.")
+def retry_cmd(job_id: str, retry_all: bool, type_filter: str, dry_run: bool, force: bool):
+    """Requeue a job for retry.
 
-    A FAILED or CANCELLED job is reset to PENDING with its retry budget cleared.
-    A BACKOFF job (deferred while waiting on a dependency) is requeued
-    immediately by pulling its scheduled_at forward to now.
+    JOB_ID accepts a full UUID or the short id (the UUID's last segment, as shown
+    in ``jobs list``) — e.g. ``155db36481c5``.
 
-    JOB_ID: UUID of the job to retry. Read from stdin if not given as an
-    argument. Ignored when --all is set, which retries every failed job.
+    Normally only FAILED, CANCELLED, or BACKOFF jobs are requeuable: FAILED/CANCELLED
+    reset to PENDING with the retry budget cleared; a BACKOFF job is pulled forward
+    to now. ``--force`` additionally re-runs a COMPLETED job and merges ``force=true``
+    into its params so handlers that support regeneration redo work they'd skip
+    (e.g. diff_summary re-summarises topics that already have a summary).
+
+    Read from stdin if no JOB_ID is given. Ignored when --all is set.
     """
     try:
         init_session()
@@ -515,23 +656,27 @@ def retry_cmd(job_id: str, retry_all: bool, type_filter: str, dry_run: bool):
         if not job_id:
             console.print("[red]No job id provided (pass an argument, pipe via stdin, or use --all)[/red]")
             sys.exit(1)
+        job_id = resolve_job_id(job_id)
 
-        requeuable = (JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.BACKOFF)
+        statuses = "FAILED/CANCELLED/BACKOFF" + ("/COMPLETED" if force else "")
+        requeuable = [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.BACKOFF]
+        if force:
+            requeuable.append(JobStatus.COMPLETED)
         if dry_run:
             job = get_job(job_id)
             if not job or job.status not in requeuable:
-                console.print(f"[red]Job not found or not in FAILED/CANCELLED/BACKOFF status: {job_id}[/red]")
+                console.print(f"[red]Job not found or not in {statuses} status: {job_id}[/red]")
                 sys.exit(1)
-            console.print(f"Would requeue: [cyan]{job.id}[/cyan]")
+            console.print(f"Would requeue{' (force)' if force else ''}: [cyan]{job.id}[/cyan]")
             return
 
-        job = requeue_job(job_id)
+        job = requeue_job(job_id, force=force, extra_params={"force": True} if force else None)
         if not job:
-            console.print(f"[red]Job not found or not in FAILED/CANCELLED/BACKOFF status: {job_id}[/red]")
+            console.print(f"[red]Job not found or not in {statuses} status: {job_id}[/red]")
             sys.exit(1)
-        # A BACKOFF job stays BACKOFF (now immediately eligible); a FAILED or
-        # CANCELLED job is reset to PENDING.
-        console.print(f"[green]✓[/green] Requeued job ({job.status.value}): {job.id}")
+        # A BACKOFF job (no --force) stays BACKOFF (now immediately eligible);
+        # everything else is reset to PENDING.
+        console.print(f"[green]✓[/green] Requeued job ({job.status.value}){' (force)' if force else ''}: {job.id}")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         logger.exception("Failed to retry jobs")

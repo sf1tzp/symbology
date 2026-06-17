@@ -4,22 +4,17 @@
 	import type { PageData } from './$types';
 	import type {
 		HeroStats,
-		IngestionDayRow,
-		RecentFilingRow,
 		ContentBreakdownRow,
-		ThroughputDayRow,
 		ContentLogRow,
 		JobQueueStats,
-		QueueDepthPoint,
-		ActiveJobRow,
+		RecentJobRow,
 		WorkerRow
 	} from '$lib/server/db/status';
 	import StatusDot from '$lib/components/status/StatusDot.svelte';
 	import BlinkDot from '$lib/components/status/BlinkDot.svelte';
 	import Bar from '$lib/components/status/Bar.svelte';
-	import StackedColumns from '$lib/components/status/StackedColumns.svelte';
-	import AreaChart from '$lib/components/status/AreaChart.svelte';
 	import StatusNav from '$lib/components/status/StatusNav.svelte';
+	import { STATUS_MESSAGE } from '$lib/status-message';
 
 	let { data }: { data: PageData } = $props();
 
@@ -32,43 +27,57 @@
 	// Mutable state for polling
 	let stat_window = $state<number | null>(data.stat_window);
 	let hero = $state<HeroStats | null>(data.hero);
-	let ingestionDays = $state<IngestionDayRow[]>(data.ingestionDays);
-	let recentFilings = $state<RecentFilingRow[]>(data.recentFilings);
 	let contentBreakdown = $state<ContentBreakdownRow[]>(data.contentBreakdown);
-	let contentThroughput = $state<ThroughputDayRow[]>(data.contentThroughput);
 	let contentLog = $state<ContentLogRow[]>(data.contentLog);
 	let queueStats = $state<JobQueueStats | null>(data.queueStats);
-	let queueDepth = $state<QueueDepthPoint[]>(data.queueDepth);
-	let activeJobs = $state<ActiveJobRow[]>(data.activeJobs);
+	let recentJobs = $state<RecentJobRow[]>(data.recentJobs);
 	let workers = $state<WorkerRow[]>(data.workers);
 
 	// Polling state
 	let lastRefreshed = $state(new Date());
 	let refreshAgo = $state('just now');
 
-	// Poll every 60s
+	// Two cadences: the full snapshot (incl. heavy time-series/aggregate queries) on
+	// a slow poll, and just the cheap fast-moving queue slice (jobs / counts /
+	// workers) on a faster one — so a 15s job refresh doesn't re-run the expensive
+	// dashboard aggregations.
+	const FULL_POLL_MS = 60_000;
+	const QUEUE_POLL_MS = 15_000;
+
 	$effect(() => {
 		const interval = setInterval(async () => {
 			try {
 				const res = await fetch('/api/status');
-				if (res.ok) {
-					const fresh = await res.json();
-					hero = fresh.hero;
-					ingestionDays = fresh.ingestionDays;
-					recentFilings = fresh.recentFilings;
-					contentBreakdown = fresh.contentBreakdown;
-					contentThroughput = fresh.contentThroughput;
-					contentLog = fresh.contentLog;
-					queueStats = fresh.queueStats;
-					queueDepth = fresh.queueDepth;
-					activeJobs = fresh.activeJobs;
-					workers = fresh.workers;
-					lastRefreshed = new Date();
-				}
+				if (!res.ok) return;
+				const fresh = await res.json();
+				hero = fresh.hero;
+				contentBreakdown = fresh.contentBreakdown;
+				contentLog = fresh.contentLog;
+				queueStats = fresh.queueStats;
+				recentJobs = fresh.recentJobs;
+				workers = fresh.workers;
+				lastRefreshed = new Date();
 			} catch {
 				/* silent */
 			}
-		}, 60_000);
+		}, FULL_POLL_MS);
+		return () => clearInterval(interval);
+	});
+
+	$effect(() => {
+		const interval = setInterval(async () => {
+			try {
+				const res = await fetch('/api/status/queue');
+				if (!res.ok) return;
+				const fresh = await res.json();
+				queueStats = fresh.queueStats;
+				recentJobs = fresh.recentJobs;
+				workers = fresh.workers;
+				lastRefreshed = new Date();
+			} catch {
+				/* silent */
+			}
+		}, QUEUE_POLL_MS);
 		return () => clearInterval(interval);
 	});
 
@@ -81,22 +90,64 @@
 		return () => clearInterval(tick);
 	});
 
+	// ── Hero health state ──
+	//
+	// The hero header reflects how many jobs failed in the stat window. Below 10%
+	// failed we're nominal; 10–25% is degraded; ≥25% is the "this is fine" (red)
+	// everything-on-fire state.
+	type Health = {
+		word: string; // emphasised word in the headline
+		lede: string; // text preceding it
+		accent: string; // headline + tag color
+		tagBg: string;
+		tagBorder: string;
+		tagLabel: string;
+		dot: 'ok' | 'warn' | 'err';
+	};
+
+	const DEGRADED_THRESHOLD = 0.1;
+	const CRITICAL_THRESHOLD = 0.25;
+
+	const health = $derived.by<Health>(() => {
+		const rate = hero?.failureRate ?? 0;
+		if (rate >= CRITICAL_THRESHOLD) {
+			return {
+				lede: 'This is',
+				word: 'fine',
+				accent: 'var(--danger)',
+				tagBg: 'rgba(184, 85, 67, 0.12)',
+				tagBorder: 'var(--danger)',
+				tagLabel: 'Critical',
+				dot: 'err'
+			};
+		}
+		if (rate >= DEGRADED_THRESHOLD) {
+			return {
+				lede: 'Error rate',
+				word: 'warning',
+				accent: 'var(--warn)',
+				tagBg: 'rgba(196, 154, 56, 0.12)',
+				tagBorder: 'var(--warn)',
+				tagLabel: 'Degraded',
+				dot: 'warn'
+			};
+		}
+		return {
+			lede: 'All systems',
+			word: 'nominal',
+			accent: 'var(--teal-2)',
+			tagBg: 'var(--sage-2)',
+			tagBorder: 'var(--sage)',
+			tagLabel: 'Healthy',
+			dot: 'ok'
+		};
+	});
+
+	const failurePct = $derived(hero ? Math.round(hero.failureRate * 100) : 0);
+
 	// Derived
 	const totalPending = $derived(queueStats ? queueStats.queued + queueStats.backoff : 0);
 	const maxBreakdownCount = $derived(Math.max(...contentBreakdown.map((r) => r.count), 1));
-	const throughputAvg = $derived(
-		contentThroughput.length > 0
-			? Math.round(contentThroughput.reduce((s, d) => s + d.v, 0) / contentThroughput.length)
-			: 0
-	);
-
-	// Filing legend totals
-	const ingestionTotals = $derived({
-		k: ingestionDays.reduce((s, d) => s + d.k, 0),
-		q: ingestionDays.reduce((s, d) => s + d.q, 0),
-		_8k: ingestionDays.reduce((s, d) => s + d._8k, 0),
-		other: ingestionDays.reduce((s, d) => s + d.other, 0)
-	});
 
 	const _priColor: Record<number, string> = {
 		10: 'var(--danger)',
@@ -106,10 +157,21 @@
 	};
 
 	function priColorFor(p: number): string {
-		if (p >= 10) return 'var(--danger)';
-		if (p >= 5) return 'var(--ink-2)';
-		return 'var(--ink-4)';
+		if (p == 0) return 'var(--ink)';
+		if (p >= 2) return 'var(--ink-4)';
+		if (p >= 3) return 'var(--paper-2)';
+		return 'var(--paper)';
 	}
+
+	const STATUS_COLORS: Record<string, string> = {
+		pending: 'var(--ink-2)',
+		in_progress: '#3d8bff',
+		backoff: 'var(--gold)',
+		completed: 'var(--teal-2)',
+		failed: 'var(--danger)',
+		cancelled: 'var(--ink-4)'
+	};
+	const statusColor = (s: string): string => STATUS_COLORS[s] ?? 'var(--ink-3)';
 
 	// Compact duration: 42s · 18min42s · 1h18min
 	function formatDuration(seconds: number): string {
@@ -137,23 +199,36 @@
 <section class="two-col-even" style="align-items: end;">
 	<div>
 		<div class="eyebrow" style="margin-bottom: 1.125rem;">
-			<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;OPERATIONS &middot; status
+			<span style="color: {health.accent};">&#9679;</span>&nbsp;&nbsp;OPERATIONS &middot; status
 		</div>
 		{#if hero}
 			<h1 class="display" style="margin-bottom: 1.125rem; font-size: 3.5rem;">
-				All systems <span style="color: var(--teal-2);">nominal</span>.
+				{health.lede} <span style="color: {health.accent};">{health.word}</span>.
 			</h1>
-			<p class="lede">
-				Ingestion is on schedule, the worker pool is healthy, and the LLM pipeline is processing
-				within budget. {queueStats?.running ?? 0} jobs currently in flight,
-				{totalPending} queued.
-			</p>
+			<!-- Editorial note: what the pipeline is working on (see $lib/status-message). -->
+			<div style="max-width: 34rem;">
+				<div class="meta" style="margin-bottom: 0.375rem; color: var(--ink-4);">
+					{STATUS_MESSAGE.date}
+				</div>
+				<div
+					style="font-family: var(--serif); font-size: 1.0625rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 0.375rem;"
+				>
+					{STATUS_MESSAGE.headline}
+				</div>
+				<p style="font-size: 0.8125rem; line-height: 1.55; color: var(--ink-3); margin: 0;">
+					{STATUS_MESSAGE.body}
+				</p>
+			</div>
 			<div style="display: flex; gap: 0.875rem; margin-top: 1.375rem; align-items: center;">
 				<span
 					class="tag"
-					style="display: inline-flex; align-items: center; gap: 0.5rem; background: var(--sage-2); border-color: var(--sage); color: var(--teal-2);"
+					style="display: inline-flex; align-items: center; gap: 0.5rem; background: {health.tagBg}; border-color: {health.tagBorder}; color: {health.accent};"
 				>
-					<StatusDot kind="ok" /> Healthy
+					<StatusDot kind={health.dot} />
+					{health.tagLabel}
+				</span>
+				<span class="meta" style="color: var(--ink-4);">
+					{failurePct}% failed &middot; {stat_window}hr
 				</span>
 			</div>
 		{:else}
@@ -220,26 +295,15 @@
 	</div>
 
 	<div class="grid-2" style="align-items: start; gap: 1.5rem; margin-bottom: 2.25rem;">
-		<!-- Depth chart -->
-		{#if queueDepth.length > 0}
-			<div class="status-card" style="padding: 1.75rem;">
-				<div class="flex-between" style="margin-bottom: 1.125rem;">
-					<h3 class="sub">Depth &middot; last {stat_window}hr</h3>
-					<span class="meta">peak {Math.max(...queueDepth.map((d) => d.v))}</span>
-				</div>
-				<AreaChart data={queueDepth} color="var(--ink-2)" height={170} />
-			</div>
-		{/if}
-
 		<!-- Right now stats -->
 		{#if queueStats}
-			<div class="status-card" style="padding: 1.75rem;">
+			<div class="" style="padding: 1.75rem;">
 				<div class="flex-between" style="margin-bottom: 1.125rem;">
 					<h3 class="sub">Right now</h3>
 					<span class="meta">{totalPending} pending &middot; {queueStats.running} running</span>
 				</div>
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem;">
-					{#each [{ k: 'Running', v: queueStats.running, c: '#3d8bff', sub: '' }, { k: 'Queued', v: queueStats.queued, c: 'var(--ink-2)', sub: 'FIFO within priority' }, { k: 'Backoff', v: queueStats.backoff, c: 'var(--warn)', sub: 'waiting on deps' }, { k: 'Failed · 24h', v: queueStats.failed24h, c: 'var(--danger)', sub: 'dead-letter' }] as s (s.k)}
+					{#each [{ k: 'Running', v: queueStats.running, c: '#3d8bff', sub: '' }, { k: 'Queued', v: queueStats.queued, c: 'var(--ink-2)', sub: 'FIFO within priority' }, { k: 'Backoff', v: queueStats.backoff, c: 'var(--warn)', sub: 'deps / retry wait' }, { k: `Failed · ${stat_window}hr`, v: queueStats.failedInWindow, c: 'var(--danger)', sub: 'dead-letter' }] as s (s.k)}
 						<div
 							style="padding: 1rem 1.125rem; border: 1px solid var(--rule); border-radius: 10px;"
 						>
@@ -261,98 +325,16 @@
 				</div>
 			</div>
 		{/if}
-	</div>
 
-	<!-- Active jobs table -->
-	{#if activeJobs.length > 0}
-		<div class="status-card">
-			<div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--rule);" class="flex-between">
-				<h3 class="sub">In-flight & queued &middot; {activeJobs.length}</h3>
-			</div>
-			<div class="table-scroll">
-				<table class="status-table">
-					<thead>
-						<tr>
-							<th style="width: 24px; text-align: center;"></th>
-							<th>Job ID</th>
-							<th>Kind</th>
-							<th>Company</th>
-							<th>Target</th>
-							<th style="text-align: right;">Try</th>
-							<th style="text-align: right;">Worker</th>
-							<th style="text-align: right;">Runtime</th>
-							<th style="text-align: right;">State</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each activeJobs as j, i (j.id)}
-							<tr class:last={i === activeJobs.length - 1}>
-								<td style="padding: 0.6875rem 0; text-align: center;">
-									<span
-										style="display: inline-block; width: 3px; height: 26px; background: {priColorFor(
-											j.priority
-										)}; border-radius: 1.5px;"
-									></span>
-								</td>
-								<td class="mono-cell">{j.shortId}</td>
-								<td class="mono-cell" style="color: var(--ink-2);">{j.kind}</td>
-								<td class="mono-cell">{j.company}</td>
-								<td class="serif-cell">{j.target}</td>
-								<td
-									class="mono-cell"
-									style="text-align: right; color: {j.attempt.startsWith('1')
-										? 'var(--ink-3)'
-										: 'var(--warn)'};"
-								>
-									{j.attempt}
-								</td>
-								<td class="mono-cell" style="text-align: right;">{j.workerId}</td>
-								<td class="mono-cell" style="text-align: right;">{j.runtime}</td>
-								<td style="text-align: right;">
-									{#if j.state === 'running'}
-										<span class="status-badge" style="color: #3d8bff;">
-											<BlinkDot color="#3d8bff" /> running
-										</span>
-									{:else if j.state === 'backoff'}
-										<span class="status-badge status-warn">
-											<StatusDot kind="warn" size={6} /> backoff
-										</span>
-									{:else}
-										<span class="status-badge status-idle">
-											<StatusDot kind="idle" size={6} /> queued
-										</span>
-									{/if}
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		</div>
-	{/if}
-</section>
-
-<!-- ═══════════ GENERATED CONTENT ═══════════ -->
-<section class="hairline-section" id="generations">
-	<div class="flex-between" style="align-items: flex-end; margin-bottom: 1.75rem;">
-		<div>
-			<div class="eyebrow" style="margin-bottom: 0.625rem;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;LLM PIPELINE
-			</div>
-			<h2 class="section-heading">Generated content, by kind.</h2>
-		</div>
-	</div>
-
-	<div class="grid-2" style="align-items: start; gap: 1.5rem;">
-		<!-- Breakdown -->
+		<!-- Generated content by kind -->
 		{#if contentBreakdown.length > 0}
-			<div class="status-card" style="padding: 1.75rem;">
+			<div class="" style="padding: 1.75rem;">
 				<div class="flex-between" style="margin-bottom: 1.125rem;">
-					<h3 class="sub">Mix &middot; last 24h</h3>
-					<span class="meta">{contentBreakdown.reduce((s, r) => s + r.count, 0)} total</span>
+					<h3 class="sub">Generated content &middot; by kind</h3>
+					<span class="meta text-xs" style="color: var(--ink-4);">count latency cost</span>
 				</div>
 				<div style="display: flex; flex-direction: column; gap: 0.875rem;">
-					{#each contentBreakdown as r (r.kind)}
+					{#each contentBreakdown.slice(0, 6) as r (r.kind)}
 						<div
 							style="display: grid; grid-template-columns: 1fr 60px 50px 50px; gap: 1rem; align-items: center;"
 						>
@@ -370,99 +352,156 @@
 						</div>
 					{/each}
 				</div>
-				<div
-					class="flex-between"
-					style="margin-top: 1.125rem; padding-top: 0.875rem; border-top: 1px solid var(--rule);"
-				>
-					<span class="meta" style="color: var(--ink-4);"
-						>count &middot; avg latency &middot; total cost · 24h</span
-					>
-				</div>
-			</div>
-		{/if}
-
-		<!-- Throughput chart -->
-		{#if contentThroughput.length > 0}
-			<div class="status-card" style="padding: 1.75rem;">
-				<div class="flex-between" style="margin-bottom: 1.125rem;">
-					<h3 class="sub">Throughput &middot; 14 days</h3>
-					<span class="meta">avg {throughputAvg} / day</span>
-				</div>
-				<AreaChart data={contentThroughput} color="var(--teal-2)" height={180} />
 			</div>
 		{/if}
 	</div>
 
+	<!-- Recent jobs table (mirrors `jobs list`) -->
+	{#if recentJobs.length > 0}
+		<div class="status-card">
+			<div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--rule);" class="flex-between">
+				<h3 class="sub">Recent jobs &middot; {recentJobs.length}</h3>
+			</div>
+			<div class="table-scroll scroll-y">
+				<table class="status-table">
+					<thead>
+						<tr>
+							<th style="width: 24px; text-align: center;">P</th>
+							<th>ID</th>
+							<th>Type</th>
+							<th>Context</th>
+							<th>Status</th>
+							<th style="text-align: right;">Try</th>
+							<th style="text-align: right;">Worker</th>
+							<th style="text-align: right;">When</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each recentJobs as j, i (j.id)}
+							<tr class:last={i === recentJobs.length - 1}>
+								<td style="padding: 0.6875rem 0; text-align: center;">
+									<span
+										style="display: inline-block; width: 3px; height: 26px; background: {priColorFor(
+											j.priority
+										)}; border-radius: 1.5px;"
+									></span>
+								</td>
+								<td class="mono-cell">{j.shortId}</td>
+								<td class="mono-cell" style="color: var(--ink-2);">{j.type}</td>
+								<td class="mono-cell">{j.context}</td>
+								<td>
+									<span
+										class="status-badge"
+										style="color: {statusColor(j.status)}; white-space: nowrap;"
+									>
+										<span
+											style="display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: {statusColor(
+												j.status
+											)};"
+										></span>
+										{j.status}
+									</span>
+								</td>
+								<td
+									class="mono-cell"
+									style="text-align: right; color: {j.attempt.startsWith('1')
+										? 'var(--ink-3)'
+										: 'var(--warn)'};"
+								>
+									{j.attempt}
+								</td>
+								<td class="mono-cell" style="text-align: right;">{j.worker}</td>
+								<td class="mono-cell" style="text-align: right; white-space: nowrap;">{j.when}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	{/if}
+</section>
+
+<!-- ═══════════ GENERATED CONTENT ═══════════ -->
+<section class="hairline-section" id="generations">
+	<div class="flex-between" style="align-items: flex-end; margin-bottom: 1.75rem;">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.625rem;">
+				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;LLM PIPELINE
+			</div>
+			<h2 class="section-heading">Generated content, live.</h2>
+		</div>
+	</div>
+
 	<!-- Generation log -->
 	{#if contentLog.length > 0}
-		<div style="margin-top: 2.25rem;">
-			<div class="flex-between" style="margin-bottom: 0.875rem; align-items: baseline;">
-				<h3 class="sub">Generation log</h3>
+		<div class="status-card">
+			<div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--rule);" class="flex-between">
+				<h3 class="sub">Generation log &middot; {contentLog.length}</h3>
 				<span class="meta" style="display: inline-flex; align-items: center; gap: 0.5rem;">
-					<BlinkDot color="var(--teal-2)" /> streaming &middot; {contentLog.length} recent
+					<BlinkDot color="var(--teal-2)" /> streaming
 				</span>
 			</div>
-			<div class="status-card">
-				<div class="table-scroll">
-					<table class="status-table">
-						<thead>
-							<tr>
-								<th>Time</th>
-								<th>Kind</th>
-								<th>Company</th>
-								<th>Context</th>
-								<th>Model</th>
-								<th style="text-align: right;">Tok in / out</th>
-								<th style="text-align: right;">Lat</th>
-								<th style="text-align: right;">Cost</th>
-								<th style="text-align: right;">Status</th>
+			<div class="table-scroll scroll-y">
+				<table class="status-table">
+					<thead>
+						<tr>
+							<th>Time</th>
+							<th>ID</th>
+							<th>Kind</th>
+							<th>Company</th>
+							<th>Context</th>
+							<th>Model</th>
+							<th style="text-align: right;">Tok in / out</th>
+							<th style="text-align: right;">Lat</th>
+							<th style="text-align: right;">Cost</th>
+							<th style="text-align: right;">Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each contentLog as r, i (i)}
+							<tr
+								class:last={i === contentLog.length - 1}
+								class:row-fail={r.status === 'fail'}
+								class:linked={!!r.href}
+								role={r.href ? 'link' : undefined}
+								tabindex={r.href ? 0 : undefined}
+								onclick={() => r.href && goto(r.href)}
+								onkeydown={(e) => {
+									if (r.href && (e.key === 'Enter' || e.key === ' ')) {
+										e.preventDefault();
+										goto(r.href);
+									}
+								}}
+							>
+								<td class="mono-cell">{r.time}</td>
+								<td class="mono-cell">{r.shortId}</td>
+								<td style="font-size: 0.8125rem; color: var(--ink-2);">{r.kind}</td>
+								<td class="mono-cell">{r.company}</td>
+								<td class="mono-cell">{r.context}</td>
+								<td class="mono-cell" style="font-size: 0.71875rem;">{r.model}</td>
+								<td class="mono-cell" style="text-align: right;">
+									{r.tokensIn.toLocaleString()} / {r.tokensOut.toLocaleString()}
+								</td>
+								<td class="mono-cell" style="text-align: right;">{r.latency}</td>
+								<td class="mono-cell" style="text-align: right;">{r.cost}</td>
+								<td style="text-align: right;">
+									<span
+										class="status-badge"
+										class:status-ok={r.status === 'ok'}
+										class:status-err={r.status === 'fail'}
+										class:status-warn={r.status === 'retry'}
+									>
+										<StatusDot
+											kind={r.status === 'ok' ? 'ok' : r.status === 'fail' ? 'err' : 'warn'}
+											size={6}
+										/>
+										{r.status}
+									</span>
+								</td>
 							</tr>
-						</thead>
-						<tbody>
-							{#each contentLog as r, i (i)}
-								<tr
-									class:last={i === contentLog.length - 1}
-									class:row-fail={r.status === 'fail'}
-									class:linked={!!r.href}
-									role={r.href ? 'link' : undefined}
-									tabindex={r.href ? 0 : undefined}
-									onclick={() => r.href && goto(r.href)}
-									onkeydown={(e) => {
-										if (r.href && (e.key === 'Enter' || e.key === ' ')) {
-											e.preventDefault();
-											goto(r.href);
-										}
-									}}
-								>
-									<td class="mono-cell">{r.time}</td>
-									<td style="font-size: 0.8125rem; color: var(--ink-2);">{r.kind}</td>
-									<td class="mono-cell">{r.company}</td>
-									<td class="serif-cell">{r.context}</td>
-									<td class="mono-cell" style="font-size: 0.71875rem;">{r.model}</td>
-									<td class="mono-cell" style="text-align: right;">
-										{r.tokensIn.toLocaleString()} / {r.tokensOut.toLocaleString()}
-									</td>
-									<td class="mono-cell" style="text-align: right;">{r.latency}</td>
-									<td class="mono-cell" style="text-align: right;">{r.cost}</td>
-									<td style="text-align: right;">
-										<span
-											class="status-badge"
-											class:status-ok={r.status === 'ok'}
-											class:status-err={r.status === 'fail'}
-											class:status-warn={r.status === 'retry'}
-										>
-											<StatusDot
-												kind={r.status === 'ok' ? 'ok' : r.status === 'fail' ? 'err' : 'warn'}
-												size={6}
-											/>
-											{r.status}
-										</span>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
+						{/each}
+					</tbody>
+				</table>
 			</div>
 		</div>
 	{/if}
@@ -482,167 +521,61 @@
 			</div>
 		</div>
 
-		<div class="flex flex-col gap-8">
-			{#each workers as w (w.id)}
-				<div
-					class="status-card"
-					style="padding: 1.375rem; border-left: {w.status === 'running'
-						? '3px solid var(--teal-2)'
-						: '1px solid var(--rule)'};"
-				>
-					<div class="flex-between" style="margin-bottom: 0.875rem; align-items: flex-start;">
-						<div>
-							<div
-								style="display: flex; align-items: center; gap: 0.625rem; margin-bottom: 0.25rem;"
-							>
-								<span
-									style="font-family: var(--serif); font-size: 1.25rem; color: var(--ink); letter-spacing: -0.01em;"
-								>
-									{w.id}
-								</span>
-							</div>
-							<div style="display: flex; align-items: center; gap: 0.5rem;">
-								{#if w.status === 'running'}
-									<BlinkDot color="#3d8bff" />
+		<div class="status-card">
+			<div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--rule);" class="flex-between">
+				<h3 class="sub">Workers &middot; {workers.length}</h3>
+				<span class="meta">{workers.filter((w) => w.status === 'running').length} active</span>
+			</div>
+			<div class="table-scroll scroll-y">
+				<table class="status-table">
+					<thead>
+						<tr>
+							<th>Worker</th>
+							<th>Current job</th>
+							<th style="text-align: right;">Elapsed</th>
+							<th style="text-align: right;">Throughput</th>
+							<th style="text-align: right;">Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each workers as w, i (w.id)}
+							<tr class:last={i === workers.length - 1}>
+								<td class="mono-cell" style="color: var(--ink-2);">{w.id}</td>
+								<td class="mono-cell">
+									{#if w.job === '—'}
+										<span style="color: var(--ink-4); font-style: italic;"
+											>awaiting next claim&hellip;</span
+										>
+									{:else}
+										{w.job}
+									{/if}
+								</td>
+								<td class="mono-cell" style="text-align: right;">
+									{w.status === 'running' ? w.elapsed : '—'}
+								</td>
+								<td class="mono-cell" style="text-align: right;">{w.rate}</td>
+								<td style="text-align: right;">
 									<span
-										style="font-family: var(--mono); font-size: 0.6875rem; color: #3d8bff; text-transform: uppercase; letter-spacing: 0.08em;"
+										class="status-badge"
+										style="color: {w.status === 'running' ? '#3d8bff' : 'var(--ink-3)'};"
 									>
-										running
+										<span
+											style="display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: {w.status ===
+											'running'
+												? '#3d8bff'
+												: 'var(--ink-4)'};"
+										></span>
+										{w.status}
 									</span>
-								{:else}
-									<StatusDot kind="idle" size={8} />
-									<span
-										style="font-family: var(--mono); font-size: 0.6875rem; color: var(--ink-4); text-transform: uppercase; letter-spacing: 0.08em;"
-									>
-										idle
-									</span>
-								{/if}
-							</div>
-						</div>
-					</div>
-
-					<div
-						style="padding: 0.875rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);"
-					>
-						<div class="meta" style="margin-bottom: 0.375rem;">Current job</div>
-						<div
-							style="font-family: var(--serif); font-size: 0.9375rem; color: var(--ink); min-height: 1.375rem;"
-						>
-							{#if w.job === '—'}
-								<span style="color: var(--ink-4); font-style: italic;"
-									>awaiting next claim&hellip;</span
-								>
-							{:else}
-								{w.job}
-							{/if}
-						</div>
-					</div>
-
-					<div
-						style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.875rem;"
-					>
-						<div>
-							<div class="meta" style="color: var(--ink-4);">Throughput</div>
-							<span style="font-family: var(--mono); font-size: 0.8125rem; color: var(--ink);"
-								>{w.rate}</span
-							>
-						</div>
-						{#if w.status === 'running'}
-							<div>
-								<div class="meta" style="color: var(--ink-4);">Elapsed</div>
-								<span style="font-family: var(--mono); font-size: 0.8125rem; color: var(--ink);"
-									>{w.elapsed}</span
-								>
-							</div>
-						{/if}
-					</div>
-				</div>
-			{/each}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 		</div>
 	</section>
 {/if}
-
-<!-- ═══════════ INGESTION ═══════════ -->
-<section class="hairline-section mb-4" id="ingestion">
-	<div class="flex-between" style="align-items: flex-end; margin-bottom: 1.75rem;">
-		<div>
-			<div class="eyebrow" style="margin-bottom: 0.625rem;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;EDGAR INGESTION
-			</div>
-			<h2 class="section-heading">Filings, in by form type.</h2>
-		</div>
-	</div>
-
-	{#if ingestionDays.length > 0}
-		<div class="status-card" style="padding: 1.75rem;">
-			<StackedColumns
-				data={ingestionDays}
-				segments={['k', 'q', '_8k', 'other']}
-				colors={['var(--teal-2)', 'var(--olive)', 'var(--ink-2)', 'var(--ink-4)']}
-				height={220}
-			/> // fix me: type error
-			<div
-				style="display: flex; gap: 1.75rem; margin-top: 0.875rem; padding-top: 1.125rem; border-top: 1px solid var(--rule); flex-wrap: wrap;"
-			>
-				{#each [{ c: 'var(--teal-2)', l: '10-K', v: ingestionTotals.k }, { c: 'var(--olive)', l: '10-Q', v: ingestionTotals.q }, { c: 'var(--ink-2)', l: '8-K', v: ingestionTotals._8k }, { c: 'var(--ink-4)', l: 'Other', v: ingestionTotals.other }] as legend (legend.l)}
-					<span class="meta" style="display: flex; align-items: center; gap: 0.5rem;">
-						<span style="width: 10px; height: 10px; background: {legend.c}; border-radius: 2px;"
-						></span>
-						{legend.l} &middot; <span style="color: var(--ink);">{legend.v}</span>
-					</span>
-				{/each}
-				<span class="meta" style="margin-left: auto;">Source: EDGAR full-index</span>
-			</div>
-		</div>
-	{/if}
-
-	<!-- Recent pulls table -->
-	{#if recentFilings.length > 0}
-		<div style="margin-top: 2.25rem;">
-			<div class="flex-between" style="margin-bottom: 0.875rem; align-items: baseline;">
-				<h3 class="sub">Recent filings</h3>
-				<span class="meta">Showing {recentFilings.length}</span>
-			</div>
-			<div class="status-card">
-				<div class="table-scroll">
-					<table class="status-table">
-						<thead>
-							<tr>
-								<th>Time</th>
-								<th>CIK</th>
-								<th>Company</th>
-								<th>Form</th>
-								<th style="text-align: right;">Docs</th>
-								<th style="text-align: right;">Status</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each recentFilings as r, i (i)}
-								<tr class:last={i === recentFilings.length - 1}>
-									<td class="mono-cell">{r.time}</td>
-									<td class="mono-cell">{r.cik ?? '—'}</td>
-									<td class="serif-cell">{r.company}</td>
-									<td><span class="tag" style="font-size: 0.6875rem;">{r.form}</span></td>
-									<td class="mono-cell" style="text-align: right;">{r.docCount || '—'}</td>
-									<td style="text-align: right;">
-										<span
-											class="status-badge"
-											class:status-ok={r.status === 'indexed'}
-											class:status-idle={r.status !== 'indexed'}
-										>
-											<StatusDot kind={r.status === 'indexed' ? 'ok' : 'idle'} size={6} />
-											{r.status}
-										</span>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			</div>
-		</div>
-	{/if}
-</section>
 
 <style>
 	/* ── Card surface ── */
@@ -655,6 +588,17 @@
 	/* Wide dense tables scroll horizontally instead of overflowing the page. */
 	.table-scroll {
 		overflow-x: auto;
+	}
+	/* Dense log tables scroll vertically through many rows with a pinned header. */
+	.scroll-y {
+		max-height: 30rem;
+		overflow-y: auto;
+	}
+	.scroll-y thead th {
+		position: sticky;
+		top: 0;
+		background: var(--paper);
+		z-index: 1;
 	}
 
 	/* ── Dense table ── */
@@ -695,11 +639,6 @@
 		font-size: 0.75rem;
 		color: var(--ink-3);
 	}
-	.serif-cell {
-		font-family: var(--serif);
-		font-size: 0.9375rem;
-		color: var(--ink);
-	}
 	.mono-sm {
 		font-family: var(--mono);
 		font-size: 0.75rem;
@@ -725,9 +664,6 @@
 	}
 	.status-warn {
 		color: var(--warn);
-	}
-	.status-idle {
-		color: var(--ink-3);
 	}
 
 	/* ── Failed row highlight ── */

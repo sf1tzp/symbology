@@ -6,7 +6,7 @@
 	import ChangeCard from '$lib/components/ChangeCard.svelte';
 	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
 	import DiffRow from '$lib/components/DiffRow.svelte';
-	import { changeKindColor, scoreTopic, isVisibleTopic } from '$lib/utils/changes';
+	import { changeKindColor, topChangeCards, isVisibleTopic } from '$lib/utils/changes';
 	import {
 		formatFilingPeriodLong,
 		formatDate,
@@ -32,11 +32,9 @@
 	// / reworded shifts in this filing vs. the prior one, across all sections.
 	// Mirrors the company page's "What's new" cards (accent per document type).
 	const changeCards = $derived(
-		priorDiffSets
-			.flatMap((ds) => ds.topics.map((t) => ({ ...t, documentType: ds.documentType })))
-			.filter(isVisibleTopic)
-			.sort((a, b) => scoreTopic(b) - scoreTopic(a))
-			.slice(0, 6)
+		topChangeCards(
+			priorDiffSets.flatMap((ds) => ds.topics.map((t) => ({ ...t, documentType: ds.documentType })))
+		)
 	);
 
 	const companyName = $derived(company?.display_name || company?.name || 'Company');

@@ -100,3 +100,18 @@ export const scoreTopic = (t: ScorableTopic): number =>
 	(t.tokensAdded ?? 0) +
 	(t.tokensRemoved ?? 0) +
 	Math.abs(t.lengthDelta ?? 0) * 0.1;
+
+/**
+ * The top-N "what's new" change cards from a set of topics: the displayed-kind,
+ * non-figures-only shifts (isVisibleTopic), ranked by significance. One definition
+ * shared by every surface that shows headline cards (c/, f/, d/, changes/) so they
+ * select and order identically.
+ */
+export const topChangeCards = <T extends ScorableTopic & { ops?: DiffOp[] | null }>(
+	topics: T[],
+	limit = 6
+): T[] =>
+	[...topics]
+		.filter(isVisibleTopic)
+		.sort((a, b) => scoreTopic(b) - scoreTopic(a))
+		.slice(0, limit);

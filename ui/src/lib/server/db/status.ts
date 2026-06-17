@@ -1,5 +1,15 @@
 import { db } from '../db';
 import { sql } from 'kysely';
+import { formatJobContext, formatJobWhen, shortId } from '$lib/utils/jobs';
+
+/** DB timestamps are naive UTC; normalise to an ISO string with an explicit Z so
+ *  relative-time math is correct regardless of the server's local timezone. */
+function toIso(val: unknown): string | null {
+	if (!val) return null;
+	if (val instanceof Date) return val.toISOString();
+	const s = String(val).replace(' ', 'T');
+	return /[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : `${s}Z`;
+}
 
 // ── Generation cost model ──
 //
@@ -186,6 +196,9 @@ export interface HeroStats {
 	p95JobDuration: number | null;
 	generationsCount: number;
 	completedCount: number;
+	failedCount: number;
+	/** Share of finished jobs (completed + failed) in the window that failed, 0–1. */
+	failureRate: number;
 	workersOnline: number;
 	totalWorkerSlots: number;
 	llmSpend: number;
@@ -225,6 +238,7 @@ export interface ThroughputDayRow {
 
 export interface ContentLogRow {
 	time: string;
+	shortId: string;
 	kind: string;
 	company: string;
 	context: string;
@@ -241,26 +255,13 @@ export interface JobQueueStats {
 	running: number;
 	queued: number;
 	backoff: number;
-	failed24h: number;
+	/** Dead-lettered (retries exhausted) jobs within the stat window. */
+	failedInWindow: number;
 }
 
 export interface QueueDepthPoint {
 	label: string;
 	v: number;
-}
-
-export interface ActiveJobRow {
-	id: string;
-	/** First 10 chars of the id, for display only — NOT unique, never use as an {#each} key. */
-	shortId: string;
-	kind: string;
-	priority: number;
-	company: string;
-	target: string;
-	attempt: string;
-	workerId: string;
-	state: 'running' | 'queued' | 'backoff';
-	runtime: string;
 }
 
 export interface WorkerRow {
@@ -276,60 +277,75 @@ export interface WorkerRow {
 export async function getHeroStats(window: number): Promise<HeroStats> {
 	const stat_window = sql<Date>`now() - make_interval(hours => ${window})`;
 
-	const [jobDurRes, gensRes, completedRes, workersRes, spendRes, p95Res] = await Promise.all([
-		// p95 job duration (wall-clock) over jobs completed in last 7d
-		db
-			.selectFrom('jobs')
-			.select(sql<number>`percentile_cont(0.95) within group (order by duration)`.as('p95'))
-			.where('status', '=', 'completed')
-			.where('completed_at', '>=', stat_window)
-			.where('duration', 'is not', null)
-			.executeTakeFirst(),
+	const [jobDurRes, gensRes, completedRes, failedRes, workersRes, spendRes, p95Res] =
+		await Promise.all([
+			// p95 job duration (wall-clock) over jobs completed in last 7d
+			db
+				.selectFrom('jobs')
+				.select(sql<number>`percentile_cont(0.95) within group (order by duration)`.as('p95'))
+				.where('status', '=', 'completed')
+				.where('completed_at', '>=', stat_window)
+				.where('duration', 'is not', null)
+				.executeTakeFirst(),
 
-		// Count of Generations
-		db
-			.selectFrom('generated_content')
-			.select(sql<number>`count(*)::int`.as('count'))
-			.where('created_at', '>=', stat_window)
-			.executeTakeFirstOrThrow(),
+			// Count of Generations
+			db
+				.selectFrom('generated_content')
+				.select(sql<number>`count(*)::int`.as('count'))
+				.where('created_at', '>=', stat_window)
+				.executeTakeFirstOrThrow(),
 
-		// Count of Completed jobs
-		db
-			.selectFrom('jobs')
-			.select(sql<number>`count(*)::int`.as('count'))
-			.where('status', '=', 'completed')
-			.where('completed_at', '>=', stat_window)
-			.executeTakeFirstOrThrow(),
+			// Count of Completed jobs
+			db
+				.selectFrom('jobs')
+				.select(sql<number>`count(*)::int`.as('count'))
+				.where('status', '=', 'completed')
+				.where('completed_at', '>=', stat_window)
+				.executeTakeFirstOrThrow(),
 
-		// Workers online (distinct worker_ids with in_progress jobs)
-		db
-			.selectFrom('jobs')
-			.select(sql<number>`count(distinct worker_id)::int`.as('count'))
-			.where('status', '=', 'in_progress')
-			.where('worker_id', 'is not', null)
-			.executeTakeFirstOrThrow(),
+			// Count of failed jobs (dead-lettered) in the same window — drives the
+			// hero header's failure-rate health state.
+			db
+				.selectFrom('jobs')
+				.select(sql<number>`count(*)::int`.as('count'))
+				.where('status', '=', 'failed')
+				.where('completed_at', '>=', stat_window)
+				.executeTakeFirstOrThrow(),
 
-		// Estimated LLM spend
-		db
-			.selectFrom('generated_content')
-			.leftJoin('model_configs', 'model_configs.id', 'generated_content.model_config_id')
-			.select([
-				'model_configs.model',
-				'generated_content.input_tokens',
-				'generated_content.output_tokens',
-				'generated_content.total_duration'
-			])
-			.where('generated_content.created_at', '>=', stat_window)
-			.execute(),
+			// Workers online: live (idle/running) rows in the first-class workers
+			// table whose heartbeat is still fresh. `total` counts every worker that
+			// isn't dead (i.e. recently seen) for the online/registered ratio.
+			db
+				.selectFrom('workers')
+				.select([
+					sql<number>`count(*) filter (where status in ('idle','running') and last_heartbeat >= now() - make_interval(secs => ${WORKER_HEARTBEAT_STALE_SECONDS}))::int`.as(
+						'online'
+					),
+					sql<number>`count(*) filter (where status <> 'dead')::int`.as('total')
+				])
+				.executeTakeFirstOrThrow(),
 
-		// p95 llm latency
-		db
-			.selectFrom('generated_content')
-			.select(sql<number>`percentile_cont(0.95) within group (order by total_duration)`.as('p95'))
-			.where('created_at', '>=', stat_window)
-			.where('total_duration', 'is not', null)
-			.executeTakeFirst()
-	]);
+			// Estimated LLM spend
+			db
+				.selectFrom('generated_content')
+				.leftJoin('model_configs', 'model_configs.id', 'generated_content.model_config_id')
+				.select([
+					'model_configs.model',
+					'generated_content.input_tokens',
+					'generated_content.output_tokens',
+					'generated_content.total_duration'
+				])
+				.where('generated_content.created_at', '>=', stat_window)
+				.execute(),
+
+			// p95 llm latency
+			db
+				.selectFrom('generated_content')
+				.select(sql<number>`percentile_cont(0.95) within group (order by total_duration)`.as('p95'))
+				.where('created_at', '>=', stat_window)
+				.where('total_duration', 'is not', null)
+				.executeTakeFirst()
+		]);
 
 	let totalSpend = 0;
 	for (const row of spendRes) {
@@ -343,12 +359,19 @@ export async function getHeroStats(window: number): Promise<HeroStats> {
 	const genCount = gensRes.count;
 	const avgCost = genCount > 0 ? totalSpend / genCount : 0;
 
+	const completedCount = completedRes.count;
+	const failedCount = failedRes.count;
+	const finished = completedCount + failedCount;
+	const failureRate = finished > 0 ? failedCount / finished : 0;
+
 	return {
 		p95JobDuration: jobDurRes?.p95 != null ? Math.round(jobDurRes.p95 * 10) / 10 : null,
 		generationsCount: genCount,
-		completedCount: completedRes.count,
-		workersOnline: workersRes.count,
-		totalWorkerSlots: 8,
+		completedCount,
+		failedCount,
+		failureRate,
+		workersOnline: workersRes.online,
+		totalWorkerSlots: workersRes.total,
 		llmSpend: Math.round(totalSpend * 100) / 100,
 		avgCostPerGen: Math.round(avgCost * 1000) / 1000,
 		p95Latency: p95Res?.p95 != null ? Math.round(p95Res.p95 * 10) / 10 : null
@@ -517,6 +540,7 @@ export async function getContentLog(limit: number): Promise<ContentLogRow[]> {
 		.leftJoin('companies as doc_co', 'doc_co.id', 'gc_doc.company_id')
 		.select([
 			sql<string>`to_char(generated_content.created_at, 'HH24:MI:SS')`.as('time'),
+			'generated_content.id',
 			'generated_content.content_stage',
 			'generated_content.document_type',
 			'generated_content.form_type',
@@ -564,6 +588,7 @@ export async function getContentLog(limit: number): Promise<ContentLogRow[]> {
 
 		return {
 			time: r.time,
+			shortId: shortId(r.id),
 			kind,
 			company,
 			context,
@@ -578,8 +603,11 @@ export async function getContentLog(limit: number): Promise<ContentLogRow[]> {
 	});
 }
 
-export async function getJobQueueStats(): Promise<JobQueueStats> {
-	const ago24h = sql`now() - interval '24 hours'`;
+export async function getJobQueueStats(window: number = STAT_WINDOW): Promise<JobQueueStats> {
+	// running / queued / backoff are point-in-time queue depths (no window); only
+	// the failed (dead-letter) count is windowed, scoped to the same stat window
+	// as the rest of the dashboard so the "Failed" stat matches its label.
+	const windowStart = sql`now() - make_interval(hours => ${window})`;
 
 	const [runningRes, queuedRes, backoffRes, failedRes] = await Promise.all([
 		db
@@ -604,7 +632,7 @@ export async function getJobQueueStats(): Promise<JobQueueStats> {
 			.selectFrom('jobs')
 			.select(sql<number>`count(*)::int`.as('count'))
 			.where('status', '=', 'failed')
-			.where('completed_at', '>=', ago24h)
+			.where('completed_at', '>=', windowStart)
 			.executeTakeFirstOrThrow()
 	]);
 
@@ -612,7 +640,7 @@ export async function getJobQueueStats(): Promise<JobQueueStats> {
 		running: runningRes.count,
 		queued: queuedRes.count,
 		backoff: backoffRes.count,
-		failed24h: failedRes.count
+		failedInWindow: failedRes.count
 	};
 }
 
@@ -642,75 +670,98 @@ export async function getJobQueueDepth(hours: number): Promise<QueueDepthPoint[]
 	return rows.rows;
 }
 
-export async function getActiveJobs(limit: number): Promise<ActiveJobRow[]> {
+export interface RecentJobRow {
+	id: string;
+	shortId: string;
+	type: string; // raw job_type, mirroring `jobs list`
+	context: string;
+	status: string;
+	priority: number;
+	attempt: string;
+	worker: string;
+	when: string;
+}
+
+/**
+ * Recent jobs across all statuses (newest first), shaped to mirror the CLI's
+ * `jobs list`: short id, raw type, curated context, status, priority, attempt,
+ * worker, and a single status-aware "When". Powers the scrollable status table.
+ */
+export async function getRecentJobs(limit: number): Promise<RecentJobRow[]> {
 	const rows = await db
 		.selectFrom('jobs')
 		.select([
 			'id',
 			'job_type',
-			'priority',
 			'params',
+			'status',
+			'priority',
 			'retry_count',
 			'max_retries',
 			'worker_id',
-			'status',
 			'created_at',
-			'started_at'
+			'started_at',
+			'scheduled_at',
+			'completed_at',
+			'updated_at'
 		])
-		.where('status', 'in', ['pending', 'backoff', 'in_progress'])
-		.orderBy(sql`case when status = 'in_progress' then 0 else 1 end`)
-		.orderBy('priority', 'desc')
-		.orderBy('created_at', 'asc')
+		// Order by id, not created_at: uuid7 ids are time-ordered AND the primary
+		// key, so this is an index scan (no full-table sort) yet still newest-first —
+		// keeps the query cheap as the high-churn jobs table grows / polling speeds up.
+		.orderBy('id', 'desc')
 		.limit(limit)
 		.execute();
 
-	return rows.map((r) => {
-		const params = r.params as Record<string, unknown> | null;
-		const { company, detail } = jobContext(r.job_type, params);
-
-		// Runtime is measured from when the job actually started executing.
-		// Queued jobs haven't started yet, so they have no runtime.
-		const startedAt = r.started_at ? new Date(r.started_at as unknown as string).getTime() : null;
-		let runtime = '—';
-		if (startedAt != null) {
-			const secs = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-			runtime =
-				secs >= 3600
-					? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`
-					: secs >= 60
-						? `${Math.floor(secs / 60)}m ${secs % 60}s`
-						: `${secs}s`;
-		}
-
-		let state: 'running' | 'queued' | 'backoff' = 'queued';
-		if (r.status === 'in_progress') state = 'running';
-		else if (r.status === 'backoff') state = 'backoff';
-
-		return {
-			id: r.id,
-			shortId: r.id.slice(0, 10),
-			kind: jobKindLabel(r.job_type),
-			priority: r.priority,
-			company,
-			target: detail,
-			attempt: `${r.retry_count + 1}/${r.max_retries}`,
-			workerId: r.worker_id ?? '—',
-			state,
-			runtime
-		};
-	});
+	return rows.map((r) => ({
+		id: r.id,
+		shortId: shortId(r.id),
+		type: r.job_type,
+		context: formatJobContext(r.job_type, r.params as Record<string, unknown> | null),
+		status: r.status,
+		priority: r.priority,
+		attempt: `${r.retry_count + 1}/${r.max_retries}`,
+		worker: r.worker_id ?? '-',
+		when: formatJobWhen(r.status, {
+			createdAt: toIso(r.created_at),
+			startedAt: toIso(r.started_at),
+			scheduledAt: toIso(r.scheduled_at),
+			completedAt: toIso(r.completed_at),
+			updatedAt: toIso(r.updated_at)
+		})
+	}));
 }
 
+// A worker self-heartbeats every ~15s (idle or running), so a live worker's
+// last_heartbeat is always fresh. A crashed / SIGKILL'd worker stops beating;
+// the reap sweep marks it dead and reclaims its job within ~stale_threshold, but
+// until then we exclude it here by the same freshness cut so a dead worker
+// doesn't linger on the dashboard. Matches worker_settings.stale_threshold (90s).
+const WORKER_HEARTBEAT_STALE_SECONDS = 90;
+
 export async function getWorkerSummary(): Promise<WorkerRow[]> {
-	// Get currently active workers from in-progress jobs
-	const activeRows = await db
-		.selectFrom('jobs')
-		.select(['worker_id', 'job_type', 'params', 'started_at'])
-		.where('status', '=', 'in_progress')
-		.where('worker_id', 'is not', null)
+	// Live workers straight from the registry, with their current job (if any)
+	// joined in for the "what's it doing" line. A worker is shown if it's in a
+	// live state with a fresh heartbeat — no more inferring presence from jobs.
+	const workerRows = await db
+		.selectFrom('workers')
+		.leftJoin('jobs', 'jobs.id', 'workers.current_job_id')
+		.select([
+			'workers.id as id',
+			'workers.status as status',
+			'jobs.job_type as job_type',
+			'jobs.params as params',
+			'jobs.started_at as job_started_at'
+		])
+		.where('workers.status', 'in', ['idle', 'running'])
+		.where(
+			'workers.last_heartbeat',
+			'>=',
+			sql`now() - make_interval(secs => ${WORKER_HEARTBEAT_STALE_SECONDS})`
+		)
+		.orderBy('workers.id')
 		.execute();
 
-	// Get throughput per worker (completed in last hour)
+	// Throughput per worker (jobs completed in the last hour).
 	const throughputRows = await db
 		.selectFrom('jobs')
 		.select(['worker_id', sql<number>`count(*)::int`.as('completed_count')])
@@ -725,55 +776,46 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 		if (r.worker_id) throughputMap.set(r.worker_id, r.completed_count);
 	}
 
-	// Collect all known worker_ids (active + recently active)
-	const workerIds = new Set<string>();
-	for (const r of activeRows) if (r.worker_id) workerIds.add(r.worker_id);
-	for (const r of throughputRows) if (r.worker_id) workerIds.add(r.worker_id);
+	return workerRows.map((w) => {
+		const running = w.status === 'running' && w.job_type != null;
 
-	const activeMap = new Map<string, (typeof activeRows)[0]>();
-	for (const r of activeRows) {
-		if (r.worker_id) activeMap.set(r.worker_id, r);
-	}
+		let jobDesc = '—';
+		if (w.job_type != null) {
+			// e.g. "Filing content · AMZN · 10-K · FY2025" — same kind/company/detail
+			// the in-flight table shows, flattened into one line for the card.
+			const { company, detail } = jobContext(
+				w.job_type,
+				w.params as Record<string, unknown> | null
+			);
+			jobDesc = [
+				jobKindLabel(w.job_type),
+				company !== '—' ? company : null,
+				detail !== '—' ? detail : null
+			]
+				.filter(Boolean)
+				.join(' · ');
+		}
 
-	return Array.from(workerIds)
-		.sort()
-		.map((wid) => {
-			const active = activeMap.get(wid);
-			const params = active?.params as Record<string, unknown> | null;
-			let jobDesc = '—';
-			if (active) {
-				// e.g. "Filing content · AMZN · 10-K · FY2025" — same kind/company/detail
-				// the in-flight table shows, flattened into one line for the card.
-				const { company, detail } = jobContext(active.job_type, params);
-				jobDesc = [
-					jobKindLabel(active.job_type),
-					company !== '—' ? company : null,
-					detail !== '—' ? detail : null
-				]
-					.filter(Boolean)
-					.join(' · ');
-			}
+		let elapsed = '—';
+		if (running && w.job_started_at) {
+			const secs = Math.floor(
+				(Date.now() - new Date(w.job_started_at as unknown as string).getTime()) / 1000
+			);
+			const m = Math.floor(secs / 60);
+			const s = secs % 60;
+			elapsed = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+		}
 
-			let elapsed = '—';
-			if (active?.started_at) {
-				const secs = Math.floor(
-					(Date.now() - new Date(active.started_at as unknown as string).getTime()) / 1000
-				);
-				const m = Math.floor(secs / 60);
-				const s = secs % 60;
-				elapsed = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-			}
+		const rate = throughputMap.get(w.id) ?? 0;
 
-			const rate = throughputMap.get(wid) ?? 0;
-
-			return {
-				id: wid,
-				status: active ? ('running' as const) : ('idle' as const),
-				job: jobDesc,
-				elapsed,
-				rate: `${rate} / hr`
-			};
-		});
+		return {
+			id: w.id,
+			status: running ? ('running' as const) : ('idle' as const),
+			job: jobDesc,
+			elapsed,
+			rate: `${rate} / hr`
+		};
+	});
 }
 
 // ── Consolidated snapshot ──
@@ -782,6 +824,14 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 // across the status dashboard's windowed stats. Shared by the SSR `load` and
 // the `/api/status` polling endpoint so both render the same scope.
 export const STAT_WINDOW = 6;
+
+/** The fast-changing slice of the dashboard — polled more often than the full
+ *  snapshot (its time-series/aggregate queries are heavier and slow-moving). */
+export interface QueueSnapshot {
+	queueStats: JobQueueStats;
+	recentJobs: RecentJobRow[];
+	workers: WorkerRow[];
+}
 
 export interface StatusSnapshot {
 	hero: HeroStats;
@@ -792,7 +842,7 @@ export interface StatusSnapshot {
 	contentLog: ContentLogRow[];
 	queueStats: JobQueueStats;
 	queueDepth: QueueDepthPoint[];
-	activeJobs: ActiveJobRow[];
+	recentJobs: RecentJobRow[];
 	workers: WorkerRow[];
 }
 
@@ -809,7 +859,7 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
 		contentLog,
 		queueStats,
 		queueDepth,
-		activeJobs,
+		recentJobs,
 		workers
 	] = await Promise.all([
 		getHeroStats(window),
@@ -818,9 +868,9 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
 		getContentBreakdown(),
 		getContentThroughput(window),
 		getContentLog(9),
-		getJobQueueStats(),
+		getJobQueueStats(window),
 		getJobQueueDepth(window),
-		getActiveJobs(10),
+		getRecentJobs(100),
 		getWorkerSummary()
 	]);
 
@@ -833,7 +883,21 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
 		contentLog,
 		queueStats,
 		queueDepth,
-		activeJobs,
+		recentJobs,
 		workers
 	};
+}
+
+/**
+ * The queue slice only (job counts, recent jobs, workers) — the cheap, fast-moving
+ * queries the dashboard polls frequently, without re-running the heavy time-series
+ * aggregations in :func:`collectStatus`.
+ */
+export async function collectQueueStatus(window: number = STAT_WINDOW): Promise<QueueSnapshot> {
+	const [queueStats, recentJobs, workers] = await Promise.all([
+		getJobQueueStats(window),
+		getRecentJobs(100),
+		getWorkerSummary()
+	]);
+	return { queueStats, recentJobs, workers };
 }

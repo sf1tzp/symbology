@@ -3,9 +3,10 @@
 	import type { Snippet } from 'svelte';
 
 	// A coloured change card with a left accent bar. Callers pick the accent (per
-	// document type or per change kind) and supply the header content; optional
-	// heading / summary lines and a footer-left snippet (e.g. a section path or a
-	// synthesis tag) fill out the body. `dot` shows a small accent dot before the
+	// document type or per change kind) and supply the header content. The main line
+	// prefers `summary` (the generated "what changed" prose) and falls back to
+	// `heading` (the raw topic text) when there's no summary; a footer-left snippet
+	// (e.g. a section path) fills out the foot. `dot` shows a small accent dot before the
 	// header — off where the header already carries a coloured tag. The "Open →"
 	// affordance is always present.
 	let {
@@ -36,11 +37,12 @@
 		{/if}
 		{@render header()}
 	</div>
-	{#if heading}
-		<div class="ti">{heading}</div>
-	{/if}
+	<!-- Prefer the generated summary as the card's main line; fall back to the raw
+	     topic heading (often just a table fragment) only when there's no summary. -->
 	{#if summary}
-		<div class="bd">{summary}</div>
+		<div class="ti">{summary}</div>
+	{:else if heading}
+		<div class="ti">{heading}</div>
 	{/if}
 	<div class="ft">
 		<span class="ft-left"
@@ -86,13 +88,8 @@
 	.change-card .ti {
 		font-family: var(--serif);
 		font-size: 16px;
-		line-height: 1.3;
+		line-height: 1.4;
 		color: var(--ink);
-	}
-	.change-card .bd {
-		font-size: 13.5px;
-		line-height: 1.55;
-		color: var(--ink-3);
 	}
 	.change-card .ft {
 		display: flex;

@@ -19,12 +19,11 @@ from symbology.database.jobs import (
     fail_job,
     get_active_jobs,
     get_job,
-    heartbeat_job,
     list_jobs,
-    mark_stale_jobs_as_failed,
     requeue_failed_jobs,
     requeue_job,
     requeue_job_for_shutdown,
+    stop_job,
 )
 
 
@@ -170,6 +169,22 @@ class TestClaimNextJob:
             # The lower-priority job wins because the priority-0 one isn't due.
             assert claimed.id == now_job.id
 
+    def test_claim_ages_priority_so_old_low_pri_beats_fresh_high_pri(self, db_session):
+        # An hour-old priority-2 job should be claimed ahead of a brand-new
+        # priority-1 job: aged effective priority (2 - 1 = 1) ties the fresh p1,
+        # and the older created_at breaks the tie. Guards against content starving
+        # under a steady drip of higher-priority ingestion.
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            fresh = create_job(JobType.TEST, params={"name": "fresh-p1"}, priority=1)
+            aged = create_job(JobType.TEST, params={"name": "aged-p2"}, priority=2)
+            old = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1, minutes=1)
+            db_session.query(Job).filter(Job.id == aged.id).update({Job.created_at: old})
+            db_session.commit()
+            claimed = claim_next_job("worker-1")
+            assert claimed.id == aged.id
+            # And on the next claim the fresh high-priority job follows.
+            assert claim_next_job("worker-1").id == fresh.id
+
 
 class TestGetActiveJobs:
     """Test the in-flight (PENDING/IN_PROGRESS) lookup used for dependency gating."""
@@ -209,15 +224,44 @@ class TestCompleteAndFail:
             assert result is None
 
     def test_fail_job_with_retries_remaining(self, db_session):
+        from symbology.worker.config import worker_settings
         with patch("symbology.database.jobs.get_db_session", return_value=db_session):
             job = create_job(JobType.TEST, max_retries=3)
             job.status = JobStatus.IN_PROGRESS
             db_session.commit()
+            before = datetime.now(timezone.utc).replace(tzinfo=None)
             failed = fail_job(job.id, error="timeout")
-            assert failed.status == JobStatus.PENDING  # re-queued
+            # Re-queued via BACKOFF (not PENDING): deferred so the worker doesn't
+            # immediately retry into the same error.
+            assert failed.status == JobStatus.BACKOFF
             assert failed.retry_count == 1
             assert failed.error == "timeout"
             assert failed.worker_id is None
+            # First retry waits ~retry_backoff_delay (2**0 multiplier).
+            offset = (failed.scheduled_at - before).total_seconds()
+            assert worker_settings.retry_backoff_delay - 2 <= offset <= worker_settings.retry_backoff_delay + 5
+
+    def test_fail_job_retry_backoff_grows_then_caps(self, db_session):
+        from symbology.worker.config import worker_settings
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST, max_retries=20)
+            job.status = JobStatus.IN_PROGRESS
+            db_session.commit()
+
+            def delay_after_failures(n: int) -> float:
+                fresh = get_job(job.id)
+                fresh.retry_count = n - 1
+                fresh.status = JobStatus.IN_PROGRESS
+                db_session.commit()
+                before = datetime.now(timezone.utc).replace(tzinfo=None)
+                failed = fail_job(job.id, error="boom")
+                return (failed.scheduled_at - before).total_seconds()
+
+            base = worker_settings.retry_backoff_delay
+            # Doubles per retry, then clamps at the ceiling.
+            assert delay_after_failures(1) <= base + 5
+            assert base * 2 - 2 <= delay_after_failures(2) <= base * 2 + 5
+            assert delay_after_failures(15) <= worker_settings.retry_backoff_delay_max + 5
 
     def test_fail_job_exhausts_retries(self, db_session):
         with patch("symbology.database.jobs.get_db_session", return_value=db_session):
@@ -308,60 +352,6 @@ class TestBackoffJob:
     def test_backoff_nonexistent_returns_none(self, db_session):
         with patch("symbology.database.jobs.get_db_session", return_value=db_session):
             assert backoff_job(uuid7(), reason="nope") is None
-
-
-class TestStaleDetection:
-    """Test stale job recovery."""
-
-    def test_mark_stale_jobs(self, db_session):
-        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
-            job = create_job(JobType.TEST, max_retries=3)
-            # Simulate stale: set to IN_PROGRESS with old updated_at
-            job.status = JobStatus.IN_PROGRESS
-            job.updated_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=700)
-            db_session.commit()
-            stale = mark_stale_jobs_as_failed(stale_threshold_seconds=600)
-            assert len(stale) == 1
-            assert stale[0].id == job.id
-            # With retries remaining, should be re-queued
-            assert stale[0].status == JobStatus.PENDING
-
-    def test_no_stale_jobs(self, db_session):
-        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
-            # Fresh pending job should not be stale
-            create_job(JobType.TEST)
-            stale = mark_stale_jobs_as_failed(stale_threshold_seconds=600)
-            assert len(stale) == 0
-
-    def test_heartbeat_keeps_job_from_going_stale(self, db_session):
-        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
-            job = create_job(JobType.TEST, max_retries=3)
-            job.status = JobStatus.IN_PROGRESS
-            job.worker_id = "w1"
-            # Older than the threshold — would be reclaimed without a heartbeat.
-            job.updated_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=700)
-            db_session.commit()
-
-            assert heartbeat_job(job.id, "w1") is True
-
-            stale = mark_stale_jobs_as_failed(stale_threshold_seconds=600)
-            assert stale == []
-            db_session.refresh(job)
-            assert job.status == JobStatus.IN_PROGRESS
-
-    def test_heartbeat_ignores_jobs_owned_by_another_worker(self, db_session):
-        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
-            job = create_job(JobType.TEST)
-            job.status = JobStatus.IN_PROGRESS
-            job.worker_id = "owner"
-            old = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=700)
-            job.updated_at = old
-            db_session.commit()
-
-            # A worker that no longer owns the claim must not revive the row.
-            assert heartbeat_job(job.id, "stranger") is False
-            db_session.refresh(job)
-            assert job.updated_at == old
 
 
 class TestRequeueForShutdown:
@@ -500,6 +490,55 @@ class TestRequeueFailedJobs:
     def test_requeue_single_job_nonexistent_returns_none(self, db_session):
         with patch("symbology.database.jobs.get_db_session", return_value=db_session):
             assert requeue_job(uuid7()) is None
+
+    def test_completed_job_only_requeuable_with_force(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST, params={"a": 1})
+            complete_job(job.id, result={"ok": True})
+            assert job.status == JobStatus.COMPLETED
+
+            # Without force, a completed job is not requeuable.
+            assert requeue_job(job.id) is None
+
+            # With force it resets to PENDING, clears the result/timestamps, and
+            # merges extra_params (how `retry --force` injects {"force": True}).
+            requeued = requeue_job(job.id, force=True, extra_params={"force": True})
+            assert requeued is not None
+            assert requeued.status == JobStatus.PENDING
+            assert requeued.result is None
+            assert requeued.completed_at is None
+            assert requeued.retry_count == 0
+            assert requeued.params == {"a": 1, "force": True}
+
+
+class TestStopJob:
+    """stop_job cancels any *active* job (pending / in_progress / backoff)."""
+
+    def test_stops_a_backoff_job(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            job = create_job(JobType.TEST)
+            backoff_job(job.id, reason="waiting on deps")
+            assert job.status == JobStatus.BACKOFF
+
+            stopped = stop_job(job.id)
+            assert stopped is not None
+            assert stopped.status == JobStatus.CANCELLED
+
+    def test_stops_pending_and_in_progress(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            pending = create_job(JobType.TEST)
+            assert stop_job(pending.id).status == JobStatus.CANCELLED
+
+            running = create_job(JobType.TEST)
+            claim_next_job("w1")  # → in_progress
+            assert stop_job(running.id).status == JobStatus.CANCELLED
+
+    def test_terminal_jobs_are_not_stoppable(self, db_session):
+        with patch("symbology.database.jobs.get_db_session", return_value=db_session):
+            done = create_job(JobType.TEST)
+            complete_job(done.id)
+            assert stop_job(done.id) is None
+            assert stop_job(uuid7()) is None  # missing
 
 
 class TestCancelFailedJobs:

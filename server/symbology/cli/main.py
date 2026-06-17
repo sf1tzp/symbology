@@ -71,6 +71,7 @@ cli.add_command(filings)
 cli.add_command(financials)
 cli.add_command(generated_content)
 cli.add_command(jobs)
+cli.add_command(jobs, name="job")  # singular alias: `job list` == `jobs list`
 cli.add_command(model_configs)
 cli.add_command(group)
 cli.add_command(prompts)

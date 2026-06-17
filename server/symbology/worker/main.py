@@ -13,8 +13,14 @@ from symbology.database.jobs import (
     claim_next_job,
     complete_job,
     fail_job,
-    heartbeat_job,
     requeue_job_for_shutdown,
+)
+from symbology.database.workers import (
+    WorkerStatus,
+    heartbeat_worker,
+    mark_worker_stopped,
+    reap_dead_workers,
+    register_worker,
 )
 from symbology.utils.config import settings
 from symbology.utils.logging import configure_logging, get_logger
@@ -103,7 +109,40 @@ def run_worker() -> None:
     # the pool bounded (and makes running several workers in parallel safe).
     engine, db_session = init_db(settings.database.url)
 
+    # Register as a first-class worker row and start heartbeating it directly.
+    # Liveness lives on the worker (not on whatever job it happens to hold), so
+    # the reap sweep below can tell "this worker died" from "this job failed".
+    register_worker(wid, hostname=socket.gethostname(), pid=os.getpid())
+
+    def _beat(status, current_job_id=None):
+        """Heartbeat this worker; swallow transient DB errors (next beat retries)."""
+        try:
+            heartbeat_worker(wid, status=status, current_job_id=current_job_id)
+        except Exception:
+            logger.exception("heartbeat_error", worker_id=wid)
+
+    # Every worker periodically reaps DEAD peers: a worker that crashed or was
+    # SIGKILL'd (e.g. a deploy whose graceful window was missed) stops
+    # heartbeating, so reap_dead_workers marks it dead and requeues its
+    # IN_PROGRESS jobs operationally — without burning their retry budget, since
+    # a vanished worker is not the job's fault. Idempotent across workers.
+    last_reap = time.monotonic()
+    last_heartbeat = time.monotonic()
+
     while not shutdown_requested:
+
+        now = time.monotonic()
+        if now - last_reap >= worker_settings.stale_check_interval:
+            try:
+                reap_dead_workers(worker_settings.stale_threshold)
+            except Exception:
+                logger.exception("reap_sweep_error")
+            last_reap = now
+
+        # Idle heartbeat so the worker stays "online" even between jobs.
+        if now - last_heartbeat >= worker_settings.heartbeat_interval:
+            _beat(WorkerStatus.IDLE)
+            last_heartbeat = now
 
         # Try to claim work
         try:
@@ -116,6 +155,11 @@ def run_worker() -> None:
         if job is None:
             time.sleep(worker_settings.poll_interval)
             continue
+
+        # Claimed: announce what we're running immediately so a freshly-claimed
+        # job's worker is unambiguously "live" before any reap could see it.
+        _beat(WorkerStatus.RUNNING, current_job_id=job.id)
+        last_heartbeat = time.monotonic()
 
         # Execute the handler in a daemon thread. A handler can block for
         # minutes inside an LLM request that ignores the shutdown flag (the flag
@@ -137,19 +181,15 @@ def run_worker() -> None:
         worker_thread.start()
 
         # Wait for the handler, waking every second to check for shutdown and to
-        # heartbeat. The heartbeat (running in this thread, not the blocked
-        # handler thread) keeps the job's updated_at fresh so the stale sweep
-        # doesn't reclaim a job that's still legitimately running.
-        last_heartbeat = time.monotonic()
+        # heartbeat. The heartbeat runs in this thread (not the blocked handler
+        # thread), keeping the worker live so the reap sweep doesn't reclaim a
+        # job that's still legitimately running.
         while not done.wait(timeout=1.0):
             if shutdown_requested:
                 break
             now = time.monotonic()
             if now - last_heartbeat >= worker_settings.heartbeat_interval:
-                try:
-                    heartbeat_job(job.id, wid)
-                except Exception:
-                    logger.exception("heartbeat_error", job_id=str(job.id))
+                _beat(WorkerStatus.RUNNING, current_job_id=job.id)
                 last_heartbeat = now
 
         if not done.is_set():
@@ -158,8 +198,14 @@ def run_worker() -> None:
             # thread is abandoned and dies with the process. Idempotent with the
             # thread's own ShutdownRequested path if it unblocks in the meantime.
             requeue_job_for_shutdown(job.id)
+            mark_worker_stopped(wid)
             close_session()
             break
+
+    else:
+        # Loop exited via the while condition (graceful shutdown between jobs):
+        # mark the worker cleanly stopped so it's not later reaped as "dead".
+        mark_worker_stopped(wid)
 
     # Release the pool's connections promptly on graceful shutdown.
     engine.dispose()

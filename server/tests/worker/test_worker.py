@@ -46,12 +46,18 @@ class TestHandlerRegistry:
 class TestWorkerLoop:
     """Test the worker loop logic by mocking external dependencies."""
 
-    @patch("symbology.worker.main.mark_stale_jobs_as_failed")
+    @patch("symbology.worker.main.mark_worker_stopped")
+    @patch("symbology.worker.main.reap_dead_workers")
+    @patch("symbology.worker.main.heartbeat_worker")
+    @patch("symbology.worker.main.register_worker")
     @patch("symbology.worker.main.fail_job")
     @patch("symbology.worker.main.complete_job")
     @patch("symbology.worker.main.claim_next_job")
     @patch("symbology.worker.main.init_db")
-    def test_worker_processes_job(self, mock_init_db, mock_claim, mock_complete, mock_fail, mock_stale):
+    def test_worker_processes_job(
+        self, mock_init_db, mock_claim, mock_complete, mock_fail,
+        mock_register, mock_beat, mock_reap, mock_stopped,
+    ):
         """Test that the worker claims a job, runs the handler, and completes it."""
         # Create a mock job
         mock_job = MagicMock()
@@ -86,20 +92,30 @@ class TestWorkerLoop:
                 # Simulate SIGTERM
                 signal.raise_signal(signal.SIGTERM)
 
+        import itertools
+        mono = itertools.count(0, 100)
         with patch("symbology.worker.main.time.sleep", side_effect=fake_sleep):
-            with patch("symbology.worker.main.time.monotonic", side_effect=[0, 0, 100, 100]):
+            with patch("symbology.worker.main.time.monotonic", side_effect=lambda: next(mono)):
                 run_worker()
 
         mock_complete.assert_called_once()
         call_args = mock_complete.call_args
         assert call_args[0][0] == "test-job-id"
+        # The worker registers itself on boot and runs the worker-reap sweep.
+        mock_register.assert_called_once()
 
-    @patch("symbology.worker.main.mark_stale_jobs_as_failed")
+    @patch("symbology.worker.main.mark_worker_stopped")
+    @patch("symbology.worker.main.reap_dead_workers")
+    @patch("symbology.worker.main.heartbeat_worker")
+    @patch("symbology.worker.main.register_worker")
     @patch("symbology.worker.main.fail_job")
     @patch("symbology.worker.main.complete_job")
     @patch("symbology.worker.main.claim_next_job")
     @patch("symbology.worker.main.init_db")
-    def test_worker_handles_handler_exception(self, mock_init_db, mock_claim, mock_complete, mock_fail, mock_stale):
+    def test_worker_handles_handler_exception(
+        self, mock_init_db, mock_claim, mock_complete, mock_fail,
+        mock_register, mock_beat, mock_reap, mock_stopped,
+    ):
         """Test that the worker calls fail_job when the handler raises."""
         mock_job = MagicMock()
         mock_job.id = "fail-job-id"
@@ -132,9 +148,11 @@ class TestWorkerLoop:
             if iteration >= 1:
                 signal.raise_signal(signal.SIGTERM)
 
+        import itertools
+        mono = itertools.count(0, 100)
         with patch("symbology.worker.handlers._registry", {JobType.TEST: bad_handler}):
             with patch("symbology.worker.main.time.sleep", side_effect=fake_sleep):
-                with patch("symbology.worker.main.time.monotonic", side_effect=[0, 0, 100, 100]):
+                with patch("symbology.worker.main.time.monotonic", side_effect=lambda: next(mono)):
                     from symbology.worker.main import run_worker
                     run_worker()
 
@@ -142,10 +160,15 @@ class TestWorkerLoop:
         assert "boom" in mock_fail.call_args[1].get("error", "") or "boom" in str(mock_fail.call_args)
         mock_complete.assert_not_called()
 
-    @patch("symbology.worker.main.mark_stale_jobs_as_failed")
+    @patch("symbology.worker.main.mark_worker_stopped")
+    @patch("symbology.worker.main.reap_dead_workers")
+    @patch("symbology.worker.main.heartbeat_worker")
+    @patch("symbology.worker.main.register_worker")
     @patch("symbology.worker.main.claim_next_job")
     @patch("symbology.worker.main.init_db")
-    def test_worker_no_handler_fails_job(self, mock_init_db, mock_claim, mock_stale):
+    def test_worker_no_handler_fails_job(
+        self, mock_init_db, mock_claim, mock_register, mock_beat, mock_reap, mock_stopped,
+    ):
         """Test that claiming a job with no registered handler calls fail_job."""
         mock_job = MagicMock()
         mock_job.id = "no-handler-id"
@@ -176,9 +199,11 @@ class TestWorkerLoop:
 
         with patch("symbology.worker.main.fail_job") as mock_fail:
             # Empty handler registry so COMPANY_INGESTION has no handler
+            import itertools
+            mono = itertools.count(0, 100)
             with patch("symbology.worker.handlers._registry", {JobType.TEST: handle_test}):
                 with patch("symbology.worker.main.time.sleep", side_effect=fake_sleep):
-                    with patch("symbology.worker.main.time.monotonic", side_effect=[0, 0, 100, 100]):
+                    with patch("symbology.worker.main.time.monotonic", side_effect=lambda: next(mono)):
                         from symbology.worker.main import run_worker
                         run_worker()
 

@@ -1,10 +1,21 @@
 /**
+ * A filing reduced to the fields the period formatters read. `period_of_report`
+ * is optional (`?`) so it accepts objects from the generated API types, where it
+ * may be absent; the formatters treat absent / null / empty alike (fall back to
+ * the form label).
+ */
+export type FilingPeriod = { form: string; period_of_report?: string | null };
+
+/** A company reduced to the field the period formatters read. */
+export type CompanyFiscalYearEnd = { fiscal_year_end?: string | null };
+
+/**
  * Format a filing's period into a human-readable fiscal period label.
  * Handles both 10-K (annual) and 10-Q (quarterly) filings.
  */
 export function formatFilingPeriod(
-	filing: { form: string; period_of_report: string | null },
-	company: { fiscal_year_end?: string | null } | null
+	filing: FilingPeriod,
+	company: CompanyFiscalYearEnd | null
 ): string {
 	if (!filing.period_of_report) return filing.form;
 
@@ -69,8 +80,8 @@ export function formatFilingPeriod(
  * Format a filing period as a longer label (e.g. "Fiscal Year 2024 Q1")
  */
 export function formatFilingPeriodLong(
-	filing: { form: string; period_of_report: string | null },
-	company: { fiscal_year_end?: string | null } | null
+	filing: FilingPeriod,
+	company: CompanyFiscalYearEnd | null
 ): string {
 	if (!filing.period_of_report) return filing.form;
 

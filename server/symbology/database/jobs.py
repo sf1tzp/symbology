@@ -677,6 +677,38 @@ def requeue_job(
         raise
 
 
+def run_job_now(job_id: Union[UUID, str]) -> Optional[Job]:
+    """Pull a deferred PENDING or BACKOFF job forward so it's claimable now.
+
+    A job can sit un-claimed despite being on the queue because its
+    ``scheduled_at`` is in the future — e.g. ``filing_ingestion`` deferred to a
+    later run, or a ``backoff`` job waiting on a dependency. This clears
+    ``scheduled_at`` (NULL = eligible immediately) so :func:`claim_next_job` picks
+    it up on the next poll, without otherwise disturbing the job (retry/backoff
+    counts are preserved). Only PENDING or BACKOFF jobs are eligible — an
+    IN_PROGRESS job is already running, and terminal jobs (COMPLETED/FAILED/
+    CANCELLED) go through :func:`requeue_job`. Returns None if the job is missing
+    or not in an eligible status.
+    """
+    try:
+        session = get_db_session()
+        job = session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            logger.warning("run_job_now_not_found", job_id=str(job_id))
+            return None
+        if job.status not in (JobStatus.PENDING, JobStatus.BACKOFF):
+            logger.warning("run_job_now_not_eligible", job_id=str(job_id), status=job.status.value)
+            return None
+        job.scheduled_at = None
+        session.commit()
+        logger.info("ran_job_now", job_id=str(job.id), status=job.status.value)
+        return job
+    except Exception as e:
+        session.rollback()
+        logger.error("run_job_now_failed", job_id=str(job_id), error=str(e), exc_info=True)
+        raise
+
+
 def cancel_jobs_by_status(
     statuses: Union[JobStatus, Iterable[JobStatus]],
     job_type: Optional[JobType] = None,

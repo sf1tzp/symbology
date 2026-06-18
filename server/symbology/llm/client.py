@@ -8,7 +8,7 @@ import anthropic
 from openai import OpenAI
 
 from symbology.database.model_configs import ModelConfig
-from symbology.llm.model_loader import ensure_model_loaded
+from symbology.llm.model_loader import ensure_model_loaded, estimate_tokens
 from symbology.utils.config import settings
 from symbology.utils.logging import get_logger
 
@@ -170,7 +170,16 @@ def get_chat_response(
     max_tokens = options_dict.get('max_tokens', 4096)
     temperature = options_dict.get('temperature', 0.8)
 
-    logger.info("sending_chat_request", model=model_config.model, provider=provider)
+    prompt_text = "\n".join(str(m.get("content", "")) for m in messages)
+    logger.info(
+        "sending_chat_request",
+        model=model_config.model,
+        provider=provider,
+        message_count=len(messages),
+        total_prompt_chars=len(prompt_text),
+        estimated_prompt_tokens=estimate_tokens(prompt_text),
+        max_output_tokens=max_tokens,
+    )
 
     start_ns = time.time_ns()
     if provider == "anthropic":
@@ -191,8 +200,7 @@ def get_chat_response(
             client = init_openai_chat_client()
         # Size the served model's context window to this request and route to a
         # large-enough instance (no-op unless OPENAI_MANAGE_CONTEXT is enabled;
-        # falls back to the bare model name). Estimate from the message text.
-        prompt_text = "\n".join(str(m.get("content", "")) for m in messages)
+        # falls back to the bare model name). Reuse the prompt text estimated above.
         instance_id = ensure_model_loaded(model_config.model, prompt_text, max_tokens)
         completion = retry_backoff(
             settings.openai.retry_timeout,
@@ -238,7 +246,20 @@ def get_generate_response(model_config: ModelConfig, system_prompt: str, user_pr
     max_tokens = options_dict.get('max_tokens', 4096)
     temperature = options_dict.get('temperature', 0.8)
 
-    logger.info("sending_generate_request", model=model_config.model, provider=provider)
+    system_chars = len(system_prompt or "")
+    user_chars = len(user_prompt or "")
+    total_chars = system_chars + user_chars
+    estimated_prompt_tokens = estimate_tokens(f"{system_prompt}\n{user_prompt}")
+    logger.info(
+        "sending_generate_request",
+        model=model_config.model,
+        provider=provider,
+        system_prompt_chars=system_chars,
+        user_prompt_chars=user_chars,
+        total_prompt_chars=total_chars,
+        estimated_prompt_tokens=estimated_prompt_tokens,
+        max_output_tokens=max_tokens,
+    )
 
     start_ns = time.time_ns()
     if provider == "anthropic":

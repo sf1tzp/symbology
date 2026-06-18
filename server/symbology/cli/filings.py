@@ -12,10 +12,12 @@ from rich.table import Table
 from symbology.database.base import get_db_session
 from symbology.database.companies import get_company_by_ticker
 from symbology.database.filings import (
+    Filing,
     get_filing,
     get_filing_by_accession_number,
     get_filings_by_company,
 )
+from symbology.cli.shortid import resolve_id, short_id
 from symbology.ingestion.edgar_db.accessors import edgar_login
 import symbology.ingestion.ingestion_helpers as ih
 from symbology.utils.config import settings
@@ -148,6 +150,8 @@ def list_filings(ticker: str, form: str, output: str):
             for filing in filtered_filings:
                 doc_count = len(filing.documents) if hasattr(filing, 'documents') else 0
                 filing_data = {
+                    "id": str(filing.id),
+                    "short_id": short_id(filing.id),
                     "form": filing.form,
                     "filing_date": filing.filing_date.strftime("%Y-%m-%d") if filing.filing_date else None,
                     "period_of_report": filing.period_of_report.strftime("%Y-%m-%d") if filing.period_of_report else None,
@@ -160,6 +164,7 @@ def list_filings(ticker: str, form: str, output: str):
         else:
             # Original table output
             table = Table(title=f"Filings for {company_obj.name} ({ticker})")
+            table.add_column("ID", style="dim")
             table.add_column("Form Type", style="cyan")
             table.add_column("Filing Date", style="white")
             table.add_column("Period End", style="yellow")
@@ -171,6 +176,7 @@ def list_filings(ticker: str, form: str, output: str):
                 doc_count = len(filing.documents) if hasattr(filing, 'documents') else 0
 
                 table.add_row(
+                    short_id(filing.id),
                     filing.form,
                     filing.filing_date.strftime("%Y-%m-%d") if filing.filing_date else "Unknown",
                     filing.period_of_report.strftime("%Y-%m-%d") if filing.period_of_report else "Unknown",
@@ -202,7 +208,8 @@ def list_filings(ticker: str, form: str, output: str):
 def get_filing_cmd(identifier: str, output: str):
     """Get detailed information about a specific filing.
 
-    IDENTIFIER may be either a filing UUID or an accession number.
+    IDENTIFIER may be a full filing UUID, a short filing id (the UUID's trailing
+    segment, shown in the ID column of 'filings list'), or an accession number.
     """
 
     # For JSON output, temporarily suppress INFO level logs to avoid interference with JSON parsing
@@ -217,14 +224,18 @@ def get_filing_cmd(identifier: str, output: str):
     try:
         _ = init_session()
 
-        # Accept either a filing UUID or an accession number. A UUID parses
-        # cleanly; anything else is treated as an accession number.
+        # Accept a full filing UUID, a short filing id, or an accession number.
+        # A full UUID parses cleanly. Otherwise prefer an accession-number match,
+        # falling back to resolving the value as a short id (the UUID's tail).
         try:
-            filing_uuid = UUID(identifier)
+            filing = get_filing(UUID(identifier))
         except ValueError:
-            filing_uuid = None
-
-        filing = get_filing(filing_uuid) if filing_uuid else get_filing_by_accession_number(identifier)
+            filing = get_filing_by_accession_number(identifier)
+            # A short id is the hyphen-free UUID tail; accession numbers carry
+            # hyphens, so only resolve hyphen-free values to avoid a misleading
+            # "no short id match" on an unknown accession number.
+            if not filing and "-" not in identifier:
+                filing = get_filing(resolve_id(Filing, identifier, kind="filing"))
 
         if not filing:
             if output == 'json':
@@ -237,6 +248,8 @@ def get_filing_cmd(identifier: str, output: str):
         if output == 'json':
             # Prepare data for JSON output
             filing_data = {
+                "id": str(filing.id),
+                "short_id": short_id(filing.id),
                 "accession_number": filing.accession_number,
                 "form": filing.form,
                 "company_name": filing.company.name if filing.company else None,
@@ -250,6 +263,7 @@ def get_filing_cmd(identifier: str, output: str):
             panel_title = f"Filing: {filing.form}"
 
             table = Table(show_header=False, box=None, padding=(0, 1))
+            table.add_row("[bold blue]ID:[/bold blue]", short_id(filing.id))
             table.add_row("[bold blue]Accession Number:[/bold blue]", filing.accession_number)
             table.add_row("[bold blue]Form Type:[/bold blue]", filing.form)
             table.add_row("[bold blue]Company:[/bold blue]", filing.company.name if filing.company else "Unknown")

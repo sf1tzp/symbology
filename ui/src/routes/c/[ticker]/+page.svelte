@@ -182,6 +182,11 @@
 					Multi-Level Synthesis
 					<SynthesisHelp />
 				</span>
+			{:else}
+				<span class="tag flex gap-2">
+					<Sparkles class="h-2.5 w-2.5" />
+					Synthesis Queued
+				</span>
 			{/if}
 			{#if availableForms.length > 1}
 				<!-- Switch between the 10-K- and 10-Q-derived pages (SSR ?form= links). -->
@@ -260,7 +265,7 @@
 {/if}
 
 <!-- THE BRIEF: reader-friendly, brief column left / analysis right -->
-{#if page?.main?.content}
+{#if hasAnalysis}
 	<section style="margin-top: 3rem;">
 		<div class="two-col">
 			<div class="hidden md:block">
@@ -309,13 +314,13 @@
 		</div>
 	</section>
 {:else}
-	<section style="margin-top: 3rem;">
+	<!-- <section style="margin-top: 3rem;">
 		<PendingContentNotice label="brief" subject={toTitleCase(companyName)} />
-	</section>
+	</section> -->
 {/if}
 
 <!-- FINANCIAL OVERVIEW -->
-{#if headlineStats.length > 0}
+{#if headlineStats.length > 0 && hasAnalysis }
 	<section id="financials" class="hairline-section" style="scroll-margin-top: 3rem;">
 		<SectionHead
 			sticky

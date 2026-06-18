@@ -21,6 +21,7 @@ from symbology.database.jobs import (
     list_jobs,
     requeue_failed_jobs,
     requeue_job,
+    run_job_now,
     stop_job,
     update_job,
 )
@@ -84,23 +85,29 @@ def format_job_when(job) -> str:
 
 
 def filing_meta_for_jobs(jobs) -> dict:
-    """Map a filing key (``filing_id`` or ``accession_number``, str) -> (ticker, form).
+    """Map a context key -> metadata, for the job types that need a lookup to render.
 
-    The filing-keyed job types carry no ticker/form of their own, so the context
-    column can't show which company/form they belong to without a lookup:
-    ``embed_filing`` and ``filing_diff`` reference filing ids, while dep-enqueued
-    ``filing_page_content`` jobs carry only an accession number. Collect every
-    referenced key across the given jobs and resolve them in one query per key kind
-    (rather than N+1 per row), returning a map :func:`format_job_context` consults.
-    The two key spaces don't collide (a UUID never looks like an accession number),
-    so they share one dict.
+    Some job types carry no ticker/form of their own, so the context column can't
+    show which company/filings they belong to without a lookup:
+    ``embed_filing`` and ``filing_diff`` reference filing ids, dep-enqueued
+    ``filing_page_content`` jobs carry only an accession number, and ``diff_summary``
+    carries only a ``diff_set_id``. Collect every referenced key across the given jobs
+    and resolve them in one query per kind (rather than N+1 per row), returning a map
+    :func:`format_job_context` consults. Two key spaces are used in one dict:
+
+    * filing key (``filing_id`` or ``accession_number``, str) -> ``(ticker, form)``
+    * ``"diffset:<id>"`` -> ``(ticker, left_filing_id, right_filing_id)``
+
+    These don't collide (a UUID never looks like an accession number, and the diff-set
+    entries are explicitly prefixed), so they share one dict.
     """
     from uuid import UUID
 
     from symbology.database.companies import Company
     from symbology.database.filings import Filing
+    from symbology.database.section_diffs import DiffSet
 
-    filing_ids, accessions = set(), set()
+    filing_ids, accessions, diff_set_ids = set(), set(), set()
     for job in jobs:
         p = job.params or {}
         if job.job_type == JobType.EMBED_FILING:
@@ -114,16 +121,22 @@ def filing_meta_for_jobs(jobs) -> dict:
             # Only the dep-enqueued ones lack a ticker param and need a lookup.
             if p.get("accession_number") and not p.get("ticker"):
                 accessions.add(p["accession_number"])
+        elif job.job_type == JobType.DIFF_SUMMARY:
+            if p.get("diff_set_id"):
+                diff_set_ids.add(p["diff_set_id"])
 
-    uuids = []
-    for i in filing_ids:
-        try:
-            uuids.append(UUID(str(i)))
-        except (ValueError, TypeError):
-            continue  # malformed id in params — skip, just no meta for that row
+    def to_uuids(values):
+        out = []
+        for v in values:
+            try:
+                out.append(UUID(str(v)))
+            except (ValueError, TypeError):
+                continue  # malformed id in params — skip, just no meta for that row
+        return out
 
     session = get_db_session()
     result = {}
+    uuids = to_uuids(filing_ids)
     if uuids:
         for fid, ticker, form in (
             session.query(Filing.id, Company.ticker, Filing.form)
@@ -140,6 +153,23 @@ def filing_meta_for_jobs(jobs) -> dict:
             .all()
         ):
             result[acc] = (ticker, form)
+    ds_uuids = to_uuids(diff_set_ids)
+    if ds_uuids:
+        # A diff_summary's diff_set names the same two filings its filing_diff
+        # compared; surface ticker + left -> right so the rows line up by eye.
+        for ds_id, ticker, left, right in (
+            session.query(
+                DiffSet.id, Company.ticker, DiffSet.left_filing_id, DiffSet.right_filing_id
+            )
+            .join(Company, DiffSet.company_id == Company.id)
+            .filter(DiffSet.id.in_(ds_uuids))
+            .all()
+        ):
+            result[f"diffset:{ds_id}"] = (
+                ticker,
+                str(left) if left else None,
+                str(right) if right else None,
+            )
     return result
 
 
@@ -199,7 +229,14 @@ def format_job_context(job, meta=None) -> str:
             parts.append(f"{maybe_short_id(left)} -> {maybe_short_id(right)}")
         parts += pick("form")  # filing_diff already carries its form in params
     elif jt == JobType.DIFF_SUMMARY:
-        parts = pick("diff_set_id", "form")
+        # Resolve the diff set to the filings it compares so the row lines up with
+        # the filing_diff that produced it (same ticker + left -> right).
+        ticker, left, right = meta.get(f"diffset:{params.get('diff_set_id')}", (None, None, None))
+        if ticker:
+            parts.append(f"ticker={ticker}")
+        if left and right:
+            parts.append(f"{maybe_short_id(left)} -> {maybe_short_id(right)}")
+        parts += pick("diff_set_id", "form")
     elif jt == JobType.CONTENT_GENERATION:
         parts = pick("company_ticker", "form_type", "document_type", "content_stage", "description")
     elif jt == JobType.COMPANY_GROUP_PIPELINE:
@@ -608,6 +645,35 @@ def stop_job_cmd(job_id: str):
     except Exception as e:
         console.print(f"[red]Error stopping job: {e}[/red]")
         logger.exception("Failed to stop job")
+        sys.exit(1)
+
+
+@jobs.command("run")
+@click.argument("job_id")
+def run_job_cmd(job_id: str):
+    """Run a deferred job now by clearing its scheduled_at.
+
+    JOB_ID accepts a full UUID or the short id (the UUID's last segment, as shown
+    in ``jobs list``) — e.g. ``4ba6d2ef3e19``.
+
+    For a job that's on the queue but parked on a future ``scheduled_at`` — a
+    PENDING job deferred to a later run, or a BACKOFF job waiting on a dependency
+    — this makes it eligible for the next worker poll without altering its retry
+    or backoff state. Use ``retry`` for terminal (FAILED/CANCELLED/COMPLETED) jobs.
+    """
+    try:
+        init_session()
+        job_id = resolve_job_id(job_id)
+        job = run_job_now(job_id)
+        if not job:
+            console.print(
+                f"[red]Job not found or not in PENDING/BACKOFF status: {job_id}[/red]"
+            )
+            sys.exit(1)
+        console.print(f"[green]✓[/green] Job scheduled to run now ({job.status.value}): {job.id}")
+    except Exception as e:
+        console.print(f"[red]Error running job: {e}[/red]")
+        logger.exception("Failed to run job")
         sys.exit(1)
 
 

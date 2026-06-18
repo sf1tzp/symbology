@@ -1,18 +1,82 @@
 /**
- * API Type Re-exports & Utilities
+ * Shared response/DTO types for the UI.
  *
- * Re-exports component schemas from the generated OpenAPI types as named types,
- * plus runtime utilities for API interaction.
+ * Hand-maintained shapes for the data the SvelteKit server layer
+ * (`src/lib/server/db/*`) returns to pages and components. These were originally
+ * generated from a Python API's OpenAPI schema; the UI has since moved to
+ * SvelteKit server-side data loading, so the types are now defined here directly.
  */
-import type { components } from './generated-api-types';
 
 // Entity response types
-export type CompanyResponse = components['schemas']['CompanyResponse'];
-export type FilingResponse = components['schemas']['FilingResponse'];
-export type DocumentResponse = components['schemas']['DocumentResponse'];
-export type GeneratedContentResponse = components['schemas']['GeneratedContentResponse'];
-export type ModelConfigResponse = components['schemas']['ModelConfigResponse'];
-export type PromptResponse = components['schemas']['PromptResponse'];
+export interface CompanyResponse {
+	id: string;
+	name: string;
+	display_name?: string | null;
+	ticker: string;
+	cik?: string | null;
+	exchanges?: string[];
+	sic?: string | null;
+	sic_description?: string | null;
+	fiscal_year_end?: string | null;
+	former_names?: { name: string; date_changed: string }[];
+	summary?: string | null;
+}
+
+export interface FilingResponse {
+	id: string;
+	company_id: string;
+	accession_number: string;
+	form: string;
+	filing_date: string;
+	url?: string | null;
+	period_of_report: string | null;
+}
+
+export interface DocumentResponse {
+	id: string;
+	filing_id?: string | null;
+	company_ticker: string;
+	title: string;
+	document_type: string;
+	content?: string | null;
+	filing?: FilingResponse | null;
+	content_hash?: string | null;
+	short_hash?: string | null;
+}
+
+export interface GeneratedContentResponse {
+	id: string;
+	content_hash?: string | null;
+	short_hash?: string | null;
+	company_id?: string | null;
+	description?: string | null;
+	document_type?: string | null;
+	source_type: string;
+	created_at: string;
+	total_duration?: number | null;
+	input_tokens?: number | null;
+	output_tokens?: number | null;
+	form_type?: string | null;
+	warning?: string | null;
+	content?: string | null;
+	summary?: string | null;
+	model_config_id?: string | null;
+	system_prompt_id?: string | null;
+	user_prompt_id?: string | null;
+	source_document_ids?: string[];
+	source_content_ids?: string[];
+}
+
+export interface ModelConfigResponse {
+	id: string;
+	model: string;
+	created_at: string;
+	options?: { [key: string]: unknown } | null;
+	max_tokens?: number | null;
+	temperature?: number | null;
+	top_k?: number | null;
+	top_p?: number | null;
+}
 
 // Company list types (enhanced with filing metadata)
 export interface CompanyListItem {
@@ -49,7 +113,6 @@ export interface FeaturedCompanyIntro {
 }
 
 // Company Group types
-// Manually defined until API types are regenerated via `just -f ui/justfile generate-api-types`
 export interface CompanyGroupResponse {
 	id: string;
 	name: string;
@@ -64,14 +127,21 @@ export interface CompanyGroupResponse {
 }
 
 // Search types
-export type SearchResponse = components['schemas']['SearchResponse'];
-export type SearchResultItem = components['schemas']['SearchResultItem'];
+export interface SearchResultItem {
+	entity_type: string;
+	id: string;
+	rank: number;
+	headline?: string | null;
+	title?: string | null;
+	subtitle?: string | null;
+	date_value?: string | null;
+}
 
-// Job & Pipeline types
-export type JobResponse = components['schemas']['JobResponse'];
-export type PipelineRunResponse = components['schemas']['PipelineRunResponse'];
-export type PipelineStatusResponse = components['schemas']['PipelineStatusResponse'];
-export type CompanyPipelineStatus = components['schemas']['CompanyPipelineStatus'];
+export interface SearchResponse {
+	results?: SearchResultItem[];
+	total: number;
+	query: string;
+}
 
 // Financial comparison types
 export interface PeriodValue {
@@ -130,32 +200,4 @@ export interface FilingTimelineResponse {
 	url: string | null;
 	period_of_report: string | null;
 	documents: DocumentWithContentResponse[];
-}
-
-/**
- * API Error Response
- */
-export interface ApiError {
-	detail: string;
-}
-
-/**
- * Type guard to check if a response is an ApiError
- */
-export function isApiError(obj: unknown): obj is ApiError {
-	return obj !== null && typeof obj === 'object' && 'detail' in obj;
-}
-
-/**
- * Helper to fetch data from the API with proper error handling
- */
-export async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
-	const response = await fetch(url, options);
-
-	if (!response.ok) {
-		const errorData = await response.json();
-		throw new Error(errorData.detail || 'An error occurred');
-	}
-
-	return response.json() as Promise<T>;
 }

@@ -54,6 +54,14 @@ db-init:
     echo "==> [3/3] Alembic upgrade to head"
     just -d server -f server/justfile migrate
 
+# Runs db-init (Alembic + Better Auth) then regenerates the UI's kysely DB types,
+# so src/lib/server/db/types.ts stays in sync with the schema. Run after adding a
+# migration.
+#
+# Migrate the database and refresh the UI's generated DB types.
+migrate: db-init
+    just -d ui -f ui/justfile generate-db-types
+
 # Dependencies
 deps:
     just -d server -f server/justfile deps

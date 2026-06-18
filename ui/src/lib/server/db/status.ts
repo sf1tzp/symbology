@@ -212,6 +212,8 @@ export interface IngestionDayRow {
 	q: number;
 	_8k: number;
 	other: number;
+	// Index signature so rows satisfy StackedColumns' `Record<string, unknown>[]` prop.
+	[key: string]: string | number;
 }
 
 export interface RecentFilingRow {
@@ -390,7 +392,7 @@ export async function getFilingIngestionByDay(days: number): Promise<IngestionDa
 				'other'
 			)
 		])
-		.where('filing_date', '>=', sql`now() - ${sql.lit(days + ' days')}::interval`)
+		.where('filing_date', '>=', sql<Date>`now() - ${sql.lit(days + ' days')}::interval`)
 		.groupBy(sql`date_trunc('day', filing_date)`)
 		.orderBy(sql`date_trunc('day', filing_date)`)
 		.execute();
@@ -432,7 +434,7 @@ export async function getRecentFilings(limit: number): Promise<RecentFilingRow[]
 }
 
 export async function getContentBreakdown(): Promise<ContentBreakdownRow[]> {
-	const ago24h = sql`now() - interval '24 hours'`;
+	const ago24h = sql<Date>`now() - interval '24 hours'`;
 
 	const rows = await db
 		.selectFrom('generated_content')
@@ -517,7 +519,7 @@ export async function getContentThroughput(days: number): Promise<ThroughputDayR
 			sql<string>`to_char(date_trunc('day', created_at), 'MM/DD')`.as('label'),
 			sql<number>`count(*)::int`.as('v')
 		])
-		.where('created_at', '>=', sql`now() - ${sql.lit(days + ' days')}::interval`)
+		.where('created_at', '>=', sql<Date>`now() - ${sql.lit(days + ' days')}::interval`)
 		.groupBy(sql`date_trunc('day', created_at)`)
 		.orderBy(sql`date_trunc('day', created_at)`)
 		.execute();
@@ -766,7 +768,7 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 		.selectFrom('jobs')
 		.select(['worker_id', sql<number>`count(*)::int`.as('completed_count')])
 		.where('status', '=', 'completed')
-		.where('completed_at', '>=', sql`now() - interval '1 hour'`)
+		.where('completed_at', '>=', sql<Date>`now() - interval '1 hour'`)
 		.where('worker_id', 'is not', null)
 		.groupBy('worker_id')
 		.execute();

@@ -6,6 +6,12 @@ export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
 
+/**
+ * Adds an optional `ref` to a component's props, bound to its root element.
+ * Shadcn-svelte scaffolding convention used across the `ui/` primitives.
+ */
+export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?: U | null };
+
 export function toTitleCase(str: string) {
 	return str
 		.replace(/[\s\p{P}]+$/u, '')

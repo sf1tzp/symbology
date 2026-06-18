@@ -38,7 +38,7 @@
 	);
 
 	const companyName = $derived(company?.display_name || company?.name || 'Company');
-	const fiscalPeriodLong = $derived(filing ? formatFilingPeriodLong(filing, company) : ''); // fixme type error
+	const fiscalPeriodLong = $derived(filing ? formatFilingPeriodLong(filing, company) : '');
 
 	function getFormLabel(form: string): string {
 		if (form.includes('10-K')) return 'ANNUAL REPORT';

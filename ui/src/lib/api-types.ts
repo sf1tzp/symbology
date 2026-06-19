@@ -93,6 +93,10 @@ export interface CompanyListItem {
 	filing_count: number;
 	last_filing_date: string | null;
 	last_filing_form: string | null;
+	// Which c/[ticker] content types exist for this company (set by the list API).
+	has_10k_page?: boolean;
+	has_10q_page?: boolean;
+	has_diffs?: boolean;
 }
 
 export interface CompanyListResponse {

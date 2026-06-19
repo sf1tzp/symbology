@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
-	import { ChevronRight } from '@lucide/svelte';
+	import { ChevronRight, Sparkles, TrendingUp } from '@lucide/svelte';
 	import Search from '@lucide/svelte/icons/search';
 	import type { CompanyListItem, CompanyListResponse } from '$lib/api-types';
 	import { titleCase } from 'title-case';
@@ -12,7 +12,7 @@
 	// crowd the on-screen keyboard; always restore it when leaving the page.
 	onDestroy(() => (mobileTabBar.hidden = false));
 
-	const PAGE_SIZE = 15;
+	const PAGE_SIZE = 30;
 
 	let total = $state(0);
 	let companies = $state<CompanyListItem[]>([]);
@@ -102,6 +102,44 @@
 		loadFeatured();
 	});
 </script>
+
+{#snippet badge(Icon: typeof Sparkles, label: string, color: string)}
+	<span class="content-badge" style="--badge-color: {color};" aria-label={label}>
+		<Icon size={11} strokeWidth={2} />
+		<span class="badge-label">{label}</span>
+	</span>
+{/snippet}
+
+{#snippet contentBadges(c: CompanyListItem)}
+	{#if c.has_10k_page}
+		{@render badge(Sparkles, '10-K', 'var(--teal-2)')}
+	{/if}
+	{#if c.has_10q_page}
+		{@render badge(Sparkles, '10-Q', 'var(--plum)')}
+	{/if}
+	{#if c.has_diffs}
+		{@render badge(TrendingUp, 'Diffs', 'var(--warn)')}
+	{/if}
+{/snippet}
+
+<!-- Placeholder row matching the docrow grid, so first load reserves the same
+     vertical space as the real list and avoids cumulative layout shift. -->
+{#snippet skeletonRow()}
+	<div
+		class="docrow grid grid-cols-[45px_1fr_24px] items-center sm:grid-cols-[70px_1fr_auto_24px]"
+		aria-hidden="true"
+	>
+		<div><span class="skel" style="width: 34px; height: 18px;"></span></div>
+		<div>
+			<span class="skel" style="width: 55%; height: 14px;"></span>
+			<span class="skel" style="width: 38%; height: 11px; margin-top: 6px;"></span>
+		</div>
+		<div class="hidden sm:block">
+			<span class="skel" style="width: 120px; height: 20px;"></span>
+		</div>
+		<span class="skel" style="width: 14px; height: 14px;"></span>
+	</div>
+{/snippet}
 
 <svelte:head>
 	<title>Companies - Symbology</title>
@@ -222,9 +260,11 @@
 	</div>
 
 	{#if loading && companies.length === 0}
-		<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">
-			Loading...
-		</p>
+		<div>
+			{#each Array(PAGE_SIZE) as _, i (i)}
+				{@render skeletonRow()}
+			{/each}
+		</div>
 	{:else if companies.length === 0}
 		<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">
 			No companies found.
@@ -234,7 +274,7 @@
 			{#each companies as c (c.id)}
 				<a
 					href="/c/{c.ticker}"
-					class="docrow grid grid-cols-[45px_1fr_auto_auto_24px] text-inherit no-underline sm:grid-cols-[70px_1fr_auto_auto_24px]"
+					class="docrow grid grid-cols-[45px_1fr_24px] items-center text-inherit no-underline sm:grid-cols-[70px_1fr_auto_24px]"
 				>
 					<div>
 						<span class="tag" style="font-size: 11px; font-weight: 500; color: var(--ink);">
@@ -253,18 +293,14 @@
 								{c.sic_description}
 							</div>
 						{/if}
+						<!-- Badges wrap under the name on narrow screens; moved into their
+						     own column from sm: up (see the .badges sm rule below). -->
+						<div class="badges badges-compact flex sm:hidden">
+							{@render contentBadges(c)}
+						</div>
 					</div>
-					<div class="meta" style="color: var(--ink-3);">
-						<!-- {#if c.last_filing_form && c.last_filing_date}
-							{c.last_filing_form} &middot; {formatDate(c.last_filing_date)}
-						{:else}
-							<span style="color: var(--ink-4);">No filings</span>
-						{/if} -->
-					</div>
-					<div class="meta" style="color: var(--ink-3); text-align: right;">
-						<!-- {#if c.filing_count > 0}
-							{c.filing_count} filings
-						{/if} -->
+					<div class="badges hidden sm:flex">
+						{@render contentBadges(c)}
 					</div>
 					<ChevronRight style="width: 14px; height: 14px; color: var(--ink-4);" />
 				</a>
@@ -307,5 +343,65 @@
 <style>
 	.hover-card:hover {
 		border-color: var(--rule-2);
+	}
+
+	/* `display` is owned by the Tailwind utilities on each element (flex / hidden /
+	   sm:flex / sm:hidden) — don't set it here, or the scoped class's higher
+	   specificity overrides `hidden` and both badge copies render at once. */
+	.badges {
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.skel {
+		display: inline-block;
+		border-radius: 4px;
+		background: var(--paper-2);
+		animation: skel-pulse 1.4s ease-in-out infinite;
+	}
+
+	@keyframes skel-pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.45;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.skel {
+			animation: none;
+		}
+	}
+
+	/* Mobile copy: icon-only pills to save horizontal room. */
+	.badges-compact .badge-label {
+		display: none;
+	}
+	.badges-compact .content-badge {
+		padding: 4px;
+	}
+
+	/* Stacked under the company name on mobile. */
+	:global(.badges.sm\:hidden) {
+		margin-top: 6px;
+	}
+
+	.content-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 7px;
+		border-radius: 999px;
+		font-family: var(--sans);
+		font-size: 11px;
+		font-weight: 500;
+		line-height: 1;
+		white-space: nowrap;
+		color: var(--badge-color);
+		background: color-mix(in srgb, var(--badge-color) 12%, transparent);
+		border: 1px solid color-mix(in srgb, var(--badge-color) 32%, transparent);
 	}
 </style>

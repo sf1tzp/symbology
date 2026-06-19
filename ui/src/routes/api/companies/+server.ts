@@ -15,7 +15,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			searchCompanies(search.trim(), limit, skip),
 			countSearchResults(search.trim())
 		]);
-		return json({ companies: results, total });
+		return json({ companies: await attachContentFlags(results), total });
 	}
 
 	// Build base query with filing metadata
@@ -61,10 +61,48 @@ export const GET: RequestHandler = async ({ url }) => {
 	]);
 
 	return json({
-		companies: companies.map((c) => toCompanyListItem(c)),
+		companies: await attachContentFlags(companies.map((c) => toCompanyListItem(c))),
 		total: countResult.total
 	});
 };
+
+/**
+ * Enrich a page of company list items with flags describing which content types
+ * exist for each — the same content surfaced on the c/[ticker] route. Done as a
+ * couple of bulk queries over the page's company ids rather than per-row
+ * subqueries so it stays cheap regardless of which list/search query produced
+ * the rows.
+ */
+async function attachContentFlags<T extends { id: string }>(companies: T[]) {
+	if (companies.length === 0) return companies;
+	const ids = companies.map((c) => c.id);
+
+	const [pageRows, diffRows] = await Promise.all([
+		db
+			.selectFrom('company_page_content')
+			.select(['company_id', 'form'])
+			.where('company_id', 'in', ids)
+			.distinct()
+			.execute(),
+		db
+			.selectFrom('diff_sets')
+			.select('company_id')
+			.where('company_id', 'in', ids)
+			.distinct()
+			.execute()
+	]);
+
+	const has10k = new Set(pageRows.filter((r) => r.form === '10-K').map((r) => r.company_id));
+	const has10q = new Set(pageRows.filter((r) => r.form === '10-Q').map((r) => r.company_id));
+	const hasDiffs = new Set(diffRows.map((r) => r.company_id));
+
+	return companies.map((c) => ({
+		...c,
+		has_10k_page: has10k.has(c.id),
+		has_10q_page: has10q.has(c.id),
+		has_diffs: hasDiffs.has(c.id)
+	}));
+}
 
 async function searchCompanies(query: string, limit: number, skip: number = 0) {
 	if (query.length < 3) {

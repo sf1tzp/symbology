@@ -28,7 +28,10 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	const [filingPageContent, timeline, priorDiffSets] = await Promise.all([
 		getCurrentFilingPageContent(filing.id),
-		getFilingsTimeline(company.ticker, 10, '10-K'),
+		// Full periodic history (annual + quarterly) so the timeline matches the
+		// company page. High limit so quarterlies (ordered period ASC) don't push
+		// recent filings past the cutoff.
+		getFilingsTimeline(company.ticker, 400, ['10-K', '10-Q']),
 		getDiffSetsByRightFiling(filing.id)
 	]);
 

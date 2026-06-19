@@ -4,11 +4,8 @@
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
-	import ChangeCard from '$lib/components/ChangeCard.svelte';
-	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
 	import DiffRow from '$lib/components/DiffRow.svelte';
-	import PendingContentNotice from '$lib/components/PendingContentNotice.svelte';
-	import { changeKindColor, scoreTopic, VISIBLE_KINDS } from '$lib/utils/changes';
+	import { scoreTopic, VISIBLE_KINDS } from '$lib/utils/changes';
 	import {
 		formatFilingPeriod,
 		formatDate,
@@ -70,7 +67,7 @@
 	// (`diffSet` = the two latest forms), ranked by analyst significance so the
 	// most important surface first. Styled to mirror the company page's
 	// "What's new" cards rather than the kind-grouped grid.
-	const headlineCards = $derived(
+	const _headlineCards = $derived(
 		[...changedTopics].sort((a, b) => scoreTopic(b) - scoreTopic(a)).slice(0, 6)
 	);
 
@@ -96,6 +93,10 @@
 	);
 	const synthesizedOn = $derived(data.createdAt);
 
+	// Whether the narrative change report exists yet. Pending companies are reachable
+	// here on the strength of their diffs alone, with no synthesis written.
+	const hasReport = $derived(!!changeReport?.report?.content);
+
 	function spanLabel(): string {
 		if (sourceFilings.length === 0) return '';
 		const periods = sourceFilings
@@ -110,7 +111,7 @@
 	// "What's new" cards deep-link to the on-page diff in the Compare section.
 	// Each diff is its own collapsed <details id="diff-{id}">, so open it and
 	// scroll it into view.
-	function openDiff(e: MouseEvent, topicId: string) {
+	function _openDiff(e: MouseEvent, topicId: string) {
 		e.preventDefault();
 		const el = document.getElementById(`diff-${topicId}`);
 		if (el instanceof HTMLDetailsElement) el.open = true;
@@ -182,10 +183,15 @@
 			<!-- {#if countLabel}
 				<span class="tag tag-new">{countLabel}</span>
 			{/if} -->
-			{#if generationDepth != null}
+			{#if hasReport && generationDepth != null}
 				<span class="tag tag-new" style="gap: 4px;">
 					<Sparkles class="h-2.5 w-2.5" />
 					L{generationDepth} Comparitive Synthesis
+				</span>
+			{:else if !hasReport}
+				<span class="tag flex gap-2">
+					<Sparkles class="h-2.5 w-2.5" />
+					Synthesis Queued
 				</span>
 			{/if}
 		</div>
@@ -215,105 +221,73 @@
 	</aside>
 </section>
 
-<!-- Article with source-filing sidebar -->
-<div class="change-layout">
-	<aside class="change-toc hidden md:block">
-		<h3 class="sub" style="margin-bottom: 14px;">Synthesis Sources</h3>
-		<div style="display: flex; flex-direction: column; gap: 14px;">
-			{#each sourceFilings as f (f.id)}
-				{@const doc = docFor(f)}
-				{#if doc?.short_hash}
-					<a href="/d/{f.accession_number}/{doc.short_hash}" style="text-decoration: none;">
-						<div style="font-size: 15px; color: var(--ink); font-family: var(--serif);">
-							{f.form} &middot; {formatFilingPeriod(f, company)}
-							{typeDisplay}
-						</div>
-						<div class="meta text-xs" style="color: var(--teal-2);">L1 Synthesis</div>
-					</a>
-				{:else}
-					<a href="/f/{f.accession_number}" style="text-decoration: none;">
-						<div style="font-size: 15px; color: var(--ink); font-family: var(--serif);">
-							{f.form} &middot; {formatFilingPeriod(f, company)}
-						</div>
-						<div class="meta" style="color: var(--ink-4);">Filed {formatDate(f.filing_date)}</div>
-					</a>
-				{/if}
-			{/each}
-		</div>
-	</aside>
-
-	<article>
-		<SectionHead
-			sticky
-			stickyHeading
-			{accent}
-			eyebrow="symbology.online l{generationDepth} SYNTHESIS"
-			heading="{toTitleCase(companyName)} - {typeDisplay} analysis."
-			synthesisHelp
-		/>
-		{#if changeReport?.report?.content}
-			<div class="analysis-body" style="color: var(--ink-2);">
-				<MarkdownContent content={changeReport.report.content} />
+<!-- Article with source-filing sidebar (only once the narrative is synthesised;
+     pending reports fall through to the diffs below). -->
+{#if changeReport?.report?.content}
+	<div class="change-layout">
+		<aside class="change-toc hidden md:block">
+			<h3 class="sub" style="margin-bottom: 14px;">Synthesis Sources</h3>
+			<div style="display: flex; flex-direction: column; gap: 14px;">
+				{#each sourceFilings as f (f.id)}
+					{@const doc = docFor(f)}
+					{#if doc?.short_hash}
+						<a href="/d/{f.accession_number}/{doc.short_hash}" style="text-decoration: none;">
+							<div style="font-size: 15px; color: var(--ink); font-family: var(--serif);">
+								{f.form} &middot; {formatFilingPeriod(f, company)}
+								{typeDisplay}
+							</div>
+							<div class="meta text-xs" style="color: var(--teal-2);">L1 Synthesis</div>
+						</a>
+					{:else}
+						<a href="/f/{f.accession_number}" style="text-decoration: none;">
+							<div style="font-size: 15px; color: var(--ink); font-family: var(--serif);">
+								{f.form} &middot; {formatFilingPeriod(f, company)}
+							</div>
+							<div class="meta" style="color: var(--ink-4);">Filed {formatDate(f.filing_date)}</div>
+						</a>
+					{/if}
+				{/each}
 			</div>
-		{:else}
-			<PendingContentNotice label="change report" />
-		{/if}
-	</article>
-</div>
+		</aside>
 
-{#if diffSet && headlineCards.length > 0}
-	<section class="hairline-section" style="margin-top: 4rem;">
-		<SectionHead
-			sticky
-			stickyHeading
-			{accent}
-			eyebrow="WHAT'S NEW · {pairLabel(diffSet)}"
-			heading="What changed in the latest {typeDisplay}."
-		/>
-		<div class="change-grid">
-			{#each headlineCards as t (t.id)}
-				<ChangeCard
-					href="#diff-{t.id}"
-					onclick={(e) => openDiff(e, t.id)}
-					accent={changeKindColor(t.changeKind)}
-					dot={false}
-					heading={t.heading}
-					summary={t.summary}
-				>
-					{#snippet header()}
-						<ChangeKindTag changeKind={t.changeKind} />
-					{/snippet}
-					{#snippet footerLeft()}
-						{#if t.sectionPath}
-							<span class="meta" style="font-family: var(--mono); color: var(--ink-4);"
-								>{t.sectionPath}</span
-							>
-						{/if}
-					{/snippet}
-				</ChangeCard>
-			{/each}
-		</div>
-	</section>
-{/if}
-
-{#if chainDesc.length > 0}
-	<section class="hairline-section" style="margin-top: 3rem;">
-		{#each chainDesc as ds (ds.id)}
-			{@const changed = ds.topics.filter((t) => VISIBLE_KINDS.has(t.changeKind))}
+		<article>
 			<SectionHead
 				sticky
 				stickyHeading
 				{accent}
+				eyebrow="symbology.online l{generationDepth} SYNTHESIS"
+				heading="{toTitleCase(companyName)} - {typeDisplay} analysis."
+				synthesisHelp
+			/>
+			<div class="analysis-body" style="color: var(--ink-2);">
+				<MarkdownContent content={changeReport.report.content} />
+			</div>
+		</article>
+	</div>
+{/if}
+
+{#if chainDesc.length > 0}
+	<section class="hairline-section" style="margin-top: 3rem;">
+		<SectionHead
+			stickyHeading
+			eyebrow=""
+			heading="Side-by-side against the previous {typeDisplay}{typeDisplay.slice(-1) === 's'
+				? ''
+				: 's'}."
+		/>
+		{#each chainDesc as ds (ds.id)}
+			{@const changed = ds.topics.filter((t) => VISIBLE_KINDS.has(t.changeKind))}
+			<SectionHead
+				sticky
+				{accent}
 				diffHelp={true}
 				eyebrow="{pairLabel(ds)} Text Diffs"
-				heading="Side-by-side against the previous {typeDisplay}{typeDisplay.slice(-1) === 's'
-					? ''
-					: 's'}."
+				heading=""
 			/>
 			{#if changed.length > 0}
 				<div class="diff-pair">
 					{#each changed as t (t.id)}
-						<DiffRow topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
+						<DiffRow topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} {company} />
 					{/each}
 				</div>
 			{/if}

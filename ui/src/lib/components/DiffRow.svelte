@@ -1,6 +1,7 @@
 <script lang="ts">
 	import DiffView from './DiffView.svelte';
 	import ChangeKindTag from './ChangeKindTag.svelte';
+	import type { CompanyResponse } from '$lib/api-types';
 
 	interface DiffOp {
 		op: 'equal' | 'insert' | 'delete';
@@ -10,6 +11,8 @@
 		form: string;
 		filingDate: string | null;
 		periodOfReport: string | null;
+		accessionNumber: string;
+		documentHash: string | null;
 	}
 	interface Topic {
 		id: string;
@@ -18,6 +21,7 @@
 		changeKind: string;
 		ops: DiffOp[];
 		truncated: boolean;
+		summary: string | null;
 	}
 
 	// One collapsible side-by-side diff: a kind-tag (coloured to match the change cards)
@@ -26,18 +30,25 @@
 	let {
 		topic,
 		leftFiling,
-		rightFiling
+		rightFiling,
+		company = null
 	}: {
 		topic: Topic;
 		leftFiling: FilingRef | null;
 		rightFiling: FilingRef | null;
+		company?: CompanyResponse | null;
 	} = $props();
 </script>
 
 <details id="diff-{topic.id}" class="diff-details">
 	<summary>
 		<ChangeKindTag changeKind={topic.changeKind} />
-		<span class="diff-summary-title">{topic.heading ?? topic.sectionPath ?? 'Section'}</span>
+		<span class="diff-summary-body">
+			<span class="diff-summary-title">{topic.heading ?? topic.sectionPath ?? 'Section'}</span>
+			{#if topic.summary}
+				<span class="diff-summary-text">{topic.summary}</span>
+			{/if}
+		</span>
 		<svg
 			class="diff-chevron"
 			width="16"
@@ -53,7 +64,7 @@
 			<polyline points="9 6 15 12 9 18" />
 		</svg>
 	</summary>
-	<DiffView {topic} {leftFiling} {rightFiling} />
+	<DiffView {topic} {leftFiling} {rightFiling} {company} />
 </details>
 
 <style>
@@ -77,16 +88,29 @@
 	.diff-details > summary::-webkit-details-marker {
 		display: none;
 	}
+	/* Title + optional summary preview, stacked. Takes the row's free space and
+	   wraps rather than overflowing: some section paths / run-on headings are very
+	   long and would otherwise push past the viewport on mobile. min-width:0 lets
+	   the flex item shrink below its content width so overflow-wrap can break it. */
+	.diff-summary-body {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+		flex: 1 1 auto;
+		min-width: 0;
+	}
 	.diff-summary-title {
 		font-family: var(--serif);
 		font-size: 15px;
 		color: var(--ink);
-		/* Let the title take the row's free space and wrap rather than overflow:
-		   some section paths / unfiltered run-on headings are very long and would
-		   otherwise push past the viewport on mobile. min-width:0 lets the flex
-		   item shrink below its content width so overflow-wrap can break it. */
-		flex: 1 1 auto;
-		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	/* One-line gist of the change (the same summary shown on the cards), so the row
+	   is readable without expanding. */
+	.diff-summary-text {
+		font-size: 13px;
+		line-height: 1.45;
+		color: var(--ink-3);
 		overflow-wrap: anywhere;
 	}
 	.diff-chevron {

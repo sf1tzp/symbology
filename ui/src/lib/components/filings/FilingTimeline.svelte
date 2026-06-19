@@ -96,14 +96,31 @@
 			});
 	});
 
-	// Scroll both viewports to the newest year on mount.
+	// Scroll both viewports to centre the selected filing (falling back to the
+	// newest year when nothing is selected).
 	let desktopScroll = $state<HTMLDivElement | null>(null);
 	let mobileScroll = $state<HTMLDivElement | null>(null);
+
+	function scrollToSelected(container: HTMLDivElement | null, selector: string) {
+		if (!container) return;
+		const target = container.querySelector(selector);
+		if (!target) {
+			container.scrollLeft = container.scrollWidth;
+			return;
+		}
+		const c = container.getBoundingClientRect();
+		const t = target.getBoundingClientRect();
+		// Shift the target to the horizontal centre of the viewport.
+		container.scrollLeft += t.left - c.left - (c.width - t.width) / 2;
+	}
+
 	$effect(() => {
 		void years;
-		for (const el of [desktopScroll, mobileScroll]) {
-			if (el) requestAnimationFrame(() => (el.scrollLeft = el.scrollWidth));
-		}
+		void activeSelectedId;
+		requestAnimationFrame(() => {
+			scrollToSelected(desktopScroll, '.tl-dot.selected');
+			scrollToSelected(mobileScroll, '.m-year.sel');
+		});
 	});
 </script>
 
@@ -151,17 +168,34 @@
 	<!-- ── Mobile: horizontal year-chip scroller ── -->
 	<div class="m-tl-scroll" bind:this={mobileScroll}>
 		{#each years as y (y.year)}
-			<a href={y.href} class="m-year" class:sel={y.selected} onclick={() => onselect?.(y.target)}>
-				<div class="m-year-yr">FY{y.year}</div>
-				<div class="m-year-dots">
-					{#each y.filings as f (f.id)}
-						<span class="m-year-dot {kindOf(f.form)}"></span>
-					{/each}
+			{#if y.quarters > 0}
+				<!-- Years with quarterlies: a wider chip whose dots each link to their own
+				     filing (anchors can't nest, so the chip itself isn't a link here). -->
+				<div class="m-year wide" class:sel={y.selected}>
+					<div class="m-year-yr">FY{y.year}</div>
+					<div class="m-year-dots">
+						{#each y.filings as f (f.id)}
+							<a
+								href="{linkPrefix}/{f.accession_number}"
+								class="m-year-dot {kindOf(f.form)}"
+								class:sel={f.id === activeSelectedId}
+								aria-label="{f.form} · {formatFilingPeriod(f, company)}"
+								onclick={() => onselect?.(f)}
+							></a>
+						{/each}
+					</div>
 				</div>
-				<div class="m-year-note" class:sel={y.selected}>
-					{y.selected ? 'Latest' : `${y.hasAnnual ? '10-K' : ''}`}
-				</div>
-			</a>
+			{:else}
+				<a href={y.href} class="m-year" class:sel={y.selected} onclick={() => onselect?.(y.target)}>
+					<div class="m-year-yr">FY{y.year}</div>
+					<div class="m-year-dots">
+						{#each y.filings as f (f.id)}
+							<span class="m-year-dot {kindOf(f.form)}" class:sel={f.id === activeSelectedId}
+							></span>
+						{/each}
+					</div>
+				</a>
+			{/if}
 		{/each}
 	</div>
 {/if}
@@ -271,10 +305,11 @@
 		transition: transform 0.15s;
 		text-decoration: none;
 	}
+	/* Annual (10-K) filings always read green. */
 	.tl-dot.annual {
 		--sz: 24px;
-		background: var(--ink-4);
-		border-color: var(--ink);
+		background: var(--teal-2);
+		border-color: var(--teal-2);
 	}
 	/* Quarterly (10-Q) filings read in plum to set them apart from annual data. */
 	.tl-dot.quarterly {
@@ -284,10 +319,12 @@
 	.tl-dot.other {
 		border-style: dashed;
 	}
+	/* Selected filing keeps its own colour (green 10-K / plum 10-Q) and gains a glow. */
 	.tl-dot.selected {
-		background: var(--teal-2);
-		border-color: var(--teal-2);
 		box-shadow: 0 0 0 4px var(--sage-2);
+	}
+	.tl-dot.quarterly.selected {
+		box-shadow: 0 0 0 4px color-mix(in oklch, var(--plum) 35%, transparent);
 	}
 	.tl-dot:hover {
 		transform: scale(1.15);
@@ -356,6 +393,12 @@
 		border-color: var(--teal-2);
 		background: var(--sage-2);
 	}
+	/* Years with quarterlies hold several dots; grow with their content (instead of
+	   the fixed 96px) so the wider dot spacing below has room to breathe. */
+	.m-year.wide {
+		width: auto;
+		min-width: 96px;
+	}
 	.m-year-yr {
 		font-family: var(--mono);
 		font-size: 11px;
@@ -367,6 +410,14 @@
 		gap: 6px;
 		flex-wrap: wrap;
 	}
+	/* More horizontal breathing room between the per-filing dots in multi-filing years. */
+	.m-year.wide .m-year-dots {
+		gap: 12px;
+	}
+	/* Dots are real links in wide years — kill the underline, keep the circle shape. */
+	.m-year-dots a.m-year-dot {
+		text-decoration: none;
+	}
 	.m-year-dot {
 		width: 9px;
 		height: 9px;
@@ -375,8 +426,8 @@
 		border: 1.5px solid var(--ink-4);
 	}
 	.m-year-dot.annual {
-		background: var(--ink);
-		border-color: var(--ink);
+		background: var(--teal-2);
+		border-color: var(--teal-2);
 	}
 	.m-year-dot.quarterly {
 		background: var(--plum);
@@ -385,17 +436,13 @@
 	.m-year-dot.other {
 		border-style: dashed;
 	}
-	.m-year.sel .m-year-dot.annual {
-		background: var(--teal-2);
-		border-color: var(--teal-2);
+	/* The currently-viewed filing's dot keeps its colour and gains a glow
+	   (green for 10-K, purple for 10-Q). */
+	.m-year-dot.sel {
+		box-shadow: 0 0 0 3px var(--sage-2);
 	}
-	.m-year-note {
-		font-family: var(--mono);
-		font-size: 10px;
-		color: var(--ink-4);
-	}
-	.m-year-note.sel {
-		color: var(--teal-2);
+	.m-year-dot.quarterly.sel {
+		box-shadow: 0 0 0 3px color-mix(in oklch, var(--plum) 35%, transparent);
 	}
 
 	/* ── Legend ── */

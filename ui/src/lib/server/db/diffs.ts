@@ -28,6 +28,9 @@ export interface DiffFilingRef {
 	form: string;
 	filingDate: string | null;
 	periodOfReport: string | null;
+	/** Short content hash of this filing's document of the diff's type, for deep
+	 *  links to /d/{accession}/{hash}. Null when the document can't be resolved. */
+	documentHash: string | null;
 }
 
 export interface DiffSetView {
@@ -59,7 +62,10 @@ export async function companyHasDiffSets(companyId: string, form?: string): Prom
 	return !!row;
 }
 
-async function loadFilingRefs(ids: (string | null)[]): Promise<Map<string, DiffFilingRef>> {
+async function loadFilingRefs(
+	ids: (string | null)[],
+	documentType?: DocumentTypeEnum | string | null
+): Promise<Map<string, DiffFilingRef>> {
 	const real = ids.filter((x): x is string => x !== null);
 	if (real.length === 0) return new Map();
 	const rows = await db
@@ -67,6 +73,24 @@ async function loadFilingRefs(ids: (string | null)[]): Promise<Map<string, DiffF
 		.select(['id', 'accession_number', 'form', 'filing_date', 'period_of_report'])
 		.where('id', 'in', real)
 		.execute();
+
+	// Resolve each filing's document of the diff's type so each side can deep-link
+	// to its own document page (/d/{accession}/{short_hash}).
+	const hashByFiling = new Map<string, string>();
+	if (documentType) {
+		const docs = await db
+			.selectFrom('documents')
+			.select(['filing_id', 'content_hash'])
+			.where('filing_id', 'in', real)
+			.where('document_type', '=', documentType as DocumentTypeEnum)
+			.execute();
+		for (const d of docs) {
+			if (d.filing_id && d.content_hash && !hashByFiling.has(d.filing_id)) {
+				hashByFiling.set(d.filing_id, d.content_hash.slice(0, 12));
+			}
+		}
+	}
+
 	return new Map(
 		rows.map((r) => [
 			r.id,
@@ -75,7 +99,8 @@ async function loadFilingRefs(ids: (string | null)[]): Promise<Map<string, DiffF
 				accessionNumber: r.accession_number,
 				form: r.form,
 				filingDate: toIso(r.filing_date),
-				periodOfReport: toIso(r.period_of_report)
+				periodOfReport: toIso(r.period_of_report),
+				documentHash: hashByFiling.get(r.id) ?? null
 			}
 		])
 	);
@@ -133,7 +158,7 @@ async function buildDiffSetView(set: DiffSetRow): Promise<DiffSetView> {
 		.execute();
 
 	const [filings, summaries] = await Promise.all([
-		loadFilingRefs([set.left_filing_id, set.right_filing_id]),
+		loadFilingRefs([set.left_filing_id, set.right_filing_id], set.document_type),
 		loadSummaries(sections.map((s) => s.summary_content_id))
 	]);
 

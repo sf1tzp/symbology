@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { formatDate } from '$lib/utils/filings';
+	import { formatDate, formatFilingPeriod } from '$lib/utils/filings';
+	import type { CompanyResponse } from '$lib/api-types';
 	import { ChevronDown, TrendingUp } from '@lucide/svelte';
 	import SectionHead from './SectionHead.svelte';
 
@@ -11,6 +12,9 @@
 		form: string;
 		filingDate: string | null;
 		periodOfReport: string | null;
+		accessionNumber: string;
+		/** Short content hash of this side's document, for the /d deep link. */
+		documentHash: string | null;
 	}
 	interface Topic {
 		sectionPath: string | null;
@@ -24,11 +28,13 @@
 		topic,
 		leftFiling,
 		rightFiling,
+		company = null,
 		showHeader = false
 	}: {
 		topic: Topic;
 		leftFiling: FilingRef | null;
 		rightFiling: FilingRef | null;
+		company?: CompanyResponse | null;
 		showHeader?: boolean;
 	} = $props();
 
@@ -52,10 +58,15 @@
 
 	let expanded = $state(false);
 
+	// Fiscal-period label including the quarter for 10-Q (e.g. "FY 2024 Q1 10-Q"),
+	// reusing the canonical formatter so quarters honour the company's fiscal year.
 	const fyLabel = (f: FilingRef | null): string => {
-		const d = f?.periodOfReport ?? f?.filingDate;
-		const yr = d ? new Date(d).getFullYear() : null;
-		return yr ? `FY${yr} ${f?.form ?? ''}`.trim() : (f?.form ?? '');
+		if (!f) return '';
+		const period = formatFilingPeriod(
+			{ form: f.form, period_of_report: f.periodOfReport ?? f.filingDate },
+			company
+		);
+		return period.includes(f.form) ? period : `${period} ${f.form}`.trim();
 	};
 </script>
 
@@ -78,7 +89,13 @@
 	<div class="compare {expanded ? 'is-expanded' : ''}">
 		<div class="compare-col {leftSecondary ? 'compare-col--secondary' : ''}">
 			<h4>
-				<span>{fyLabel(leftFiling)}</span>
+				{#if leftFiling?.documentHash}
+					<a class="diff-doc-link" href="/d/{leftFiling.accessionNumber}/{leftFiling.documentHash}"
+						>{fyLabel(leftFiling)}</a
+					>
+				{:else}
+					<span>{fyLabel(leftFiling)}</span>
+				{/if}
 				<div style="display: flex; gap: 28px; align-items: center; ">
 					<span class="del" style="padding: 2px 8px;">Removed</span>
 				</div>
@@ -102,7 +119,15 @@
 
 		<div class="compare-col {rightSecondary ? 'compare-col--secondary' : ''}">
 			<h4>
-				<span>{fyLabel(rightFiling)}</span>
+				{#if rightFiling?.documentHash}
+					<a
+						class="diff-doc-link"
+						href="/d/{rightFiling.accessionNumber}/{rightFiling.documentHash}"
+						>{fyLabel(rightFiling)}</a
+					>
+				{:else}
+					<span>{fyLabel(rightFiling)}</span>
+				{/if}
 				<div style="display: flex; gap: 28px; align-items: center;">
 					<span class="ins" style="padding: 2px 8px;">Added</span>
 				</div>
@@ -145,3 +170,16 @@
 		<p class="meta" style="color: var(--ink-4); margin-top: 10px;">Diff truncated for length.</p>
 	{/if}
 </div>
+
+<style>
+	/* Each column header deep-links to that side's own document page. */
+	.diff-doc-link {
+		color: var(--teal-2);
+		text-decoration: none;
+		border-bottom: 1px solid color-mix(in oklch, var(--teal-2) 35%, transparent);
+		transition: border-color 0.15s;
+	}
+	.diff-doc-link:hover {
+		border-bottom-color: var(--teal-2);
+	}
+</style>

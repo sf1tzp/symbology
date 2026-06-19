@@ -4,12 +4,16 @@
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import FilingTimeline from '$lib/components/filings/FilingTimeline.svelte';
-	import PendingContentNotice from '$lib/components/PendingContentNotice.svelte';
 	import ChangeCard from '$lib/components/ChangeCard.svelte';
 	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import { docColor, changeKindColor } from '$lib/utils/changes';
-	import { formatDate, getAnalysisTypeDisplay, shortModelName } from '$lib/utils/filings';
+	import {
+		formatDate,
+		formatFilingPeriod,
+		getAnalysisTypeDisplay,
+		shortModelName
+	} from '$lib/utils/filings';
 	import { formatHeadlineStat, pickHeadlineStats, getPeriodsRange } from '$lib/utils/financials';
 	import { previewContent, toTitleCase } from '$lib/utils';
 	import type { PageData } from './$types';
@@ -264,6 +268,21 @@
 	</div>
 {/if}
 
+<!-- Synthesis source filings, linking each to its filing page. Shared by the
+     desktop brief column and the mobile collapsible at the foot of the analysis. -->
+{#snippet sourcesList(items: typeof sourceFilings)}
+	<div class="sources-list">
+		{#each items as f (f.id)}
+			<a href="/f/{f.accession_number}" class="source-item">
+				<div class="source-title">{f.form} &middot; {formatFilingPeriod(f, company)}</div>
+				<div class="meta text-xs" style="color: var(--ink-4);">
+					Filed {formatDate(f.filing_date)}
+				</div>
+			</a>
+		{/each}
+	</div>
+{/snippet}
+
 <!-- THE BRIEF: reader-friendly, brief column left / analysis right -->
 {#if hasAnalysis}
 	<section style="margin-top: 3rem;">
@@ -285,31 +304,30 @@
 						>.
 					{/if}
 				</p>
-				<div
-					style="margin-top: 1.75rem; display: flex; flex-direction: column; gap: 0.625rem; align-items: flex-start;"
-				>
-					{#if changeReports.length > 0}
-						<button class="brief-link" onclick={() => scrollTo('financials')}>
-							Read the complete analysis &rarr;
-						</button>
-					{/if}
-					{#if sourceFilings.length > 0}
-						<button class="brief-link subtle" onclick={() => scrollTo('filing-timeline')}>
-							View source filings
-						</button>
-					{/if}
-				</div>
+				{#if sourceFilings.length > 0}
+					<div class="brief-sources">
+						<h3 class="sub" style="margin-bottom: 12px;">Synthesis Sources</h3>
+						{@render sourcesList(sourceFilings)}
+					</div>
+				{/if}
 			</div>
 			<div class="analysis-body">
 				<SectionHead
 					sticky
 					stickyHeading
 					{accent}
-					eyebrow="SYMBOLOGY.ONLINE l{page.main?.generationDepth} SYNTHESIS"
+					eyebrow="SYMBOLOGY.ONLINE l{page?.main?.generationDepth} SYNTHESIS"
 					heading="The Brief on {toTitleCase(companyName)}."
 					synthesisHelp
 				/>
-				<MarkdownContent class="" content={page.main.content} />
+				<MarkdownContent class="" content={page?.main?.content ?? ''} />
+
+				{#if sourceFilings.length > 0}
+					<details class="md:hidden font-serif text-xs text-ink-3 italic">
+						<summary>Click to expand sources</summary>
+						{@render sourcesList(sourceFilings)}
+					</details>
+				{/if}
 			</div>
 		</div>
 	</section>
@@ -320,7 +338,7 @@
 {/if}
 
 <!-- FINANCIAL OVERVIEW -->
-{#if headlineStats.length > 0 && hasAnalysis }
+{#if headlineStats.length > 0 && hasAnalysis}
 	<section id="financials" class="hairline-section" style="scroll-margin-top: 3rem;">
 		<SectionHead
 			sticky
@@ -557,23 +575,43 @@
 		color: var(--ink-2);
 		font-weight: 600;
 	}
-	.brief-link {
-		background: none;
-		border: none;
-		padding: 0;
-		font-size: 14px;
-		font-family: var(--sans);
+	/* Synthesis sources (brief column + mobile collapsible). */
+	.brief-sources {
+		margin-top: 1.75rem;
+	}
+	.sources-list {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+	.source-item {
+		text-decoration: none;
+		color: inherit;
+	}
+	.source-title {
+		font-size: 15px;
+		color: var(--ink);
+		font-family: var(--serif);
+	}
+	.source-item:hover .source-title {
 		color: var(--teal-2);
-		cursor: pointer;
 	}
-	.brief-link:hover {
-		text-decoration: underline;
-		text-underline-offset: 3px;
+
+	/* Mobile-only collapsible sources at the foot of the analysis. */
+	.mobile-sources {
+		margin-top: 2.5rem;
+		padding-top: 1.25rem;
 	}
-	.brief-link.subtle {
-		font-size: 13px;
-		color: var(--ink-3);
+	.mobile-sources > summary {
+		list-style: none;
 	}
+	.mobile-sources > summary::-webkit-details-marker {
+		display: none;
+	}
+	.mobile-sources[open] > summary {
+		margin-bottom: 1rem;
+	}
+
 	.updated-on {
 		color: var(--teal-2);
 		cursor: help;

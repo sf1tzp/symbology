@@ -15,7 +15,6 @@
 	} from '$lib/utils/filings';
 	import type { PageData } from './$types';
 	import FilingTimeline from '$lib/components/filings/FilingTimeline.svelte';
-	import PendingContentNotice from '$lib/components/PendingContentNotice.svelte';
 	import { toTitleCase } from '$lib/utils';
 
 	let { data }: { data: PageData } = $props();
@@ -158,13 +157,21 @@
 					{filingPageContent.intro.content}
 				</p>
 			{/if}
-			<div style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+			<div
+				style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;"
+			>
 				<span class="tag" style="font-family: var(--mono);">
 					Accession {filing.accession_number}
 				</span>
 				{#if documents.length > 0}
 					<span class="tag tag-new">
 						{documents.length} sections analysed
+					</span>
+				{/if}
+				{#if !hasAnalysis}
+					<span class="tag flex gap-2">
+						<Sparkles class="h-2.5 w-2.5" />
+						Synthesis Queued
 					</span>
 				{/if}
 			</div>
@@ -275,10 +282,6 @@
 				</article>
 			</div>
 		</section>
-	{:else}
-		<section class="hairline-section">
-			<PendingContentNotice label="filing synthesis" />
-		</section>
 	{/if}
 
 	<!-- SECTION: What's new (headline change cards) -->
@@ -327,7 +330,7 @@
 		<section class="hairline-section" id="filing-timeline">
 			<SectionHead sticky stickyHeading eyebrow="FILING HISTORY" heading="View specific filings" />
 			<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
-				<FilingTimeline filings={timeline} {company} linkPrefix="/f" />
+				<FilingTimeline filings={timeline} {company} selectedId={filing.id} linkPrefix="/f" />
 			</div>
 		</section>
 	{/if}
@@ -404,7 +407,12 @@
 							> -->
 						</div>
 						{#each changed as t (t.id)}
-							<DiffRow topic={t} leftFiling={ds.leftFiling} rightFiling={ds.rightFiling} />
+							<DiffRow
+								topic={t}
+								leftFiling={ds.leftFiling}
+								rightFiling={ds.rightFiling}
+								{company}
+							/>
 						{/each}
 					</div>
 				{/if}

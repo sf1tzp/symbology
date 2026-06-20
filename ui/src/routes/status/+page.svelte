@@ -5,6 +5,7 @@
 	import type {
 		HeroStats,
 		ContentBreakdownRow,
+		ModelBreakdownRow,
 		ContentLogRow,
 		JobQueueStats,
 		RecentJobRow,
@@ -28,6 +29,7 @@
 	let stat_window = $state<number | null>(data.stat_window);
 	let hero = $state<HeroStats | null>(data.hero);
 	let contentBreakdown = $state<ContentBreakdownRow[]>(data.contentBreakdown);
+	let modelBreakdown = $state<ModelBreakdownRow[]>(data.modelBreakdown);
 	let contentLog = $state<ContentLogRow[]>(data.contentLog);
 	let queueStats = $state<JobQueueStats | null>(data.queueStats);
 	let recentJobs = $state<RecentJobRow[]>(data.recentJobs);
@@ -93,6 +95,7 @@
 				const fresh = await res.json();
 				hero = fresh.hero;
 				contentBreakdown = fresh.contentBreakdown;
+				modelBreakdown = fresh.modelBreakdown;
 				contentLog = fresh.contentLog;
 				queueStats = fresh.queueStats;
 				workers = fresh.workers;
@@ -186,6 +189,7 @@
 	// Derived
 	const totalPending = $derived(queueStats ? queueStats.queued + queueStats.backoff : 0);
 	const maxBreakdownCount = $derived(Math.max(...contentBreakdown.map((r) => r.count), 1));
+	const maxModelCount = $derived(Math.max(...modelBreakdown.map((r) => r.count), 1));
 
 	const _priColor: Record<number, string> = {
 		10: 'var(--danger)',
@@ -390,6 +394,40 @@
 						</div>
 					{/each}
 				</div>
+
+				<!-- Generated content by model -->
+				{#if modelBreakdown.length > 0}
+					<div
+						style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);"
+					>
+						<div class="flex-between" style="margin-bottom: 1.125rem;">
+							<h3 class="sub">By model</h3>
+							<span class="meta text-xs" style="color: var(--ink-4);">count latency cost</span>
+						</div>
+						<div style="display: flex; flex-direction: column; gap: 0.875rem;">
+							{#each modelBreakdown.slice(0, 6) as r (r.model)}
+								<div
+									style="display: grid; grid-template-columns: 1fr 60px 50px 50px; gap: 1rem; align-items: center;"
+								>
+									<div style="min-width: 0;">
+										<div
+											style="font-size: 0.84375rem; color: var(--ink); margin-bottom: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+											title={r.model}
+										>
+											{r.model}
+										</div>
+										<Bar value={r.count} max={maxModelCount} color="var(--gold)" />
+									</div>
+									<span class="mono-sm" style="text-align: right;">{r.count}</span>
+									<span class="mono-sm muted" style="text-align: right;">{r.avgLatency}</span>
+									<span class="mono-sm" style="text-align: right; color: var(--ink-3);"
+										>{r.totalCost}</span
+									>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>

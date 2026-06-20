@@ -13,6 +13,7 @@ export const load: PageServerLoad = async () => {
 			ingestionDays: [],
 			recentFilings: [],
 			contentBreakdown: [],
+			modelBreakdown: [],
 			contentThroughput: [],
 			contentLog: [],
 			queueStats: null,

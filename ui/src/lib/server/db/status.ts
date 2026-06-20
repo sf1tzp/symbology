@@ -233,6 +233,14 @@ export interface ContentBreakdownRow {
 	totalCost: string;
 }
 
+export interface ModelBreakdownRow {
+	model: string;
+	count: number;
+	pct: string;
+	avgLatency: string;
+	totalCost: string;
+}
+
 export interface ThroughputDayRow {
 	label: string;
 	v: number;
@@ -529,6 +537,58 @@ export async function getContentBreakdown(): Promise<ContentBreakdownRow[]> {
 		.sort((a, b) => b[1].count - a[1].count)
 		.map(([kind, v]) => ({
 			kind,
+			count: v.count,
+			pct: total > 0 ? `${((v.count / total) * 100).toFixed(1)}%` : '0%',
+			avgLatency: v.durCount > 0 ? `${(v.totalDur / v.durCount).toFixed(1)}s` : '—',
+			totalCost: `$${v.totalCost.toFixed(2)}`
+		}));
+}
+
+export async function getModelBreakdown(): Promise<ModelBreakdownRow[]> {
+	const ago24h = sql<Date>`now() - interval '24 hours'`;
+
+	const rows = await db
+		.selectFrom('generated_content')
+		.leftJoin('model_configs', 'model_configs.id', 'generated_content.model_config_id')
+		.select([
+			'model_configs.model',
+			'generated_content.input_tokens',
+			'generated_content.output_tokens',
+			'generated_content.total_duration'
+		])
+		.where('generated_content.created_at', '>=', ago24h)
+		.execute();
+
+	// Aggregate by model name. Cost mixes per-token (Claude) and per-second
+	// (self-hosted) rates, so it can't be a single SQL sum — meter each row.
+	const map = new Map<
+		string,
+		{ count: number; totalDur: number; durCount: number; totalCost: number }
+	>();
+
+	for (const r of rows) {
+		const model = r.model ?? 'Unknown';
+		const existing = map.get(model) ?? { count: 0, totalDur: 0, durCount: 0, totalCost: 0 };
+		existing.count += 1;
+		if (r.total_duration != null) {
+			existing.totalDur += r.total_duration;
+			existing.durCount += 1;
+		}
+		existing.totalCost += generationCost(
+			r.model ?? null,
+			r.input_tokens,
+			r.output_tokens,
+			r.total_duration
+		);
+		map.set(model, existing);
+	}
+
+	const total = Array.from(map.values()).reduce((s, v) => s + v.count, 0);
+
+	return Array.from(map.entries())
+		.sort((a, b) => b[1].count - a[1].count)
+		.map(([model, v]) => ({
+			model,
 			count: v.count,
 			pct: total > 0 ? `${((v.count / total) * 100).toFixed(1)}%` : '0%',
 			avgLatency: v.durCount > 0 ? `${(v.totalDur / v.durCount).toFixed(1)}s` : '—',
@@ -884,6 +944,7 @@ export interface StatusSnapshot {
 	ingestionDays: IngestionDayRow[];
 	recentFilings: RecentFilingRow[];
 	contentBreakdown: ContentBreakdownRow[];
+	modelBreakdown: ModelBreakdownRow[];
 	contentThroughput: ThroughputDayRow[];
 	contentLog: ContentLogRow[];
 	queueStats: JobQueueStats;
@@ -901,6 +962,7 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
 		ingestionDays,
 		recentFilings,
 		contentBreakdown,
+		modelBreakdown,
 		contentThroughput,
 		contentLog,
 		queueStats,
@@ -912,6 +974,7 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
 		getFilingIngestionByDay(14),
 		getRecentFilings(8),
 		getContentBreakdown(),
+		getModelBreakdown(),
 		getContentThroughput(window),
 		getContentLog(25),
 		getJobQueueStats(window),
@@ -925,6 +988,7 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
 		ingestionDays,
 		recentFilings,
 		contentBreakdown,
+		modelBreakdown,
 		contentThroughput,
 		contentLog,
 		queueStats,

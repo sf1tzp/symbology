@@ -270,8 +270,32 @@ export interface WorkerRow {
 	id: string;
 	status: 'running' | 'idle';
 	job: string;
+	/** Raw job_type of the worker's current job, mirroring the jobs list. */
+	type: string;
+	/** Curated params context for the current job, mirroring the jobs list. */
+	context: string;
 	elapsed: string;
 	rate: string;
+}
+
+// The job statuses the recent-jobs table can be filtered by. Mirrors the
+// server's JobStatus enum; used to validate the `status` query param before it
+// reaches a query.
+export const JOB_STATUS_FILTERS = [
+	'pending',
+	'in_progress',
+	'backoff',
+	'completed',
+	'failed',
+	'cancelled'
+] as const;
+export type JobStatusFilter = (typeof JOB_STATUS_FILTERS)[number];
+
+/** Narrow an arbitrary string to a valid job-status filter, or null. */
+export function parseJobStatusFilter(value: string | null | undefined): JobStatusFilter | null {
+	return value && (JOB_STATUS_FILTERS as readonly string[]).includes(value)
+		? (value as JobStatusFilter)
+		: null;
 }
 
 // ── Queries ──
@@ -685,12 +709,21 @@ export interface RecentJobRow {
 }
 
 /**
- * Recent jobs across all statuses (newest first), shaped to mirror the CLI's
- * `jobs list`: short id, raw type, curated context, status, priority, attempt,
- * worker, and a single status-aware "When". Powers the scrollable status table.
+ * Recent jobs (newest first), shaped to mirror the CLI's `jobs list`: short id,
+ * raw type, curated context, status, priority, attempt, worker, and a single
+ * status-aware "When". Powers the scrollable status table.
+ *
+ * With no `status`, returns the last `limit` jobs across all statuses (the
+ * default dashboard view). With a `status`, the query is scoped to that status
+ * first, so e.g. failed jobs surface even when they sit far beyond the most
+ * recent `limit` rows — the queue can be deep with pending work while the
+ * failures the operator cares about are older.
  */
-export async function getRecentJobs(limit: number): Promise<RecentJobRow[]> {
-	const rows = await db
+export async function getRecentJobs(
+	limit: number,
+	status: JobStatusFilter | null = null
+): Promise<RecentJobRow[]> {
+	let query = db
 		.selectFrom('jobs')
 		.select([
 			'id',
@@ -711,8 +744,13 @@ export async function getRecentJobs(limit: number): Promise<RecentJobRow[]> {
 		// key, so this is an index scan (no full-table sort) yet still newest-first —
 		// keeps the query cheap as the high-churn jobs table grows / polling speeds up.
 		.orderBy('id', 'desc')
-		.limit(limit)
-		.execute();
+		.limit(limit);
+
+	if (status) {
+		query = query.where('status', '=', status);
+	}
+
+	const rows = await query.execute();
 
 	return rows.map((r) => ({
 		id: r.id,
@@ -782,6 +820,9 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 		const running = w.status === 'running' && w.job_type != null;
 
 		let jobDesc = '—';
+		// The raw type + curated params context, matching the recent-jobs table so
+		// the two surfaces agree on what a worker is doing.
+		let context = '—';
 		if (w.job_type != null) {
 			// e.g. "Filing content · AMZN · 10-K · FY2025" — same kind/company/detail
 			// the in-flight table shows, flattened into one line for the card.
@@ -796,6 +837,7 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 			]
 				.filter(Boolean)
 				.join(' · ');
+			context = formatJobContext(w.job_type, w.params as Record<string, unknown> | null) || '—';
 		}
 
 		let elapsed = '—';
@@ -814,6 +856,8 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 			id: w.id,
 			status: running ? ('running' as const) : ('idle' as const),
 			job: jobDesc,
+			type: w.job_type ?? '—',
+			context,
 			elapsed,
 			rate: `${rate} / hr`
 		};
@@ -869,7 +913,7 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
 		getRecentFilings(8),
 		getContentBreakdown(),
 		getContentThroughput(window),
-		getContentLog(9),
+		getContentLog(25),
 		getJobQueueStats(window),
 		getJobQueueDepth(window),
 		getRecentJobs(100),
@@ -895,10 +939,17 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
  * queries the dashboard polls frequently, without re-running the heavy time-series
  * aggregations in :func:`collectStatus`.
  */
-export async function collectQueueStatus(window: number = STAT_WINDOW): Promise<QueueSnapshot> {
+export async function collectQueueStatus(
+	window: number = STAT_WINDOW,
+	jobStatus: JobStatusFilter | null = null
+): Promise<QueueSnapshot> {
+	// A status filter is a deliberate lookup, not the live tail: widen the limit so
+	// matches beyond the default 100-row window surface (e.g. failed jobs buried
+	// under a deep pile of pending ones). The unfiltered view stays at 100.
+	const limit = jobStatus ? 250 : 100;
 	const [queueStats, recentJobs, workers] = await Promise.all([
 		getJobQueueStats(window),
-		getRecentJobs(100),
+		getRecentJobs(limit, jobStatus),
 		getWorkerSummary()
 	]);
 	return { queueStats, recentJobs, workers };

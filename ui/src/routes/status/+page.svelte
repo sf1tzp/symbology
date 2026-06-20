@@ -33,6 +33,27 @@
 	let recentJobs = $state<RecentJobRow[]>(data.recentJobs);
 	let workers = $state<WorkerRow[]>(data.workers);
 
+	// ── Recent-jobs status filter ──
+	//
+	// The scheduler fans out many dependent jobs and parks parents in backoff, so
+	// the live tail fills with pending work. A filter lets an operator pull just
+	// failed / backoff / completed jobs — and because a filtered fetch is a
+	// deliberate server query (not the 100-row tail), it surfaces matches buried
+	// well beyond that window. `null` = the default all-statuses tail.
+	const JOB_FILTERS: { label: string; value: string | null }[] = [
+		{ label: 'All', value: null },
+		{ label: 'Pending', value: 'pending' },
+		{ label: 'Backoff', value: 'backoff' },
+		{ label: 'Completed', value: 'completed' },
+		{ label: 'Failed', value: 'failed' }
+	];
+	let jobFilter = $state<string | null>(null);
+
+	// Server row caps (mirror collectQueueStatus): 100 for the live tail, 250 for a
+	// filtered lookup. At the cap there may be more matches than shown — surface a
+	// "+" so the count doesn't read as exhaustive.
+	const jobsCapped = $derived(recentJobs.length >= (jobFilter ? 250 : 100));
+
 	// Polling state
 	let lastRefreshed = $state(new Date());
 	let refreshAgo = $state('just now');
@@ -44,6 +65,26 @@
 	const FULL_POLL_MS = 60_000;
 	const QUEUE_POLL_MS = 15_000;
 
+	// The fast queue slice (counts / jobs / workers) — owns the recent-jobs table
+	// so it can honour the active status filter. Used by the poll interval and
+	// re-run immediately when the filter changes.
+	async function refreshQueue(filter: string | null = jobFilter) {
+		try {
+			const url = filter
+				? `/api/status/queue?status=${encodeURIComponent(filter)}`
+				: '/api/status/queue';
+			const res = await fetch(url);
+			if (!res.ok) return;
+			const fresh = await res.json();
+			queueStats = fresh.queueStats;
+			recentJobs = fresh.recentJobs;
+			workers = fresh.workers;
+			lastRefreshed = new Date();
+		} catch {
+			/* silent */
+		}
+	}
+
 	$effect(() => {
 		const interval = setInterval(async () => {
 			try {
@@ -54,8 +95,9 @@
 				contentBreakdown = fresh.contentBreakdown;
 				contentLog = fresh.contentLog;
 				queueStats = fresh.queueStats;
-				recentJobs = fresh.recentJobs;
 				workers = fresh.workers;
+				// recentJobs is deliberately left to refreshQueue: the full snapshot's
+				// list is the unfiltered tail and would clobber an active filter.
 				lastRefreshed = new Date();
 			} catch {
 				/* silent */
@@ -65,20 +107,16 @@
 	});
 
 	$effect(() => {
-		const interval = setInterval(async () => {
-			try {
-				const res = await fetch('/api/status/queue');
-				if (!res.ok) return;
-				const fresh = await res.json();
-				queueStats = fresh.queueStats;
-				recentJobs = fresh.recentJobs;
-				workers = fresh.workers;
-				lastRefreshed = new Date();
-			} catch {
-				/* silent */
-			}
-		}, QUEUE_POLL_MS);
+		const interval = setInterval(refreshQueue, QUEUE_POLL_MS);
 		return () => clearInterval(interval);
+	});
+
+	// Re-query immediately when the filter changes (don't wait for the next poll).
+	// Reading jobFilter into a local both registers the reactive dependency and
+	// passes the exact value to the fetch.
+	$effect(() => {
+		const filter = jobFilter;
+		refreshQueue(filter);
 	});
 
 	// Update "refreshed Xs ago"
@@ -357,11 +395,29 @@
 	</div>
 
 	<!-- Recent jobs table (mirrors `jobs list`) -->
-	{#if recentJobs.length > 0}
-		<div class="status-card">
-			<div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--rule);" class="flex-between">
-				<h3 class="sub">Recent jobs &middot; {recentJobs.length}</h3>
+	<div class="status-card">
+		<div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--rule);" class="flex-between">
+			<h3 class="sub">
+				Recent jobs &middot; {recentJobs.length}{#if jobsCapped}<span style="color: var(--ink-4);"
+						>+</span
+					>{/if}
+			</h3>
+			<!-- Status filters. A non-"All" filter triggers a deliberate server query
+			     that reaches past the default 100-row tail (see refreshQueue). -->
+			<div class="filter-chips" role="group" aria-label="Filter jobs by status">
+				{#each JOB_FILTERS as f (f.label)}
+					<button
+						type="button"
+						class="filter-chip"
+						class:active={jobFilter === f.value}
+						onclick={() => (jobFilter = f.value)}
+					>
+						{f.label}
+					</button>
+				{/each}
 			</div>
+		</div>
+		{#if recentJobs.length > 0}
 			<div class="table-scroll scroll-y">
 				<table class="status-table">
 					<thead>
@@ -417,8 +473,12 @@
 					</tbody>
 				</table>
 			</div>
-		</div>
-	{/if}
+		{:else}
+			<div style="padding: 2.5rem 1.5rem; text-align: center; color: var(--ink-4);" class="meta">
+				No {jobFilter ? `${jobFilter.replace('_', ' ')} ` : ''}jobs.
+			</div>
+		{/if}
+	</div>
 </section>
 
 <!-- ═══════════ GENERATED CONTENT ═══════════ -->
@@ -532,6 +592,7 @@
 						<tr>
 							<th>Worker</th>
 							<th>Current job</th>
+							<th>Context</th>
 							<th style="text-align: right;">Elapsed</th>
 							<th style="text-align: right;">Throughput</th>
 							<th style="text-align: right;">Status</th>
@@ -548,6 +609,13 @@
 										>
 									{:else}
 										{w.job}
+									{/if}
+								</td>
+								<td class="mono-cell">
+									{#if w.context === '—'}
+										<span style="color: var(--ink-4);">—</span>
+									{:else}
+										{w.context}
 									{/if}
 								</td>
 								<td class="mono-cell" style="text-align: right;">
@@ -669,6 +737,38 @@
 	/* ── Failed row highlight ── */
 	.row-fail {
 		background: rgba(184, 85, 67, 0.04);
+	}
+
+	/* ── Status filter chips ── */
+	.filter-chips {
+		display: flex;
+		gap: 0.375rem;
+		flex-wrap: wrap;
+	}
+	.filter-chip {
+		font-family: var(--mono);
+		font-size: 0.6875rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--ink-3);
+		background: transparent;
+		border: 1px solid var(--rule);
+		border-radius: 999px;
+		padding: 0.25rem 0.75rem;
+		cursor: pointer;
+		transition:
+			color 0.12s ease,
+			border-color 0.12s ease,
+			background 0.12s ease;
+	}
+	.filter-chip:hover {
+		color: var(--ink);
+		border-color: var(--ink-4);
+	}
+	.filter-chip.active {
+		color: var(--paper);
+		background: var(--ink);
+		border-color: var(--ink);
 	}
 
 	/* ── Responsive ── */

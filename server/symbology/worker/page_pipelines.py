@@ -308,12 +308,31 @@ def _generate_change_report(
     if not hashes:
         return None  # section not present in any of the lookback filings
 
-    # L2: change report aggregating the published L1 summaries.
+    # Collapse identical summaries: the same disclosure recurring across filings
+    # shares one content-hashed row, so distinct hashes (order-preserving) are the
+    # chronological sequence of *distinct* states for this section. Fewer than two
+    # means the section did not change across the lookback window -- there is no
+    # change to report, so drop the section entirely (skip the LLM call). The one
+    # exception is the form's anchor section (the main-content source): the company
+    # page is built from its change report, so dropping it would fail the whole
+    # page; generate a (degenerate, single-source) report instead to stay buildable.
+    distinct_hashes = list(dict.fromkeys(hashes))
+    if len(distinct_hashes) < 2 and doc_type_str != cfg.main_content_source(form):
+        logger.info(
+            "change_report_skipped_unchanged",
+            ticker=ticker,
+            doc_type=doc_type_str,
+            form=form,
+            source_filings=len(hashes),
+        )
+        return None  # section unchanged across the lookback -> omit from the page
+
+    # L2: change report aggregating the distinct published L1 summaries.
     cr_prompt = ensure_prompt(cfg.prompt_path("change_report"), prompts_dir)
     mc_cr = ensure_stage_model_config("l2_change_report_content", prompts_dir)
     cr_hash, cr_ok = generate_page_content(
         "change_report",
-        hashes,
+        distinct_hashes,
         cr_prompt,
         mc_cr,
         ticker=ticker,
@@ -482,12 +501,26 @@ def company_page_content_pipeline(
 
     # 2. Company main content (L3) anchored on the form's lead section's change
     #    report — business description for a 10-K, MD&A for a 10-Q (which has none).
+    #    When that section produced no change report (e.g. too short to synthesize,
+    #    so it never became substantive), fall back to the next available section in
+    #    the form's document-type order rather than failing the whole page: the main
+    #    content prompt synthesizes "the business as a whole" from a change report
+    #    regardless of which section it is. change_reports is non-empty here (guarded
+    #    above), so a fallback always exists.
     anchor_doc_type = cfg.main_content_source(form)
     anchor = change_reports.get(anchor_doc_type)
     if anchor is None:
-        raise PageContentGenerationError(
-            f"{anchor_doc_type} change report required for {company.ticker} "
-            f"({form}) main content"
+        anchor_doc_type = next(
+            dt for dt in cfg.form_document_types.get(form, [])
+            if dt in change_reports
+        )
+        anchor = change_reports[anchor_doc_type]
+        logger.warning(
+            "company_main_content_anchor_fallback",
+            ticker=company.ticker,
+            form=form,
+            requested=cfg.main_content_source(form),
+            fallback=anchor_doc_type,
         )
     bd_cr_hash, _ = anchor
     main_prompt = ensure_prompt(cfg.prompt_path("company_main_content"), prompts_dir)

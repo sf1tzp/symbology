@@ -202,16 +202,23 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
 
     # Resolve source documents
     source_documents = []
+    _seen_doc_ids: set = set()
     for doc_hash in source_doc_hashes:
         doc = session.query(Document).filter(Document.content_hash == doc_hash).first()
-        if doc:
+        if doc and doc.id not in _seen_doc_ids:
+            _seen_doc_ids.add(doc.id)
             source_documents.append(doc)
 
-    # Resolve source content
+    # Resolve source content. Distinct hashes can still resolve to the same row
+    # when the same content recurs across filings (identical sections share one
+    # content-hashed row); dedupe by id so the many-to-many association insert
+    # doesn't violate its composite PK and the prompt isn't fed duplicate sources.
     source_content = []
+    _seen_content_ids: set = set()
     for content_hash in source_content_hashes:
         content = get_generated_content_by_hash(content_hash)
-        if content:
+        if content and content.id not in _seen_content_ids:
+            _seen_content_ids.add(content.id)
             source_content.append(content)
 
     # Build user prompt

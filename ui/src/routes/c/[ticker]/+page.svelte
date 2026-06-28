@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { ChevronLeft, Sparkles, Star, Plus } from '@lucide/svelte';
+	import { ChevronLeft, Sparkles, Star } from '@lucide/svelte';
+	import { enhance } from '$app/forms';
 	import SectionHead from '$lib/components/SectionHead.svelte';
 	import SynthesisHelp from '$lib/components/SynthesisHelp.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
@@ -208,17 +209,32 @@
 		</div>
 	</div>
 
-	<!-- Right: activations placeholder zone -->
+	<!-- Right: activations zone -->
 	<aside class="activations">
 		<div class="activation-row">
-			<button type="button" class="activation-btn" disabled title="Coming soon">
-				<Star class="h-3.5 w-3.5" />
-				Watch
-			</button>
-			<button type="button" class="activation-btn" disabled title="Coming soon">
-				<Plus class="h-3.5 w-3.5" />
-				Follow
-			</button>
+			{#if data.user}
+				<form method="POST" action={data.watching ? '?/unwatch' : '?/watch'} use:enhance>
+					<input type="hidden" name="companyId" value={company?.id} />
+					<button
+						type="submit"
+						class="activation-btn"
+						class:activation-btn--active={data.watching}
+						title={data.watching ? 'Remove from your watchlist' : 'Add to your watchlist'}
+					>
+						<Star class="h-3.5 w-3.5" fill={data.watching ? 'currentColor' : 'none'} />
+						{data.watching ? 'Watching' : 'Watch'}
+					</button>
+				</form>
+			{:else}
+				<a
+					class="activation-btn"
+					href="/login?returnTo=/c/{company?.ticker}"
+					title="Sign in to watch"
+				>
+					<Star class="h-3.5 w-3.5" />
+					Watch
+				</a>
+			{/if}
 		</div>
 		<!-- <a
 			href="https://finance.yahoo.com/quote/{company?.ticker}/"
@@ -570,6 +586,15 @@
 	.activation-btn:disabled {
 		opacity: 0.55;
 		cursor: not-allowed;
+	}
+	/* Watched state: accented fill so the toggle reads as "on". */
+	.activation-btn--active {
+		color: var(--teal-2);
+		border-color: var(--teal-2);
+		background: color-mix(in srgb, var(--teal-2) 8%, var(--paper));
+	}
+	.activations form {
+		display: contents;
 	}
 
 	/* Year-over-year delta on the lead financial stat in the data row. */

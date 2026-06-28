@@ -367,3 +367,199 @@ export async function getLatestChangeCards(
 	cards.sort((a, b) => b.score - a.score);
 	return cards.slice(0, limit);
 }
+
+export interface CompanyChangeCardView extends ChangeCardView {
+	companyId: string;
+	ticker: string;
+	companyName: string;
+}
+
+/**
+ * Batched `getLatestChangeCards` across many companies — the watchlist "what
+ * changed" feed. One query for the latest diff set per (company, document type)
+ * (via distinctOn), joined to `companies` so each card carries its ticker/name.
+ * `since` gates to recently-computed diff sets; `perCompanyLimit` caps cards per
+ * company before the overall `limit`. Empty input → empty output.
+ */
+export async function getLatestChangeCardsForCompanies(
+	companyIds: string[],
+	opts: { since?: Date; perCompanyLimit?: number; limit?: number } = {}
+): Promise<CompanyChangeCardView[]> {
+	if (companyIds.length === 0) return [];
+
+	const sets = await db
+		.selectFrom('diff_sets as ds')
+		.innerJoin('companies as c', 'c.id', 'ds.company_id')
+		.select([
+			'ds.id',
+			'ds.company_id',
+			'ds.document_type',
+			'ds.right_filing_id',
+			'c.ticker',
+			'c.name',
+			'c.display_name'
+		])
+		.where('ds.company_id', 'in', companyIds)
+		.$if(!!opts.since, (qb) => qb.where('ds.created_at', '>=', opts.since!))
+		.distinctOn(['ds.company_id', 'ds.document_type'])
+		.orderBy('ds.company_id')
+		.orderBy('ds.document_type')
+		.orderBy('ds.created_at', 'desc')
+		.execute();
+	if (sets.length === 0) return [];
+
+	const setMeta = new Map(sets.map((s) => [s.id, s]));
+	const sections = await db
+		.selectFrom('section_diffs')
+		.select([
+			'id',
+			'diff_set_id',
+			'topic_id',
+			'section_path',
+			'heading',
+			'change_kind',
+			'ops',
+			'length_delta',
+			'tokens_added',
+			'tokens_removed',
+			'summary_content_id'
+		])
+		.where(
+			'diff_set_id',
+			'in',
+			sets.map((s) => s.id)
+		)
+		.where('change_kind', 'in', [...CARD_CHANGE_KINDS])
+		.execute();
+	const visible = sections.filter((s) => !isNumericNoise(s.ops as unknown as DiffOp[]));
+	if (visible.length === 0) return [];
+
+	const [filings, summaries] = await Promise.all([
+		loadFilingRefs(sets.map((s) => s.right_filing_id)),
+		loadSummaries(visible.map((s) => s.summary_content_id))
+	]);
+
+	const cards: CompanyChangeCardView[] = visible.map((s) => {
+		const meta = setMeta.get(s.diff_set_id)!;
+		const rightId = meta.right_filing_id ?? null;
+		return {
+			id: s.id,
+			companyId: meta.company_id,
+			ticker: meta.ticker,
+			companyName: meta.display_name ?? meta.name,
+			documentType: meta.document_type ?? '',
+			changeKind: s.change_kind,
+			heading: s.heading,
+			sectionPath: s.section_path,
+			summary: s.summary_content_id ? (summaries.get(s.summary_content_id) ?? null) : null,
+			topicId: s.topic_id,
+			rightFiling: rightId ? (filings.get(rightId) ?? null) : null,
+			score: scoreSectionDiff({
+				changeKind: s.change_kind,
+				tokensAdded: s.tokens_added ?? 0,
+				tokensRemoved: s.tokens_removed ?? 0,
+				lengthDelta: s.length_delta ?? 0
+			})
+		};
+	});
+
+	cards.sort((a, b) => b.score - a.score);
+
+	// Optional per-company cap, applied to the already-significance-sorted list.
+	let ranked = cards;
+	if (opts.perCompanyLimit != null) {
+		const seen = new Map<string, number>();
+		ranked = cards.filter((c) => {
+			const n = seen.get(c.companyId) ?? 0;
+			if (n >= opts.perCompanyLimit!) return false;
+			seen.set(c.companyId, n + 1);
+			return true;
+		});
+	}
+	return opts.limit != null ? ranked.slice(0, opts.limit) : ranked;
+}
+
+export interface FilingChangeHighlight {
+	sectionDiffId: string;
+	documentType: string;
+	changeKind: string;
+	heading: string | null;
+	/** The generated diff summary (always present — summary-less changes are skipped). */
+	summary: string;
+	score: number;
+}
+
+/**
+ * The single most-significant *summarised* change for each given filing (as the
+ * newer side of a diff). Restricted to changes that have a generated summary and
+ * are of the surfaced kinds (CARD_CHANGE_KINDS), excluding figures-only noise —
+ * so the watchlist feed shows one readable highlight per company's latest filing.
+ * Returns a map keyed by filing id; filings with no qualifying change are absent
+ * (the caller falls back to a plain "filed a 10-Q" row).
+ */
+export async function getTopChangeByFilings(
+	filingIds: string[]
+): Promise<Map<string, FilingChangeHighlight>> {
+	if (filingIds.length === 0) return new Map();
+
+	const sets = await db
+		.selectFrom('diff_sets')
+		.select(['id', 'right_filing_id', 'document_type'])
+		.where('right_filing_id', 'in', filingIds)
+		.execute();
+	if (sets.length === 0) return new Map();
+
+	const setMeta = new Map(sets.map((s) => [s.id, s]));
+	const sections = await db
+		.selectFrom('section_diffs')
+		.select([
+			'id',
+			'diff_set_id',
+			'heading',
+			'change_kind',
+			'ops',
+			'length_delta',
+			'tokens_added',
+			'tokens_removed',
+			'summary_content_id'
+		])
+		.where(
+			'diff_set_id',
+			'in',
+			sets.map((s) => s.id)
+		)
+		.where('change_kind', 'in', [...CARD_CHANGE_KINDS])
+		.where('summary_content_id', 'is not', null)
+		.execute();
+	const visible = sections.filter((s) => !isNumericNoise(s.ops as unknown as DiffOp[]));
+	if (visible.length === 0) return new Map();
+
+	const summaries = await loadSummaries(visible.map((s) => s.summary_content_id));
+
+	const best = new Map<string, FilingChangeHighlight>();
+	for (const s of visible) {
+		const meta = setMeta.get(s.diff_set_id);
+		const filingId = meta?.right_filing_id;
+		if (!filingId) continue;
+		const summary = s.summary_content_id ? summaries.get(s.summary_content_id) : null;
+		if (!summary) continue; // summary content row missing/empty — skip
+		const score = scoreSectionDiff({
+			changeKind: s.change_kind,
+			tokensAdded: s.tokens_added ?? 0,
+			tokensRemoved: s.tokens_removed ?? 0,
+			lengthDelta: s.length_delta ?? 0
+		});
+		const cur = best.get(filingId);
+		if (!cur || score > cur.score) {
+			best.set(filingId, {
+				sectionDiffId: s.id,
+				documentType: meta.document_type ?? '',
+				changeKind: s.change_kind,
+				heading: s.heading,
+				summary,
+				score
+			});
+		}
+	}
+	return best;
+}

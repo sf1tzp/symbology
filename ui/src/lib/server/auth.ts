@@ -4,6 +4,10 @@ import { getRequestEvent } from '$app/server';
 import pg from 'pg';
 import { env } from '$env/dynamic/private';
 import { getDatabaseUrl } from './db-config';
+import { sendEmail } from './email/send';
+import { verifyEmail } from './email/templates/verifyEmail';
+import { resetPassword } from './email/templates/resetPassword';
+import { welcome } from './email/templates/welcome';
 
 const { Pool } = pg;
 
@@ -26,12 +30,33 @@ export const auth = betterAuth({
 	baseURL: env.BETTER_AUTH_URL,
 	emailAndPassword: {
 		enabled: true,
-		// Email verification + password reset need an SMTP sender; wire that as
-		// a follow-up. Until then accounts are usable immediately.
-		requireEmailVerification: false
+		// Block session creation until the email is verified, so accounts can't be
+		// created against addresses the user doesn't control.
+		requireEmailVerification: true,
+		// Reset links are single-use and expire in 1 hour (security pattern).
+		resetPasswordTokenExpiresIn: 60 * 60,
+		sendResetPassword: async ({ user, url }) => {
+			await sendEmail({ to: user.email, ...resetPassword({ url, name: user.name }) });
+		}
+	},
+	emailVerification: {
+		// Fire a verification email on sign-up, and log the user in automatically
+		// once they click the link so verifying lands them straight in the app.
+		sendOnSignUp: true,
+		autoSignInAfterVerification: true,
+		// Verification links expire in 24 hours.
+		expiresIn: 60 * 60 * 24,
+		sendVerificationEmail: async ({ user, url }) => {
+			await sendEmail({ to: user.email, ...verifyEmail({ url, name: user.name }) });
+		},
+		// One-time welcome once the address is confirmed.
+		afterEmailVerification: async (user) => {
+			const appUrl = new URL('/a/watchlist', env.BETTER_AUTH_URL).toString();
+			await sendEmail({ to: user.email, ...welcome({ name: user.name, appUrl }) });
+		}
 	},
 	user: {
-		// Allow self-service account deletion. No email-verification callback is
+		// Allow self-service account deletion. No deletion-verification callback is
 		// configured, so deletion happens immediately; the client passes the
 		// current password so it works regardless of session freshness.
 		deleteUser: { enabled: true },

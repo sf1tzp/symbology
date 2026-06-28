@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -30,6 +31,29 @@
 	}
 	const pctColor = (p: number) =>
 		p > 0 ? 'var(--teal-2)' : p < 0 ? 'var(--danger)' : 'var(--ink-3)';
+
+	// ── Time-of-day greeting ──
+	// A handful of greetings per slot, picked at random. Computed in onMount so it
+	// uses the visitor's local clock (not the server's UTC) and the random pick
+	// doesn't trip a hydration mismatch; "Welcome back" is the SSR fallback.
+	const GREETINGS: Record<string, string[]> = {
+		morning: ['Good morning', 'Morning', 'Bright and early'],
+		afternoon: ["'Afternoon", 'Back at it', 'Salutations'],
+		evening: ['Good evening'],
+		night: ['Still up', 'Working late']
+	};
+	function greetingSlot(hour: number): keyof typeof GREETINGS {
+		if (hour < 5) return 'night';
+		if (hour < 12) return 'morning';
+		if (hour < 17) return 'afternoon';
+		if (hour < 21) return 'evening';
+		return 'night';
+	}
+	let greeting = $state('Welcome back');
+	onMount(() => {
+		const options = GREETINGS[greetingSlot(new Date().getHours())];
+		greeting = options[Math.floor(Math.random() * options.length)];
+	});
 
 	// ── Add-company search ──
 	type SearchResult = { id: string; ticker: string; name: string; display_name: string | null };
@@ -74,7 +98,7 @@
 <div class="page">
 	<!-- Header -->
 	<section class="grid items-end gap-12 md:grid-cols-2">
-		<div>
+		<div class="min-w-0">
 			<div class="flex-between mb-3.5 gap-4">
 				<div class="eyebrow">
 					● &nbsp;Your watchlist · {data.watching.length}
@@ -87,8 +111,8 @@
 					<Settings class="h-3.5 w-3.5" /> Account settings
 				</a>
 			</div>
-			<h1 class="display mb-5" style="font-size: 3.5rem;">
-				Good morning,<br /><em>{data.firstName}.</em>
+			<h1 class="display mb-5">
+				{greeting},<br /><em>{data.firstName}.</em>
 			</h1>
 			<p class="lede text-ink-2">
 				{#if data.watching.length === 0}
@@ -128,7 +152,7 @@
 	<section class="hairline-section">
 		<div class="grid items-start gap-12 md:grid-cols-2">
 			<!-- What changed: merged feed of new filings + material text changes -->
-			<div>
+			<div class="min-w-0">
 				<h3 class="sub mb-5 text-ink-3">What changed</h3>
 				{#if feed.items.length === 0}
 					<div class="rounded-lg border border-dashed border-rule p-8 text-center">
@@ -153,7 +177,7 @@
 								>
 									{#snippet header()}
 										<div class="flex w-full items-center justify-between gap-3">
-											<span class="text-sm text-ink">
+											<span class="min-w-0 text-sm text-ink">
 												In <span class="font-medium">{item.ticker}</span>'s recent {item.form}
 											</span>
 											<ChangeKindTag changeKind={item.changeKind ?? ''} />
@@ -182,7 +206,7 @@
 			</div>
 
 			<!-- Watching list -->
-			<div>
+			<div class="min-w-0">
 				<div class="flex-between mb-5">
 					<h3 class="sub text-ink-3">Watching</h3>
 					{#if adding}

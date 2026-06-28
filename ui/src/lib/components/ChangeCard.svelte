@@ -57,6 +57,10 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
+		/* Let the card shrink inside grid/flex parents, and break long unbroken
+		   tokens, so a wide summary never forces horizontal page overflow. */
+		min-width: 0;
+		overflow-wrap: break-word;
 		padding: 1.25rem 1.5rem;
 		border: 1px solid var(--rule);
 		border-left: 3px solid var(--card-accent, var(--teal-2));

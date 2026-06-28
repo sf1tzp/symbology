@@ -268,7 +268,18 @@
 			</div>
 		{/if}
 		{#if spanLabel()}
-			<div class="stat gold" onclick={() => scrollTo('filing-timeline')}>
+			<div
+				class="stat gold"
+				role="button"
+				tabindex="0"
+				onclick={() => scrollTo('filing-timeline')}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						scrollTo('filing-timeline');
+					}
+				}}
+			>
 				<span class="stat-value">{spanLabel()}</span>
 				<span class="stat-label">Synthesis Period</span>
 			</div>
@@ -636,21 +647,6 @@
 	}
 	.source-item:hover .source-title {
 		color: var(--teal-2);
-	}
-
-	/* Mobile-only collapsible sources at the foot of the analysis. */
-	.mobile-sources {
-		margin-top: 2.5rem;
-		padding-top: 1.25rem;
-	}
-	.mobile-sources > summary {
-		list-style: none;
-	}
-	.mobile-sources > summary::-webkit-details-marker {
-		display: none;
-	}
-	.mobile-sources[open] > summary {
-		margin-bottom: 1rem;
 	}
 
 	.updated-on {

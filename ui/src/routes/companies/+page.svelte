@@ -341,10 +341,6 @@
 </section>
 
 <style>
-	.hover-card:hover {
-		border-color: var(--rule-2);
-	}
-
 	/* `display` is owned by the Tailwind utilities on each element (flex / hidden /
 	   sm:flex / sm:hidden) — don't set it here, or the scoped class's higher
 	   specificity overrides `hidden` and both badge copies render at once. */

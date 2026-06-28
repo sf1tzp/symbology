@@ -25,14 +25,23 @@
 		'(Apple M3 Macbook Air 24GB, Nvidia 3060 12GB), which we estimate ~$0.02/hr of compute. ' +
 		'Self-hosted generations are metered by compute time at that rate; Claude API calls are counted at Anthropic per-token rates.';
 
-	// Mutable state for polling
+	// Mutable state for polling — seeded from `data`, then updated in place by the
+	// poll loop. The initial-value capture is deliberate (svelte-ignore per line).
+	/* svelte-ignore state_referenced_locally */
 	let stat_window = $state<number | null>(data.stat_window);
+	/* svelte-ignore state_referenced_locally */
 	let hero = $state<HeroStats | null>(data.hero);
+	/* svelte-ignore state_referenced_locally */
 	let contentBreakdown = $state<ContentBreakdownRow[]>(data.contentBreakdown);
+	/* svelte-ignore state_referenced_locally */
 	let modelBreakdown = $state<ModelBreakdownRow[]>(data.modelBreakdown);
+	/* svelte-ignore state_referenced_locally */
 	let contentLog = $state<ContentLogRow[]>(data.contentLog);
+	/* svelte-ignore state_referenced_locally */
 	let queueStats = $state<JobQueueStats | null>(data.queueStats);
+	/* svelte-ignore state_referenced_locally */
 	let recentJobs = $state<RecentJobRow[]>(data.recentJobs);
+	/* svelte-ignore state_referenced_locally */
 	let workers = $state<WorkerRow[]>(data.workers);
 
 	// ── Recent-jobs status filter ──

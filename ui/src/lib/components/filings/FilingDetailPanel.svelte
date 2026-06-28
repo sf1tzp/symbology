@@ -26,6 +26,9 @@
 
 	let { filing, company, financialComparison }: Props = $props();
 
+	// Mutable copy: user switches statement type / lazy-loads; resynced by the
+	// $effect below when the parent prop changes. Initial capture is deliberate.
+	/* svelte-ignore state_referenced_locally */
 	let localFinancials = $state<FinancialComparisonResponse | null>(financialComparison);
 	let activeStatementType = $state('balance_sheet');
 	let loadingFinancials = $state(false);

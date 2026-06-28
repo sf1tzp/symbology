@@ -100,7 +100,8 @@
 		color: var(--seg-accent, var(--ink));
 		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	}
-	.seg-ico {
+	/* Icon is a child component, so its class must be reached via :global. */
+	.seg-opt :global(.seg-ico) {
 		width: 0.85rem;
 		height: 0.85rem;
 	}

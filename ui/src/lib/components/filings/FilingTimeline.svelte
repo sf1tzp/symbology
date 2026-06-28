@@ -124,15 +124,6 @@
 	});
 </script>
 
-<!-- Filter pills (desktop only — mobile shows a compact year-chip scroller). -->
-<!-- <div class="tl-filters">
-	<div class="pillnav">
-		{#each FILTERS as f (f.id)}
-			<button class:active={filter === f.id} onclick={() => (filter = f.id)}>{f.label}</button>
-		{/each}
-	</div>
-</div> -->
-
 {#if years.length === 0}
 	<p class="tl-empty">No filings match this filter.</p>
 {:else}
@@ -212,35 +203,6 @@
 		display: flex;
 		justify-content: flex-end;
 		margin-bottom: 1.25rem;
-	}
-
-	/* Pill filter */
-	.pillnav {
-		display: flex;
-		gap: 4px;
-		padding: 4px;
-		background: var(--paper-2);
-		border-radius: 10px;
-		border: 1px solid var(--rule);
-	}
-	.pillnav button {
-		appearance: none;
-		border: 0;
-		background: transparent;
-		padding: 6px 14px;
-		border-radius: 7px;
-		font-family: var(--sans);
-		font-size: 12.5px;
-		font-weight: 500;
-		color: var(--ink-3);
-		cursor: pointer;
-		transition: all 0.12s;
-		white-space: nowrap;
-	}
-	.pillnav button.active {
-		background: var(--paper);
-		color: var(--ink);
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	}
 
 	.tl-empty {

@@ -16,6 +16,7 @@
 	// ── Profile icon (avatar badge) ──
 	// The choice persists in Better Auth's `user.avatarBadge` field; clearing it
 	// ('') falls back to initials. Optimistic update, reverted on error.
+	/* svelte-ignore state_referenced_locally */
 	let selectedBadge = $state<BadgeKey | null>(data.avatarBadgeKey);
 	let avatarSaving = $state(false);
 	let avatarMsg = $state('');
@@ -36,7 +37,8 @@
 		await invalidateAll();
 	}
 
-	// ── Profile ──
+	// ── Profile ── (editable form field, seeded from the loaded account)
+	/* svelte-ignore state_referenced_locally */
 	let name = $state(data.account.name);
 	let profileSaving = $state(false);
 	let profileMsg = $state('');

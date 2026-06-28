@@ -7,21 +7,30 @@
 
 	let { data }: { data: PageData } = $props();
 
-	// Local state — NOT derived from data, so typing doesn't cause re-renders
+	// Local state — NOT derived from data, so typing doesn't cause re-renders.
+	// The initial-value capture from `data` is deliberate (svelte-ignore below).
+	/* svelte-ignore state_referenced_locally */
 	let searchInput = $state(data.query);
+	/* svelte-ignore state_referenced_locally */
 	let results = $state<SearchResultItem[]>(data.results);
+	/* svelte-ignore state_referenced_locally */
 	let total = $state(data.total);
+	/* svelte-ignore state_referenced_locally */
 	let searchOffset = $state(data.offset);
+	/* svelte-ignore state_referenced_locally */
 	let searchLimit = $state(data.limit);
 	let loading = $state(false);
+	/* svelte-ignore state_referenced_locally */
 	let error = $state<string | undefined>(data.error);
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	/* svelte-ignore state_referenced_locally */
 	let activeQuery = $state(data.query);
 
 	// Filter state
 	let showCompanies = $state(true);
 	let showFilings = $state(true);
 	let showAnalysis = $state(true);
+	/* svelte-ignore state_referenced_locally */
 	let formTypeFilter = $state(data.filters.formType || '');
 
 	function buildApiUrl(query: string, offset: number = 0): string {

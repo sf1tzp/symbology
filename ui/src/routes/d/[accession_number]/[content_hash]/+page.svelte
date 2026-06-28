@@ -37,6 +37,9 @@
 
 	// L1-synthesis ⇄ source-text switch. Default to the synthesis when it exists,
 	// else land on the source so the reader sees content rather than a pending notice.
+	// One-time read of data to pick the default view; `view` below is then a
+	// user-toggled mutable, so this must not become reactive.
+	/* svelte-ignore state_referenced_locally */
 	const _pc = data.documentPageContent;
 	let view = $state(_pc && (_pc.intro?.content || _pc.summary?.content) ? 'analysis' : 'document');
 	const viewOptions = [

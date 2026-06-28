@@ -27,6 +27,9 @@
 
 	// ── Duration plan: $1 a day. The slider's reach is bounded by the policy cap
 	// (Dec 31 2028) stacked onto any window the user already holds.
+	// Intentional one-time snapshot: this seeds the mutable `days` slider below, so
+	// it must NOT reactively reset when `data` changes out from under the user.
+	// svelte-ignore state_referenced_locally
 	const capRemaining = daysAllowedBeforeCap(data.supporter?.expiresAt ?? null, now);
 	const effectiveMax = Math.min(MAX_DAYS, capRemaining);
 	const capBinding = effectiveMax < MAX_DAYS; // cap (not 888) is the limiter

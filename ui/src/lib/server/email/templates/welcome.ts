@@ -1,4 +1,4 @@
-import { layout, button, type RenderedEmail } from './layout';
+import { layout, button, footerText, type RenderedEmail } from './layout';
 
 export interface WelcomeProps {
 	name?: string | null;
@@ -32,7 +32,10 @@ Symbology turns SEC filings into plain-language intelligence. Add companies to y
 
 ${appUrl}
 
-Glad to have you on board.`;
+Glad to have you on board.
+
+—
+${footerText()}`;
 
 	return { subject: 'Welcome to Symbology', html, text };
 }

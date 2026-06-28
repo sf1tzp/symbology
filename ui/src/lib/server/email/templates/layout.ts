@@ -6,6 +6,8 @@
  * marketing.
  */
 
+import { env } from '$env/dynamic/private';
+
 const BRAND = '#0f766e'; // teal — matches the app's `text-teal-2` accent
 const INK = '#1a1a1a';
 const MUTED = '#6b7280';
@@ -16,6 +18,33 @@ export interface RenderedEmail {
 	subject: string;
 	html: string;
 	text: string;
+}
+
+/**
+ * Absolute links to the legal pages. Email clients can't resolve relative URLs,
+ * so these are built off `BETTER_AUTH_URL` (the same base every email link uses).
+ * Falls back to bare paths if the base is unset, so dev rendering never throws.
+ */
+function legalUrls(): { terms: string; privacy: string } {
+	const base = env.BETTER_AUTH_URL;
+	if (!base) return { terms: '/terms', privacy: '/privacy' };
+	return {
+		terms: new URL('/terms', base).toString(),
+		privacy: new URL('/privacy', base).toString()
+	};
+}
+
+/**
+ * Plain-text footer mirroring the HTML one. Templates build their own text body
+ * (there's no text layout), so they append this to keep the Terms/Privacy links
+ * in every email.
+ */
+export function footerText(): string {
+	const { terms, privacy } = legalUrls();
+	return `Symbology · SEC filing intelligence
+Questions? Reply to this email.
+Terms: ${terms}
+Privacy: ${privacy}`;
 }
 
 /** A single, obvious call-to-action button. */
@@ -57,7 +86,10 @@ export function layout({ preview, bodyHtml }: LayoutInput): string {
 			</table>
 			<div style="max-width: 480px; padding: 20px 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.5; color: ${MUTED};">
 				Symbology · SEC filing intelligence<br />
-				Questions? Reply to this email.
+				Questions? Reply to this email.<br />
+				<a href="${legalUrls().terms}" target="_blank" style="color: ${MUTED}; text-decoration: underline;">Terms of Service</a>
+				&nbsp;·&nbsp;
+				<a href="${legalUrls().privacy}" target="_blank" style="color: ${MUTED}; text-decoration: underline;">Privacy Policy</a>
 			</div>
 		</td></tr>
 	</table>

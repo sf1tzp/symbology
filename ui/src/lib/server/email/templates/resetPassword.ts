@@ -1,4 +1,4 @@
-import { layout, button, type RenderedEmail } from './layout';
+import { layout, button, footerText, type RenderedEmail } from './layout';
 
 export interface ResetPasswordProps {
 	/** Better Auth's tokenized reset link. */
@@ -31,7 +31,10 @@ We received a request to reset your Symbology password. Choose a new one here:
 
 ${url}
 
-This link expires in 1 hour and can be used once. If you didn't request a password reset, you can safely ignore this email — your password won't change.`;
+This link expires in 1 hour and can be used once. If you didn't request a password reset, you can safely ignore this email — your password won't change.
+
+—
+${footerText()}`;
 
 	return { subject: 'Reset your password · Symbology', html, text };
 }

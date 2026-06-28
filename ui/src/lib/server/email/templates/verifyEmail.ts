@@ -1,4 +1,4 @@
-import { layout, button, type RenderedEmail } from './layout';
+import { layout, button, footerText, type RenderedEmail } from './layout';
 
 export interface VerifyEmailProps {
 	/** Better Auth's tokenized verification link. */
@@ -32,7 +32,10 @@ Confirm your email address to finish setting up your Symbology account:
 
 ${url}
 
-This link expires in 24 hours. Didn't sign up? You can safely ignore this email.`;
+This link expires in 24 hours. Didn't sign up? You can safely ignore this email.
+
+—
+${footerText()}`;
 
 	return { subject: 'Verify your email · Symbology', html, text };
 }

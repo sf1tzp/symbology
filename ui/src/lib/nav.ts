@@ -4,6 +4,8 @@
  * active-path logic in one place guarantees the two navs handle user status
  * identically.
  */
+import { supportEnabled } from '$lib/features';
+
 export interface NavItem {
 	href: string;
 	label: string;
@@ -13,22 +15,46 @@ export interface NavItem {
 export type NavUser = { id: string; name: string; email: string } | null;
 
 /**
- * Primary destinations. The Watchlist entry only appears for signed-in users,
- * so both navs must be passed the current `user`.
+ * Primary destinations shown as inline links in the desktop top-nav. The account
+ * hub (/a/watchlist) is reached via the profile icon, Status via the icon button
+ * by the dark-mode toggle, and Support via its own affordance — so none of those
+ * appear here.
  */
-export function buildNavItems(user: NavUser): NavItem[] {
+export function buildNavItems(): NavItem[] {
 	return [
 		{ href: '/', label: 'Home' },
 		{ href: '/companies', label: 'Companies' },
-		...(user ? [{ href: '/watchlist', label: 'Watchlist' }] : []),
-		{ href: '/status', label: 'Status' },
 		{ href: '/faq', label: 'FAQ' }
 	];
 }
 
-/** Account destination when signed in, otherwise the sign-in link. */
+/**
+ * Account destination when signed in (the /a/watchlist hub), otherwise the
+ * sign-in link.
+ */
 export function accountNavItem(user: NavUser): NavItem {
-	return user ? { href: '/account', label: 'Account' } : { href: '/login', label: 'Sign in' };
+	return user ? { href: '/a/watchlist', label: 'Account' } : { href: '/login', label: 'Sign in' };
+}
+
+/**
+ * The full ordered tab list for the mobile bottom bar. The center slot is a quick
+ * link back to the company while on a company-context route, otherwise the
+ * Support CTA — which is omitted entirely while the support surface is gated off,
+ * leaving a four-tab bar. The trailing slot is the account / sign-in entry.
+ */
+export function buildMobileTabItems(user: NavUser, ticker: string | null): NavItem[] {
+	const items: NavItem[] = [
+		{ href: '/', label: 'Home' },
+		{ href: '/companies', label: 'Companies' }
+	];
+	if (ticker) {
+		items.push(companyNavItem(ticker));
+	} else if (supportEnabled) {
+		items.push({ href: '/support', label: 'Support' });
+	}
+	items.push({ href: '/faq', label: 'FAQ' });
+	items.push(accountNavItem(user));
+	return items;
 }
 
 /**

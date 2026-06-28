@@ -21,7 +21,7 @@
 			errorMsg = error.message ?? 'Could not create your account.';
 			return;
 		}
-		await goto('/watchlist', { invalidateAll: true });
+		await goto('/a/watchlist', { invalidateAll: true });
 	}
 </script>
 

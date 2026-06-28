@@ -6,6 +6,8 @@
 	import ChangeCard from '$lib/components/ChangeCard.svelte';
 	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
 	import DiffRow from '$lib/components/DiffRow.svelte';
+	import LockedBlock from '$lib/components/LockedBlock.svelte';
+	import { lockCopy } from '$lib/utils/lock';
 	import { changeKindColor, topChangeCards, isVisibleTopic } from '$lib/utils/changes';
 	import {
 		formatFilingPeriodLong,
@@ -17,12 +19,16 @@
 	import FilingTimeline from '$lib/components/filings/FilingTimeline.svelte';
 	import { toTitleCase } from '$lib/utils';
 
-	let { data }: { data: PageData } = $props();
+	let { data, form }: { data: PageData; form: import('./$types').ActionData } = $props();
 
 	const company = $derived(data.company);
 	const filing = $derived(data.filing);
 	const documents = $derived(data.documents || []);
 	const filingPageContent = $derived(data.filingPageContent);
+	// Set when generated analysis exists but is gated for this (free) viewer.
+	const analysisLock = $derived(data.analysisLock ?? null);
+	// Supporter standing comes from the root layout load (merged into page data).
+	const supporterActive = $derived(data.supporter?.active ?? false);
 	const timeline = $derived(data.timeline || []);
 	// Structured diffs of this filing vs. the immediately prior one, per section.
 	const priorDiffSets = $derived(data.priorDiffSets ?? []);
@@ -168,7 +174,12 @@
 						{documents.length} sections analysed
 					</span>
 				{/if}
-				{#if !hasAnalysis}
+				{#if analysisLock}
+					<span class="tag flex gap-2">
+						<Sparkles class="h-2.5 w-2.5" />
+						Supporter analysis
+					</span>
+				{:else if !hasAnalysis}
 					<span class="tag flex gap-2">
 						<Sparkles class="h-2.5 w-2.5" />
 						Synthesis Queued
@@ -227,6 +238,41 @@
 		</aside>
 	</section>
 
+	<!-- SECTION: Prioritize perk (when analysis is queued, not yet generated) -->
+	{#if !hasAnalysis && !analysisLock}
+		<section class="hairline-section">
+			<div class="perk">
+				<div>
+					<div class="perk-t">Analysis for this filing is queued</div>
+					<div class="perk-b">
+						{supporterActive
+							? 'As a supporter you can move it to the front of the queue.'
+							: 'Supporters can move any filing to the front of the synthesis queue.'}
+					</div>
+				</div>
+				{#if supporterActive}
+					<form method="POST" action="?/prioritize">
+						<button type="submit" class="perk-btn">Prioritize analysis →</button>
+					</form>
+				{:else}
+					<a href="/support" class="perk-btn perk-btn--cta">Become a supporter →</a>
+				{/if}
+			</div>
+			{#if form?.prioritized}
+				<p class="perk-msg">{form.message}</p>
+			{:else if form?.message}
+				<p class="perk-msg danger">{form.message}</p>
+			{/if}
+		</section>
+	{/if}
+
+	<!-- SECTION: Locked analysis (gated for free viewers; raw stays free above) -->
+	{#if analysisLock}
+		<section class="hairline-section">
+			<LockedBlock title={lockCopy(analysisLock).title} note={lockCopy(analysisLock).note} />
+		</section>
+	{/if}
+
 	<!-- SECTION: Filing analysis (structured page content) -->
 	{#if filingPageContent && (filingPageContent.intro?.content || filingPageContent.main?.content)}
 		<section class="hairline-section">
@@ -261,7 +307,7 @@
 						sticky
 						stickyHeading
 						eyebrow="SYMBOLOGY.ONLINE l{filingPageContent.main?.generationDepth} SYNTHESIS"
-						heading="{company?.ticker} &middot; Form {filing.form} Analysis"
+						heading="{company?.ticker} &middot; Form {filing.form} Synthesis"
 						synthesisHelp
 					/>
 
@@ -426,6 +472,68 @@
 {/if}
 
 <style>
+	/* Supporter "prioritize the queue" perk — shown while analysis is queued. */
+	.perk {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+		flex-wrap: wrap;
+		padding: 18px 20px;
+		border: 1px dashed var(--rule-2);
+		border-radius: 10px;
+		background: var(--sage-2);
+	}
+	:global(.dark) .perk {
+		background: var(--paper-2);
+	}
+	.perk-t {
+		font-family: var(--serif);
+		font-size: 16px;
+		color: var(--ink);
+	}
+	.perk-b {
+		font-size: 13px;
+		color: var(--ink-2);
+		margin-top: 3px;
+	}
+	.perk-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		white-space: nowrap;
+		font-family: var(--mono);
+		font-size: 12.5px;
+		font-weight: 500;
+		padding: 9px 16px;
+		border-radius: 9px;
+		border: 1px solid var(--rule);
+		background: var(--paper);
+		color: var(--ink);
+		text-decoration: none;
+		cursor: pointer;
+		transition: all 0.12s;
+	}
+	.perk-btn:hover {
+		border-color: var(--rule-2);
+	}
+	.perk-btn--cta {
+		background: var(--teal-2);
+		border-color: var(--teal-2);
+		color: #fff;
+	}
+	.perk-btn--cta:hover {
+		filter: brightness(1.06);
+	}
+	.perk-msg {
+		margin: 12px 2px 0;
+		font-size: 13px;
+		color: var(--ink-2);
+	}
+	.perk-msg.danger {
+		color: var(--danger);
+	}
+
 	/* Document-type group: non-clickable header over its list of change rows. */
 	.diff-group {
 		margin-top: 2rem;

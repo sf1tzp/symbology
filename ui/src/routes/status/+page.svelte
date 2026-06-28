@@ -397,9 +397,7 @@
 
 				<!-- Generated content by model -->
 				{#if modelBreakdown.length > 0}
-					<div
-						style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);"
-					>
+					<div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);">
 						<div class="flex-between" style="margin-bottom: 1.125rem;">
 							<h3 class="sub">By model</h3>
 							<span class="meta text-xs" style="color: var(--ink-4);">count latency cost</span>

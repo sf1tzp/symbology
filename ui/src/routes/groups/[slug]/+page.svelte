@@ -29,7 +29,7 @@
 
 <svelte:head>
 	<title>{group?.name || data.slug} - Sector - Symbology</title>
-	<meta name="description" content="Cross-company analysis for {group?.name || data.slug}" />
+	<meta name="description" content="Cross-company synthesis for {group?.name || data.slug}" />
 </svelte:head>
 
 <!-- Back link -->
@@ -104,7 +104,7 @@
 	{#if cleanedAnalysis}
 		<section class="hairline-section">
 			<div class="eyebrow" style="margin-bottom: 10px;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;ANALYSIS
+				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SYNTHESIS
 			</div>
 			<h2 class="section-heading" style="margin-bottom: 2rem;">Cross-company analysis</h2>
 
@@ -209,7 +209,7 @@
 	{:else if !cleanedSummary}
 		<section class="hairline-section">
 			<div class="eyebrow" style="margin-bottom: 10px;">
-				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;ANALYSIS
+				<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;SYNTHESIS
 			</div>
 			<h2 class="section-heading" style="margin-bottom: 2rem;">Cross-company analysis</h2>
 			<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">

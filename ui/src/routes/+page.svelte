@@ -54,8 +54,9 @@
 	<div class="mt-14 grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-20">
 		<p class="lede max-w-[44ch] text-ink-2">
 			Every quarter, thousands of public companies file disclosures with the SEC. Symbology
-			retrieves them, distills them, and surfaces what's actually changed &mdash; quarter by
-			quarter, year by year, across the companies you care about.
+			retrieves them and synthesizes readable prose from those large bodies of source documents
+			&mdash; surfacing what's actually changed, quarter by quarter, year by year, across the
+			companies you care about.
 		</p>
 		<div class="flex flex-col gap-4 pt-1.5">
 			<div class="flex flex-col gap-4 md:flex-row">
@@ -71,7 +72,8 @@
 				>
 			</div>
 			<div class="meta mt-1.5 text-ink-4">
-				No third-party data providers &middot; Sourced directly from SEC EDGAR
+				Sourced directly from SEC EDGAR &middot; Early access: hundreds of top companies, and
+				growing
 			</div>
 		</div>
 	</div>
@@ -118,7 +120,7 @@
 			</div>
 			<div class="stat">
 				<span class="stat-value">{formatStatValue(stats.documents)}</span>
-				<span class="stat-label">Sections Analysed</span>
+				<span class="stat-label">Sections Synthesised</span>
 			</div>
 			{#if stats.earliest_year}
 				<div class="stat">

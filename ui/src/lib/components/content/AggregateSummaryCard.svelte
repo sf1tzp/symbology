@@ -43,7 +43,7 @@
 			>
 				<div class="flex-between">
 					<span class="eyebrow" style="font-size: 10px;">
-						{getAnalysisTypeDisplay(summary.description || summary.document_type || 'Analysis')}
+						{getAnalysisTypeDisplay(summary.description || summary.document_type || 'Synthesis')}
 						{#if summary.form_type}
 							&middot; {summary.form_type}
 						{/if}

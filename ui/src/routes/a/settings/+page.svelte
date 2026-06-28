@@ -1,11 +1,40 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { authClient } from '$lib/auth-client';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Separator } from '$lib/components/ui/separator';
+	import SupporterCard from '$lib/components/SupporterCard.svelte';
+	import SupporterBadges from '$lib/components/SupporterBadges.svelte';
+	import { initials } from '$lib/nav';
+	import type { BadgeKey } from '$lib/supporter-plans';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 
 	let { data } = $props();
+
+	// ── Profile icon (avatar badge) ──
+	// The choice persists in Better Auth's `user.avatarBadge` field; clearing it
+	// ('') falls back to initials. Optimistic update, reverted on error.
+	let selectedBadge = $state<BadgeKey | null>(data.avatarBadgeKey);
+	let avatarSaving = $state(false);
+	let avatarMsg = $state('');
+
+	async function chooseAvatar(key: BadgeKey | null) {
+		if (avatarSaving || key === selectedBadge) return;
+		const prev = selectedBadge;
+		selectedBadge = key;
+		avatarSaving = true;
+		avatarMsg = '';
+		const { error } = await authClient.updateUser({ avatarBadge: key ?? '' });
+		avatarSaving = false;
+		if (error) {
+			selectedBadge = prev;
+			avatarMsg = error.message ?? 'Could not update your profile icon.';
+			return;
+		}
+		await invalidateAll();
+	}
 
 	// ── Profile ──
 	let name = $state(data.account.name);
@@ -76,16 +105,50 @@
 	}
 </script>
 
-<svelte:head><title>Account · Symbology</title></svelte:head>
+<svelte:head><title>Settings · Symbology</title></svelte:head>
 
 <div class="page narrow mx-auto py-10">
+	<a
+		href={resolve('/a/watchlist')}
+		class="meta mb-6 inline-flex items-center gap-1 text-ink-4 no-underline transition-colors hover:text-ink"
+	>
+		<ChevronLeft class="h-3.5 w-3.5" /> Back to account
+	</a>
 	<div class="flex-between mb-8">
 		<div>
 			<div class="eyebrow mb-3">● &nbsp;Your account</div>
-			<h1 class="display" style="font-size: 2.75rem;">Account.</h1>
+			<h1 class="display" style="font-size: 2.75rem;">Settings.</h1>
 		</div>
 		<Button variant="ghost" onclick={signOut}>Sign out</Button>
 	</div>
+
+	<!-- Supporter status -->
+	<section class="mb-10">
+		<SupporterCard supporter={data.supporter} />
+	</section>
+
+	{#if data.supporter.badges.length > 0}
+		<Separator class="mb-10" />
+
+		<!-- Profile icon: pick an earned badge, or keep initials -->
+		<section class="mb-10">
+			<h2 class="sub mb-2 text-ink-3">Profile icon</h2>
+			<p class="mb-4 text-sm text-ink-3">
+				Use one of your earned badges as your profile icon, or stick with your initials.
+			</p>
+			<SupporterBadges
+				badges={data.supporter.badges}
+				selectable
+				selectedKey={selectedBadge}
+				initials={initials(data.account.name)}
+				busy={avatarSaving}
+				onselect={chooseAvatar}
+			/>
+			{#if avatarMsg}<p class="mt-3 text-sm text-danger">{avatarMsg}</p>{/if}
+		</section>
+	{/if}
+
+	<Separator class="mb-10" />
 
 	<!-- Profile -->
 	<section class="max-w-md">

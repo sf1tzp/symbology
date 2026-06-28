@@ -238,7 +238,7 @@
 		<!-- Right: Documents & Analysis -->
 		<div style="border: 1px solid var(--rule); border-radius: 8px; padding: 1.5rem;">
 			<h4 class="sub" style="font-size: 12px; color: var(--ink-2); margin-bottom: 1rem;">
-				Documents & Analysis
+				Documents & Synthesis
 			</h4>
 			{#if filing.documents.length > 0}
 				<div>
@@ -268,7 +268,7 @@
 											onclick={() => goto(`/g/${ticker}/${gc.short_hash}`)}
 										>
 											<Sparkles class="h-2.5 w-2.5" />
-											Analysis
+											Synthesis
 										</button>
 									{/each}
 								{:else}

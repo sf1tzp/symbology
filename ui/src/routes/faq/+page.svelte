@@ -88,9 +88,9 @@
 				heading="What are synthesis levels?"
 			/>
 			<p>
-				Every piece of generated analysis carries a <strong>synthesis level</strong> — labelled L1 through
+				Every piece of generated synthesis carries a <strong>synthesis level</strong> — labelled L1 through
 				L4 — that records how many steps of generation separate it from the original filing text. Each
-				level is built only from the level beneath it, so the analysis forms a traceable chain rooted
+				level is built only from the level beneath it, so the synthesis forms a traceable chain rooted
 				in primary source material.
 			</p>
 
@@ -155,7 +155,7 @@
 			<p>
 				We are deliberately cautious about extending this chain too far. Each additional level moves
 				further from the source text and compounds the risk of hallucination, so we stop well before
-				the analysis becomes untethered from what the filings actually say. To keep every statement
+				the synthesis becomes untethered from what the filings actually say. To keep every statement
 				verifiable, the full chain of generation — and the source documents at its root — stays
 				visible, so a higher-level claim can always be traced back through the levels that produced
 				it.
@@ -228,7 +228,7 @@
 			</p>
 			<p>
 				Symbology automates that work end to end, from primary sources. No third-party data feeds
-				and no opinions layered on top: the analysis turns editorial only where it helps a reader,
+				and no opinions layered on top: the synthesis turns editorial only where it helps a reader,
 				and every statement traces back through its synthesis levels to the filing it came from.
 			</p>
 		</section>

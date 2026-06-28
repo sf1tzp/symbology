@@ -16,7 +16,7 @@
 
 <svelte:head>
 	<title>Groups - Symbology</title>
-	<meta name="description" content="Cross-company analysis groups on Symbology" />
+	<meta name="description" content="Cross-company synthesis groups on Symbology" />
 </svelte:head>
 
 <!-- Masthead -->

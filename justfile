@@ -31,7 +31,11 @@ lint-server *ARGS:
     just -d server -f server/justfile lint {{ARGS}}
 
 lint-ui *ARGS:
-    just -d ui -f ui/justfile format {{ARGS}}
+    just -d ui -f ui/justfile lint {{ARGS}}
+
+# Read-only UI lint for CI: fails on formatting drift instead of rewriting.
+lint-ui-check *ARGS:
+    just -d ui -f ui/justfile lint-check {{ARGS}}
 
 # The Alembic chain has one external-tool boundary: the `auth` schema is created
 # by Alembic (r7b8c9d0e1f2), but the tables inside it are created by Better

@@ -151,7 +151,7 @@ export function getAnalysisTypeDisplay(documentType: string): string {
 	if (type.includes('market_risk')) return 'Market Risk';
 	if (type.includes('executive_compensation')) return 'Executive Compensation';
 	if (type.includes('directors_officers')) return 'Directors & Officers';
-	if (type.includes('aggregate_summary')) return 'Change Analysis';
+	if (type.includes('aggregate_summary')) return 'Change Synthesis';
 
 	return documentType;
 }

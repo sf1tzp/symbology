@@ -693,7 +693,7 @@ export async function getJobQueueStats(window: number = STAT_WINDOW): Promise<Jo
 	// running / queued / backoff are point-in-time queue depths (no window); only
 	// the failed (dead-letter) count is windowed, scoped to the same stat window
 	// as the rest of the dashboard so the "Failed" stat matches its label.
-	const windowStart = sql`now() - make_interval(hours => ${window})`;
+	const windowStart = sql<Date>`now() - make_interval(hours => ${window})`;
 
 	const [runningRes, queuedRes, backoffRes, failedRes] = await Promise.all([
 		db
@@ -856,7 +856,7 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 		.where(
 			'workers.last_heartbeat',
 			'>=',
-			sql`now() - make_interval(secs => ${WORKER_HEARTBEAT_STALE_SECONDS})`
+			sql<Date>`now() - make_interval(secs => ${WORKER_HEARTBEAT_STALE_SECONDS})`
 		)
 		.orderBy('workers.id')
 		.execute();
@@ -976,10 +976,10 @@ export async function collectStatus(window: number = STAT_WINDOW): Promise<Statu
 		getContentBreakdown(),
 		getModelBreakdown(),
 		getContentThroughput(window),
-		getContentLog(25),
+		getContentLog(125),
 		getJobQueueStats(window),
 		getJobQueueDepth(window),
-		getRecentJobs(100),
+		getRecentJobs(125),
 		getWorkerSummary()
 	]);
 

@@ -3,8 +3,10 @@
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import SupporterBadges from '$lib/components/SupporterBadges.svelte';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Settings from '@lucide/svelte/icons/settings';
 	import X from '@lucide/svelte/icons/x';
 
 	let { data } = $props();
@@ -55,20 +57,34 @@
 	<!-- Header -->
 	<section class="grid items-end gap-12 md:grid-cols-2">
 		<div>
-			<div class="eyebrow mb-3.5">
-				● &nbsp;Your watchlist · {data.watching.length}
-				{data.watching.length === 1 ? 'company' : 'companies'}
+			<div class="flex-between mb-3.5 gap-4">
+				<div class="eyebrow">
+					● &nbsp;Your watchlist · {data.watching.length}
+					{data.watching.length === 1 ? 'company' : 'companies'}
+				</div>
+				<a
+					href={resolve('/a/settings')}
+					class="meta inline-flex items-center gap-1 whitespace-nowrap text-ink-4 no-underline transition-colors hover:text-ink"
+				>
+					<Settings class="h-3.5 w-3.5" /> Account settings
+				</a>
 			</div>
 			<h1 class="display mb-5" style="font-size: 3.5rem;">
 				Good morning,<br /><em>{data.firstName}.</em>
 			</h1>
 			<p class="lede text-ink-2">
 				{#if data.watching.length === 0}
-					Your watchlist is empty. Add a company to start tracking its filings and analysis.
+					Your watchlist is empty. Add a company to start tracking its filings and synthesis.
 				{:else}
 					Here's what you're tracking. The change feed and filing calendar are coming soon.
 				{/if}
 			</p>
+			{#if data.badges.length > 0}
+				<div class="mt-6">
+					<div class="sub mb-2.5 text-ink-3">Your badges</div>
+					<SupporterBadges badges={data.badges} />
+				</div>
+			{/if}
 		</div>
 		<div class="grid grid-cols-3 gap-4">
 			<div class="stat">

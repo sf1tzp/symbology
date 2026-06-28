@@ -34,7 +34,15 @@ export const auth = betterAuth({
 		// Allow self-service account deletion. No email-verification callback is
 		// configured, so deletion happens immediately; the client passes the
 		// current password so it works regardless of session freshness.
-		deleteUser: { enabled: true }
+		deleteUser: { enabled: true },
+		// Custom account-domain fields. `avatarBadge` holds the BadgeKey the user
+		// picked for their profile icon (null/empty = initials). Added to auth.user
+		// by `@better-auth/cli migrate`; it rides in the session, so the navbar
+		// reads it with no extra query. The client mirrors this shape via
+		// inferAdditionalFields in auth-client.ts.
+		additionalFields: {
+			avatarBadge: { type: 'string', required: false, input: true }
+		}
 	},
 	// sveltekitCookies must be the last plugin so it can flush Set-Cookie
 	// headers emitted by earlier hooks into SvelteKit's cookie jar.

@@ -259,7 +259,7 @@
 					sticky
 					stickyHeading
 					eyebrow="SYMBOLOGY.ONLINE l{generationDepth} SYNTHESIS"
-					heading="{company ? toTitleCase(company.name) : ''} {typeDisplay} Analysis"
+					heading="{company ? toTitleCase(company.name) : ''} {typeDisplay} Synthesis"
 					synthesisHelp
 				/>
 				<div class="body-text" style="color: var(--ink-2);">

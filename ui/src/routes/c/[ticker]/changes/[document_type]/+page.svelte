@@ -142,7 +142,7 @@
 
 <svelte:head>
 	<title>{typeDisplay} change report - {company?.ticker} - Symbology</title>
-	<meta name="description" content="{typeDisplay} change analysis for {companyName}" />
+	<meta name="description" content="{typeDisplay} change synthesis for {companyName}" />
 </svelte:head>
 
 <svelte:window onhashchange={openHashTarget} />
@@ -164,7 +164,7 @@
 		<SectionHead sticky {accent} eyebrow="symbology.online COMPARATIVE SYNTHESIS" heading="" />
 		<h1 class="display" style="margin-bottom: 1.25rem;">
 			{toTitleCase(companyName)}<br />
-			<em>{typeDisplay} analysis.</em>
+			<em>{typeDisplay} synthesis.</em>
 		</h1>
 		{#if changeReport?.intro?.content}
 			<p class="lede" style="max-width: 62ch; color: var(--ink-2);">
@@ -256,7 +256,7 @@
 				stickyHeading
 				{accent}
 				eyebrow="symbology.online l{generationDepth} SYNTHESIS"
-				heading="{toTitleCase(companyName)} - {typeDisplay} analysis."
+				heading="{toTitleCase(companyName)} - {typeDisplay} synthesis."
 				synthesisHelp
 			/>
 			<div class="analysis-body" style="color: var(--ink-2);">

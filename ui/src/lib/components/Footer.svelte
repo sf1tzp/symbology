@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Mark from '$lib/components/Mark.svelte';
 	import { resolve } from '$app/paths';
+	import { supportEnabled } from '$lib/features';
 </script>
 
 <footer class="border-t border-border">
@@ -24,6 +25,9 @@
 		<nav class="hidden items-center gap-4 text-sm text-ink-3 md:flex">
 			<a href={resolve('/companies')} class="transition-colors hover:text-ink">Companies</a>
 			<a href={resolve('/faq')} class="transition-colors hover:text-ink">FAQ</a>
+			{#if supportEnabled}
+				<a href={resolve('/support')} class="transition-colors hover:text-ink">Support</a>
+			{/if}
 			<a
 				href="https://github.com/sf1tzp/symbology/"
 				target="_blank"

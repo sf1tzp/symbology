@@ -7,6 +7,8 @@
 	import ChangeCard from '$lib/components/ChangeCard.svelte';
 	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import LockedBlock from '$lib/components/LockedBlock.svelte';
+	import { lockCopy } from '$lib/utils/lock';
 	import { docColor, changeKindColor } from '$lib/utils/changes';
 	import {
 		formatDate,
@@ -22,6 +24,8 @@
 
 	const company = $derived(data.company);
 	const page = $derived(data.companyPageContent);
+	// Set when this form's narrative exists but is gated for the (free) viewer.
+	const analysisLock = $derived(data.analysisLock ?? null);
 	const sourceFilings = $derived(data.sourceFilings ?? []);
 	const sourceInputTokens = $derived(data.sourceInputTokens ?? 0);
 	const filings = $derived(data.filings ?? []);
@@ -135,7 +139,7 @@
 
 <svelte:head>
 	<title>{companyName} - Symbology</title>
-	<meta name="description" content="Company analysis for {companyName}" />
+	<meta name="description" content="Company synthesis for {companyName}" />
 </svelte:head>
 
 <!-- Back link -->
@@ -185,6 +189,11 @@
 					<Sparkles class="h-2.5 w-2.5" />
 					Multi-Level Synthesis
 					<SynthesisHelp />
+				</span>
+			{:else if analysisLock}
+				<span class="tag flex gap-2">
+					<Sparkles class="h-2.5 w-2.5" />
+					Supporter analysis
 				</span>
 			{:else}
 				<span class="tag flex gap-2">
@@ -283,6 +292,13 @@
 	</div>
 {/snippet}
 
+<!-- Locked quarterly narrative (gated for free viewers; timeline stays free) -->
+{#if analysisLock}
+	<section style="margin-top: 3rem;">
+		<LockedBlock title={lockCopy(analysisLock).title} note={lockCopy(analysisLock).note} />
+	</section>
+{/if}
+
 <!-- THE BRIEF: reader-friendly, brief column left / analysis right -->
 {#if hasAnalysis}
 	<section style="margin-top: 3rem;">
@@ -323,7 +339,7 @@
 				<MarkdownContent class="" content={page?.main?.content ?? ''} />
 
 				{#if sourceFilings.length > 0}
-					<details class="md:hidden font-serif text-xs text-ink-3 italic">
+					<details class="font-serif text-xs text-ink-3 italic md:hidden">
 						<summary>Click to expand sources</summary>
 						{@render sourcesList(sourceFilings)}
 					</details>

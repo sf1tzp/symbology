@@ -22,7 +22,7 @@
 			single_summary: 'Single summary',
 			aggregate_summary: 'Aggregate summary',
 			frontpage_summary: 'Frontpage summary',
-			company_group_analysis: 'Group analysis'
+			company_group_analysis: 'Group synthesis'
 		};
 
 		const parts: string[] = [];

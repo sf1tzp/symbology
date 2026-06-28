@@ -5,11 +5,12 @@ import { getCurrentCompanyPageContent, getCompanyPageForms } from '$lib/server/d
 import { getFilingsTimeline, getSourceFilingInputTokens } from '$lib/server/db/filings';
 import { getFinancialComparison } from '$lib/server/db/financials';
 import { getLatestChangeCards, companyHasDiffSets } from '$lib/server/db/diffs';
+import { companyFormLock, viewerIsSupporter } from '$lib/server/gating';
 
 // Forms a company page can be published for, in display/default-priority order.
 const PAGE_FORMS = ['10-K', '10-Q'];
 
-export const load: PageServerLoad = async ({ params, url }) => {
+export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const ticker = params.ticker.toUpperCase();
 
 	const company = await getCompanyByTicker(ticker);
@@ -49,9 +50,17 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	// A company is visible once it has computed diffs OR published page content.
 	// Pending companies (diffs but no narrative yet) render a slimmed-down page;
 	// only companies with neither are kept out of reach (matching search/browse).
+	// Note: the existence test uses the *real* content, before any gating below.
 	if (!companyPageContent && !hasDiffSets) {
 		error(404, 'Company not found');
 	}
+
+	// Gate the quarterly (10-Q) narrative for free viewers. The 10-K page is
+	// always built from recent filings, so it's never history-gated here. When
+	// locked we withhold the narrative + change cards and surface a LockedBlock;
+	// the timeline, financials, and links to raw filings stay free.
+	const supporter = await viewerIsSupporter(locals.user);
+	const analysisLock = companyPageContent ? companyFormLock(selectedForm, supporter) : null;
 
 	// Resolve the source filings (newest first) for the provenance list.
 	const sourceIds = new Set(companyPageContent?.sourceFilingIds ?? []);
@@ -67,12 +76,15 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	return {
 		ticker,
 		company,
-		companyPageContent,
-		sourceFilings,
-		sourceInputTokens,
+		// Withhold the gated narrative + its provenance/change cards; the page
+		// renders a LockedBlock from `analysisLock` instead.
+		companyPageContent: analysisLock ? null : companyPageContent,
+		analysisLock,
+		sourceFilings: analysisLock ? [] : sourceFilings,
+		sourceInputTokens: analysisLock ? 0 : sourceInputTokens,
 		filings: timeline,
 		financialComparison,
-		changeCards,
+		changeCards: analysisLock ? [] : changeCards,
 		selectedForm,
 		availableForms
 	};

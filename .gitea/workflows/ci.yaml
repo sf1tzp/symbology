@@ -45,7 +45,7 @@ jobs:
           github-token: ${{ secrets.CONNECTION_PAT }}
 
       - name: Run lint
-        run: just lint-ui
+        run: just lint-ui-check
 
   build-and-push:
     # needs: lint # Don't interrupt the whole run if linting fails

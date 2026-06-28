@@ -112,7 +112,7 @@
 			case 'filing':
 				return 'Filing';
 			case 'generated_content':
-				return 'Analysis';
+				return 'Synthesis';
 			default:
 				return type;
 		}
@@ -146,7 +146,7 @@
 
 <svelte:head>
 	<title>{activeQuery ? `"${activeQuery}" - Search` : 'Search'} - Symbology</title>
-	<meta name="description" content="Search companies, filings, and analyses" />
+	<meta name="description" content="Search companies, filings, and syntheses" />
 </svelte:head>
 
 <!-- Masthead -->
@@ -169,7 +169,7 @@
 			bind:value={searchInput}
 			oninput={handleInput}
 			onkeydown={handleKeydown}
-			placeholder="Companies, filings, analyses..."
+			placeholder="Companies, filings, syntheses..."
 			style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--sans);
 			       font-size: 15px; color: var(--ink); padding: 0;"
 		/>
@@ -196,7 +196,7 @@
 					} }, { label: 'Filings', checked: showFilings, toggle: () => {
 						showFilings = !showFilings;
 						if (activeQuery) performSearch(activeQuery);
-					} }, { label: 'Analyses', checked: showAnalysis, toggle: () => {
+					} }, { label: 'Syntheses', checked: showAnalysis, toggle: () => {
 						showAnalysis = !showAnalysis;
 						if (activeQuery) performSearch(activeQuery);
 					} }] as filter (filter.label)}

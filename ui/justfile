@@ -6,11 +6,23 @@ deps:
 up:
   npm run dev -- --open --host 0.0.0.0
 
-lint:
-  npm run lint
+# Auto-format, apply lint fixes, then type-check. Each step is its own npm
+# script so a failure points at the exact tool; `just` stops on the first
+# non-zero line.
+lint: format
+  npm run check
 
+# Auto-format and apply lint fixes (no type-check).
 format:
   npm run format
+  npm run eslint
+
+# Read-only gate for CI: fail on formatting drift, lint problems, or type
+# errors — nothing is rewritten. Mirrors `lint` but in check mode.
+lint-check:
+  npm run format:check
+  npm run eslint:check
+  npm run check
 
 
 # Config is auto-discovered from src/lib/server/auth.ts; -y skips the interactive

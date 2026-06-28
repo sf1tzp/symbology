@@ -34,6 +34,7 @@ import symbology.database.ratings  # noqa: F401
 import symbology.database.jobs  # noqa: F401
 import symbology.database.workers  # noqa: F401
 import symbology.database.watchlist  # noqa: F401
+import symbology.database.supporter_grants  # noqa: F401
 
 target_metadata = Base.metadata
 

@@ -10,8 +10,11 @@
 </script>
 
 <svelte:head>
-	<title>Symbology - Investment Analysis Platform</title>
-	<meta name="description" content="Explore LLM-generated insights on publicly traded companies." />
+	<title>Symbology — SEC Filing Synthesis</title>
+	<meta
+		name="description"
+		content="Symbology synthesizes readable prose from large bodies of SEC filings — quarter by quarter, year by year, straight from primary sources."
+	/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 	<link rel="icon" href={favicon} />
 	<script
@@ -32,7 +35,7 @@
 <div
 	class="page flex min-h-screen flex-col bg-background pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0"
 >
-	<Navbar user={data.user} />
+	<Navbar user={data.user} supporter={data.supporter} avatarBadge={data.avatarBadge} />
 
 	<!--
 		w-full is load-bearing: <main> is a flex item of this column-flex wrapper,

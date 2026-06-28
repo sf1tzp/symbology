@@ -3,7 +3,7 @@
 
 	let {
 		// What's pending, e.g. "brief", "filing synthesis", "change report".
-		label = 'analysis',
+		label = 'synthesis',
 		// Optional subject for a more specific line, e.g. a company name.
 		subject = null
 	}: { label?: string; subject?: string | null } = $props();

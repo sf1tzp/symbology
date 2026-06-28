@@ -1,17 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import {
-		buildNavItems,
-		accountNavItem,
-		companyNavItem,
-		companyContextTicker,
-		isCurrentPath,
-		type NavUser
-	} from '$lib/nav';
+	import { buildMobileTabItems, companyContextTicker, isCurrentPath, type NavUser } from '$lib/nav';
 	import House from '@lucide/svelte/icons/house';
 	import Building2 from '@lucide/svelte/icons/building-2';
-	import Star from '@lucide/svelte/icons/star';
-	import Activity from '@lucide/svelte/icons/activity';
+	import Heart from '@lucide/svelte/icons/heart';
 	import CircleQuestionMark from '@lucide/svelte/icons/circle-question-mark';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
 	import LogIn from '@lucide/svelte/icons/log-in';
@@ -20,29 +12,20 @@
 	let { user = null }: { user?: NavUser } = $props();
 
 	// One icon per nav destination, keyed by href so it tracks the nav model.
+	// Company-context links (/c/…) fall through to the Building2 default.
 	const icons: Record<string, typeof House> = {
 		'/': House,
 		'/companies': Building2,
-		'/watchlist': Star,
-		'/status': Activity,
+		'/support': Heart,
 		'/faq': CircleQuestionMark,
-		'/account': CircleUser,
+		'/a/watchlist': CircleUser,
 		'/login': LogIn
 	};
 
-	// Same destinations as the desktop Navbar, plus the account/sign-in entry
-	// the Navbar shows as an avatar — surfaced here as a trailing tab so mobile
-	// users can reach their account without a separate menu.
-	let baseItems = $derived([...buildNavItems(user), accountNavItem(user)]);
-
-	// On a company-context route (company/filing/document), swap the center Status
-	// tab for a quick link back to the company's main page.
+	// On a company-context route (company/filing/document), the center slot becomes
+	// a quick link back to the company; otherwise it's the Support CTA.
 	let ticker = $derived(companyContextTicker(page.url.pathname, page.data));
-	let items = $derived(
-		ticker
-			? baseItems.map((item) => (item.href === '/status' ? companyNavItem(ticker) : item))
-			: baseItems
-	);
+	let items = $derived(buildMobileTabItems(user, ticker));
 </script>
 
 <!--

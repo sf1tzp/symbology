@@ -14,7 +14,7 @@
 	function redirectTarget(): string {
 		const to = page.url.searchParams.get('returnTo');
 		// Only allow same-site relative paths.
-		return to && to.startsWith('/') ? to : '/watchlist';
+		return to && to.startsWith('/') ? to : '/a/watchlist';
 	}
 
 	async function onSubmit(e: SubmitEvent) {

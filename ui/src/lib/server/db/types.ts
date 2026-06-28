@@ -71,6 +71,7 @@ export interface AuthSession {
 }
 
 export interface AuthUser {
+  avatarBadge: string | null;
   createdAt: Generated<Timestamp>;
   email: string;
   emailVerified: boolean;
@@ -364,6 +365,18 @@ export interface SectionDiffs {
   truncated: Generated<boolean>;
 }
 
+export interface SupporterGrants {
+  amount_cents: number;
+  days: number;
+  expires_at: Timestamp;
+  granted_at: Generated<Timestamp>;
+  id: Generated<string>;
+  plan_type: string;
+  provider: string;
+  provider_txn_id: string;
+  user_id: string;
+}
+
 export interface Watchlist {
   company_id: string;
   created_at: Generated<Timestamp>;
@@ -416,6 +429,7 @@ export interface DB {
   prompts: Prompts;
   ratings: Ratings;
   section_diffs: SectionDiffs;
+  supporter_grants: SupporterGrants;
   watchlist: Watchlist;
   workers: Workers;
 }

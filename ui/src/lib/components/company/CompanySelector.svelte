@@ -161,7 +161,7 @@
 			case 'filing':
 				return 'Filing';
 			case 'generated_content':
-				return 'Analysis';
+				return 'Synthesis';
 			default:
 				return type;
 		}

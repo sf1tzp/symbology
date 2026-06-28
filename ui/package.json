@@ -7,8 +7,10 @@
 		"dev": "vite dev --open --host 0.0.0.0",
 		"build": "vite build",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"format": "prettier --write . && eslint --fix .",
-		"lint": "prettier --check . && eslint . && npm run check"
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"eslint": "eslint --fix .",
+		"eslint:check": "eslint ."
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.0",
@@ -60,6 +62,7 @@
 		"kysely": "^0.29.2",
 		"marked": "^18.0.0",
 		"mode-watcher": "^1.1.0",
-		"pg": "^8.21.0"
+		"pg": "^8.21.0",
+		"stripe": "^22.2.2"
 	}
 }

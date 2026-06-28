@@ -17,7 +17,7 @@
 	const typeDisplay = $derived(
 		content?.document_type ? getAnalysisTypeDisplay(content.document_type) : null
 	);
-	const contentTitle = $derived(typeDisplay ? `${typeDisplay} Analysis` : 'Generated Analysis');
+	const contentTitle = $derived(typeDisplay ? `${typeDisplay} Synthesis` : 'Generated Synthesis');
 	const cleanedContent = $derived(cleanContent(content?.content ?? undefined));
 
 	function formatDuration(duration: number | null): string {
@@ -73,7 +73,7 @@
 <!-- Masthead -->
 <header>
 	<div class="eyebrow" style="margin-bottom: 1rem;">
-		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;CHANGE ANALYSIS
+		<span style="color: var(--teal-2);">&#9679;</span>&nbsp;&nbsp;CHANGE SYNTHESIS
 		{#if typeDisplay}&middot; {typeDisplay.toUpperCase()}{/if}
 		{#if content?.form_type}&middot; {content.form_type.toUpperCase()}{/if}
 	</div>
@@ -207,7 +207,7 @@
 		Generated from {content?.source_type === 'documents'
 			? 'source documents'
 			: content?.source_type === 'generated_content'
-				? 'prior analyses'
+				? 'prior syntheses'
 				: 'source materials'}
 		{#if modelConfig}&middot; {modelConfig.model}{/if}
 		{#if content?.content_hash}&middot; {content.short_hash ||

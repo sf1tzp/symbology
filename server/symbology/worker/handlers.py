@@ -1131,6 +1131,31 @@ def _filing_ready_for_diff(filing_id) -> bool:
     )
 
 
+def _filing_has_chunks(filing_id) -> bool:
+    """Whether EMBED_FILING has already produced *any* chunks for this filing.
+
+    Distinguishes "embedding hasn't run yet" (no chunks → genuinely pending, defer)
+    from "embedding ran but produced no semantic/clustered chunks" (chunks exist
+    yet :func:`_filing_ready_for_diff` is still False). The latter is terminal: the
+    filing's sections only yield non-semantic fallback chunks (a short 10-Q
+    risk-factors stub, or legal_proceedings — never heading-segmented), which are
+    excluded from topic clustering, so ``topic_id`` stays NULL and re-embedding is
+    a no-op. Backing off such a side loops forever.
+    """
+    from symbology.database.base import get_db_session
+    from symbology.database.document_chunks import DocumentChunk
+    from symbology.database.documents import Document
+
+    session = get_db_session()
+    return (
+        session.query(DocumentChunk.id)
+        .join(Document, DocumentChunk.document_id == Document.id)
+        .filter(Document.filing_id == filing_id)
+        .first()
+        is not None
+    )
+
+
 def _order_filings(a, b):
     """Return ``(older, newer)`` by period_of_report, falling back to filing_date."""
     from datetime import date
@@ -1233,6 +1258,20 @@ def handle_filing_diff(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 "right_filing_id": str(right_filing.id),
                 "form": form,
                 "skipped": "no_documents",
+            }
+        # A not-ready side that already has chunks has been embedded, but its
+        # sections only yield non-semantic fallback chunks (no topic_id) — so the
+        # readiness gate can never pass and re-embedding loops forever. Skip
+        # (terminal) rather than backing off. See _filing_has_chunks.
+        unclusterable = [f for f in not_ready if _filing_has_chunks(f.id)]
+        if unclusterable:
+            logger.info("filing_diff_skipped_no_semantic_chunks", form=form,
+                        filing_ids=[str(f.id) for f in unclusterable])
+            return {
+                "left_filing_id": str(left_filing.id),
+                "right_filing_id": str(right_filing.id),
+                "form": form,
+                "skipped": "no_semantic_chunks",
             }
         # Raises DependencyNotReady → worker defers (BACKOFF) until embeddings land.
         _await_filing_diff_embeddings(not_ready)

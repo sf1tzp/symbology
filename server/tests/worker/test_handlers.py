@@ -679,6 +679,7 @@ class TestHandleFilingDiff:
 
         with patch("symbology.worker.handlers._resolve_filing_token", side_effect=[a, b]), \
              patch("symbology.worker.handlers._filing_ready_for_diff", return_value=False), \
+             patch("symbology.worker.handlers._filing_has_chunks", return_value=False), \
              patch("symbology.worker.config_loader.load_pipeline_config",
                    return_value=SimpleNamespace(form_document_types={"10-K": ["risk_factors"]})), \
              patch("symbology.worker.page_pipelines._filing_has_pageable_documents", return_value=True), \
@@ -692,6 +693,32 @@ class TestHandleFilingDiff:
         successors = [j for j in created if j.job_type == JobType.FILING_DIFF]
         assert len(embeds) == 2  # both sides not ready (but have docs) → an embed job each
         assert successors == []  # no FILING_DIFF successor copy; worker defers this job
+
+    def test_skips_when_a_side_has_only_non_semantic_chunks(self):
+        """A not-ready side already embedded (chunks exist) but with no semantic,
+        clustered chunks can never become ready → skip, not backoff forever."""
+        from symbology.worker.handlers import handle_filing_diff
+        cid = uuid7()
+        a = _fake_diff_filing("accA", cid, period_year=2023)
+        b = _fake_diff_filing("accB", cid, period_year=2024)
+        created = []
+
+        def fake_create_job(job_type, params=None, priority=2, scheduled_at=None):
+            created.append(SimpleNamespace(id=uuid7(), job_type=job_type, params=params))
+            return created[-1]
+
+        with patch("symbology.worker.handlers._resolve_filing_token", side_effect=[a, b]), \
+             patch("symbology.worker.handlers._filing_ready_for_diff", return_value=False), \
+             patch("symbology.worker.handlers._filing_has_chunks", return_value=True), \
+             patch("symbology.worker.config_loader.load_pipeline_config",
+                   return_value=SimpleNamespace(form_document_types={"10-K": ["risk_factors"]})), \
+             patch("symbology.worker.page_pipelines._filing_has_pageable_documents", return_value=True), \
+             patch("symbology.database.jobs.get_active_jobs", return_value=[]), \
+             patch("symbology.database.jobs.create_job", side_effect=fake_create_job):
+            result = handle_filing_diff({"from": "accA", "to": "accB"})
+
+        assert result["skipped"] == "no_semantic_chunks"
+        assert created == []  # no EMBED enqueued, no backoff
 
     def test_skips_when_a_side_has_no_documents(self):
         """A not-ready side that has no documents can never embed → skip, not backoff."""

@@ -93,6 +93,7 @@ async function toGeneratedContentResponse(
 		description: row.description,
 		document_type: row.document_type,
 		content_stage: row.content_stage,
+		generation_depth: row.generation_depth,
 		form_type: row.form_type,
 		source_type: row.source_type,
 		created_at: toISOString(row.created_at),
@@ -275,21 +276,63 @@ export async function getPromptById(id: string): Promise<PromptResponse | null> 
 	};
 }
 
+// One side's filing reference for the side-by-side DiffView (prior = left,
+// current = right). Mirrors DiffView's `FilingRef` prop shape.
+export interface TopicDiffFilingRef {
+	form: string;
+	filingDate: string | null;
+	periodOfReport: string | null;
+	accessionNumber: string;
+	/** Short content hash of this side's document, for the /d deep link. */
+	documentHash: string | null;
+}
+
+// Everything the /s/ viewer needs to render a topic-diff summary's sources as a
+// proper side-by-side diff (via DiffView) rather than two plain-text cards:
+//   - `topic` carries the raw token ops + change kind, fed straight to DiffView;
+//   - `leftFiling`/`rightFiling` are the prior/current filing refs;
+//   - `sides` is the flattened prior/current text retained for the sources
+//     sidebar (labels + deep links + the source count).
+export interface TopicDiffView {
+	topic: {
+		sectionPath: string | null;
+		heading: string | null;
+		changeKind: string;
+		ops: DiffOp[];
+		truncated: boolean;
+	};
+	leftFiling: TopicDiffFilingRef | null;
+	rightFiling: TopicDiffFilingRef | null;
+	sides: DiffSourceSide[];
+}
+
 // A topic-diff summary's true sources are the two texts it compared: the prior
 // and current period versions of one disclosure topic. They aren't stored as
 // association rows — they live as the token ops on the section_diff that points
-// at this content. Reconstruct each side losslessly from the ops (left column =
-// equal+delete, right column = equal+insert) and resolve a deep link to each
-// side's document page. Returns [] when this content isn't a topic-diff summary.
-export async function getTopicDiffSourcesByContentId(contentId: string): Promise<DiffSourceSide[]> {
+// at this content. Return the raw ops (so the page can render them through the
+// shared DiffView) alongside each side's filing ref, plus the flattened text
+// halves the sources sidebar still uses. Returns null when this content isn't a
+// topic-diff summary.
+export async function getTopicDiffViewByContentId(
+	contentId: string
+): Promise<TopicDiffView | null> {
 	const sd = await db
 		.selectFrom('section_diffs as sd')
 		.innerJoin('diff_sets as ds', 'ds.id', 'sd.diff_set_id')
-		.select(['sd.ops', 'ds.left_filing_id', 'ds.right_filing_id', 'ds.document_type'])
+		.select([
+			'sd.ops',
+			'sd.section_path',
+			'sd.heading',
+			'sd.change_kind',
+			'sd.truncated',
+			'ds.left_filing_id',
+			'ds.right_filing_id',
+			'ds.document_type'
+		])
 		.where('sd.summary_content_id', '=', contentId)
 		.executeTakeFirst();
 
-	if (!sd) return [];
+	if (!sd) return null;
 
 	const ops = (sd.ops ?? []) as unknown as DiffOp[];
 	const priorText = ops
@@ -303,15 +346,12 @@ export async function getTopicDiffSourcesByContentId(contentId: string): Promise
 
 	// Resolve each filing's document of the diff's type for deep links + labels.
 	const filingIds = [sd.left_filing_id, sd.right_filing_id].filter((x): x is string => !!x);
-	const meta = new Map<
-		string,
-		{ accession: string | null; hash: string | null; form: string | null; date: string | null }
-	>();
+	const meta = new Map<string, TopicDiffFilingRef & { date: string | null }>();
 	if (filingIds.length > 0) {
 		const [filings, docs] = await Promise.all([
 			db
 				.selectFrom('filings')
-				.select(['id', 'accession_number', 'form', 'filing_date'])
+				.select(['id', 'accession_number', 'form', 'filing_date', 'period_of_report'])
 				.where('id', 'in', filingIds)
 				.execute(),
 			db
@@ -329,42 +369,64 @@ export async function getTopicDiffSourcesByContentId(contentId: string): Promise
 		}
 		for (const f of filings) {
 			meta.set(f.id, {
-				accession: f.accession_number,
-				hash: hashByFiling.get(f.id) ?? null,
+				accessionNumber: f.accession_number,
+				documentHash: hashByFiling.get(f.id) ?? null,
 				form: f.form,
+				filingDate: f.filing_date ? toDateString(f.filing_date) : null,
+				periodOfReport: f.period_of_report ? toDateString(f.period_of_report) : null,
 				date: f.filing_date ? toDateString(f.filing_date) : null
 			});
 		}
 	}
 
-	const sideHref = (filingId: string | null): string | null => {
-		if (!filingId) return null;
-		const m = meta.get(filingId);
-		return m?.accession && m.hash ? `/d/${m.accession}/${m.hash}` : null;
+	const priorMeta = sd.left_filing_id ? (meta.get(sd.left_filing_id) ?? null) : null;
+	const currentMeta = sd.right_filing_id ? (meta.get(sd.right_filing_id) ?? null) : null;
+
+	const filingRef = (m: TopicDiffFilingRef | null): TopicDiffFilingRef | null =>
+		m
+			? {
+					form: m.form,
+					filingDate: m.filingDate,
+					periodOfReport: m.periodOfReport,
+					accessionNumber: m.accessionNumber,
+					documentHash: m.documentHash
+				}
+			: null;
+
+	const sideHref = (m: TopicDiffFilingRef | null): string | null =>
+		m?.accessionNumber && m.documentHash ? `/d/${m.accessionNumber}/${m.documentHash}` : null;
+
+	const sides: DiffSourceSide[] = [
+		{
+			label: 'Prior period',
+			period: 'prior',
+			text: priorText || '(not present in the prior filing)',
+			href: sideHref(priorMeta),
+			filingForm: priorMeta?.form ?? null,
+			filingDate: priorMeta?.filingDate ?? null
+		},
+		{
+			label: 'Current period',
+			period: 'current',
+			text: currentText || '(removed — not present in the current filing)',
+			href: sideHref(currentMeta),
+			filingForm: currentMeta?.form ?? null,
+			filingDate: currentMeta?.filingDate ?? null
+		}
+	];
+
+	return {
+		topic: {
+			sectionPath: sd.section_path,
+			heading: sd.heading,
+			changeKind: sd.change_kind,
+			ops,
+			truncated: sd.truncated
+		},
+		leftFiling: filingRef(priorMeta),
+		rightFiling: filingRef(currentMeta),
+		sides
 	};
-
-	const sides: DiffSourceSide[] = [];
-	const priorMeta = sd.left_filing_id ? meta.get(sd.left_filing_id) : null;
-	const currentMeta = sd.right_filing_id ? meta.get(sd.right_filing_id) : null;
-
-	sides.push({
-		label: 'Prior period',
-		period: 'prior',
-		text: priorText || '(not present in the prior filing)',
-		href: sideHref(sd.left_filing_id),
-		filingForm: priorMeta?.form ?? null,
-		filingDate: priorMeta?.date ?? null
-	});
-	sides.push({
-		label: 'Current period',
-		period: 'current',
-		text: currentText || '(removed — not present in the current filing)',
-		href: sideHref(sd.right_filing_id),
-		filingForm: currentMeta?.form ?? null,
-		filingDate: currentMeta?.date ?? null
-	});
-
-	return sides;
 }
 
 function toISOString(val: unknown): string {

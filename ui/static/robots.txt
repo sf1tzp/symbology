@@ -1,0 +1,11 @@
+# https://symbology.online
+# Public company/filing pages are crawlable; authenticated and API routes are not.
+
+User-agent: *
+Allow: /
+Disallow: /a/
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+
+# Sitemap: https://symbology.online/sitemap.xml

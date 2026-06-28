@@ -1,5 +1,11 @@
 import { db } from '../db';
-import { SUPPORT_CAP_ISO, earnedBadges, type AmountBadge } from '$lib/supporter-plans';
+import {
+	SUPPORT_CAP_ISO,
+	MAXXING_BADGE,
+	daysAllowedBeforeCap,
+	earnedBadges,
+	type AmountBadge
+} from '$lib/supporter-plans';
 
 const DAY_MS = 86_400_000;
 
@@ -13,6 +19,8 @@ export interface SupporterStatus {
 	daysLeft: number;
 	/** Total ever contributed, in cents. */
 	totalCents: number;
+	/** Number of contributions (grants) on record. */
+	grantCount: number;
 	/** First grant timestamp, or null. */
 	since: string | null;
 	/** plan_type of the most recent grant ('one' | 'duration'), or null. */
@@ -41,6 +49,7 @@ export async function getSupporterStatus(userId: string): Promise<SupporterStatu
 			expiresAt: null,
 			daysLeft: 0,
 			totalCents: 0,
+			grantCount: 0,
 			since: null,
 			latestPlan: null,
 			badges: []
@@ -48,8 +57,13 @@ export async function getSupporterStatus(userId: string): Promise<SupporterStatu
 	}
 
 	const now = Date.now();
-	const maxExpires = new Date(toIso(rows[0].expires_at)).getTime();
+	const expiresAt = toIso(rows[0].expires_at);
+	const maxExpires = new Date(expiresAt).getTime();
 	const active = maxExpires > now;
+	// "Window Maxxing": their furthest expiry reaches the cap, so there's no room
+	// to buy even one more day. Gated on `active` so it can't spuriously fire for
+	// everyone once the cap date itself passes.
+	const windowMaxed = active && daysAllowedBeforeCap(expiresAt, now) === 0;
 	const totalCents = rows.reduce((sum, r) => sum + r.amount_cents, 0);
 	const since = rows.reduce<string>((min, r) => {
 		const g = toIso(r.granted_at);
@@ -58,14 +72,19 @@ export async function getSupporterStatus(userId: string): Promise<SupporterStatu
 
 	return {
 		active,
-		expiresAt: toIso(rows[0].expires_at),
+		expiresAt,
 		daysLeft: active ? Math.ceil((maxExpires - now) / DAY_MS) : 0,
 		totalCents,
+		grantCount: rows.length,
 		since: since || null,
 		latestPlan: rows[0].plan_type,
 		// Badges are earned by the dollar amount of each pledge (== days for the
-		// $1/day plan; $20 for the one-time, which earns nothing).
-		badges: earnedBadges(rows.map((r) => r.amount_cents / 100))
+		// $1/day plan; $20 for the one-time, which earns nothing), plus the
+		// window-context "Window Maxxing" badge when they've reached the cap.
+		badges: [
+			...earnedBadges(rows.map((r) => r.amount_cents / 100)),
+			...(windowMaxed ? [MAXXING_BADGE] : [])
+		]
 	};
 }
 

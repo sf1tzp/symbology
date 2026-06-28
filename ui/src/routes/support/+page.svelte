@@ -2,13 +2,15 @@
 	import { page } from '$app/state';
 	import Heart from '@lucide/svelte/icons/heart';
 	import Check from '@lucide/svelte/icons/check';
+	import PenLine from '@lucide/svelte/icons/pen-line';
 	import SupporterCard from '$lib/components/SupporterCard.svelte';
 	import {
-		amountBadge,
+		amountBadges,
+		badgeMilestones,
 		daysAllowedBeforeCap,
+		MAXXING_BADGE,
 		BADGE_HEX,
 		MIN_DAYS,
-		MAX_DAYS,
 		DEFAULT_DAYS,
 		ONE_TIME_DAYS,
 		ONE_TIME_PRICE,
@@ -25,24 +27,15 @@
 	// (avoids a hydration mismatch from Date.now() drifting between the two).
 	const now = Date.now();
 
-	// ── Duration plan: $1 a day. The slider's reach is bounded by the policy cap
-	// (Dec 31 2028) stacked onto any window the user already holds.
+	// ── Duration plan: $1 a day. The slider runs the full range up to the policy
+	// cap (Dec 31 2028), stacked onto any window the user already holds.
 	// Intentional one-time snapshot: this seeds the mutable `days` slider below, so
 	// it must NOT reactively reset when `data` changes out from under the user.
 	// svelte-ignore state_referenced_locally
 	const capRemaining = daysAllowedBeforeCap(data.supporter?.expiresAt ?? null, now);
-	const effectiveMax = Math.min(MAX_DAYS, capRemaining);
-	const capBinding = effectiveMax < MAX_DAYS; // cap (not 888) is the limiter
+	const effectiveMax = capRemaining; // the cap is the only ceiling
 	const durationAtCap = capRemaining < MIN_DAYS; // no room for the smallest pledge
 	const oneTimeAllowed = capRemaining >= ONE_TIME_DAYS;
-
-	const presetDefs: [number, string][] = [
-		[33, '33d'],
-		[90, 'Quarter'],
-		[365, 'Year'],
-		[MAX_DAYS, 'Max']
-	];
-	const presets = $derived(presetDefs.filter(([d]) => d <= effectiveMax));
 
 	let days = $state(Math.min(DEFAULT_DAYS, Math.max(MIN_DAYS, effectiveMax)));
 
@@ -53,8 +46,56 @@
 	let fillPct = $derived(
 		effectiveMax > MIN_DAYS ? ((days - MIN_DAYS) / (effectiveMax - MIN_DAYS)) * 100 : 0
 	);
-	// The fun easter-egg badge for the currently-selected amount, if any.
-	let badge = $derived(amountBadge(days));
+	// The fun easter-egg badges for the currently-selected amount (they stack —
+	// e.g. 256 earns both "Integer Overflow" and "Power of 2"). Picking the very
+	// top of the slider tops the window out to the cap, which earns the gold
+	// "Window Maxxing" badge on top. May be empty.
+	let badges = $derived([...amountBadges(days), ...(days === effectiveMax ? [MAXXING_BADGE] : [])]);
+
+	// ── Slider snapping. There are hundreds of selectable values, so landing on a
+	// special "badge" number by drag alone is fiddly. We give those milestones a
+	// magnetic pull: while dragging, a value within `snapRadius` of one snaps to
+	// it. Radius scales with the range (~1%) so the capture zone feels consistent
+	// regardless of how far off the cap is. Typing an exact value (below) bypasses
+	// this entirely.
+	const milestones = $derived(badgeMilestones(MIN_DAYS, effectiveMax));
+	const snapRadius = $derived(Math.max(3, Math.round((effectiveMax - MIN_DAYS) / 100)));
+	// Only the magnet should fight a drag — keyboard arrows must still nudge by 1,
+	// so snapping is gated on an active pointer drag.
+	let dragging = $state(false);
+	function snapDays(v: number): number {
+		let best = v;
+		let bestDist = snapRadius + 1;
+		for (const m of milestones) {
+			const dist = Math.abs(m - v);
+			if (dist <= snapRadius && dist < bestDist) {
+				best = m;
+				bestDist = dist;
+			}
+		}
+		return Math.min(effectiveMax, Math.max(MIN_DAYS, best));
+	}
+
+	// ── Exact entry. The big "$N" display is clickable: it swaps to a number input
+	// so a supporter can type a precise value (clamped to range) instead of hunting
+	// for it on the slider. Typed values are taken as-is — no snapping.
+	let editing = $state(false);
+	let draft = $state('');
+	function startEdit() {
+		draft = String(days);
+		editing = true;
+	}
+	function commitEdit() {
+		const n = Math.round(Number(draft));
+		if (draft.trim() !== '' && Number.isFinite(n)) {
+			days = Math.min(effectiveMax, Math.max(MIN_DAYS, n));
+		}
+		editing = false;
+	}
+	function focusSelect(node: HTMLInputElement) {
+		node.focus();
+		node.select();
+	}
 
 	// ── Tier feature lists ──
 	const freeFeatures: string[] = [
@@ -73,11 +114,11 @@
 	const faqs: [string, string][] = [
 		[
 			'Is this a subscription?',
-			"No — and it never will be. Both options are one-time payments: $20 for 14 days, or $1/day for any stretch from 33 up to 888 days. Nothing auto-renews and there's nothing to cancel."
+			"No. Both options are one-time payments: $20 for 14 days, or $1/day for any stretch from 33 days up to our current Dec 31, 2028 cap. Nothing auto-renews and there's nothing to cancel."
 		],
 		[
 			'What happens when it lapses?',
-			'Your account quietly returns to the free tier. Nothing is deleted, and you’re never locked out of raw filings or 10-K synthesis.'
+			'Your account simply returns to the free tier. Nothing is deleted, and you’re never locked out of raw filings or 10-K synthesis.'
 		],
 		[
 			'Can I add more days later?',
@@ -104,13 +145,14 @@
 			Keep the synthesis <em>running.</em>
 		</h1>
 		<p class="lede mx-auto my-0 max-w-[60ch] text-ink-2">
-			Symbology is independent and sourced straight from EDGAR — no data vendors, no resale. We're
-			at an early stage, working through a first dataset of several hundred of the top publicly
-			traded companies. Synthesizing thousands of filings into readable prose takes real compute —
-			supporters help cover it, and unlock everything as a thank-you.
+			As we catch up on existing filings, we're seeking early adopters to pitch in!
 		</p>
-		<span class="tag mt-6 border-transparent bg-sage-2 px-[14px] py-[6px] text-teal-2">
-			Pledge $1/day, or drop a one-time $20 · no subscriptions · no auto-renewals
+		<p class="lede mx-auto my-2 max-w-[60ch] text-ink-2">
+			Show your support - for just $1/day secure your access to advanced features and support
+			ongoing symbology operations.
+		</p>
+		<span class="tag mt-4 border-transparent bg-sage-2 px-[14px] py-[6px] text-teal-2">
+			Now through Dec 31, 2026, receive an Early-Supporter badge for your profile
 		</span>
 	</section>
 
@@ -126,7 +168,7 @@
 	{/if}
 
 	<!-- ── Plans ── -->
-	<section class="mt-16">
+	<section class="mt-14">
 		{#if form?.message}
 			<p
 				class="mb-6 rounded-lg border border-l-[3px] border-rule border-l-danger bg-paper-2 px-4 py-3 text-center text-sm text-danger"
@@ -149,14 +191,18 @@
 				<div
 					class="mt-4 mb-1 font-serif text-[52px] leading-none tracking-[-0.03em] text-ink md:text-[60px]"
 				>
-					${ONE_TIME_PRICE}
+					${ONE_TIME_PRICE} <span class="text-[32px]">Lunch Special</span>
 				</div>
 				<div class="mb-[14px] font-serif text-[19px] text-teal-2">
 					{ONE_TIME_DAYS} days of supporter status
 				</div>
 				<div class="mb-6 text-[14.5px] leading-[1.6] text-ink-2">
-					A coffee or two. Unlocks everything for two weeks — try the quarterly synthesis, the full
-					cluster collections, and queue prioritization. A one-time thank-you; nothing renews.
+					<p>
+						Show your support and buy us some lunch. ${ONE_TIME_PRICE} gets you {ONE_TIME_DAYS} days access
+						to Symbology.
+					</p>
+					<p class="mt-2">Catch up on the latest filings. Then, Like what you see?</p>
+					<p class="mt-2">Come back and lock in for $1/day.</p>
 				</div>
 				<form method="POST" action="?/checkout" class="mt-auto">
 					<input type="hidden" name="plan" value="one" />
@@ -168,9 +214,9 @@
 						Support once · ${ONE_TIME_PRICE}
 					</button>
 				</form>
-				<div class="mt-[14px] font-mono text-[11.5px] text-ink-4">
+				<div class="mt-4 font-mono text-[11.5px] text-ink-4">
 					{#if oneTimeAllowed}
-						One-time payment · expires after {ONE_TIME_DAYS} days · optional lapse reminder
+						One-time payment · expires after {ONE_TIME_DAYS} days
 					{:else}
 						Your window already reaches the Dec 31, 2028 cap
 					{/if}
@@ -187,7 +233,7 @@
 						>You're all set</span
 					>
 					<div class="font-mono text-[11px] tracking-[0.1em] text-ink-3 uppercase">
-						Pay as you go · $1 a day
+						Pay what you want · $1 a day
 					</div>
 					<div
 						class="mt-4 mb-1 font-serif text-[52px] leading-none tracking-[-0.03em] text-ink md:text-[60px]"
@@ -207,39 +253,67 @@
 						>Pick your duration</span
 					>
 					<div class="font-mono text-[11px] tracking-[0.1em] text-ink-3 uppercase">
-						Pay as you go · $1 a day
+						Pay what you want · $1 a day
 					</div>
 					<div
 						class="mt-4 mb-1 font-serif text-[52px] leading-none tracking-[-0.03em] text-ink md:text-[60px]"
 					>
-						${days}<small
-							class="ml-1.5 font-sans text-[17px] font-normal tracking-normal text-ink-3"
-							>· {days} days</small
+						{#if editing}
+							<span class="align-baseline">$</span><input
+								type="text"
+								inputmode="numeric"
+								bind:value={draft}
+								use:focusSelect
+								onblur={commitEdit}
+								onkeydown={(e) => {
+									if (e.key === 'Enter') {
+										e.preventDefault();
+										commitEdit();
+									} else if (e.key === 'Escape') {
+										editing = false;
+									}
+								}}
+								aria-label="Number of days to support"
+								class="w-[3.6ch] border-b-2 border-teal-2 bg-transparent font-serif text-[52px] leading-none tracking-[-0.03em] text-ink outline-none md:text-[60px]"
+							/>
+						{:else}
+							<button
+								type="button"
+								onclick={startEdit}
+								title="Click to type an exact number of days"
+								class="cursor-text bg-transparent p-0 font-serif text-[52px] leading-none tracking-[-0.03em] text-ink underline decoration-rule-2 decoration-dotted decoration-1 underline-offset-8 md:text-[60px]"
+								>${days}</button
+							>
+						{/if}<small class="ml-1.5 font-sans text-[17px] font-normal tracking-normal text-ink-3"
+							><PenLine class="mr-1 inline size-3 align-middle text-ink" aria-hidden="true" />{days} days</small
 						>
 					</div>
-					<div class="mb-[14px] font-serif text-[19px] text-teal-2">
+					<div class="mb-4 font-serif text-[19px] text-teal-2">
 						{days} days of supporter status
 					</div>
 
-					{#if badge}
-						<div
-							class="mb-4 inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1 font-mono"
-							style="color: {BADGE_HEX[badge.color]}; border-color: color-mix(in oklab, {BADGE_HEX[
-								badge.color
-							]} 45%, transparent); background: color-mix(in oklab, {BADGE_HEX[
-								badge.color
-							]} 12%, transparent);"
-						>
-							<span class="text-sm leading-none">{badge.emoji}</span>
-							<span class="text-xs">{badge.label}</span>
-						</div>
-					{:else}
-						<div
-							class="text-12 mb-4 inline-flex min-h-9 items-center gap-2 px-3 py-1 font-mono font-semibold"
-						>
-							<span class="text-12 invisible leading-none">Hi</span>
-						</div>
-					{/if}
+					<!-- Badges stack, so this row holds a variable number of pills. It's a
+					     fixed-height (min-h-9), non-wrapping, clipped row so the count can
+					     change as the slider moves without shifting the content below; an
+					     invisible spacer holds the height when nothing qualifies. -->
+					<div class="mb-4 flex min-h-9 flex-nowrap items-center gap-2 overflow-hidden font-mono">
+						{#each badges as b (b.key)}
+							<span
+								class="inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1"
+								style="color: {BADGE_HEX[b.color]}; border-color: color-mix(in oklab, {BADGE_HEX[
+									b.color
+								]} 45%, transparent); background: color-mix(in oklab, {BADGE_HEX[
+									b.color
+								]} 12%, transparent);"
+							>
+								<span class="text-sm leading-none">{b.emoji}</span>
+								<span class="text-xs whitespace-nowrap">{b.label}</span>
+							</span>
+						{/each}
+						{#if badges.length === 0}
+							<span class="invisible text-xs leading-none">Hi</span>
+						{/if}
+					</div>
 
 					<div class="mb-6">
 						<div class="mb-4 flex items-baseline justify-between">
@@ -255,39 +329,28 @@
 							min={MIN_DAYS}
 							max={effectiveMax}
 							step={1}
-							bind:value={days}
+							value={days}
+							onpointerdown={() => (dragging = true)}
+							onpointerup={() => (dragging = false)}
+							onpointercancel={() => (dragging = false)}
+							oninput={(e) => {
+								const raw = e.currentTarget.valueAsNumber;
+								days = dragging ? snapDays(raw) : raw;
+							}}
 							aria-label="Number of days to support"
 							style="background: linear-gradient(to right, var(--teal-2) {fillPct}%, var(--rule-2) {fillPct}%);"
 						/>
 						<div class="mt-2.5 flex justify-between font-mono text-[10.5px] text-ink-4">
-							<span>{MIN_DAYS} days · ${MIN_DAYS}</span><span
-								>{effectiveMax} days · ${effectiveMax}</span
-							>
+							<span>{MIN_DAYS} days</span><span>{effectiveMax} days</span>
 						</div>
-						<div class="mt-[14px] flex gap-1.5">
-							{#each presets as [d, label] (d)}
-								<button
-									type="button"
-									class="flex-1 cursor-pointer appearance-none rounded-[7px] border px-1 py-1.5 font-mono text-[10.5px] tracking-[0.04em] transition-all duration-[120ms] {days ===
-									d
-										? 'border-transparent bg-sage-2 text-teal-2'
-										: 'border-rule bg-paper text-ink-3 hover:border-rule-2 hover:text-ink'}"
-									onclick={() => (days = d)}
-								>
-									{label}
-								</button>
-							{/each}
-						</div>
-						{#if capBinding}
-							<p class="mt-3 font-mono text-[11px] text-ink-4">
-								Capped at {effectiveMax} days — supporter windows currently end Dec 31, 2028.
-							</p>
-						{/if}
+						<p class="mt-3 font-mono text-[11px] text-ink-4">
+							Supporter window currently capped Dec 31, 2028
+						</p>
 					</div>
 
 					<div class="mb-6 text-[14.5px] leading-[1.6] text-ink-2">
-						A flat dollar a day — choose any stretch up to {MAX_DAYS} days. Everything unlocks for the
-						whole window, then your account quietly returns to free. One payment; nothing renews.
+						<p>Access new and advanced features for just $1/day - lock in now thru 2029!</p>
+						<p class="mt-2">Unlock special profile badges by supporting with specific amounts</p>
 					</div>
 					<form method="POST" action="?/checkout" class="mt-auto">
 						<input type="hidden" name="plan" value="duration" />
@@ -380,7 +443,8 @@
 	</section>
 
 	<!-- ── Support log: honest early-stage placeholder ── -->
-	<section class="hairline-section">
+	<!-- TODO: Implement -->
+	<!-- <section class="hairline-section">
 		<div class="flex flex-wrap items-baseline justify-between gap-4">
 			<div>
 				<div class="eyebrow mb-[0.6rem] flex items-center">
@@ -393,14 +457,14 @@
 			class="mt-6 rounded-xl border border-dashed border-rule-2 p-8 text-center text-[14.5px] leading-[1.6] text-ink-2"
 		>
 			<p class="mx-auto my-0 max-w-[56ch]">
-				This is where supporters show up. We're just getting started — pledges will appear here as
+				This is where supporters show up. Supporters will be listed here as
 				they come in, by first name + last initial (or “Anonymous” if you'd rather stay private).
 			</p>
 			<p class="mt-3 mb-0 font-mono text-[11.5px] text-ink-4">
 				No supporters to show yet. The next name here could be yours.
 			</p>
 		</div>
-	</section>
+	</section> -->
 
 	<!-- ── Why support ── -->
 	<section class="hairline-section">
@@ -413,24 +477,24 @@
 			</div>
 			<div class="flex flex-col gap-6">
 				<p class="body-text text-[1.0625rem] text-ink-2">
-					We're early. Right now we're working through a first dataset — several hundred of the top
-					publicly traded companies — and the
+					Symbology is an independent operation that relies heavily on Local LLMs -
 					<strong class="text-ink"
-						>vast majority of Symbology's synthesis runs on consumer hardware</strong
-					>. That keeps our costs low and avoids a large datacenter footprint for this initial run.
+						>the vast majority of Symbology's synthesis runs on consumer hardware</strong
+					>. That keeps our costs low and avoids reliance on large datacenters as much as possible.
+				</p>
+				<p class="body-text text-[1.0625rem] text-ink-2">
+					We're using this time to refine our content quality and explore advanced synthesis
+					possibilities.
 				</p>
 				<p class="body-text text-[1.0625rem] text-ink-2">
 					Your support goes toward <strong class="text-ink">ongoing synthesis</strong>, expanding
-					our operational capacity, and additional R&amp;D. There are no investors and nothing to
-					upsell — the code is open source, the data comes straight from EDGAR, and we never resell
-					what we read.
+					our operational capacity, and additional R&amp;D and feature work.
 				</p>
 				<div class="flex flex-wrap gap-2.5">
 					<span class="tag">No subscriptions</span>
-					<span class="tag">No data resale</span>
 					<span class="tag">Open source</span>
-					<span class="tag tag-mono">Runs on consumer hardware</span>
-					<span class="tag tag-mono">Sourced from SEC EDGAR</span>
+					<span class="tag tag-mono">Independent</span>
+					<span class="tag tag-mono">Sourced Direct from SEC EDGAR</span>
 				</div>
 			</div>
 		</div>

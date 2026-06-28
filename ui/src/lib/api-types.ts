@@ -53,6 +53,7 @@ export interface GeneratedContentResponse {
 	description?: string | null;
 	document_type?: string | null;
 	content_stage?: string | null;
+	generation_depth?: number | null;
 	source_type: string;
 	created_at: string;
 	total_duration?: number | null;
@@ -125,6 +126,43 @@ export interface CompanyListItem {
 
 export interface CompanyListResponse {
 	companies: CompanyListItem[];
+	total: number;
+}
+
+// Filing list types (for the /f browse index)
+export interface FilingListItem {
+	id: string;
+	accession_number: string;
+	form: string;
+	filing_date: string | null;
+	period_of_report: string | null;
+	company_ticker: string;
+	company_name: string;
+	company_display_name: string | null;
+	/** Whether a synthesis (filing page content) has been generated for it. */
+	has_analysis: boolean;
+}
+
+export interface FilingListResponse {
+	filings: FilingListItem[];
+	total: number;
+}
+
+// Synthesis list types (for the /s browse index)
+export interface SynthesisListItem {
+	short_hash: string;
+	content_stage: string | null;
+	form_type: string | null;
+	generation_depth: number | null;
+	created_at: string;
+	/** Display name of the synthesis subject (company or group). */
+	scope_label: string;
+	/** Company ticker when the synthesis is company-scoped, else null. */
+	scope_ticker: string | null;
+}
+
+export interface SynthesisListResponse {
+	syntheses: SynthesisListItem[];
 	total: number;
 }
 

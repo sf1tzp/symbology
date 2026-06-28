@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { ChevronLeft, FileText, Bot, GitCompare } from '@lucide/svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
+	import DiffView from '$lib/components/DiffView.svelte';
 	import { formatDate, getAnalysisTypeDisplay, cleanContent } from '$lib/utils/filings';
+	import { stageMeta as stageMetaFor } from '$lib/utils/synthesis';
 	import type { DocumentResponse, GeneratedContentResponse } from '$lib/api-types';
 	import type { PageData } from './$types';
 	import { titleCase } from 'title-case';
@@ -12,7 +14,10 @@
 	const scope = $derived(data.scope);
 	const modelConfig = $derived(content?.modelConfig ?? null);
 	const sources = $derived(content?.sources ?? []);
-	const diffSources = $derived(content?.diffSources ?? []);
+	// Topic-diff sources: `diffView` carries the raw token ops + filing refs for the
+	// side-by-side DiffView; `diffSources` are its flattened halves for the sidebar.
+	const diffView = $derived(content?.diffView ?? null);
+	const diffSources = $derived(diffView?.sides ?? []);
 	const systemPrompt = $derived(content?.systemPrompt ?? null);
 	const userPrompt = $derived(content?.userPrompt ?? null);
 
@@ -24,29 +29,7 @@
 	// Human framing per content stage — the /s/ viewer serves every kind of
 	// synthesis (page intros, overviews, change syntheses, summaries), so the
 	// masthead adapts rather than hard-coding "Change Synthesis".
-	const STAGE_LABELS: Record<string, { eyebrow: string; noun: string }> = {
-		company_intro: { eyebrow: 'Company Introduction', noun: 'Introduction' },
-		filing_intro: { eyebrow: 'Filing Introduction', noun: 'Introduction' },
-		group_intro: { eyebrow: 'Group Introduction', noun: 'Introduction' },
-		document_page_intro: { eyebrow: 'Document Introduction', noun: 'Introduction' },
-		change_report_intro: { eyebrow: 'Change Report Introduction', noun: 'Introduction' },
-		company_main_content: { eyebrow: 'Company Overview', noun: 'Overview' },
-		filing_main_content: { eyebrow: 'Filing Overview', noun: 'Overview' },
-		group_main_content: { eyebrow: 'Group Overview', noun: 'Overview' },
-		change_report: { eyebrow: 'Change Report', noun: 'Change Report' },
-		topic_diff_summary: { eyebrow: 'Change Synthesis', noun: 'Change Synthesis' },
-		aggregate_summary: { eyebrow: 'Summary', noun: 'Summary' },
-		single_summary: { eyebrow: 'Summary', noun: 'Summary' },
-		frontpage_summary: { eyebrow: 'Summary', noun: 'Summary' },
-		company_group_analysis: { eyebrow: 'Sector Analysis', noun: 'Analysis' },
-		company_group_frontpage: { eyebrow: 'Sector Analysis', noun: 'Analysis' }
-	};
-	const stageMeta = $derived(
-		(content?.content_stage && STAGE_LABELS[content.content_stage]) || {
-			eyebrow: 'Synthesis',
-			noun: 'Synthesis'
-		}
-	);
+	const stageMeta = $derived(stageMetaFor(content?.content_stage));
 	const isTopicDiff = $derived(content?.content_stage === 'topic_diff_summary');
 	const contentTitle = $derived(typeDisplay ? `${typeDisplay} ${stageMeta.noun}` : stageMeta.noun);
 	const lede = $derived(
@@ -274,45 +257,22 @@
 			</p>
 		{/if}
 
-		<!-- Diff source halves: the two texts a topic-diff synthesis compared. -->
-		{#if diffSources.length > 0}
+		<!-- Diff source halves: the two texts a topic-diff synthesis compared, shown
+		     as a highlighted side-by-side diff via the shared DiffView. -->
+		{#if diffView}
 			<section style="margin-top: 3.5rem;">
 				<h2
 					class="sub"
 					style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px;"
 				>
 					<GitCompare class="h-3.5 w-3.5" style="color: var(--ink-4);" />
-					Source texts
+					Source comparison
 				</h2>
-				<div class="diff-grid">
-					{#each diffSources as side (side.period)}
-						<div class="source-panel">
-							<div
-								class="meta"
-								style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.5rem; color: var(--ink-4);"
-							>
-								<span style="color: var(--ink-2); font-weight: 500;">{side.label}</span>
-								{#if side.filingForm || side.filingDate}
-									<span>
-										{side.filingForm ?? ''}{#if side.filingForm && side.filingDate}
-											&middot;
-										{/if}{side.filingDate ? formatDate(side.filingDate) : ''}
-									</span>
-								{/if}
-							</div>
-							<div class="source-text">{side.text}</div>
-							{#if side.href}
-								<a
-									href={side.href}
-									class="meta"
-									style="display: inline-block; margin-top: 0.75rem;"
-								>
-									View source document &rarr;
-								</a>
-							{/if}
-						</div>
-					{/each}
-				</div>
+				<DiffView
+					topic={diffView.topic}
+					leftFiling={diffView.leftFiling}
+					rightFiling={diffView.rightFiling}
+				/>
 			</section>
 		{/if}
 
@@ -399,33 +359,6 @@
 	}
 	.sidebar-source:hover span {
 		color: var(--teal-2);
-	}
-
-	.diff-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1.5rem;
-	}
-	@media (max-width: 768px) {
-		.diff-grid {
-			grid-template-columns: 1fr;
-		}
-	}
-
-	.source-panel {
-		border: 1px solid var(--rule);
-		border-radius: 6px;
-		padding: 1.25rem;
-		background: var(--paper-2, transparent);
-	}
-
-	.source-text {
-		font-size: 14px;
-		line-height: 1.65;
-		color: var(--ink-2);
-		white-space: pre-wrap;
-		max-height: 460px;
-		overflow-y: auto;
 	}
 
 	.prompt-block {

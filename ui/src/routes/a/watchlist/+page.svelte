@@ -99,16 +99,13 @@
 	<!-- Header -->
 	<section class="grid items-end gap-12 md:grid-cols-2">
 		<div class="min-w-0">
-			<div class="flex-between mb-3.5 gap-4">
-				<div class="eyebrow">
-					● &nbsp;Your watchlist · {data.watching.length}
-					{data.watching.length === 1 ? 'company' : 'companies'}
-				</div>
+			<div class="flex-between mb-4 gap-4">
+				<div class="eyebrow">● &nbsp;Your watchlist</div>
 				<a
 					href={resolve('/a/settings')}
-					class="meta inline-flex items-center gap-1 whitespace-nowrap text-ink-4 no-underline transition-colors hover:text-ink"
+					class="meta inline-flex items-center gap-1 text-sm whitespace-nowrap text-ink-4 no-underline transition-colors hover:text-ink"
 				>
-					<Settings class="h-3.5 w-3.5" /> Account settings
+					<Settings class="size-3" /> Account settings
 				</a>
 			</div>
 			<h1 class="display mb-5">

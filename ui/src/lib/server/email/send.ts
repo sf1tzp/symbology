@@ -34,7 +34,7 @@ export async function sendEmail(input: SendEmailInput): Promise<string | null> {
 		return null;
 	}
 
-	const replyTo = env.EMAIL_REPLY_TO || undefined;
+	const replyTo = env.RESEND_EMAIL_REPLY_TO || undefined;
 
 	const { data, error } = await getResend().emails.send({
 		from,

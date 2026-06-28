@@ -23,17 +23,13 @@
 		</div>
 
 		<nav class="hidden items-center gap-4 text-sm text-ink-3 md:flex">
-			<a href={resolve('/companies')} class="transition-colors hover:text-ink">Companies</a>
+			<a href={resolve('/c')} class="transition-colors hover:text-ink">Companies</a>
 			<a href={resolve('/faq')} class="transition-colors hover:text-ink">FAQ</a>
 			{#if supportEnabled}
 				<a href={resolve('/support')} class="transition-colors hover:text-ink">Support</a>
 			{/if}
-			<a
-				href="https://github.com/sf1tzp/symbology/"
-				target="_blank"
-				rel="noopener noreferrer"
-				class="transition-colors hover:text-ink">GitHub</a
-			>
+			<a href={resolve('/terms')} class="transition-colors hover:text-ink">Terms</a>
+			<a href={resolve('/privacy')} class="transition-colors hover:text-ink">Privacy</a>
 		</nav>
 	</div>
 </footer>

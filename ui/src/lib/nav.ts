@@ -18,12 +18,13 @@ export type NavUser = { id: string; name: string; email: string } | null;
  * Primary destinations shown as inline links in the desktop top-nav. The account
  * hub (/a/watchlist) is reached via the profile icon, Status via the icon button
  * by the dark-mode toggle, and Support via its own affordance — so none of those
- * appear here.
+ * appear here. Home is omitted entirely; the brand mark already returns there.
  */
 export function buildNavItems(): NavItem[] {
 	return [
-		{ href: '/', label: 'Home' },
-		{ href: '/companies', label: 'Companies' },
+		{ href: '/c', label: 'Companies' },
+		{ href: '/f', label: 'Filings' },
+		{ href: '/s', label: 'Synthesis' },
 		{ href: '/faq', label: 'FAQ' }
 	];
 }
@@ -36,46 +37,136 @@ export function accountNavItem(user: NavUser): NavItem {
 	return user ? { href: '/a/watchlist', label: 'Account' } : { href: '/login', label: 'Sign in' };
 }
 
+/** The three browse surfaces — companies, filings, and syntheses. */
+export type BrowseSection = 'companies' | 'filings' | 'synthesis';
+
+/** A browse surface's index destination, tagged with its section key. */
+export interface BrowseDestination extends NavItem {
+	key: BrowseSection;
+}
+
 /**
- * The full ordered tab list for the mobile bottom bar. The center slot is a quick
- * link back to the company while on a company-context route, otherwise the
- * Support CTA — which is omitted entirely while the support surface is gated off,
- * leaving a four-tab bar. The trailing slot is the account / sign-in entry.
+ * The browse surfaces — companies, filings, and syntheses — each a searchable,
+ * paginated index. The first mobile tab reflects the current section and opens a
+ * flyout onto the siblings while the viewer is on that section's index page.
  */
-export function buildMobileTabItems(user: NavUser, ticker: string | null): NavItem[] {
-	const items: NavItem[] = [
-		{ href: '/', label: 'Home' },
-		{ href: '/companies', label: 'Companies' }
-	];
-	if (ticker) {
-		items.push(companyNavItem(ticker));
-	} else if (supportEnabled) {
+export const BROWSE_DESTINATIONS: BrowseDestination[] = [
+	{ key: 'companies', href: '/c', label: 'Companies' },
+	{ key: 'filings', href: '/f', label: 'Filings' },
+	{ key: 'synthesis', href: '/s', label: 'Synthesis' }
+];
+
+/**
+ * The browse section the current route belongs to. `/s` and `/f` (and their
+ * detail routes) map to synthesis and filings; everything else — including `/c`,
+ * `/d`, and non-browse pages — defaults to companies, the browse entry point.
+ */
+export function currentSection(pathname: string): BrowseSection {
+	if (/^\/s(\/|$)/.test(pathname)) return 'synthesis';
+	if (/^\/f(\/|$)/.test(pathname)) return 'filings';
+	return 'companies';
+}
+
+/** The index destination for a browse section. */
+export function browseDestination(section: BrowseSection): BrowseDestination {
+	return BROWSE_DESTINATIONS.find((d) => d.key === section) ?? BROWSE_DESTINATIONS[0];
+}
+
+/** The browse sections other than `section` — the flyout's jump targets. */
+export function siblingSections(section: BrowseSection): BrowseDestination[] {
+	return BROWSE_DESTINATIONS.filter((d) => d.key !== section);
+}
+
+/** Whether `pathname` is one of the browse index pages (not a detail route). */
+export function isBrowseIndex(pathname: string): boolean {
+	return pathname === '/c' || pathname === '/f' || pathname === '/s';
+}
+
+/**
+ * The full ordered tab list for the mobile bottom bar. The leading slot is the
+ * current browse section (which doubles as the flyout trigger). The second slot
+ * is a context link back to the current resource (company / filing / synthesis)
+ * while on one of those routes, otherwise FAQ. Support sits in its own always-on
+ * slot (when the support surface is enabled), and the trailing slot is the
+ * account / sign-in entry.
+ */
+export function buildMobileTabItems(
+	user: NavUser,
+	context: ContextNavItem | null,
+	browse: BrowseDestination
+): NavItem[] {
+	const items: NavItem[] = [browse];
+	if (context) {
+		items.push(context);
+	} else {
+		items.push({ href: '/faq', label: 'FAQ' });
+	}
+	if (supportEnabled) {
 		items.push({ href: '/support', label: 'Support' });
 	}
-	items.push({ href: '/faq', label: 'FAQ' });
 	items.push(accountNavItem(user));
 	return items;
 }
 
-/**
- * "Back to company" destination shown in place of the center mobile tab while on
- * a company-context route (the company page itself, a filing, or a document).
- */
-export function companyNavItem(ticker: string): NavItem {
-	return { href: `/c/${ticker}`, label: ticker };
+/** The kind of resource a context route is anchored to, used to pick its icon. */
+export type ContextKind = 'company' | 'filing' | 'synthesis';
+
+/** A context nav item carries its resource kind so the bar can icon it. */
+export interface ContextNavItem extends NavItem {
+	kind: ContextKind;
 }
 
+/** Loosely-typed slice of `page.data` the context resolver reads from. */
+type ContextData =
+	| {
+			company?: { ticker?: string | null } | null;
+			filing?: { form?: string | null; accession_number?: string | null } | null;
+			accession_number?: string | null;
+			content?: {
+				short_hash?: string | null;
+				content_hash?: string | null;
+				generation_depth?: number | null;
+			} | null;
+			sha?: string | null;
+	  }
+	| null
+	| undefined;
+
 /**
- * The company ticker for the current page when on a company-context route
- * (`/c`, `/f`, `/d`), or `null` elsewhere. The company page carries it in the
- * route param; filing/document pages resolve it into `data.company`.
+ * The context-slot nav item for the current page when on a resource route:
+ * - `/f` (a filing): a document chip labelled with the form type (e.g. 10-K),
+ * - `/s` (a synthesis): a sparkle chip labelled with the synthesis level (Ln),
+ * - `/c` or `/d` (a company / its documents): a chip labelled with the ticker.
+ *
+ * Returns `null` on every other route, where the bar falls back to the Support
+ * CTA. The link points back at the resource itself; the data is pulled from the
+ * route's loaded `page.data`.
  */
-export function companyContextTicker(
-	pathname: string,
-	data: { company?: { ticker?: string | null } | null } | null | undefined
-): string | null {
-	if (!/^\/(c|f|d)\//.test(pathname)) return null;
-	return data?.company?.ticker ?? null;
+export function buildContextNavItem(pathname: string, data: ContextData): ContextNavItem | null {
+	if (/^\/f\//.test(pathname)) {
+		const form = data?.filing?.form;
+		const accession = data?.filing?.accession_number ?? data?.accession_number;
+		if (form && accession) return { kind: 'filing', href: `/f/${accession}`, label: form };
+		return null;
+	}
+	if (/^\/s\//.test(pathname)) {
+		const content = data?.content;
+		const hash = content?.short_hash ?? content?.content_hash?.slice(0, 12) ?? data?.sha;
+		if (hash) {
+			const depth = content?.generation_depth;
+			return {
+				kind: 'synthesis',
+				href: `/s/${hash}`,
+				label: depth != null ? `L${depth}` : 'Synthesis'
+			};
+		}
+		return null;
+	}
+	if (/^\/(c|d)\//.test(pathname)) {
+		const ticker = data?.company?.ticker;
+		if (ticker) return { kind: 'company', href: `/c/${ticker}`, label: ticker };
+	}
+	return null;
 }
 
 /** Whether `href` is the active destination for the current `pathname`. */

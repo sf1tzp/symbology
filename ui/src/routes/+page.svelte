@@ -61,7 +61,7 @@
 		<div class="flex flex-col gap-4 pt-1.5">
 			<div class="flex flex-col gap-4 md:flex-row">
 				<a
-					href="/companies"
+					href="/c"
 					class="inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-ink bg-ink px-[22px] py-3 font-sans text-sm font-medium text-paper no-underline transition-opacity duration-150 hover:opacity-85 md:w-auto"
 					>Browse companies &rarr;</a
 				>

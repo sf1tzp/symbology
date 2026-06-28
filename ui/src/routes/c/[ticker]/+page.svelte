@@ -146,7 +146,7 @@
 <!-- Back link -->
 <div class="eyebrow mb-4 hidden md:block">
 	<a
-		href="/companies"
+		href="/c"
 		class="meta flex items-center gap-1.5 text-ink-3 no-underline transition-colors hover:text-ink"
 	>
 		<ChevronLeft class="h-3 w-3" />

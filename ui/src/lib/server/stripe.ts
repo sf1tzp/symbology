@@ -1,17 +1,17 @@
 import Stripe from 'stripe';
 import { env } from '$env/dynamic/private';
-import { MIN_DAYS, MAX_DAYS, ONE_TIME_DAYS } from '$lib/supporter-plans';
+import { MIN_DAYS, ONE_TIME_DAYS, daysAllowedBeforeCap } from '$lib/supporter-plans';
 
 /**
  * Supporter pricing. Two one-time options (no subscriptions):
  *  - `one`      — flat $20, grants 14 days.
- *  - `duration` — $1/day, slider picks 33–888 days; price === days.
+ *  - `duration` — $1/day, slider picks from 33 days up to the policy cap
+ *    (Dec 31 2028); price === days.
  * Both resolve to a concrete { amountCents, days } here so the checkout action
  * and the webhook agree on what was sold. Day bounds are single-sourced from
  * `$lib/supporter-plans` so the UI and this validation can't drift.
  */
 export const DURATION_MIN_DAYS = MIN_DAYS;
-export const DURATION_MAX_DAYS = MAX_DAYS;
 export const ONE_OFF_DAYS = ONE_TIME_DAYS;
 export const ONE_OFF_CENTS = 2000;
 
@@ -41,8 +41,12 @@ export function resolvePlan(plan: string, days: number): ResolvedPlan {
 	}
 	if (plan === 'duration') {
 		const d = Math.round(days);
-		if (!Number.isFinite(d) || d < DURATION_MIN_DAYS || d > DURATION_MAX_DAYS) {
-			throw new Error(`days must be between ${DURATION_MIN_DAYS} and ${DURATION_MAX_DAYS}`);
+		// Upper bound is the policy cap (Dec 31 2028), not a fixed day count: the
+		// most a fresh window can span is "now → cap". The per-user stacking check
+		// in the checkout action enforces the exact remaining allowance.
+		const maxDays = daysAllowedBeforeCap(null, Date.now());
+		if (!Number.isFinite(d) || d < DURATION_MIN_DAYS || d > maxDays) {
+			throw new Error(`days must be between ${DURATION_MIN_DAYS} and ${maxDays}`);
 		}
 		return {
 			planType: 'duration',

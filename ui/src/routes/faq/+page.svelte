@@ -80,6 +80,41 @@
 			</p>
 		</section>
 
+		<section id="synthesis-vs-analysis" style="margin-top: 3rem; scroll-margin-top: 5rem;">
+			<SectionHead
+				sticky
+				stickyHeading
+				eyebrow="Frequently asked questions"
+				heading="Synthesis is NOT Analysis"
+			/>
+			<p>
+				Symbology surfaces <strong style="color: var(--ink);">what changed</strong> — what a company
+				added, dropped, or reworded from one filing to the next. It does not weigh those changes,
+				judge them, or tell you what to do about them. You will not find ratings, price targets, or
+				recommendations anywhere on the site, and nothing here is investment advice. Our
+				<a
+					href="/terms#not-investment-advice"
+					style="color: var(--teal-2); text-decoration: underline; text-underline-offset: 3px;"
+					>Terms of Service</a
+				> set out the specific disclaimers in full.
+			</p>
+			<p>
+				Because every summary is written by a language model, we make the work checkable rather than
+				ask you to take it on faith. Each piece of synthesis has a source view — its
+				<span style="font-family: var(--mono);">/s/</span> route — that shows exactly how it was produced:
+				the system prompt, the model configuration, and the source filing text passed in as the user prompt.
+				Any claim can be traced back to the words it came from.
+			</p>
+			<p>
+				See something off? If a passage looks wrong or misleading, tell us at
+				<a
+					href="mailto:support@streetfortress.com"
+					style="color: var(--teal-2); text-decoration: underline; text-underline-offset: 3px;"
+					>support@streetfortress.com</a
+				>.
+			</p>
+		</section>
+
 		<section id="synthesis-levels" style="margin-top: 3rem; scroll-margin-top: 5rem;">
 			<SectionHead
 				sticky
@@ -236,12 +271,11 @@
 
 	<div class="meta mt-6 flex justify-start border-t pt-6 text-ink-3 md:justify-end">
 		<p>
-			Have a question? Start a
+			Have a question? Contact us
 			<a
-				href="https://github.com/sf1tzp/symbology/discussions"
-				target="_blank"
-				rel="noopener noreferrer"
-				style="color: var(--teal-2); text-decoration: none;">discussion on GitHub</a
+				href="mailto:support@streetfortress.com"
+				style="color: var(--teal-2); text-decoration: underline; text-underline-offset: 3px;"
+				>support@streetfortress.com</a
 			>.
 		</p>
 	</div>

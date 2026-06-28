@@ -218,7 +218,7 @@
 		sticky
 		eyebrow="{searchTerm.trim()
 			? 'Search results: ' + searchTerm
-			: 'All companies'} &middot; {total > 0 ? total.toLocaleString() + ' results' : ''}  results"
+			: 'All companies'} &middot; {total > 0 ? total.toLocaleString() + ' results' : ''}"
 		heading=""
 	/>
 	<!-- <div class="flex-between" style="margin-bottom: 18px;">

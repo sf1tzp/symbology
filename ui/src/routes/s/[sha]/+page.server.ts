@@ -7,7 +7,7 @@ import {
 	getModelConfigById,
 	getDocumentById,
 	getPromptById,
-	getTopicDiffSourcesByContentId,
+	getTopicDiffViewByContentId,
 	resolveContentScope
 } from '$lib/server/db/generated-content';
 
@@ -22,16 +22,17 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	// Resolve the subject scope (company / group / …) from the content itself,
 	// plus model config + prompts (any may be absent), in parallel.
-	const [scope, modelConfig, systemPrompt, userPrompt, diffSources] = await Promise.all([
+	const [scope, modelConfig, systemPrompt, userPrompt, diffView] = await Promise.all([
 		resolveContentScope(content),
 		content.model_config_id ? getModelConfigById(content.model_config_id) : null,
 		content.system_prompt_id ? getPromptById(content.system_prompt_id) : null,
 		content.user_prompt_id ? getPromptById(content.user_prompt_id) : null,
 		// Topic-diff summaries carry their sources as the section diff's two halves
-		// rather than association rows; reconstruct them for display.
+		// rather than association rows; reconstruct them (raw ops + filing refs) so
+		// the page can render them through the shared side-by-side DiffView.
 		content.content_stage === 'topic_diff_summary'
-			? getTopicDiffSourcesByContentId(content.id)
-			: Promise.resolve([])
+			? getTopicDiffViewByContentId(content.id)
+			: Promise.resolve(null)
 	]);
 
 	// Fetch source documents and content
@@ -65,7 +66,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			sources,
 			systemPrompt,
 			userPrompt,
-			diffSources
+			diffView
 		},
 		scope,
 		sha

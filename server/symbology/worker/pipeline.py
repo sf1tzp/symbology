@@ -441,7 +441,6 @@ def generate_group_frontpage_summary(
         create_generated_content,
         get_generated_content_by_hash,
     )
-    from symbology.llm.client import get_generate_response
     from symbology.llm.prompts import format_user_prompt_content
 
     try:
@@ -454,14 +453,12 @@ def generate_group_frontpage_summary(
 
         user_prompt_text = format_user_prompt_content(source_content=[source_content])
 
-        # Offload oversized prompts to Anthropic (no-op when under threshold).
+        # Offload oversized prompts to Anthropic — preemptively (no-op when under
+        # threshold) and reactively if the local model still overflows. ``model_config``
+        # is reassigned to the model that served the request so the row records it.
         # Lazy import: config_loader imports this module at top level.
-        from symbology.worker.config_loader import resolve_generation_model_config
-        model_config = resolve_generation_model_config(
-            model_config, f"{prompt.content}\n{user_prompt_text}"
-        )
-
-        response, warning = get_generate_response(
+        from symbology.worker.config_loader import generate_with_overflow
+        response, warning, model_config = generate_with_overflow(
             model_config, prompt.content, user_prompt_text
         )
 

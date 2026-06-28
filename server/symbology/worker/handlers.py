@@ -169,7 +169,6 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     )
     from symbology.database.documents import DocumentType
     from symbology.database.prompts import Prompt
-    from symbology.llm.client import get_generate_response
     from symbology.llm.prompts import format_user_prompt_content
 
     system_prompt_hash = params["system_prompt_hash"]
@@ -230,7 +229,12 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
     # Offload oversized prompts from the local endpoint to Anthropic (no-op when
     # disabled / already Anthropic / under threshold). The returned config is
     # what we both call and record below, so provenance reflects the offload.
-    from symbology.worker.config_loader import resolve_generation_model_config
+    # This preemptive resolve also keys the dedup check below; the actual LLM call
+    # re-applies it (deterministically) and adds a reactive fallback.
+    from symbology.worker.config_loader import (
+        generate_with_overflow,
+        resolve_generation_model_config,
+    )
     model_config = resolve_generation_model_config(
         model_config, f"{system_prompt.content}\n{user_prompt_text}"
     )
@@ -264,9 +268,13 @@ def handle_content_generation(params: Dict[str, Any]) -> Optional[Dict[str, Any]
                 "was_created": False,
             }
 
-    # Call LLM
+    # Call LLM. If the local model still reports a context overflow (the preemptive
+    # estimate undershot), generate_with_overflow retries on Anthropic and returns
+    # that config so the row below is recorded against the model that served it.
     logger.info("handler_content_generation_start", description=description)
-    response, warning = get_generate_response(model_config, system_prompt.content, user_prompt_text)
+    response, warning, model_config = generate_with_overflow(
+        model_config, system_prompt.content, user_prompt_text
+    )
 
     # Resolve company
     company_id = None
@@ -381,7 +389,6 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
         create_generated_content,
         get_aggregate_summaries_by_ticker,
     )
-    from symbology.llm.client import get_generate_response
     from symbology.llm.prompts import format_user_prompt_content
     from symbology.database.generated_content import ContentStage
     from symbology.worker.pipeline import (
@@ -434,14 +441,13 @@ def handle_company_group_pipeline(params: Dict[str, Any]) -> Optional[Dict[str, 
         additional_text=group_info if group_info else f"Tickers: {', '.join(tickers)}",
     )
 
-    # Offload oversized prompts to Anthropic (cross-company inputs can be large).
-    from symbology.worker.config_loader import resolve_generation_model_config
-    mc = resolve_generation_model_config(
-        mc, f"{system_prompt.content}\n{user_prompt_text}"
+    # Call LLM, offloading oversized prompts to Anthropic — preemptively (cross-company
+    # inputs can be large) and reactively if the local model still overflows. ``mc`` is
+    # reassigned to the model that served the request so the row below records it.
+    from symbology.worker.config_loader import generate_with_overflow
+    response, warning, mc = generate_with_overflow(
+        mc, system_prompt.content, user_prompt_text
     )
-
-    # Call LLM
-    response, warning = get_generate_response(mc, system_prompt.content, user_prompt_text)
 
     # Store result
     content_data = {

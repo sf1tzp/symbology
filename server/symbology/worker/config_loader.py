@@ -170,7 +170,6 @@ def resolve_generation_model_config(model_config, prompt_text: str):
     """
     import json
 
-    from symbology.database.model_configs import get_or_create_model_config
     from symbology.llm.client import _provider_for
     from symbology.llm.model_loader import estimate_tokens, requested_context_tokens
     from symbology.utils.config import settings
@@ -192,8 +191,8 @@ def resolve_generation_model_config(model_config, prompt_text: str):
     if required <= threshold:
         return model_config
 
-    overflow_model = cfg.overflow_model or settings.anthropic.default_model
-    if not overflow_model or not settings.anthropic.api_key:
+    overflow_config = build_overflow_model_config(model_config)
+    if overflow_config is None:
         logger.warning(
             "overflow_skipped",
             reason="no_anthropic_model_or_key",
@@ -205,16 +204,6 @@ def resolve_generation_model_config(model_config, prompt_text: str):
         )
         return model_config
 
-    overflow_config = get_or_create_model_config({
-        "model": overflow_model,
-        "options_json": json.dumps(
-            {
-                "max_tokens": max_output,
-                "temperature": options.get("temperature", 0.8),
-            },
-            sort_keys=True,
-        ),
-    })
     logger.info(
         "overflow_to_anthropic",
         prompt_tokens=prompt_tokens,
@@ -222,7 +211,97 @@ def resolve_generation_model_config(model_config, prompt_text: str):
         required=required,
         threshold=threshold,
         from_model=model_config.model,
-        to_model=overflow_model,
+        to_model=overflow_config.model,
         to_config=overflow_config.get_short_hash(),
     )
     return overflow_config
+
+
+def build_overflow_model_config(model_config):
+    """Build the Anthropic overflow ModelConfig mirroring ``model_config``'s options.
+
+    Shared by the preemptive offload (:func:`resolve_generation_model_config`) and
+    the reactive fallback (:func:`generate_with_overflow`). The swapped config keeps
+    only ``{max_tokens, temperature}`` so it dedups against any existing Anthropic
+    config for the same model/options.
+
+    Returns ``None`` when offload isn't possible: the model is already an Anthropic
+    one, no overflow/default Anthropic model is configured, or no Anthropic API key
+    is set.
+    """
+    import json
+
+    from symbology.database.model_configs import get_or_create_model_config
+    from symbology.llm.client import _provider_for
+    from symbology.utils.config import settings
+
+    if _provider_for(model_config.model) != "openai":
+        return None
+
+    overflow_model = settings.openai.overflow_model or settings.anthropic.default_model
+    if not overflow_model or not settings.anthropic.api_key:
+        return None
+
+    options = json.loads(model_config.options_json)
+    return get_or_create_model_config({
+        "model": overflow_model,
+        "options_json": json.dumps(
+            {
+                "max_tokens": options.get("max_tokens", 4096),
+                "temperature": options.get("temperature", 0.8),
+            },
+            sort_keys=True,
+        ),
+    })
+
+
+def generate_with_overflow(base_model_config, system_prompt: str, user_prompt: str):
+    """Generate content, offloading oversized requests to Anthropic.
+
+    Consolidates the offload-then-generate pattern shared by the worker content
+    handlers into a single call with two layers of protection against the local
+    model's context ceiling:
+
+    1. **Preemptive** — :func:`resolve_generation_model_config` estimates the
+       request's context usage and reroutes to Anthropic before calling if it
+       looks too large.
+    2. **Reactive** — if the estimate undershoots and the local endpoint returns
+       ``Context size has been exceeded.``, swap to the Anthropic overflow model
+       and retry once.
+
+    Returns ``(response, warning, model_config_used)``. The returned config is the
+    one the caller should **record**, so provenance (and dedup) reflect whichever
+    model actually served the request — local or the reactive Anthropic fallback.
+    """
+    from symbology.llm.client import get_generate_response, is_context_overflow_error
+
+    model_config = resolve_generation_model_config(
+        base_model_config, f"{system_prompt}\n{user_prompt}"
+    )
+    try:
+        response, warning = get_generate_response(
+            model_config, system_prompt, user_prompt
+        )
+        return response, warning, model_config
+    except Exception as e:
+        if not is_context_overflow_error(e):
+            raise
+        overflow_config = build_overflow_model_config(model_config)
+        if overflow_config is None:
+            logger.warning(
+                "context_overflow_no_fallback",
+                model=model_config.model,
+                error=str(e),
+            )
+            raise
+        logger.warning(
+            "context_overflow_reactive_fallback",
+            from_model=model_config.model,
+            to_model=overflow_config.model,
+            to_config=overflow_config.get_short_hash(),
+            error=str(e),
+        )
+        response, warning = get_generate_response(
+            overflow_config, system_prompt, user_prompt
+        )
+        return response, warning, overflow_config

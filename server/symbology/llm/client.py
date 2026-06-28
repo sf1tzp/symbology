@@ -99,6 +99,25 @@ def _is_retryable(e: Exception) -> bool:
     return True
 
 
+def is_context_overflow_error(e: Exception) -> bool:
+    """Whether an LLM call failed because the prompt exceeded the model's context.
+
+    The local OpenAI-compatible endpoint signals this with HTTP 400 and a body of
+    ``Context size has been exceeded.``; real OpenAI uses ``maximum context
+    length``. We match on the message rather than the bare 400 so genuine
+    bad-request bugs still fail fast instead of pointlessly re-routing.
+
+    Used by the reactive overflow fallback: when the preemptive token estimate in
+    ``resolve_generation_model_config`` undershoots and a request slips through to
+    the local model, this lets the caller catch the overflow and retry against the
+    larger Anthropic context.
+    """
+    if getattr(e, "status_code", None) != 400:
+        return False
+    msg = str(e).lower()
+    return "context size has been exceeded" in msg or "maximum context length" in msg
+
+
 def retry_backoff(timeout, func, *args, **kwargs):
     backoff = 1
     logger.debug("retry_backoff", backoff=backoff, timeout=timeout, func=func, args=args, kwargs=kwargs)

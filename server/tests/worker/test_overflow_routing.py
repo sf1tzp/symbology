@@ -119,3 +119,125 @@ def test_offload_falls_back_to_anthropic_default_model(monkeypatch):
     mc = _mc("google/gemma-4-e4b")
     out = cl.resolve_generation_model_config(mc, _huge_prompt(46000))
     assert out.model == "claude-haiku-4-5-20251001"
+
+
+# ---------------------------------------------------------------------------
+# Reactive overflow fallback: the local endpoint returns a context-overflow
+# error at request time (the preemptive estimate undershot), so the request is
+# retried against Anthropic.
+# ---------------------------------------------------------------------------
+
+
+from symbology.llm.client import is_context_overflow_error
+
+
+class _BadRequest(Exception):
+    """Stand-in for openai.BadRequestError: exposes status_code + message."""
+
+    def __init__(self, message: str, status_code: int = 400):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def test_is_context_overflow_error_matches_local_message():
+    assert is_context_overflow_error(
+        _BadRequest("Error code: 400 - {'error': 'Context size has been exceeded.'}")
+    )
+
+
+def test_is_context_overflow_error_matches_openai_message():
+    assert is_context_overflow_error(
+        _BadRequest("This model's maximum context length is 8192 tokens")
+    )
+
+
+def test_is_context_overflow_error_ignores_other_400s():
+    assert not is_context_overflow_error(_BadRequest("invalid 'temperature'"))
+
+
+def test_is_context_overflow_error_ignores_non_400():
+    assert not is_context_overflow_error(_BadRequest("server error", status_code=500))
+    assert not is_context_overflow_error(ValueError("boom"))
+
+
+def _stub_resp():
+    class _R:
+        response = "ok"
+        total_duration = 0.1
+        input_tokens = 1
+        output_tokens = 1
+
+    return _R(), None
+
+
+def test_generate_with_overflow_reactively_falls_back(monkeypatch):
+    """Local request overflows at call time -> retried on Anthropic, and the
+    returned config is the Anthropic one (so the caller records it)."""
+    # Disable preemptive offload so the request actually reaches the local model.
+    monkeypatch.setattr(settings.openai, "overflow_threshold_tokens", 0)
+    monkeypatch.setattr(settings.openai, "overflow_model", "claude-sonnet-4-6")
+    monkeypatch.setattr(settings.anthropic, "api_key", "sk-test")
+    monkeypatch.setattr(
+        "symbology.database.model_configs.get_or_create_model_config",
+        lambda data: _mc(data["model"]),
+    )
+
+    calls = []
+
+    def _fake_generate(model_config, system_prompt, user_prompt):
+        calls.append(model_config.model)
+        if model_config.model == "google/gemma-4-e4b":
+            raise _BadRequest("Error code: 400 - {'error': 'Context size has been exceeded.'}")
+        return _stub_resp()
+
+    monkeypatch.setattr("symbology.llm.client.get_generate_response", _fake_generate)
+
+    mc = _mc("google/gemma-4-e4b", max_tokens=2048, temperature=0.2)
+    response, warning, used = cl.generate_with_overflow(mc, "sys", "user")
+
+    assert response.response == "ok"
+    assert used.model == "claude-sonnet-4-6"
+    assert calls == ["google/gemma-4-e4b", "claude-sonnet-4-6"]
+
+
+def test_generate_with_overflow_reraises_when_no_fallback(monkeypatch):
+    """Overflow with no Anthropic key configured -> nothing to fall back to, so
+    the original error propagates (the job fails as before, not silently)."""
+    monkeypatch.setattr(settings.openai, "overflow_threshold_tokens", 0)
+    monkeypatch.setattr(settings.anthropic, "api_key", "")
+
+    def _fake_generate(model_config, system_prompt, user_prompt):
+        raise _BadRequest("Error code: 400 - {'error': 'Context size has been exceeded.'}")
+
+    monkeypatch.setattr("symbology.llm.client.get_generate_response", _fake_generate)
+
+    mc = _mc("google/gemma-4-e4b")
+    try:
+        cl.generate_with_overflow(mc, "sys", "user")
+        assert False, "expected the overflow error to propagate"
+    except _BadRequest:
+        pass
+
+
+def test_generate_with_overflow_propagates_non_overflow_errors(monkeypatch):
+    """A non-overflow error is not a fallback trigger -> propagates unchanged
+    without a wasted Anthropic retry."""
+    monkeypatch.setattr(settings.openai, "overflow_threshold_tokens", 0)
+    monkeypatch.setattr(settings.openai, "overflow_model", "claude-sonnet-4-6")
+    monkeypatch.setattr(settings.anthropic, "api_key", "sk-test")
+
+    calls = []
+
+    def _fake_generate(model_config, system_prompt, user_prompt):
+        calls.append(model_config.model)
+        raise _BadRequest("invalid 'temperature'")
+
+    monkeypatch.setattr("symbology.llm.client.get_generate_response", _fake_generate)
+
+    mc = _mc("google/gemma-4-e4b")
+    try:
+        cl.generate_with_overflow(mc, "sys", "user")
+        assert False, "expected the bad-request error to propagate"
+    except _BadRequest:
+        pass
+    assert calls == ["google/gemma-4-e4b"]  # no retry

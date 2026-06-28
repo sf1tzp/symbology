@@ -416,11 +416,11 @@ def summarize_diff_set(
     DIFF_SUMMARY job, keeping the diff itself available without waiting on LLM calls.
     """
     from symbology.database.generated_content import ContentStage, create_generated_content
-    from symbology.llm.client import get_generate_response, remove_thinking_tags
+    from symbology.llm.client import remove_thinking_tags
     from symbology.worker.config_loader import (
         ensure_stage_model_config,
+        generate_with_overflow,
         load_pipeline_config,
-        resolve_generation_model_config,
     )
     from symbology.worker.pipeline import ensure_prompt
 
@@ -465,11 +465,11 @@ def summarize_diff_set(
             f"<current_period>\n{curr_text}\n</current_period>"
         )
         try:
-            model_config = resolve_generation_model_config(
-                base_model_config, f"{system_prompt.content}\n{user_prompt}"
-            )
-            response, warning = get_generate_response(
-                model_config, system_prompt.content, user_prompt
+            # Offload oversized prompts to Anthropic — preemptively and reactively
+            # if the local model still overflows. model_config is the one that
+            # served the request, recorded on the row below.
+            response, warning, model_config = generate_with_overflow(
+                base_model_config, system_prompt.content, user_prompt
             )
             # Strip any reasoning tags and require real prose. A reasoning model that
             # runs out of tokens mid-think returns empty content — don't store that

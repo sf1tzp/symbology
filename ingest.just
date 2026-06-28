@@ -51,7 +51,7 @@ queue-batch  BLOCK='1' BLOCK_SIZE='2':
     set -euo pipefail
 
     DATA_FILE="server/symbology/data/fortune-500.json"
-    WAVE_SIZE="1" WAVE_GAP="3000"
+    WAVE_SIZE="1" WAVE_GAP="2400"
     LOOKBACK='5'
 
     # Block N covers the filtered rows [start, end): start = (N-1)*size.
@@ -87,9 +87,9 @@ queue-batch  BLOCK='1' BLOCK_SIZE='2':
             --set ticker="${ticker}" --set lookback="${LOOKBACK}" --set form=10-K \
             --priority 3 --delay "${head}"
 
-        just cli jobs start company_page_content \
-            --set ticker="${ticker}" --set form=10-Q \
-            --priority 3 --delay "${head}"
+        # just cli jobs start company_page_content \
+        #     --set ticker="${ticker}" --set form=10-Q \
+        #     --priority 3 --delay "${head}"
     done
 
 

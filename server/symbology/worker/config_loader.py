@@ -147,11 +147,19 @@ def resolve_generation_model_config(model_config, prompt_text: str):
     """Offload oversized prompts from the local OpenAI endpoint to Anthropic.
 
     Returns the ModelConfig the caller should both **use and record**: the
-    original when the prompt fits the local model, or an Anthropic ModelConfig
-    (mirroring the original's ``max_tokens``/``temperature``) when the estimated
-    prompt size exceeds ``OPENAI_OVERFLOW_THRESHOLD_TOKENS``. Huge sections (e.g.
-    a long risk_factors) are slow to serve locally and risk overflowing even a
-    dynamically-sized window; Anthropic models have a far larger context.
+    original when the request fits the local model, or an Anthropic ModelConfig
+    (mirroring the original's ``max_tokens``/``temperature``) when the request's
+    estimated context usage exceeds ``OPENAI_OVERFLOW_THRESHOLD_TOKENS`` (the
+    local model's context ceiling).
+
+    The fit check uses the same math as dynamic context sizing
+    (``requested_context_tokens`` = ``(prompt + max_output) * safety_margin``),
+    so the reroute decision and the local window sizer never disagree about what
+    a request costs. Counting ``max_output`` is essential: the context window
+    must hold prompt **and** completion, so a prompt that looks small on its own
+    can still overflow once its output is reserved. Huge sections (e.g. a long
+    risk_factors) are also slow to serve locally; Anthropic models have a far
+    larger context.
 
     The swapped config is built like the YAML stage configs (``{max_tokens,
     temperature}`` only) so it dedups against any existing Anthropic config for
@@ -164,7 +172,7 @@ def resolve_generation_model_config(model_config, prompt_text: str):
 
     from symbology.database.model_configs import get_or_create_model_config
     from symbology.llm.client import _provider_for
-    from symbology.llm.model_loader import estimate_tokens
+    from symbology.llm.model_loader import estimate_tokens, requested_context_tokens
     from symbology.utils.config import settings
 
     cfg = settings.openai
@@ -175,8 +183,13 @@ def resolve_generation_model_config(model_config, prompt_text: str):
     if _provider_for(model_config.model) != "openai":
         return model_config
 
-    tokens = estimate_tokens(prompt_text)
-    if tokens <= threshold:
+    options = json.loads(model_config.options_json)
+    max_output = options.get("max_tokens", 4096)
+    prompt_tokens = estimate_tokens(prompt_text)
+    # Total context the request consumes (prompt + reserved output + margin),
+    # compared against the local model's context ceiling.
+    required = requested_context_tokens(prompt_tokens, max_output)
+    if required <= threshold:
         return model_config
 
     overflow_model = cfg.overflow_model or settings.anthropic.default_model
@@ -184,18 +197,19 @@ def resolve_generation_model_config(model_config, prompt_text: str):
         logger.warning(
             "overflow_skipped",
             reason="no_anthropic_model_or_key",
-            tokens=tokens,
+            prompt_tokens=prompt_tokens,
+            max_output=max_output,
+            required=required,
             threshold=threshold,
             model=model_config.model,
         )
         return model_config
 
-    options = json.loads(model_config.options_json)
     overflow_config = get_or_create_model_config({
         "model": overflow_model,
         "options_json": json.dumps(
             {
-                "max_tokens": options.get("max_tokens", 4096),
+                "max_tokens": max_output,
                 "temperature": options.get("temperature", 0.8),
             },
             sort_keys=True,
@@ -203,7 +217,9 @@ def resolve_generation_model_config(model_config, prompt_text: str):
     })
     logger.info(
         "overflow_to_anthropic",
-        tokens=tokens,
+        prompt_tokens=prompt_tokens,
+        max_output=max_output,
+        required=required,
         threshold=threshold,
         from_model=model_config.model,
         to_model=overflow_model,

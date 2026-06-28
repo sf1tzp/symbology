@@ -132,13 +132,15 @@ class OpenAISettings(BaseSettings):
         "large context can take a while)",
     )
 
-    # Overflow offload to Anthropic. Prompts above this estimated token size are
-    # both slow to serve locally and risk overflowing even a dynamically-sized
-    # window, so route them to a (large-context) Anthropic model instead.
+    # Overflow offload to Anthropic. Requests whose estimated context usage
+    # (prompt + reserved output + safety margin) exceeds this ceiling are both
+    # slow to serve locally and risk overflowing the local window, so route them
+    # to a (large-context) Anthropic model instead. Set this to the local
+    # model's actual context ceiling (e.g. 32000 for a 32k LM Studio model).
     overflow_threshold_tokens: int = Field(
         default=32000,
-        description="Estimated prompt tokens above which a local request is "
-        "offloaded to Anthropic; 0 disables offload",
+        description="Local context ceiling (tokens); requests whose estimated "
+        "prompt+output+margin exceeds it are offloaded to Anthropic; 0 disables",
     )
     overflow_model: str = Field(
         default="claude-sonnet-4-6",

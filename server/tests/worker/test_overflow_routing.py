@@ -36,6 +36,36 @@ def test_no_offload_under_threshold(monkeypatch):
     assert cl.resolve_generation_model_config(mc, "a short prompt") is mc
 
 
+def test_offload_counts_output_tokens(monkeypatch):
+    """Regression: a prompt that fits on its own can still overflow once its
+    reserved output is counted. Reproduces the production failure (prompt ~23k,
+    output 8192, 32k local ceiling) that the prompt-only check let through."""
+    monkeypatch.setattr(settings.openai, "overflow_threshold_tokens", 32000)
+    monkeypatch.setattr(settings.openai, "overflow_model", "claude-sonnet-4-6")
+    monkeypatch.setattr(settings.anthropic, "api_key", "sk-test")
+    monkeypatch.setattr(
+        "symbology.database.model_configs.get_or_create_model_config",
+        lambda data: _mc(data["model"]),
+    )
+
+    # 22959 prompt tokens alone is well under the 32000 ceiling, but
+    # (22959 + 8192) * 1.15 ≈ 35723 > 32000, so it must offload.
+    mc = _mc("google/gemma-4-e4b", max_tokens=8192)
+    out = cl.resolve_generation_model_config(mc, _huge_prompt(22959))
+    assert out.model == "claude-sonnet-4-6"
+
+
+def test_no_offload_for_large_prompt_with_small_output(monkeypatch):
+    """Budget guard: the shared math means a large prompt with a small output
+    stays local instead of needlessly rerouting (the failing of a lowered
+    prompt-only threshold)."""
+    monkeypatch.setattr(settings.openai, "overflow_threshold_tokens", 32000)
+    monkeypatch.setattr(settings.anthropic, "api_key", "sk-test")
+    # (25000 + 1000) * 1.15 = 29900 <= 32000 -> stays local.
+    mc = _mc("google/gemma-4-e4b", max_tokens=1000)
+    assert cl.resolve_generation_model_config(mc, _huge_prompt(25000)) is mc
+
+
 def test_no_offload_for_anthropic_model(monkeypatch):
     monkeypatch.setattr(settings.openai, "overflow_threshold_tokens", 1)
     mc = _mc("claude-haiku-4-5-20251001")

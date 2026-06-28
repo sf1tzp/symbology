@@ -57,15 +57,27 @@ def estimate_tokens(text: Optional[str]) -> int:
     return int(len(text) / settings.openai.chars_per_token) + 1
 
 
+def requested_context_tokens(prompt_tokens: int, max_output_tokens: int) -> int:
+    """Total context a request needs: prompt + output, plus the safety margin.
+
+    The single source of truth for "how much context window does this request
+    consume". Unclamped and un-bucketed — the raw requirement. Used both to size
+    a local instance (``required_context_length``) and to decide whether a
+    request fits the local model at all (overflow reroute), so the two never
+    disagree about what a request costs.
+    """
+    return int((prompt_tokens + max_output_tokens) * settings.openai.context_safety_margin)
+
+
 def required_context_length(prompt_tokens: int, max_output_tokens: int) -> int:
     """Pick a context window large enough for the prompt plus its output.
 
-    Adds a safety margin, rounds up to the configured bucket, and clamps to
+    Rounds the request's requirement up to the configured bucket and clamps to
     ``[context_min, context_max]``. The model's own ``max_context_length`` is
     applied separately by the caller (it isn't known here).
     """
     cfg = settings.openai
-    raw = (prompt_tokens + max_output_tokens) * cfg.context_safety_margin
+    raw = requested_context_tokens(prompt_tokens, max_output_tokens)
     bucketed = int(math.ceil(raw / cfg.context_bucket) * cfg.context_bucket)
     return max(cfg.context_min, min(cfg.context_max, bucketed))
 

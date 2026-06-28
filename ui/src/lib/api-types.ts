@@ -49,8 +49,10 @@ export interface GeneratedContentResponse {
 	content_hash?: string | null;
 	short_hash?: string | null;
 	company_id?: string | null;
+	company_group_id?: string | null;
 	description?: string | null;
 	document_type?: string | null;
+	content_stage?: string | null;
 	source_type: string;
 	created_at: string;
 	total_duration?: number | null;
@@ -65,6 +67,28 @@ export interface GeneratedContentResponse {
 	user_prompt_id?: string | null;
 	source_document_ids?: string[];
 	source_content_ids?: string[];
+}
+
+export interface PromptResponse {
+	id: string;
+	name: string;
+	description?: string | null;
+	role: string;
+	content: string;
+	content_hash?: string | null;
+	short_hash?: string | null;
+}
+
+// One side (prior / current period) of a topic-diff synthesis. Reconstructed
+// from the section diff's token ops; the source text the LLM summarised.
+export interface DiffSourceSide {
+	label: string;
+	period: 'prior' | 'current';
+	text: string;
+	/** Deep link to the document page this side came from, when resolvable. */
+	href?: string | null;
+	filingForm?: string | null;
+	filingDate?: string | null;
 }
 
 export interface ModelConfigResponse {

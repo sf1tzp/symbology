@@ -30,9 +30,7 @@
 				<AlertCircle class="h-5 w-5 text-red-500" />
 				<CardTitle class="text-lg">Content Not Found</CardTitle>
 			</div>
-			<CardDescription>
-				The generated content you're looking for could not be found.
-			</CardDescription>
+			<CardDescription>The synthesis you're looking for could not be found.</CardDescription>
 		</CardHeader>
 		<CardContent class="space-y-4">
 			<p class="text-sm text-muted-foreground">This might happen if:</p>

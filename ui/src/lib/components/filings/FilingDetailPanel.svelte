@@ -130,8 +130,6 @@
 			return dateStr;
 		}
 	}
-
-	const ticker = $derived(company?.ticker ?? '');
 </script>
 
 <div style="display: flex; flex-direction: column; gap: 1.5rem;">
@@ -268,7 +266,7 @@
 										<button
 											class="tag-new tag"
 											style="cursor: pointer; font-size: 10px; gap: 4px;"
-											onclick={() => goto(`/g/${ticker}/${gc.short_hash}`)}
+											onclick={() => goto(`/s/${gc.short_hash}`)}
 										>
 											<Sparkles class="h-2.5 w-2.5" />
 											Synthesis

@@ -5,10 +5,9 @@
 
 	interface Props {
 		summaries: GeneratedContentResponse[];
-		ticker: string;
 	}
 
-	let { summaries, ticker }: Props = $props();
+	let { summaries }: Props = $props();
 
 	function getPreview(content: string | null | undefined): string {
 		if (!content) return '';
@@ -20,7 +19,7 @@
 	function handleClick(summary: GeneratedContentResponse) {
 		const hash = summary.short_hash || summary.content_hash?.substring(0, 12);
 		if (hash) {
-			goto(`/g/${ticker}/${hash}`);
+			goto(`/s/${hash}`);
 		}
 	}
 

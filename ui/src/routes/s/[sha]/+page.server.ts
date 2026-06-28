@@ -1,31 +1,38 @@
 import type { PageServerLoad } from './$types';
 import type { DocumentResponse, GeneratedContentResponse } from '$lib/api-types';
 import { error } from '@sveltejs/kit';
-import { getCompanyByTicker } from '$lib/server/db/companies';
 import {
-	getGeneratedContentByTickerAndHash,
+	getGeneratedContentByHash,
 	getGeneratedContentById,
 	getModelConfigById,
-	getDocumentById
+	getDocumentById,
+	getPromptById,
+	getTopicDiffSourcesByContentId,
+	resolveContentScope
 } from '$lib/server/db/generated-content';
 
 export const load: PageServerLoad = async ({ params }) => {
-	const { ticker, sha } = params;
+	const { sha } = params;
 
-	const [content, company] = await Promise.all([
-		getGeneratedContentByTickerAndHash(ticker, sha),
-		getCompanyByTicker(ticker)
+	const content = await getGeneratedContentByHash(sha);
+
+	if (!content) {
+		error(404, `Synthesis not found for hash '${sha}'`);
+	}
+
+	// Resolve the subject scope (company / group / …) from the content itself,
+	// plus model config + prompts (any may be absent), in parallel.
+	const [scope, modelConfig, systemPrompt, userPrompt, diffSources] = await Promise.all([
+		resolveContentScope(content),
+		content.model_config_id ? getModelConfigById(content.model_config_id) : null,
+		content.system_prompt_id ? getPromptById(content.system_prompt_id) : null,
+		content.user_prompt_id ? getPromptById(content.user_prompt_id) : null,
+		// Topic-diff summaries carry their sources as the section diff's two halves
+		// rather than association rows; reconstruct them for display.
+		content.content_stage === 'topic_diff_summary'
+			? getTopicDiffSourcesByContentId(content.id)
+			: Promise.resolve([])
 	]);
-
-	if (!content || !company) {
-		error(404, `Generated content not found for ticker '${ticker}' and hash '${sha}'`);
-	}
-
-	// Fetch model config if available
-	let modelConfig = null;
-	if (content.model_config_id) {
-		modelConfig = await getModelConfigById(content.model_config_id);
-	}
 
 	// Fetch source documents and content
 	type SourceItem =
@@ -55,10 +62,12 @@ export const load: PageServerLoad = async ({ params }) => {
 		content: {
 			...content,
 			modelConfig,
-			sources
+			sources,
+			systemPrompt,
+			userPrompt,
+			diffSources
 		},
-		company,
-		ticker,
+		scope,
 		sha
 	};
 };

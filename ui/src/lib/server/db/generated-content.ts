@@ -1,11 +1,14 @@
 import { db } from '../db';
 import type { Selectable } from 'kysely';
 import type {
+	DiffSourceSide,
 	DocumentResponse,
 	GeneratedContentResponse,
 	GeneratedContentSummaryResponse,
-	ModelConfigResponse
+	ModelConfigResponse,
+	PromptResponse
 } from '$lib/api-types';
+import type { DiffOp } from './diffs';
 import type { GeneratedContent } from './types';
 
 export async function getAggregateSummariesByTicker(
@@ -86,8 +89,10 @@ async function toGeneratedContentResponse(
 		content_hash: row.content_hash,
 		short_hash: row.content_hash?.slice(0, 12) ?? null,
 		company_id: row.company_id,
+		company_group_id: row.company_group_id,
 		description: row.description,
 		document_type: row.document_type,
+		content_stage: row.content_stage,
 		form_type: row.form_type,
 		source_type: row.source_type,
 		created_at: toISOString(row.created_at),
@@ -105,21 +110,60 @@ async function toGeneratedContentResponse(
 	};
 }
 
-export async function getGeneratedContentByTickerAndHash(
-	ticker: string,
+// Look up a synthesis by its content-hash prefix alone. The hash is the single
+// canonical identifier for any piece of generated content regardless of scope
+// (company / group / filing / document), so /s/[sha] needn't carry a ticker.
+export async function getGeneratedContentByHash(
 	hash: string
 ): Promise<GeneratedContentResponse | null> {
 	const row = await db
-		.selectFrom('generated_content as gc')
-		.innerJoin('companies as c', 'c.id', 'gc.company_id')
-		.selectAll('gc')
-		.where('c.ticker', '=', ticker.toUpperCase())
-		.where('gc.content_hash', 'like', `${hash}%`)
+		.selectFrom('generated_content')
+		.selectAll()
+		.where('content_hash', 'like', `${hash}%`)
 		.executeTakeFirst();
 
 	if (!row) return null;
 
 	return toGeneratedContentResponse(row);
+}
+
+// Where a synthesis "belongs" — its subject scope, used for the back-link and
+// the page's display name. Resolved from the content's own FKs rather than the
+// URL, so group- and (future) other-scoped content works without a ticker.
+export interface ContentScope {
+	label: string;
+	href: string | null;
+}
+
+export async function resolveContentScope(
+	content: GeneratedContentResponse
+): Promise<ContentScope> {
+	if (content.company_id) {
+		const company = await db
+			.selectFrom('companies')
+			.select(['ticker', 'name', 'display_name'])
+			.where('id', '=', content.company_id)
+			.executeTakeFirst();
+		if (company) {
+			return {
+				label: company.display_name || company.name || company.ticker,
+				href: `/c/${company.ticker}`
+			};
+		}
+	}
+
+	if (content.company_group_id) {
+		const group = await db
+			.selectFrom('company_groups')
+			.select(['slug', 'name'])
+			.where('id', '=', content.company_group_id)
+			.executeTakeFirst();
+		if (group) {
+			return { label: group.name, href: `/groups/${group.slug}` };
+		}
+	}
+
+	return { label: 'Symbology', href: null };
 }
 
 export async function getGeneratedContentById(
@@ -209,6 +253,118 @@ export async function getDocumentById(id: string): Promise<DocumentResponse | nu
 		short_hash: doc.content_hash?.slice(0, 12) ?? null,
 		filing
 	};
+}
+
+export async function getPromptById(id: string): Promise<PromptResponse | null> {
+	const row = await db
+		.selectFrom('prompts')
+		.select(['id', 'name', 'description', 'role', 'content', 'content_hash'])
+		.where('id', '=', id)
+		.executeTakeFirst();
+
+	if (!row) return null;
+
+	return {
+		id: row.id,
+		name: row.name,
+		description: row.description,
+		role: row.role,
+		content: row.content,
+		content_hash: row.content_hash,
+		short_hash: row.content_hash?.slice(0, 12) ?? null
+	};
+}
+
+// A topic-diff summary's true sources are the two texts it compared: the prior
+// and current period versions of one disclosure topic. They aren't stored as
+// association rows — they live as the token ops on the section_diff that points
+// at this content. Reconstruct each side losslessly from the ops (left column =
+// equal+delete, right column = equal+insert) and resolve a deep link to each
+// side's document page. Returns [] when this content isn't a topic-diff summary.
+export async function getTopicDiffSourcesByContentId(contentId: string): Promise<DiffSourceSide[]> {
+	const sd = await db
+		.selectFrom('section_diffs as sd')
+		.innerJoin('diff_sets as ds', 'ds.id', 'sd.diff_set_id')
+		.select(['sd.ops', 'ds.left_filing_id', 'ds.right_filing_id', 'ds.document_type'])
+		.where('sd.summary_content_id', '=', contentId)
+		.executeTakeFirst();
+
+	if (!sd) return [];
+
+	const ops = (sd.ops ?? []) as unknown as DiffOp[];
+	const priorText = ops
+		.filter((o) => o.op === 'equal' || o.op === 'delete')
+		.map((o) => o.text)
+		.join('');
+	const currentText = ops
+		.filter((o) => o.op === 'equal' || o.op === 'insert')
+		.map((o) => o.text)
+		.join('');
+
+	// Resolve each filing's document of the diff's type for deep links + labels.
+	const filingIds = [sd.left_filing_id, sd.right_filing_id].filter((x): x is string => !!x);
+	const meta = new Map<
+		string,
+		{ accession: string | null; hash: string | null; form: string | null; date: string | null }
+	>();
+	if (filingIds.length > 0) {
+		const [filings, docs] = await Promise.all([
+			db
+				.selectFrom('filings')
+				.select(['id', 'accession_number', 'form', 'filing_date'])
+				.where('id', 'in', filingIds)
+				.execute(),
+			db
+				.selectFrom('documents')
+				.select(['filing_id', 'content_hash'])
+				.where('filing_id', 'in', filingIds)
+				.where('document_type', '=', sd.document_type)
+				.execute()
+		]);
+		const hashByFiling = new Map<string, string>();
+		for (const d of docs) {
+			if (d.filing_id && d.content_hash && !hashByFiling.has(d.filing_id)) {
+				hashByFiling.set(d.filing_id, d.content_hash.slice(0, 12));
+			}
+		}
+		for (const f of filings) {
+			meta.set(f.id, {
+				accession: f.accession_number,
+				hash: hashByFiling.get(f.id) ?? null,
+				form: f.form,
+				date: f.filing_date ? toDateString(f.filing_date) : null
+			});
+		}
+	}
+
+	const sideHref = (filingId: string | null): string | null => {
+		if (!filingId) return null;
+		const m = meta.get(filingId);
+		return m?.accession && m.hash ? `/d/${m.accession}/${m.hash}` : null;
+	};
+
+	const sides: DiffSourceSide[] = [];
+	const priorMeta = sd.left_filing_id ? meta.get(sd.left_filing_id) : null;
+	const currentMeta = sd.right_filing_id ? meta.get(sd.right_filing_id) : null;
+
+	sides.push({
+		label: 'Prior period',
+		period: 'prior',
+		text: priorText || '(not present in the prior filing)',
+		href: sideHref(sd.left_filing_id),
+		filingForm: priorMeta?.form ?? null,
+		filingDate: priorMeta?.date ?? null
+	});
+	sides.push({
+		label: 'Current period',
+		period: 'current',
+		text: currentText || '(removed — not present in the current filing)',
+		href: sideHref(sd.right_filing_id),
+		filingForm: currentMeta?.form ?? null,
+		filingDate: currentMeta?.date ?? null
+	});
+
+	return sides;
 }
 
 function toISOString(val: unknown): string {

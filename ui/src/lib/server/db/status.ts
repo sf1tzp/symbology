@@ -660,10 +660,9 @@ export async function getContentLog(limit: number): Promise<ContentLogRow[]> {
 		const section = sectionLabel(r.document_type);
 		const context = [form, fy, section].filter(Boolean).join(' · ') || '—';
 
-		// Deep-link to the content page (/g/[ticker]/[sha], matched by hash prefix).
-		// Needs a real ticker, so company-less content (e.g. groups) isn't linkable.
-		const href =
-			r.ticker && r.content_hash ? `/g/${r.ticker}/${r.content_hash.slice(0, 12)}` : null;
+		// Deep-link to the synthesis page (/s/[sha], matched by hash prefix). The
+		// hash alone identifies any content, so company-less rows (e.g. groups) link too.
+		const href = r.content_hash ? `/s/${r.content_hash.slice(0, 12)}` : null;
 
 		const cost = generationCost(r.model ?? null, r.input_tokens, r.output_tokens, r.total_duration);
 

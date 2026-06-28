@@ -8,10 +8,9 @@
 
 	interface Props {
 		content: GeneratedContentSummaryResponse[];
-		ticker: string;
 	}
 
-	let { content, ticker }: Props = $props();
+	let { content }: Props = $props();
 
 	function getContextLabel(gc: GeneratedContentSummaryResponse): string {
 		const stage = gc.content_stage;
@@ -63,7 +62,7 @@
 	function handleRowClick(gc: GeneratedContentSummaryResponse) {
 		const hash = gc.short_hash || gc.content_hash?.substring(0, 12);
 		if (hash) {
-			goto(`/g/${ticker}/${hash}`);
+			goto(`/s/${hash}`);
 		}
 	}
 </script>

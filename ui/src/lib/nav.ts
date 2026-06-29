@@ -57,14 +57,27 @@ export const BROWSE_DESTINATIONS: BrowseDestination[] = [
 ];
 
 /**
- * The browse section the current route belongs to. `/s` and `/f` (and their
- * detail routes) map to synthesis and filings; everything else — including `/c`,
- * `/d`, and non-browse pages — defaults to companies, the browse entry point.
+ * The browse section a route genuinely belongs to, or `null` for pages that sit
+ * outside the three browse surfaces (FAQ, Support, Account, …). `/s` and `/f`
+ * map to synthesis and filings; `/c` and `/d` (a company and its documents) map
+ * to companies. Unlike {@link currentSection} this does *not* fall back to
+ * companies, so callers can tell "on companies" apart from "on no section" and
+ * keep showing the last visited section on those off-surface pages.
  */
-export function currentSection(pathname: string): BrowseSection {
+export function routeSection(pathname: string): BrowseSection | null {
 	if (/^\/s(\/|$)/.test(pathname)) return 'synthesis';
 	if (/^\/f(\/|$)/.test(pathname)) return 'filings';
-	return 'companies';
+	if (/^\/[cd](\/|$)/.test(pathname)) return 'companies';
+	return null;
+}
+
+/**
+ * The browse section the current route belongs to, defaulting to companies (the
+ * browse entry point) for any page outside the three surfaces. Use
+ * {@link routeSection} when the off-surface case must be distinguished.
+ */
+export function currentSection(pathname: string): BrowseSection {
+	return routeSection(pathname) ?? 'companies';
 }
 
 /** The index destination for a browse section. */

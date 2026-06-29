@@ -1,0 +1,18 @@
+Synthesis / Filing / Changes page / mobile nav
+
+- /s/ diff topic summaries need a synthesis level to display (l1)
+
+- /s/ and /f/ - need to improve UX back to the company (pages have desktop style < Back links, but lack a consistent mobile UI (ticker prompemently displayed near the heading?))
+  - mobile nav: context tab just says the form type, no ticker. Perhaps remove the icon, then use eg "FY2026 Q2" "10-Q" "GOOGL" for more clarity
+    - similarly: on /s/ only the synthesis level is shown. Perhaps "GOOGL" "10-Q" "L3 ✨"
+
+- /s/ needs stying wrt sticky headings and markdown headings
+- /s/ needs a styling pass on the model config / Prompt / Sources display, especially on mobile
+
+---
+
+(Phase 3)
+Supporter feature:
+
+- We've stopped queueing 10-Q lookbacks for now, leavving individual 10-Q fillings that don't have page content generated. That's fine, but supporters need to be able to queue these filing_page_content jobs now (currently says nothing to queue, presumably looking for a 10-Q lookback iirc)
+

@@ -113,12 +113,16 @@
 		:global(.prose .md-section > h5),
 		:global(.prose .md-section > h6) {
 			position: sticky;
-			top: var(--md-heading-sticky-top, 0px);
+			/* Offset by the status-bar inset so the heading pins below the notch
+			   (viewport-fit=cover puts top:0 behind it); stacks under a SectionHead
+			   bar when one publishes its height. */
+			top: calc(var(--md-heading-sticky-top, 0px) + env(safe-area-inset-top));
 			z-index: 20;
 			/* background: var(--background); */
 			margin-bottom: 0;
 			padding-bottom: 0.75rem;
 			background-color: color-mix(in srgb, var(--background) 80%, transparent);
+			-webkit-backdrop-filter: blur(12px);
 			backdrop-filter: blur(12px);
 			/* bg-background/90 backdrop-blur-md */
 		}

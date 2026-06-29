@@ -264,13 +264,15 @@
 	}
 	/* Pinning is a mobile-only affordance, so every `sticky` SectionHead is sticky
 	   on phones without each call site opting in. At md+ the top nav stays visible
-	   and there's room for headers in normal flow, so the bar sits static. top:0
-	   because the nav is hidden off the home screen on mobile (see Navbar), leaving
-	   the viewport top free. */
+	   and there's room for headers in normal flow, so the bar sits static. The nav
+	   is hidden off the home screen on mobile (see Navbar), so the bar pins to the
+	   viewport top — but offset by the status-bar inset so it lands *below* the
+	   notch (with viewport-fit=cover, top:0 sits behind it). The fixed top scrim in
+	   the layout blurs the notch band above this. */
 	@media (max-width: 767.98px) {
 		.eyebrow-sticky {
 			position: sticky;
-			top: 0;
+			top: env(safe-area-inset-top);
 		}
 	}
 	.meta {

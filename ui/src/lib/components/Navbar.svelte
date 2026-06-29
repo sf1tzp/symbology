@@ -31,7 +31,7 @@
 <svelte:window bind:scrollY />
 
 <nav
-	class="page fixed top-0 right-0 left-0 z-50 transition-all duration-200 {isHome
+	class="page fixed top-0 right-0 left-0 z-50 pt-[env(safe-area-inset-top)] transition-all duration-200 {isHome
 		? ''
 		: 'hidden md:block'} {scrolled
 		? 'border-b border-border bg-background/80 backdrop-blur-md'
@@ -122,5 +122,7 @@
 	</div>
 </nav>
 
-<!-- Spacer to offset fixed navbar; collapses with the bar when it's hidden -->
-<div class="{isHome ? '' : 'hidden md:block'} h-14"></div>
+<!-- Spacer to offset fixed navbar; collapses with the bar when it's hidden. Grows
+     by the top safe-area inset so the bar's blur can extend behind the notch
+     without pulling content underneath it (inset is 0 at md+ / un-notched). -->
+<div class="{isHome ? '' : 'hidden md:block'} h-[calc(3.5rem+env(safe-area-inset-top))]"></div>

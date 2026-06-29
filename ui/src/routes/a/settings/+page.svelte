@@ -8,10 +8,16 @@
 	import SupporterCard from '$lib/components/SupporterCard.svelte';
 	import SupporterBadges from '$lib/components/SupporterBadges.svelte';
 	import { initials } from '$lib/nav';
+	import { hints } from '$lib/state/hints.svelte';
 	import type { BadgeKey } from '$lib/supporter-plans';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 
 	let { data } = $props();
+
+	// ── Hints preference ── (client-only, persisted in localStorage)
+	$effect(() => {
+		hints.load();
+	});
 
 	// ── Profile icon (avatar badge) ──
 	// The choice persists in Better Auth's `user.avatarBadge` field; clearing it
@@ -169,6 +175,37 @@
 				{profileSaving ? 'Saving…' : 'Save'}
 			</Button>
 		</form>
+	</section>
+
+	<Separator class="my-10" />
+
+	<!-- Preferences -->
+	<section class="max-w-md">
+		<h2 class="sub mb-4 text-ink-3">Preferences</h2>
+		<div class="flex items-center justify-between gap-6">
+			<div>
+				<div class="text-sm text-ink-2">Show hints</div>
+				<p class="mt-1 text-sm text-ink-4">
+					Occasional on-screen tips, like the mobile content-type switcher. Saved on this device.
+				</p>
+			</div>
+			<button
+				type="button"
+				role="switch"
+				aria-checked={!hints.disabled}
+				aria-label="Show hints"
+				onclick={() => hints.set(!hints.disabled)}
+				class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors {hints.disabled
+					? 'bg-border'
+					: 'bg-teal-2'}"
+			>
+				<span
+					class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {hints.disabled
+						? 'translate-x-0.5'
+						: 'translate-x-[1.125rem]'}"
+				></span>
+			</button>
+		</div>
 	</section>
 
 	<Separator class="my-10" />

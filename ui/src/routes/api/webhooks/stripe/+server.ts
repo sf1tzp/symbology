@@ -4,6 +4,7 @@ import { env } from '$env/dynamic/private';
 import Stripe from 'stripe';
 import { getStripe } from '$lib/server/stripe';
 import { grantSupporter } from '$lib/server/db/supporter';
+import { notifySupport } from '$lib/server/email/notifySupport';
 
 /**
  * Stripe webhook. The ONLY place supporter days are granted — never trust the
@@ -60,11 +61,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ received: true });
 		}
 
+		const amountCents = session.amount_total ?? days * 100;
+		let granted: boolean;
 		try {
-			await grantSupporter({
+			granted = await grantSupporter({
 				userId,
 				days,
-				amountCents: session.amount_total ?? days * 100,
+				amountCents,
 				planType,
 				provider: 'stripe',
 				providerTxnId: txnId
@@ -73,6 +76,22 @@ export const POST: RequestHandler = async ({ request }) => {
 			console.error('failed to record supporter grant', err);
 			// 500 → Stripe retries; grantSupporter is idempotent so retries are safe.
 			throw error(500, 'Failed to record grant');
+		}
+
+		// Notify support only on the first, real delivery — grantSupporter returns
+		// false for redeliveries, so Stripe's retries don't spam the inbox.
+		if (granted) {
+			await notifySupport({
+				subject: `New supporter payment: $${(amountCents / 100).toFixed(2)}`,
+				lines: [
+					'A supporter payment was completed.',
+					`Amount: $${(amountCents / 100).toFixed(2)} (${amountCents} cents)`,
+					`Days: ${days}`,
+					`Plan: ${planType}`,
+					`User ID: ${userId}`,
+					`Stripe txn: ${txnId}`
+				]
+			});
 		}
 	}
 

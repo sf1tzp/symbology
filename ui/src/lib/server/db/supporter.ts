@@ -115,15 +115,19 @@ export interface GrantInput {
  * webhook may fire more than once). Days stack: the new window starts from
  * whichever is later — now, or the user's current furthest expiry — so a
  * top-up never shortens an existing window.
+ *
+ * Returns true when a new grant was actually recorded, false when this
+ * transaction had already been recorded — so callers can act (e.g. notify)
+ * only on the first, real delivery and stay quiet on webhook redeliveries.
  */
-export async function grantSupporter(input: GrantInput): Promise<void> {
+export async function grantSupporter(input: GrantInput): Promise<boolean> {
 	// Idempotency: bail if we've already recorded this transaction.
 	const existing = await db
 		.selectFrom('supporter_grants')
 		.select('id')
 		.where('provider_txn_id', '=', input.providerTxnId)
 		.executeTakeFirst();
-	if (existing) return;
+	if (existing) return false;
 
 	// Stack onto the current furthest expiry (or now, whichever is later).
 	const current = await db
@@ -141,7 +145,7 @@ export async function grantSupporter(input: GrantInput): Promise<void> {
 	// the race where two grants land close together.
 	const expiresAt = new Date(Math.min(base + input.days * DAY_MS, Date.parse(SUPPORT_CAP_ISO)));
 
-	await db
+	const result = await db
 		.insertInto('supporter_grants')
 		.values({
 			user_id: input.userId,
@@ -155,4 +159,7 @@ export async function grantSupporter(input: GrantInput): Promise<void> {
 		// Guards the race where two webhook deliveries land concurrently.
 		.onConflict((oc) => oc.column('provider_txn_id').doNothing())
 		.execute();
+
+	// 0 inserted rows means a concurrent delivery won the conflict — not a new grant.
+	return (result[0]?.numInsertedOrUpdatedRows ?? 0n) > 0n;
 }

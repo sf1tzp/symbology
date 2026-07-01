@@ -5,6 +5,7 @@ import pg from 'pg';
 import { env } from '$env/dynamic/private';
 import { getDatabaseUrl } from './db-config';
 import { sendEmail } from './email/send';
+import { notifySupport } from './email/notifySupport';
 import { verifyEmail } from './email/templates/verifyEmail';
 import { resetPassword } from './email/templates/resetPassword';
 import { welcome } from './email/templates/welcome';
@@ -67,6 +68,27 @@ export const auth = betterAuth({
 		// inferAdditionalFields in auth-client.ts.
 		additionalFields: {
 			avatarBadge: { type: 'string', required: false, input: true }
+		}
+	},
+	databaseHooks: {
+		user: {
+			create: {
+				// Notify the support inbox the moment an account row is created.
+				// This fires on signup, before email verification, so it captures
+				// every new account (including drop-offs that never verify).
+				// notifySupport never throws, so it can't break account creation.
+				after: async (user) => {
+					await notifySupport({
+						subject: `New account: ${user.email}`,
+						lines: [
+							'A new account was created.',
+							`Email: ${user.email}`,
+							`Name: ${user.name || '(none)'}`,
+							`User ID: ${user.id}`
+						]
+					});
+				}
+			}
 		}
 	},
 	// sveltekitCookies must be the last plugin so it can flush Set-Cookie

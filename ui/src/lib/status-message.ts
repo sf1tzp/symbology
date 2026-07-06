@@ -19,11 +19,12 @@ export interface StatusMessage {
 }
 
 export const STATUS_MESSAGE: StatusMessage = {
-	date: 'June 8',
-	headline: 'Pre-loading filing content, embeddings, and diffs.',
+	date: 'July 6',
+	headline: 'Backfilling 10-K synthesis.',
 	body:
-		'Ahead of launch we are seeding the corpus: ingesting Fortune 500 filings, ' +
-		'embedding each section for semantic search, and precomputing the ' +
-		'year-over-year diffs that drive the change reports. The queues below will ' +
-		'run hot until the backlog drains.'
+		'We have ingested filings for the initial dataset and processed them for ' +
+		'diffs. Now we are going through each company, looking back over the past ' +
+		'five years for changes. We are reviewing our 10-Q content for quality and ' +
+		'usefulness; existing content may change without notice. Thanks for your ' +
+		'patience.'
 };

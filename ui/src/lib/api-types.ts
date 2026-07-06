@@ -129,6 +129,17 @@ export interface CompanyListResponse {
 	total: number;
 }
 
+// Facet metadata for the /c faceted browse (GET /api/companies/facets).
+export interface IndustryFacet {
+	sic: string | null;
+	sic_description: string;
+	count: number;
+}
+
+export interface CompanyFacetsResponse {
+	industries: IndustryFacet[];
+}
+
 // Filing list types (for the /f browse index)
 export interface FilingListItem {
 	id: string;

@@ -1,11 +1,17 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
-	import { ChevronRight, Sparkles, TrendingUp } from '@lucide/svelte';
+	import { ChevronRight, Sparkles, TrendingUp, SlidersHorizontal } from '@lucide/svelte';
 	import Search from '@lucide/svelte/icons/search';
-	import type { CompanyListItem, CompanyListResponse } from '$lib/api-types';
+	import type {
+		CompanyListItem,
+		CompanyListResponse,
+		CompanyFacetsResponse,
+		IndustryFacet
+	} from '$lib/api-types';
 	import { titleCase } from 'title-case';
 	import SectionHead from '$lib/components/SectionHead.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import { mobileTabBar } from '$lib/state/mobileTabBar.svelte';
 
 	// Hide the bottom mobile nav while the search box is focused so it doesn't
@@ -14,26 +20,46 @@
 
 	const PAGE_SIZE = 30;
 
+	type ContentFlag = '10k' | '10q' | 'diffs';
+	type SortKey = 'ticker' | 'name' | 'recent';
+
+	const SORT_OPTIONS = [
+		{ value: 'ticker', label: 'Ticker' },
+		{ value: 'name', label: 'Name' },
+		{ value: 'recent', label: 'Recent' }
+	];
+
+	// Content-type filter chips — colors mirror the row content badges below.
+	const CONTENT_OPTIONS: { flag: ContentFlag; label: string; color: string }[] = [
+		{ flag: '10k', label: '10-K', color: 'var(--teal-2)' },
+		{ flag: '10q', label: '10-Q', color: 'var(--plum)' },
+		{ flag: 'diffs', label: 'Diffs', color: 'var(--warn)' }
+	];
+
 	let total = $state(0);
 	let companies = $state<CompanyListItem[]>([]);
-	let _featured = $state<CompanyListItem[]>([]);
 	let currentPage = $state(0);
 	let loading = $state(true);
 	let searchTerm = $state('');
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let isSearching = $state(false);
 
-	async function fetchCompanies(
-		skip: number,
-		limit: number,
-		search?: string,
-		sort?: string
-	): Promise<CompanyListResponse> {
+	// Facet filter state.
+	let sort = $state<SortKey>('ticker');
+	let selectedSic = $state('');
+	let contentFlags = $state<ContentFlag[]>([]);
+	let industries = $state<IndustryFacet[]>([]);
+	let showFilters = $state(false); // mobile filter panel
+
+	async function fetchCompanies(skip: number, limit: number): Promise<CompanyListResponse> {
 		const params = new SvelteURLSearchParams();
 		params.set('skip', String(skip));
 		params.set('limit', String(limit));
+		const search = searchTerm.trim();
 		if (search) params.set('search', search);
-		if (sort) params.set('sort', sort);
+		if (sort !== 'ticker') params.set('sort', sort);
+		if (selectedSic) params.set('sic', selectedSic);
+		if (contentFlags.length) params.set('content', contentFlags.join(','));
 		const res = await fetch(`/api/companies?${params}`);
 		if (!res.ok) throw new Error('Failed to fetch companies');
 		return res.json();
@@ -42,8 +68,7 @@
 	async function loadPage(page: number) {
 		loading = true;
 		try {
-			const search = searchTerm.trim() || undefined;
-			const result = await fetchCompanies(page * PAGE_SIZE, PAGE_SIZE, search);
+			const result = await fetchCompanies(page * PAGE_SIZE, PAGE_SIZE);
 			companies = result.companies;
 			total = result.total;
 			currentPage = page;
@@ -54,12 +79,14 @@
 		}
 	}
 
-	async function loadFeatured() {
+	async function loadFacets() {
 		try {
-			const result = await fetchCompanies(0, 3, undefined, 'recent');
-			_featured = result.companies;
+			const res = await fetch('/api/companies/facets');
+			if (!res.ok) return;
+			const data: CompanyFacetsResponse = await res.json();
+			industries = data.industries;
 		} catch (e) {
-			console.error('Failed to load featured:', e);
+			console.error('Failed to load facets:', e);
 		}
 	}
 
@@ -83,6 +110,32 @@
 		}
 	}
 
+	// Any facet change resets to the first page — the current page may not exist
+	// in the newly-filtered result set.
+	function onSort(v: string) {
+		sort = v as SortKey;
+		loadPage(0);
+	}
+
+	function toggleContent(flag: ContentFlag) {
+		contentFlags = contentFlags.includes(flag)
+			? contentFlags.filter((f) => f !== flag)
+			: [...contentFlags, flag];
+		loadPage(0);
+	}
+
+	function onIndustryChange() {
+		loadPage(0);
+	}
+
+	function clearFilters() {
+		selectedSic = '';
+		contentFlags = [];
+		sort = 'ticker';
+		searchTerm = '';
+		loadPage(0);
+	}
+
 	function _formatDate(dateStr: string | null): string {
 		if (!dateStr) return '';
 		try {
@@ -94,12 +147,25 @@
 	}
 
 	const totalPages = $derived(Math.ceil(total / PAGE_SIZE));
-	const _showingFrom = $derived(currentPage * PAGE_SIZE + 1);
-	const _showingTo = $derived(Math.min((currentPage + 1) * PAGE_SIZE, total));
+	// Non-search facet filters currently applied (drives the mobile badge + Clear).
+	const activeFilterCount = $derived(
+		(selectedSic ? 1 : 0) + contentFlags.length + (sort !== 'ticker' ? 1 : 0)
+	);
+	const hasAnyFilter = $derived(activeFilterCount > 0 || searchTerm.trim().length > 0);
+	const selectedIndustryLabel = $derived(
+		selectedSic ? (industries.find((i) => i.sic === selectedSic)?.sic_description ?? null) : null
+	);
+	const resultsScope = $derived(
+		searchTerm.trim()
+			? 'Search: ' + searchTerm.trim()
+			: selectedIndustryLabel
+				? titleCase(selectedIndustryLabel.toLowerCase())
+				: 'All companies'
+	);
 
 	onMount(() => {
 		loadPage(0);
-		loadFeatured();
+		loadFacets();
 	});
 </script>
 
@@ -146,117 +212,99 @@
 	<meta name="description" content="Browse and explore public companies" />
 </svelte:head>
 
-<!-- Masthead -->
-<!-- <section>
-	<div class="flex-between flex-col items-stretch gap-6 md:flex-row md:items-end">
-		<div>
-			<SectionHead sticky stickyHeading eyebrow="symbology.online" heading="" />
-			<h1 class="display" style="margin-bottom: 14px;">
-				Browse
-				{#if total > 0}
-					<em>{total.toLocaleString()}</em>
-				{/if}
-				companies.
-			</h1>
-			<p class="lede" style="max-width: 52ch; color: var(--ink-2);">
-				Filtered live across the SEC's public registrant universe. Click any company to land on its
-				filing timeline and full analysis.
-			</p>
-		</div>
-
-	</div>
-</section> -->
-
-<!-- Featured companies -->
-<!-- {#if featured.length > 0 && !searchTerm.trim()}
-	<section class="hairline-section" style="margin-top: 3rem;">
-		<div class="flex-between" style="margin-bottom: 22px;">
-			<h3 class="sub">Recently filed</h3>
-		</div>
-		<div class="grid-3">
-			{#each featured as c (c.id)}
-				<a
-					href="/c/{c.ticker}"
-					style="border: 1px solid var(--rule); border-radius: 8px; padding: 24px; text-decoration: none; color: inherit; display: block; transition: border-color 0.15s;"
-					class="hover-card"
-				>
-					<div class="flex-between" style="margin-bottom: 18px;">
-						<span class="tag" style="font-weight: 500; color: var(--ink);">{c.ticker}</span>
-						{#if c.filing_count > 0}
-							<span class="tag tag-new" style="font-size: 10px;">
-								{c.filing_count} filings
-							</span>
-						{/if}
-					</div>
-					<div
-						style="font-family: var(--serif); font-size: 22px; color: var(--ink); line-height: 1.25; margin-bottom: 6px;"
-					>
-						{titleCase((c.display_name || c.name).toLowerCase())}
-					</div>
-					<div class="meta" style="color: var(--ink-4); margin-bottom: 18px;">
-						{c.sic_description || ''}
-					</div>
-					<div class="flex-between" style="padding-top: 14px; border-top: 1px solid var(--rule);">
-						<span class="meta" style="color: var(--ink-3);">
-							{#if c.last_filing_form && c.last_filing_date}
-								{c.last_filing_form} &middot; {formatDate(c.last_filing_date)}
-							{:else}
-								No filings
-							{/if}
-						</span>
-						<span style="font-size: 13px; color: var(--teal-2);">Open &rarr;</span>
-					</div>
-				</a>
-			{/each}
-		</div>
-	</section>
-{/if} -->
-
 <!-- All companies table -->
 <section class="">
 	<SectionHead
 		sticky
-		eyebrow="{searchTerm.trim()
-			? 'Search results: ' + searchTerm
-			: 'All companies'} &middot; {total > 0 ? total.toLocaleString() + ' results' : ''}"
+		eyebrow="{resultsScope} &middot; {total > 0 ? total.toLocaleString() + ' results' : ''}"
 		heading=""
 	/>
-	<!-- <div class="flex-between" style="margin-bottom: 18px;">
-		<h3 class="sub">
-			{#if searchTerm.trim()}
-				Search results
-			{:else}
-				All companies
-			{/if}
-		</h3>
-		{#if total > 0}
-			<span class="meta" style="color: var(--ink-4);">
-				{total.toLocaleString()} results
-			</span>
-		{/if}
-	</div> -->
 
-	<!-- Search input -->
-	<div
-		class="mb-4 w-full p-4 md:w-[340px]"
-		style="display: flex; align-items: center; gap: 8px;
-			   border: 1px solid var(--rule-2); border-radius: 8px; background: var(--paper);"
-	>
-		<Search style="width: 14px; height: 14px; color: var(--ink-4); flex-shrink: 0;" />
-		<input
-			type="text"
-			bind:value={searchTerm}
-			oninput={handleSearchInput}
-			onkeydown={handleSearchKeydown}
-			onfocus={() => (mobileTabBar.hidden = true)}
-			onblur={() => (mobileTabBar.hidden = false)}
-			placeholder="Company name or ticker..."
-			style="flex: 1; border: none; outline: none; background: transparent; font-family: var(--sans);
-				   font-size: 14px; color: var(--ink); padding: 0;"
-		/>
-		{#if isSearching}
-			<span class="meta" style="color: var(--ink-4);">...</span>
-		{/if}
+	<!-- Search + filter toolbar -->
+	<div class="filter-bar">
+		<div class="filter-top">
+			<div class="search-box">
+				<Search style="width: 14px; height: 14px; color: var(--ink-4); flex-shrink: 0;" />
+				<input
+					type="text"
+					bind:value={searchTerm}
+					oninput={handleSearchInput}
+					onkeydown={handleSearchKeydown}
+					onfocus={() => (mobileTabBar.hidden = true)}
+					onblur={() => (mobileTabBar.hidden = false)}
+					placeholder="Company name or ticker..."
+				/>
+				{#if isSearching}
+					<span class="meta" style="color: var(--ink-4);">...</span>
+				{/if}
+			</div>
+
+			<!-- Mobile: reveal the facet controls in a collapsible panel. -->
+			<button
+				type="button"
+				class="filter-toggle sm:hidden"
+				aria-expanded={showFilters}
+				onclick={() => (showFilters = !showFilters)}
+			>
+				<SlidersHorizontal size={14} />
+				Filters
+				{#if activeFilterCount > 0}
+					<span class="filter-count">{activeFilterCount}</span>
+				{/if}
+			</button>
+		</div>
+
+		<div class="filter-controls" class:open={showFilters}>
+			<div class="filter-group">
+				<span class="filter-label">Sort</span>
+				<SegmentedControl
+					options={SORT_OPTIONS}
+					value={sort}
+					onselect={onSort}
+					ariaLabel="Sort companies"
+				/>
+			</div>
+
+			<div class="filter-group">
+				<span class="filter-label">Content</span>
+				<div class="chips">
+					{#each CONTENT_OPTIONS as opt (opt.flag)}
+						{@const active = contentFlags.includes(opt.flag)}
+						<button
+							type="button"
+							class="chip"
+							class:active
+							style="--chip-color: {opt.color};"
+							aria-pressed={active}
+							onclick={() => toggleContent(opt.flag)}
+						>
+							{opt.label}
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="filter-group">
+				<span class="filter-label">Industry</span>
+				<select
+					class="industry-select"
+					bind:value={selectedSic}
+					onchange={onIndustryChange}
+					aria-label="Filter by industry"
+				>
+					<option value="">All industries</option>
+					{#each industries as ind (ind.sic + ind.sic_description)}
+						<option value={ind.sic ?? ''}>
+							{titleCase(ind.sic_description.toLowerCase())}
+						</option>
+					{/each}
+				</select>
+			</div>
+
+			{#if hasAnyFilter}
+				<button type="button" class="clear-filters" onclick={clearFilters}>Clear all</button>
+			{/if}
+		</div>
 	</div>
 
 	{#if loading && companies.length === 0}
@@ -266,9 +314,15 @@
 			{/each}
 		</div>
 	{:else if companies.length === 0}
-		<p class="body-text" style="color: var(--ink-3); padding: 2rem 0; text-align: center;">
-			No companies found.
-		</p>
+		<div class="empty">
+			<p class="body-text" style="color: var(--ink-3);">
+				No companies match{hasAnyFilter ? ' these filters' : ''}.
+			</p>
+			{#if hasAnyFilter}
+				<button type="button" class="clear-filters" onclick={clearFilters}>Clear all filters</button
+				>
+			{/if}
+		</div>
 	{:else}
 		<div style="opacity: {loading ? 0.6 : 1}; transition: opacity 0.15s;">
 			{#each companies as c (c.id)}
@@ -370,6 +424,183 @@
 		.skel {
 			animation: none;
 		}
+	}
+
+	/* --- Filter toolbar --- */
+	.filter-bar {
+		margin-bottom: 1.25rem;
+	}
+
+	.filter-top {
+		display: flex;
+		align-items: stretch;
+		gap: 10px;
+		margin-bottom: 14px;
+	}
+
+	.search-box {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex: 1;
+		padding: 0 12px;
+		height: 44px;
+		border: 1px solid var(--rule-2);
+		border-radius: 8px;
+		background: var(--paper);
+	}
+	.search-box input {
+		flex: 1;
+		border: none;
+		outline: none;
+		background: transparent;
+		font-family: var(--sans);
+		font-size: 14px;
+		color: var(--ink);
+		padding: 0;
+	}
+
+	.filter-toggle {
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+		padding: 0 14px;
+		height: 44px;
+		border: 1px solid var(--rule-2);
+		border-radius: 8px;
+		background: var(--paper);
+		color: var(--ink-2);
+		font-family: var(--sans);
+		font-size: 13px;
+		cursor: pointer;
+	}
+	/* `.sm:hidden` (Tailwind) toggles display; when visible it's inline-flex. */
+	:global(.filter-toggle.sm\:hidden) {
+		display: inline-flex;
+	}
+	@media (min-width: 640px) {
+		:global(.filter-toggle.sm\:hidden) {
+			display: none;
+		}
+	}
+
+	.filter-count {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 5px;
+		border-radius: 999px;
+		background: var(--teal-2);
+		color: var(--paper);
+		font-family: var(--mono);
+		font-size: 11px;
+		font-weight: 600;
+	}
+
+	/* Collapsed on mobile; the Filters button expands it. Always shown (and laid
+	   out as a wrapping row) from sm: up. */
+	.filter-controls {
+		display: none;
+		flex-direction: column;
+		gap: 14px;
+		padding-top: 4px;
+	}
+	.filter-controls.open {
+		display: flex;
+	}
+	@media (min-width: 640px) {
+		.filter-controls,
+		.filter-controls.open {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 20px;
+		}
+	}
+
+	.filter-group {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
+	.filter-label {
+		font-family: var(--mono);
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--ink-4);
+	}
+
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		padding: 4px 11px;
+		border-radius: 999px;
+		font-family: var(--sans);
+		font-size: 12px;
+		font-weight: 500;
+		line-height: 1;
+		white-space: nowrap;
+		cursor: pointer;
+		color: var(--ink-3);
+		background: var(--paper);
+		border: 1px solid var(--rule-2);
+		transition:
+			color 0.12s,
+			background 0.12s,
+			border-color 0.12s;
+	}
+	.chip:hover {
+		color: var(--ink);
+	}
+	.chip.active {
+		color: var(--chip-color);
+		background: color-mix(in srgb, var(--chip-color) 12%, transparent);
+		border-color: color-mix(in srgb, var(--chip-color) 40%, transparent);
+	}
+
+	.industry-select {
+		max-width: 260px;
+		padding: 6px 10px;
+		border: 1px solid var(--rule-2);
+		border-radius: 8px;
+		background: var(--paper);
+		font-family: var(--sans);
+		font-size: 13px;
+		color: var(--ink);
+		cursor: pointer;
+	}
+
+	.clear-filters {
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		font-family: var(--mono);
+		font-size: 11px;
+		color: var(--ink-4);
+		text-decoration: underline;
+	}
+	.clear-filters:hover {
+		color: var(--ink-2);
+	}
+
+	.empty {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		padding: 2rem 0;
+		text-align: center;
 	}
 
 	/* Mobile copy: icon-only pills to save horizontal room. */

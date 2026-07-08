@@ -111,6 +111,17 @@ prompts:
   document_page_intro: l2/document-intro-content
   topic_diff_summary: l2/topic-diff-summary
 
+# Per-form prompt overrides: form -> {stage -> prompt path}. A stage absent for a
+# form falls back to the form-agnostic `prompts` map above. 10-Q pages use
+# quarterly-specific prompts focused on what has changed within the current fiscal
+# year (since the anchoring 10-K), rather than summarizing the company in general.
+form_prompts:
+  10-Q:
+    change_report: l2/change-report-quarterly
+    change_report_intro: l3/change-report-intro-quarterly
+    company_main_content: l3/company-main-content-quarterly
+    company_intro: l4/company-intro-content-quarterly
+
 doc_type_prompts:
   business_description: l1/business_description
   risk_factors: l1/risk_factors

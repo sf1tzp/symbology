@@ -2,17 +2,21 @@
 # (`import 'ingest.just'`), so invoke them from the repo root — e.g.
 # `just queue-ingest-all` — which is where the `cli` recipe these call lives.
 
+foo TICKER:
+    just cli jobs start company_page_content --set ticker={{ TICKER }} --set form=10-K --priority 3
+    just cli jobs start company_page_content --set ticker={{ TICKER }} --set form=10-Q --priority 3
 
 # Queue the full ingest → embed → page-content → diff pipeline for a ticker.
 # (Embeddings and filing-pair diffs auto-enqueue at ingestion, so we only queue
 # ingestion + the company page; the page job self-heals its filing-page deps.)
-queue-new-jobs TICKER LOOKBACK FORM:
+queue-new-jobs TICKER LOOKBACK='5' FORM='10-K':
     #!/usr/bin/env bash
     set -euo pipefail
 
     just cli jobs start filing_ingestion --set ticker={{ TICKER }} --set count={{ LOOKBACK }} --set form={{ FORM }} --priority 1
 
     just cli jobs start company_page_content --set ticker={{ TICKER }} --set lookback={{ LOOKBACK }} --set form={{ FORM }} --priority 3 --delay 45
+
 
 
 # Queue a 10-Q (quarterly) page for a ticker. A 10-K stands in for Q4, so the
@@ -51,7 +55,7 @@ queue-batch  BLOCK='1' BLOCK_SIZE='2':
     set -euo pipefail
 
     DATA_FILE="server/symbology/data/fortune-500.json"
-    WAVE_SIZE="1" WAVE_GAP="2400"
+    WAVE_SIZE="3" WAVE_GAP="1200"
     LOOKBACK='5'
 
     # Block N covers the filtered rows [start, end): start = (N-1)*size.
@@ -75,21 +79,21 @@ queue-batch  BLOCK='1' BLOCK_SIZE='2':
         head=$(( delay + 30 ))   # company page waits ~30s for ingestion to land first
         echo ">> ${ticker} (wave ${wave}, ingest +${delay}s, page +${head}s)"
 
-        just cli jobs start filing_ingestion \
-            --set ticker="${ticker}" --set count="${LOOKBACK}" --set form=10-K \
-            --priority 1 --delay "${delay}"
-
-        just cli jobs start filing_ingestion \
-            --set ticker="${ticker}" --set count=6 --set form=10-Q \
-            --priority 1 --delay "${delay}"
+        # just cli jobs start filing_ingestion \
+        #     --set ticker="${ticker}" --set count="${LOOKBACK}" --set form=10-K \
+        #     --priority 1 --delay "${delay}"
+        #
+        # just cli jobs start filing_ingestion \
+        #     --set ticker="${ticker}" --set count=6 --set form=10-Q \
+        #     --priority 1 --delay "${delay}"
 
         just cli jobs start company_page_content \
             --set ticker="${ticker}" --set lookback="${LOOKBACK}" --set form=10-K \
             --priority 3 --delay "${head}"
 
-        # just cli jobs start company_page_content \
-        #     --set ticker="${ticker}" --set form=10-Q \
-        #     --priority 3 --delay "${head}"
+        just cli jobs start company_page_content \
+            --set ticker="${ticker}" --set form=10-Q \
+            --priority 3 --delay "${head}"
     done
 
 

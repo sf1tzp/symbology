@@ -327,8 +327,9 @@ def _generate_change_report(
         )
         return None  # section unchanged across the lookback -> omit from the page
 
-    # L2: change report aggregating the distinct published L1 summaries.
-    cr_prompt = ensure_prompt(cfg.prompt_path("change_report"), prompts_dir)
+    # L2: change report aggregating the distinct published L1 summaries. A 10-Q
+    # uses the quarterly variant (changes within the fiscal year, since the 10-K).
+    cr_prompt = ensure_prompt(cfg.prompt_path("change_report", form), prompts_dir)
     mc_cr = ensure_stage_model_config("l2_change_report_content", prompts_dir)
     cr_hash, cr_ok = generate_page_content(
         "change_report",
@@ -345,7 +346,7 @@ def _generate_change_report(
         )
 
     # L3: brief introduction to the change report.
-    cri_prompt = ensure_prompt(cfg.prompt_path("change_report_intro"), prompts_dir)
+    cri_prompt = ensure_prompt(cfg.prompt_path("change_report_intro", form), prompts_dir)
     mc_cri = ensure_stage_model_config("l3_change_report_intro_content", prompts_dir)
     cri_hash, cri_ok = generate_page_content(
         "change_report_intro",
@@ -523,7 +524,7 @@ def company_page_content_pipeline(
             fallback=anchor_doc_type,
         )
     bd_cr_hash, _ = anchor
-    main_prompt = ensure_prompt(cfg.prompt_path("company_main_content"), prompts_dir)
+    main_prompt = ensure_prompt(cfg.prompt_path("company_main_content", form), prompts_dir)
     mc_main = ensure_stage_model_config("l3_company_main_content", prompts_dir)
     main_hash, main_ok = generate_page_content(
         "company_main_content",
@@ -539,7 +540,7 @@ def company_page_content_pipeline(
         )
 
     # 3. Company intro (L4) from the main content.
-    intro_prompt = ensure_prompt(cfg.prompt_path("company_intro"), prompts_dir)
+    intro_prompt = ensure_prompt(cfg.prompt_path("company_intro", form), prompts_dir)
     mc_intro = ensure_stage_model_config("l4_company_intro_content", prompts_dir)
     intro_hash, intro_ok = generate_page_content(
         "company_intro",

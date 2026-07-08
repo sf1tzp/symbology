@@ -46,7 +46,7 @@
 	const formOptions = $derived(
 		availableForms.map((f) => ({
 			value: f,
-			label: f,
+			label: f === '10-Q' ? 'Current Year' : 'The Brief',
 			href: `?form=${f}`,
 			accent: f === '10-Q' ? 'var(--plum)' : 'var(--teal-2)'
 		}))
@@ -360,7 +360,9 @@
 					stickyHeading
 					{accent}
 					eyebrow="SYMBOLOGY.ONLINE l{page?.main?.generationDepth} SYNTHESIS"
-					heading="The Brief on {toTitleCase(companyName)}."
+					heading={selectedForm === '10-Q'
+						? `${toTitleCase(companyName)}'s Fiscal Year So Far`
+						: `The Brief on ${toTitleCase(companyName)}.`}
 					synthesisHelp
 				/>
 				<MarkdownContent class="" content={page?.main?.content ?? ''} />

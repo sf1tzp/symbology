@@ -38,6 +38,11 @@ class PipelineConfig:
     # Per-form document type the company main content (L3) is anchored on. A 10-K
     # leads with its business description; a 10-Q has none, so it leads with MD&A.
     form_main_content_source: Dict[str, str] = field(default_factory=dict)
+    # Per-form prompt overrides: form -> {stage -> prompt path}. A stage absent for
+    # a form falls back to the form-agnostic ``prompts`` map. Lets a 10-Q page use
+    # quarterly-specific prompts (focused on changes since the last 10-K) while a
+    # 10-K keeps the defaults.
+    form_prompts: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     def main_content_source(self, form: str) -> str:
         """The change-report document type to anchor a form's company main content."""
@@ -52,8 +57,17 @@ class PipelineConfig:
             "temperature": cfg["temperature"],
         }
 
-    def prompt_path(self, stage: str) -> str:
-        """The flat prompt path for a stage (e.g. ``"l2/change-report"``)."""
+    def prompt_path(self, stage: str, form: Optional[str] = None) -> str:
+        """The flat prompt path for a stage, optionally overridden per form.
+
+        When ``form`` has a ``form_prompts`` override for ``stage`` (e.g. a 10-Q's
+        quarterly ``company_main_content``), that path is used; otherwise the
+        form-agnostic default from ``prompts`` (e.g. ``"l2/change-report"``).
+        """
+        if form:
+            override = self.form_prompts.get(form, {}).get(stage)
+            if override is not None:
+                return override
         return self.prompts[stage]
 
     def doc_type_prompt_path(self, doc_type: str) -> str:
@@ -83,6 +97,21 @@ def _validate(data: Dict, prompts_dir: Path) -> None:
 
     for doc_type, path in data["doc_type_prompts"].items():
         load_prompt_content(path, prompts_dir)
+
+    # form_prompts is optional; when present each override must target a valid
+    # stage and resolve to a real prompt file.
+    form_prompts = data.get("form_prompts", {})
+    if not isinstance(form_prompts, dict):
+        raise ValueError("model_configs.yaml: 'form_prompts' must be a mapping")
+    for form, stage_paths in form_prompts.items():
+        if not isinstance(stage_paths, dict):
+            raise ValueError(f"model_configs.yaml: form_prompts['{form}'] must be a mapping")
+        for stage, path in stage_paths.items():
+            if stage not in _VALID_STAGES:
+                raise ValueError(
+                    f"model_configs.yaml: unknown ContentStage '{stage}' in form_prompts['{form}']"
+                )
+            load_prompt_content(path, prompts_dir)
 
 
 @lru_cache(maxsize=None)
@@ -121,6 +150,7 @@ def load_pipeline_config(prompts_dir: Optional[Union[str, Path]] = None) -> Pipe
         doc_type_prompts=data["doc_type_prompts"],
         form_document_types=data["form_document_types"],
         form_main_content_source=data.get("form_main_content_source", {}),
+        form_prompts=data.get("form_prompts", {}),
     )
 
 

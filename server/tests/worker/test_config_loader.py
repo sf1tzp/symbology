@@ -72,6 +72,33 @@ def test_main_content_source_per_form():
     assert cfg.main_content_source("8-K") == "business_description"
 
 
+def test_form_prompts_override_selection():
+    cfg = load_pipeline_config()
+    # A 10-Q selects its quarterly variant for the company-page stages; a 10-K (and
+    # an unknown form) keeps the form-agnostic default.
+    for stage in (
+        "change_report",
+        "change_report_intro",
+        "company_main_content",
+        "company_intro",
+    ):
+        assert cfg.prompt_path(stage, "10-Q") == cfg.form_prompts["10-Q"][stage]
+        assert cfg.prompt_path(stage, "10-Q").endswith("-quarterly")
+        assert cfg.prompt_path(stage, "10-K") == cfg.prompts[stage]
+        # No form (or an unknown form) also falls back to the default.
+        assert cfg.prompt_path(stage) == cfg.prompts[stage]
+        assert cfg.prompt_path(stage, "8-K") == cfg.prompts[stage]
+
+
+def test_form_prompt_overrides_resolve_to_files():
+    cfg = load_pipeline_config()
+    for form, stage_paths in cfg.form_prompts.items():
+        for stage, path in stage_paths.items():
+            assert stage in VALID_STAGES, f"{form}: bad stage {stage}"
+            content = load_prompt_content(path, cfg.prompts_dir)
+            assert content, f"empty {form} override for {stage} at {path}"
+
+
 def test_load_prompt_content_prefers_flat(tmp_path):
     (tmp_path / "l2").mkdir()
     (tmp_path / "l2" / "change-report.md").write_text("FLAT CONTENT")

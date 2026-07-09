@@ -71,6 +71,27 @@ export function getStripe(): Stripe {
 	return _stripe;
 }
 
+/**
+ * Best-effort Stripe-hosted receipt URL for a recorded grant. `providerTxnId` is
+ * the PaymentIntent id (`pi_…`) written by the webhook; we retrieve it with the
+ * latest charge expanded and read the charge's `receipt_url`. Returns null for a
+ * non-PaymentIntent id (the session-id fallback) or on any failure — the billing
+ * page renders such rows without a receipt link rather than erroring.
+ */
+export async function getReceiptUrl(providerTxnId: string): Promise<string | null> {
+	if (!providerTxnId.startsWith('pi_')) return null;
+	try {
+		const pi = await getStripe().paymentIntents.retrieve(providerTxnId, {
+			expand: ['latest_charge']
+		});
+		const charge = pi.latest_charge;
+		return charge && typeof charge !== 'string' ? (charge.receipt_url ?? null) : null;
+	} catch (err) {
+		console.error('failed to fetch Stripe receipt', providerTxnId, err);
+		return null;
+	}
+}
+
 export interface CheckoutParams {
 	userId: string;
 	email: string;

@@ -11,6 +11,7 @@
 	import { hints } from '$lib/state/hints.svelte';
 	import type { BadgeKey } from '$lib/supporter-plans';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	let { data } = $props();
 
@@ -133,6 +134,12 @@
 	<!-- Supporter status -->
 	<section class="mb-10">
 		<SupporterCard supporter={data.supporter} />
+		<a
+			href={resolve('/a/settings/billing')}
+			class="meta mt-4 inline-flex items-center gap-1 text-ink-4 no-underline transition-colors hover:text-ink"
+		>
+			Billing history <ChevronRight class="h-3.5 w-3.5" />
+		</a>
 	</section>
 
 	{#if data.supporter.badges.length > 0}

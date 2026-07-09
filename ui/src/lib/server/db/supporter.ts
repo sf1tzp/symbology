@@ -29,7 +29,52 @@ export interface SupporterStatus {
 	badges: AmountBadge[];
 }
 
+/** One purchase from the supporter ledger, newest-first for the billing page. */
+export interface SupporterGrant {
+	id: string;
+	amountCents: number;
+	days: number;
+	grantedAt: string;
+	expiresAt: string;
+	planType: string;
+	provider: string;
+	providerTxnId: string;
+}
+
 const toIso = (v: unknown): string => (v instanceof Date ? v.toISOString() : String(v));
+
+/**
+ * Every grant a user holds, newest first — the raw ledger behind the billing
+ * history page. (`getSupporterStatus` is the rolled-up view for the account card.)
+ */
+export async function getSupporterGrants(userId: string): Promise<SupporterGrant[]> {
+	const rows = await db
+		.selectFrom('supporter_grants')
+		.select([
+			'id',
+			'amount_cents',
+			'days',
+			'granted_at',
+			'expires_at',
+			'plan_type',
+			'provider',
+			'provider_txn_id'
+		])
+		.where('user_id', '=', userId)
+		.orderBy('granted_at', 'desc')
+		.execute();
+
+	return rows.map((r) => ({
+		id: String(r.id),
+		amountCents: r.amount_cents,
+		days: r.days,
+		grantedAt: toIso(r.granted_at),
+		expiresAt: toIso(r.expires_at),
+		planType: r.plan_type,
+		provider: r.provider,
+		providerTxnId: r.provider_txn_id
+	}));
+}
 
 /**
  * Full supporter status for a user, computed from every grant they hold.

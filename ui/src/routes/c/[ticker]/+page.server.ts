@@ -1,17 +1,22 @@
 import type { Actions, PageServerLoad } from './$types';
 import { error, fail } from '@sveltejs/kit';
 import { getCompanyByTicker } from '$lib/server/db/companies';
-import { getCurrentCompanyPageContent, getCompanyPageForms } from '$lib/server/db/page-content';
+import {
+	getCurrentCompanyPageContent,
+	getCompanyPageForms,
+	toTeaser
+} from '$lib/server/db/page-content';
 import { getFilingsTimeline, getSourceFilingInputTokens } from '$lib/server/db/filings';
 import { getFinancialComparison } from '$lib/server/db/financials';
 import { getLatestChangeCards, companyHasDiffSets } from '$lib/server/db/diffs';
 import { addToWatchlist, isWatching, removeFromWatchlist } from '$lib/server/db/watchlist';
-import { companyFormLock, viewerIsSupporter } from '$lib/server/gating';
+import type { LockReason } from '$lib/server/gating';
+import { checkCompanyView } from '$lib/server/meter';
 
 // Forms a company page can be published for, in display/default-priority order.
 const PAGE_FORMS = ['10-K', '10-Q'];
 
-export const load: PageServerLoad = async ({ params, url, locals }) => {
+export const load: PageServerLoad = async ({ params, url, locals, cookies }) => {
 	const ticker = params.ticker.toUpperCase();
 
 	const company = await getCompanyByTicker(ticker);
@@ -56,12 +61,18 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		error(404, 'Company not found');
 	}
 
-	// Gate the quarterly (10-Q) narrative for free viewers. The 10-K page is
-	// always built from recent filings, so it's never history-gated here. When
-	// locked we withhold the narrative + change cards and surface a LockedBlock;
-	// the timeline, financials, and links to raw filings stay free.
-	const supporter = await viewerIsSupporter(locals.user);
-	const analysisLock = companyPageContent ? companyFormLock(selectedForm, supporter) : null;
+	// All recent 10-K/10-Q synthesis is free to any signed-in account, so the
+	// only gate here is the anonymous view meter: a signed-out guest reads a
+	// budget of companies before a sign-up wall. When metered we keep the intro
+	// lede as a teaser but withhold the full brief + change cards and surface a
+	// LockedBlock; the timeline, financials, and links to raw filings stay free.
+	const meter = checkCompanyView({
+		cookies,
+		user: locals.user,
+		companyId: company.id,
+		hasContent: !!companyPageContent
+	});
+	const analysisLock: LockReason | null = meter.metered ? 'meter' : null;
 
 	// Resolve the source filings (newest first) for the provenance list.
 	const sourceIds = new Set(companyPageContent?.sourceFilingIds ?? []);
@@ -81,9 +92,10 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	return {
 		ticker,
 		company,
-		// Withhold the gated narrative + its provenance/change cards; the page
-		// renders a LockedBlock from `analysisLock` instead.
-		companyPageContent: analysisLock ? null : companyPageContent,
+		// Metered guests keep the intro teaser (main body stripped); withhold the
+		// provenance/change cards and render a LockedBlock from `analysisLock`.
+		companyPageContent:
+			analysisLock && companyPageContent ? toTeaser(companyPageContent) : companyPageContent,
 		analysisLock,
 		sourceFilings: analysisLock ? [] : sourceFilings,
 		sourceInputTokens: analysisLock ? 0 : sourceInputTokens,

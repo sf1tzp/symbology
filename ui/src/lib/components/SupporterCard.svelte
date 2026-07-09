@@ -113,9 +113,9 @@
 		<div>
 			<h2 class="section-heading text-2xl">You're on the free tier.</h2>
 			<p class="mt-2 max-w-[48ch] text-sm text-ink-2">
-				Raw filings and recent 10-K synthesis are always free. Supporters unlock quarterly
-				synthesis, full history, the complete disclosure clusters, and queue prioritization — and
-				cover the compute that makes it all run.
+				Every 10-K and 10-Q synthesis is free with your account. Supporters unlock the full 10-K
+				history, get early access to new features as they ship, and cover the compute and R&D that
+				keep it all running.
 			</p>
 		</div>
 		<a

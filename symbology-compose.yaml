@@ -6,6 +6,10 @@ services:
     environment:
       - PUBLIC_LOG_LEVEL=INFO
       - PUBLIC_ENVIRONMENT=production
+      # Supporter program is live: /support open, perks on the real per-user check.
+      - PUBLIC_SUPPORT_ENABLED=${PUBLIC_SUPPORT_ENABLED:-true}
+      # Anonymous view meter: sign-up wall after FREE_COMPANY_LIMIT companies.
+      - PUBLIC_ANON_METER_ENABLED=${PUBLIC_ANON_METER_ENABLED:-true}
       - DATABASE_HOST=${DATABASE_HOST:-localhost}
       - DATABASE_PORT=${DATABASE_PORT:-5432}
       - DATABASE_USER=${DATABASE_USER:-postgres}

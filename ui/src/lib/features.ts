@@ -12,3 +12,11 @@ import { env } from '$env/dynamic/public';
  * explicitly set to `"true"`.
  */
 export const supportEnabled = env.PUBLIC_SUPPORT_ENABLED === 'true';
+
+/**
+ * Whether the anonymous view meter is active. Signed-out visitors read a fixed
+ * budget of companies (see `FREE_COMPANY_LIMIT`) before a sign-up wall. On by
+ * default; set `PUBLIC_ANON_METER_ENABLED="false"` to disable the soft wall
+ * entirely (e.g. to open everything to guests again).
+ */
+export const anonMeterEnabled = env.PUBLIC_ANON_METER_ENABLED !== 'false';

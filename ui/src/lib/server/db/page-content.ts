@@ -64,6 +64,15 @@ async function loadSlots(ids: (string | null)[]): Promise<Map<string, PageConten
 const slotFrom = (map: Map<string, PageContentSlot>, id: string | null): PageContentSlot | null =>
 	id ? (map.get(id) ?? null) : null;
 
+/**
+ * A teaser view of page content for the anonymous meter wall: keep the short
+ * `intro` lede as a taste, but withhold the full `main` synthesis body. The
+ * page renders the intro plus a sign-up LockedBlock in place of the brief.
+ */
+export function toTeaser<T extends { main: PageContentSlot | null }>(content: T): T {
+	return { ...content, main: content.main ? { ...content.main, content: null } : null };
+}
+
 const toIso = (v: unknown): string | null =>
 	v ? new Date(v as string | Date).toISOString() : null;
 

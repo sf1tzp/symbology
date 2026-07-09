@@ -319,15 +319,23 @@
 	</div>
 {/snippet}
 
-<!-- Locked quarterly narrative (gated for free viewers; timeline stays free) -->
+<!-- Sign-up wall for metered guests; the intro lede above stays as a teaser and
+     the timeline/financials stay free. -->
 {#if analysisLock}
+	{@const copy = lockCopy(analysisLock)}
 	<section style="margin-top: 3rem;">
-		<LockedBlock title={lockCopy(analysisLock).title} note={lockCopy(analysisLock).note} />
+		<LockedBlock
+			title={copy.title}
+			note={copy.note}
+			badge={copy.badge}
+			cta={copy.cta}
+			href={copy.href}
+		/>
 	</section>
 {/if}
 
 <!-- THE BRIEF: reader-friendly, brief column left / analysis right -->
-{#if hasAnalysis}
+{#if hasAnalysis && !analysisLock}
 	<section style="margin-top: 3rem;">
 		<div class="two-col">
 			<div class="hidden md:block">

@@ -174,7 +174,12 @@
 						{documents.length} sections analysed
 					</span>
 				{/if}
-				{#if analysisLock}
+				{#if analysisLock === 'meter'}
+					<span class="tag flex gap-2">
+						<Sparkles class="h-2.5 w-2.5" />
+						Free preview
+					</span>
+				{:else if analysisLock}
 					<span class="tag flex gap-2">
 						<Sparkles class="h-2.5 w-2.5" />
 						Supporter analysis
@@ -210,7 +215,7 @@
 				{/each}
 			</div>
 
-			{#if hasAnalysis}
+			{#if hasAnalysis && !analysisLock}
 				<hr style="border: none; border-top: 1px solid var(--rule); margin: 1.25rem 0;" />
 				<div class="meta-stats">
 					<div class="meta-stat">
@@ -266,15 +271,24 @@
 		</section>
 	{/if}
 
-	<!-- SECTION: Locked analysis (gated for free viewers; raw stays free above) -->
+	<!-- SECTION: Locked analysis — sign-up wall for metered guests or the >5y
+	     supporter history perk. The intro lede above stays as a teaser; raw
+	     documents stay free below. -->
 	{#if analysisLock}
+		{@const copy = lockCopy(analysisLock)}
 		<section class="hairline-section">
-			<LockedBlock title={lockCopy(analysisLock).title} note={lockCopy(analysisLock).note} />
+			<LockedBlock
+				title={copy.title}
+				note={copy.note}
+				badge={copy.badge}
+				cta={copy.cta}
+				href={copy.href}
+			/>
 		</section>
 	{/if}
 
 	<!-- SECTION: Filing analysis (structured page content) -->
-	{#if filingPageContent && (filingPageContent.intro?.content || filingPageContent.main?.content)}
+	{#if !analysisLock && filingPageContent && (filingPageContent.intro?.content || filingPageContent.main?.content)}
 		<section class="hairline-section">
 			<div class="analysis-layout">
 				<!-- Source-document sidebar -->

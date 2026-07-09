@@ -99,16 +99,18 @@
 
 	// ── Tier feature lists ──
 	const freeFeatures: string[] = [
+		'Every 10-K and 10-Q synthesis — annual and quarterly, an up-to-date view of the current fiscal year',
 		'Multi-level synthesis: an overview of business activity through the post-pandemic era',
 		'See the evolution of risk factors and business strategy, year over year',
 		'View selected diffs between source filings',
-		'Build watchlists and get notified when fresh 10-K synthesis is ready',
+		'Build watchlists and get notified when fresh synthesis is ready',
 		'Follow the whole synthesis chain: source filing → L1 → L2 → L3'
 	];
 	const supporterFeatures: string[] = [
-		'Quarterly synthesis — an up-to-date view of the current fiscal year',
-		'Every source diff, plus advanced embeddings features as they ship (advanced search, cross-company & cross-industry comparative synthesis)',
-		'Request synthesis for a new company, or jump one to the front of the queue'
+		'Full 10-K history — synthesis reaching back beyond the free 5-year window',
+		'Early access to new features as they ship (advanced search, cross-company & cross-industry comparative synthesis)',
+		'Request synthesis for a new company, or jump one to the front of the queue',
+		'Directly fund ongoing synthesis and the R&D behind what comes next'
 	];
 
 	const faqs: [string, string][] = [
@@ -118,7 +120,7 @@
 		],
 		[
 			'What happens when it lapses?',
-			'Your account simply returns to the free tier. Nothing is deleted, and you’re never locked out of raw filings or 10-K synthesis.'
+			'Your account simply returns to the free tier. Nothing is deleted, and you’re never locked out of raw filings or 10-K and 10-Q synthesis — supporter status adds full history and early access, it doesn’t gate the core content.'
 		],
 		[
 			'Can I add more days later?',
@@ -131,7 +133,7 @@
 	<title>Support Symbology</title>
 	<meta
 		name="description"
-		content="Symbology is independent and sourced straight from EDGAR. We're early — supporters help cover the synthesis compute and unlock everything as a thank-you."
+		content="Symbology is independent and sourced straight from EDGAR. Every 10-K and 10-Q synthesis is free with an account — supporters fund ongoing synthesis and R&D, and get early access to new features as a thank-you."
 	/>
 </svelte:head>
 
@@ -387,10 +389,10 @@
 			<div class="rounded-2xl border border-rule bg-paper p-8">
 				<div class="mb-5">
 					<div class="mb-2 font-mono text-[11px] tracking-[0.1em] text-ink-3 uppercase">
-						Free · everyone
+						Free · any account
 					</div>
 					<h3 class="font-serif text-xl leading-[1.25] tracking-[-0.01em] text-ink">
-						Look back on 5 years of filings
+						Every 10-K and 10-Q, five years back
 					</h3>
 				</div>
 				<ul class="m-0 flex list-none flex-col gap-[14px] p-0">
@@ -415,7 +417,7 @@
 						Supporter · $20 or $1/day
 					</div>
 					<h3 class="font-serif text-xl leading-[1.25] tracking-[-0.01em] text-ink">
-						Everything in free, plus the current quarter
+						Everything in free, plus full history and what's next
 					</h3>
 				</div>
 				<ul class="m-0 flex list-none flex-col gap-[14px] p-0">

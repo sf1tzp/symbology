@@ -3,10 +3,11 @@
 	import Lock from '@lucide/svelte/icons/lock';
 
 	/**
-	 * Editorial locked-content card — the on-brand "this is a supporter perk"
-	 * treatment from the design (hatched rule-system card, plain statement of
-	 * what's behind it, a Support CTA). Used wherever the server withholds
-	 * generated analysis from a free viewer; it never carries the gated content.
+	 * Editorial locked-content card — the on-brand hatched rule-system treatment
+	 * (plain statement of what's behind it + a CTA). Used wherever the server
+	 * withholds generated analysis: the anonymous sign-up wall (meter) and the
+	 * supporter history perk. Title/note/cta/href come from `lockCopy`; it never
+	 * carries the gated content itself.
 	 */
 	interface Props {
 		title: string;

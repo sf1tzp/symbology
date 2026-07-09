@@ -6,9 +6,10 @@ import {
 	getCompanyByAccession,
 	getFilingsTimeline
 } from '$lib/server/db/filings';
-import { getCurrentFilingPageContent } from '$lib/server/db/page-content';
+import { getCurrentFilingPageContent, toTeaser } from '$lib/server/db/page-content';
 import { getDiffSetsByRightFiling } from '$lib/server/db/diffs';
-import { filingAnalysisLock, viewerIsSupporter } from '$lib/server/gating';
+import { filingAnalysisLock, viewerIsSupporter, type LockReason } from '$lib/server/gating';
+import { checkCompanyView } from '$lib/server/meter';
 import { prioritizeFilingAnalysis } from '$lib/server/db/jobs';
 
 const yearOf = (iso: string | null | undefined): number | null => {
@@ -17,7 +18,7 @@ const yearOf = (iso: string | null | undefined): number | null => {
 	return Number.isFinite(y) ? y : null;
 };
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 	const { accession_number } = params;
 
 	const [filing, documents, company] = await Promise.all([
@@ -44,18 +45,34 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		viewerIsSupporter(locals.user)
 	]);
 
-	// Gate generated analysis (10-Q, or 10-K beyond the free window) for free
-	// viewers. Raw documents + diffs stay free, so only the page content is
-	// withheld — and only when it actually exists.
-	const analysisLock = filingPageContent
-		? filingAnalysisLock(filing.form, filing.filing_date, supporter)
-		: null;
+	// Two gates, only when there's synthesis to withhold (raw documents + diffs
+	// stay free regardless). The anonymous view meter comes first: a signed-out
+	// guest past their free-company budget sees a sign-up wall with the intro as
+	// a teaser. Otherwise the supporter history perk applies (>5y 10-K), which
+	// withholds the synthesis entirely.
+	const meter = checkCompanyView({
+		cookies,
+		user: locals.user,
+		companyId: company.id,
+		hasContent: !!filingPageContent
+	});
+	const analysisLock: LockReason | null = !filingPageContent
+		? null
+		: meter.metered
+			? 'meter'
+			: filingAnalysisLock(filing.form, filing.filing_date, supporter);
 
 	return {
 		filing,
 		documents,
 		company,
-		filingPageContent: analysisLock ? null : filingPageContent,
+		// Metered guests keep the intro teaser; the history lock withholds fully.
+		filingPageContent:
+			analysisLock === 'meter' && filingPageContent
+				? toTeaser(filingPageContent)
+				: analysisLock
+					? null
+					: filingPageContent,
 		analysisLock,
 		accession_number,
 		timeline,

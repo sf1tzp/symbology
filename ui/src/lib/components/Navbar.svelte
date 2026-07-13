@@ -69,16 +69,20 @@
 		<div class="flex items-center gap-3">
 			<DarkmodeToggle />
 
-			<!-- Status lives behind supporter status now; the button is the discovery
-			     path (non-supporters get bounced to /support by the route guard). -->
-			<a
-				href={resolve('/status')}
-				title="Status"
-				aria-label="Status"
-				class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-ink-3 no-underline transition-colors hover:text-ink"
-			>
-				<Activity class="h-[1.2rem] w-[1.2rem]" />
-			</a>
+			<!-- Status lives behind supporter status now, so the heartbeat icon only
+			     shows for active supporters — non-supporters would just be bounced to
+			     /support by the route guard, so surfacing it to them is dead chrome.
+			     Their discovery path is the Support button below. -->
+			{#if supporter?.active}
+				<a
+					href={resolve('/status')}
+					title="Status"
+					aria-label="Status"
+					class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-ink-3 no-underline transition-colors hover:text-ink"
+				>
+					<Activity class="h-[1.2rem] w-[1.2rem]" />
+				</a>
+			{/if}
 
 			<!--
 				Patronage affordance — always links to /support. Uses the same

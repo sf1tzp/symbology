@@ -2,7 +2,9 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { createCheckoutSession, resolvePlan } from '$lib/server/stripe';
 import { getSupporterStatus } from '$lib/server/db/supporter';
+import { getSynthesisScale } from '$lib/server/db/status';
 import { daysAllowedBeforeCap } from '$lib/supporter-plans';
+import { pickHeroVariant } from '$lib/support-cta';
 import { supportEnabled } from '$lib/features';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -13,9 +15,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	// Let the page tailor its CTAs (e.g. "already a supporter") without a second
-	// round-trip. Anonymous visitors just get null.
+	// round-trip. Anonymous visitors just get null. `scale` is the public,
+	// lifetime volume summary for the "synthesis at scale" section; `heroVariant`
+	// rotates the hero pitch (picked here so SSR/hydration agree).
+	const [supporter, scale] = await Promise.all([
+		locals.user ? getSupporterStatus(locals.user.id) : null,
+		getSynthesisScale()
+	]);
+
 	return {
-		supporter: locals.user ? await getSupporterStatus(locals.user.id) : null
+		supporter,
+		scale,
+		heroVariant: pickHeroVariant()
 	};
 };
 

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import FeaturedIntroCarousel from '$lib/components/landing/FeaturedIntroCarousel.svelte';
+	import Heart from '@lucide/svelte/icons/heart';
+	import { supportEnabled } from '$lib/features';
 
 	let { data }: { data: PageData } = $props();
 
@@ -105,6 +107,43 @@
 
 <!-- Featured company intros -->
 <FeaturedIntroCarousel companies={featured} />
+
+<!-- Supporter initiative -->
+{#if supportEnabled}
+	<section class="hairline-section">
+		<div
+			class="overflow-hidden rounded-2xl border border-teal-2 bg-[color-mix(in_oklab,var(--sage-2)_28%,var(--paper))] shadow-[0_0_0_1px_var(--teal-2)]"
+		>
+			<div class="grid grid-cols-1 gap-8 p-8 md:grid-cols-[1.4fr_1fr] md:items-center md:p-10">
+				<div>
+					<div class="eyebrow mb-4">
+						<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;EARLY-SUPPORTER FUNDRAISER
+					</div>
+					<h2 class="mb-4 font-serif text-[30px] leading-[1.15] tracking-[-0.02em] text-ink">
+						Support Independent, Local-LLM synthesis.
+					</h2>
+					<p class="body-text max-w-[52ch] text-[15.5px] leading-[1.6] text-ink-2">
+						As we catch up on a backlog of existing filings, we're running a fundraiser to gauge
+						interest in the project. The vast majority of synthesis runs on consumer hardware in
+						house — supporting for just $1/day funds ongoing synthesis and the R&amp;D behind what's
+						next.
+					</p>
+				</div>
+				<div class="flex flex-col gap-3 md:items-end">
+					<a
+						href="/support"
+						class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-teal-2 bg-teal-2 px-[22px] py-3 font-mono text-sm font-medium text-white no-underline transition-all duration-150 hover:brightness-[1.06] md:w-auto"
+					>
+						<Heart class="h-3.5 w-3.5 fill-current" /> Support Symbology
+					</a>
+					<span class="font-mono text-[11.5px] text-ink-4">
+						No subscription · one-time · from $1/day
+					</span>
+				</div>
+			</div>
+		</div>
+	</section>
+{/if}
 
 <!-- Scale / Stats strip -->
 <!-- {#if stats}

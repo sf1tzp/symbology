@@ -16,12 +16,27 @@
 		ONE_TIME_PRICE,
 		DAY_MS
 	} from '$lib/supporter-plans';
+	import { SUPPORT_HERO_VARIANTS } from '$lib/support-cta';
+
+	// Compact number formatting for the scale strip: 1_234 → "1.2K", 5_000_000 → "5.0M".
+	function compact(n: number): string {
+		if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+		if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+		if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+		return n.toLocaleString();
+	}
+	const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 	// `form` carries a failed-checkout message; `?canceled=1` comes back when a
 	// user abandons Stripe Checkout. `data.supporter` lets us tailor the page for
 	// existing supporters (their standing, and how much room is left under the cap).
 	let { data, form } = $props();
 	let canceled = $derived(page.url.searchParams.get('canceled') === '1');
+
+	// Hero copy rotates per page load; the server picks the variant so SSR and the
+	// first client render agree. Fall back to the first variant defensively.
+	const hero = $derived(SUPPORT_HERO_VARIANTS[data.heroVariant] ?? SUPPORT_HERO_VARIANTS[0]);
+	const scale = $derived(data.scale);
 
 	// `now` is read once at module init so SSR and the first client render agree
 	// (avoids a hydration mismatch from Date.now() drifting between the two).
@@ -141,18 +156,16 @@
 	<!-- ── Hero ── -->
 	<section class="pt-8 text-center">
 		<div class="eyebrow mb-[1.4rem] flex justify-center">
-			<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;EARLY-SUPPORTER SPECIAL
+			<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;{hero.eyebrow}
 		</div>
 		<h1 class="display mx-auto mt-0 mb-6 max-w-[16ch]">
-			Keep the synthesis <em>running.</em>
+			{hero.titleLead} <em>{hero.titleEm}</em>
 		</h1>
-		<p class="lede mx-auto my-0 max-w-[60ch] text-ink-2">
-			As we catch up on existing filings, we're seeking early adopters to pitch in!
-		</p>
-		<p class="lede mx-auto my-2 max-w-[60ch] text-ink-2">
-			Show your support - for just $1/day secure your access to advanced features and support
-			ongoing symbology operations.
-		</p>
+		{#each hero.lines as line, i (line)}
+			<p class="lede mx-auto max-w-[60ch] text-ink-2 {i === 0 ? 'my-0' : 'my-2'}">
+				{line}
+			</p>
+		{/each}
 		<span class="tag mt-4 border-transparent bg-sage-2 px-[14px] py-[6px] text-teal-2">
 			Now through Dec 31, 2026, receive an Early-Supporter badge for your profile
 		</span>
@@ -444,29 +457,71 @@
 		</div>
 	</section>
 
-	<!-- ── Support log: honest early-stage placeholder ── -->
-	<!-- TODO: Implement -->
-	<!-- <section class="hairline-section">
-		<div class="flex flex-wrap items-baseline justify-between gap-4">
-			<div>
-				<div class="eyebrow mb-[0.6rem] flex items-center">
-					<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;SUPPORT LOG
+	<!-- ── Synthesis at scale: lifetime volume, local-first emphasis ── -->
+	{#if scale && scale.totalGenerations > 0}
+		<section class="hairline-section">
+			<div class="mb-8 text-center">
+				<div class="eyebrow mb-[0.6rem] flex justify-center">
+					<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;SYNTHESIS AT SCALE
 				</div>
-				<h2 class="section-heading">Be one of the first.</h2>
+				<h2 class="section-heading">The work so far.</h2>
+				<p class="lede mx-auto mt-3 max-w-[56ch] text-ink-2">
+					Every figure below is lifetime total — and the majority runs on consumer hardware in
+					house, not a datacenter.
+				</p>
 			</div>
-		</div>
-		<div
-			class="mt-6 rounded-xl border border-dashed border-rule-2 p-8 text-center text-[14.5px] leading-[1.6] text-ink-2"
-		>
-			<p class="mx-auto my-0 max-w-[56ch]">
-				This is where supporters show up. Supporters will be listed here as
-				they come in, by first name + last initial (or “Anonymous” if you'd rather stay private).
-			</p>
-			<p class="mt-3 mb-0 font-mono text-[11.5px] text-ink-4">
-				No supporters to show yet. The next name here could be yours.
-			</p>
-		</div>
-	</section> -->
+
+			<!-- Headline stat grid -->
+			<div
+				class="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-rule bg-rule md:grid-cols-3"
+			>
+				{#each [{ v: compact(scale.totalGenerations), l: 'Syntheses generated' }, { v: compact(scale.totalJobsCompleted), l: 'Jobs completed' }, { v: scale.perDayAvg.toLocaleString(), l: 'Syntheses / day (avg)' }, { v: compact(scale.totalTokensIn), l: 'Tokens read in' }, { v: compact(scale.totalTokensOut), l: 'Tokens written out' }, { v: pct(scale.localShare), l: 'Run on local hardware' }] as stat (stat.l)}
+					<div class="flex flex-col gap-1.5 bg-paper p-6">
+						<span class="font-serif text-[34px] leading-none tracking-[-0.02em] text-ink"
+							>{stat.v}</span
+						>
+						<span class="font-mono text-[11px] tracking-[0.04em] text-ink-3">{stat.l}</span>
+					</div>
+				{/each}
+			</div>
+
+			<!-- Local-vs-cloud split -->
+			<div class="mt-6 rounded-2xl border border-rule bg-paper p-8">
+				<div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+					<h3 class="font-serif text-xl tracking-[-0.01em] text-ink">Local models, first</h3>
+					<span class="font-mono text-[11.5px] text-ink-4">
+						{compact(scale.localGenerations)} local · {compact(scale.cloudGenerations)} hosted
+					</span>
+				</div>
+				<div class="flex h-3 w-full overflow-hidden rounded-full bg-rule">
+					<div class="h-full bg-teal-2" style="width: {pct(scale.localShare)}"></div>
+				</div>
+				<div class="mt-2.5 flex justify-between font-mono text-[10.5px] text-ink-4">
+					<span>{pct(scale.localShare)} local hardware</span>
+					<span>{pct(1 - scale.localShare)} hosted</span>
+				</div>
+
+				<!-- Per-model breakdown -->
+				<ul class="mt-6 flex list-none flex-col gap-2.5 p-0">
+					{#each scale.models.slice(0, 6) as m (m.model)}
+						<li class="flex items-center gap-3 text-[13.5px] text-ink-2">
+							<span
+								class="inline-flex flex-none items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-[0.05em] uppercase {m.isLocal
+									? 'border-[color-mix(in_oklab,var(--teal-2)_45%,transparent)] bg-sage-2 text-teal-2'
+									: 'border-rule bg-paper-2 text-ink-3'}"
+							>
+								{m.isLocal ? 'Local' : 'Hosted'}
+							</span>
+							<span class="flex-1 truncate font-mono text-ink" title={m.model}>{m.model}</span>
+							<span class="flex-none font-mono text-[12px] text-ink-3"
+								>{compact(m.count)} · {pct(m.share)}</span
+							>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		</section>
+	{/if}
 
 	<!-- ── Why support ── -->
 	<section class="hairline-section">

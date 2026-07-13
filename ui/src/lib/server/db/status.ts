@@ -923,6 +923,113 @@ export async function getWorkerSummary(): Promise<WorkerRow[]> {
 	});
 }
 
+// ── All-time synthesis scale ──
+//
+// A public, un-windowed "sense of scale" summary for the support page. Unlike the
+// operator dashboard's windowed stats, these are lifetime totals — the pitch is
+// "here's how much has been synthesised, and how much of it runs on our own
+// hardware". Volume only (counts + tokens); no dollar figures.
+
+export interface ScaleModelRow {
+	/** Display name for the model (raw model string, or "Unknown" for legacy rows). */
+	model: string;
+	count: number;
+	/** Share of all generations, 0–1. */
+	share: number;
+	/** True when the model runs on our own hardware (everything not Claude). */
+	isLocal: boolean;
+}
+
+export interface SynthesisScale {
+	totalGenerations: number;
+	totalJobsCompleted: number;
+	totalTokensIn: number;
+	totalTokensOut: number;
+	/** Distinct days on which anything was generated. */
+	activeDays: number;
+	/** Mean generations per active day (rounded). */
+	perDayAvg: number;
+	/** Generations produced on our own hardware. */
+	localGenerations: number;
+	/** Generations produced by hosted (Claude) models. */
+	cloudGenerations: number;
+	/** Share of all generations produced on local hardware, 0–1. */
+	localShare: number;
+	/** First generation timestamp (ISO), or null if nothing has been generated. */
+	since: string | null;
+	/** Per-model counts, busiest first. */
+	models: ScaleModelRow[];
+}
+
+/**
+ * Lifetime volume summary for the support page's "synthesis at scale" section.
+ * All-time (no window), so it grows monotonically and reads as a track record.
+ */
+export async function getSynthesisScale(): Promise<SynthesisScale> {
+	const [totalsRes, jobsRes, modelRows] = await Promise.all([
+		// Lifetime generation totals in one pass: count, active days, and summed
+		// token usage. Sums are bigint (pg returns them as strings) → Number() below.
+		db
+			.selectFrom('generated_content')
+			.select([
+				sql<number>`count(*)::int`.as('total'),
+				sql<number>`count(distinct date_trunc('day', created_at))::int`.as('active_days'),
+				sql<string>`coalesce(sum(input_tokens), 0)::bigint`.as('tokens_in'),
+				sql<string>`coalesce(sum(output_tokens), 0)::bigint`.as('tokens_out'),
+				sql<Date | null>`min(created_at)`.as('since')
+			])
+			.executeTakeFirstOrThrow(),
+
+		// Lifetime completed-job count (the unit of "work done" on the dashboard).
+		db
+			.selectFrom('jobs')
+			.select(sql<number>`count(*)::int`.as('count'))
+			.where('status', '=', 'completed')
+			.executeTakeFirstOrThrow(),
+
+		// Per-model generation counts, so we can show the local-vs-cloud split that
+		// underlines the local-first paradigm.
+		db
+			.selectFrom('generated_content')
+			.leftJoin('model_configs', 'model_configs.id', 'generated_content.model_config_id')
+			.select(['model_configs.model', sql<number>`count(*)::int`.as('count')])
+			.groupBy('model_configs.model')
+			.orderBy('count', 'desc')
+			.execute()
+	]);
+
+	const totalGenerations = totalsRes.total;
+	const activeDays = totalsRes.active_days;
+
+	let localGenerations = 0;
+	let cloudGenerations = 0;
+	const models: ScaleModelRow[] = modelRows.map((r) => {
+		const local = isSelfHosted(r.model ?? null);
+		if (local) localGenerations += r.count;
+		else cloudGenerations += r.count;
+		return {
+			model: r.model ?? 'Unknown',
+			count: r.count,
+			share: totalGenerations > 0 ? r.count / totalGenerations : 0,
+			isLocal: local
+		};
+	});
+
+	return {
+		totalGenerations,
+		totalJobsCompleted: jobsRes.count,
+		totalTokensIn: Number(totalsRes.tokens_in),
+		totalTokensOut: Number(totalsRes.tokens_out),
+		activeDays,
+		perDayAvg: activeDays > 0 ? Math.round(totalGenerations / activeDays) : 0,
+		localGenerations,
+		cloudGenerations,
+		localShare: totalGenerations > 0 ? localGenerations / totalGenerations : 0,
+		since: toIso(totalsRes.since),
+		models
+	};
+}
+
 // ── Consolidated snapshot ──
 //
 // The default time window (in days for throughput, hours for queue depth) used

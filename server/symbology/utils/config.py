@@ -143,7 +143,7 @@ class OpenAISettings(BaseSettings):
         "prompt+output+margin exceeds it are offloaded to Anthropic; 0 disables",
     )
     overflow_model: str = Field(
-        default="claude-sonnet-4-6",
+        default="claude-sonnet-5",
         description="Anthropic model to offload oversized prompts to; empty "
         "falls back to ANTHROPIC_DEFAULT_MODEL",
     )

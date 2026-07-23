@@ -26,6 +26,37 @@ def _provider_for(model: str) -> str:
     return "anthropic" if model.lower().startswith("claude") else "openai"
 
 
+# Anthropic model families where sampling parameters are removed: sending
+# temperature/top_p/top_k (any non-default value) returns a 400. Covers
+# Sonnet 5+, Opus 4.7+, and the Claude 5 tier (Fable/Mythos).
+_SAMPLING_REMOVED_RE = re.compile(
+    r"^claude-(sonnet-[5-9]|opus-4-[7-9]|opus-[5-9]|fable|mythos)"
+)
+
+
+def sampling_params_removed(model: str) -> bool:
+    """Whether an Anthropic model rejects sampling params (temperature etc.)."""
+    return bool(_SAMPLING_REMOVED_RE.match(model.lower()))
+
+
+def _anthropic_request_options(model: str, options: Dict) -> Dict:
+    """Build the model-dependent kwargs for an Anthropic ``messages.create``.
+
+    On sampling-removed models (Sonnet 5+), ``temperature`` is dropped — the
+    API 400s on it — and thinking is explicitly disabled: those models run
+    adaptive thinking by default when no ``thinking`` config is sent, but
+    thinking tokens would count against ``max_tokens`` (sized here for text
+    output only) and ``AnthropicResponseAdapter`` expects ``content[0]`` to be
+    the text block. Older models keep the configured temperature.
+    """
+    kwargs = {"max_tokens": options.get("max_tokens", 4096)}
+    if sampling_params_removed(model):
+        kwargs["thinking"] = {"type": "disabled"}
+    else:
+        kwargs["temperature"] = options.get("temperature", 0.8)
+    return kwargs
+
+
 class AnthropicResponseAdapter:
     """Adapter that maps Anthropic API responses to the interface callers expect."""
 
@@ -208,9 +239,8 @@ def get_chat_response(
             3600,
             client.messages.create,
             model=model_config.model,
-            max_tokens=max_tokens,
-            temperature=temperature,
             messages=messages,
+            **_anthropic_request_options(model_config.model, options_dict),
         )
         duration_ns = time.time_ns() - start_ns
         adapter = AnthropicResponseAdapter(message, duration_ns)
@@ -288,10 +318,9 @@ def get_generate_response(model_config: ModelConfig, system_prompt: str, user_pr
             timeout=3600,
             func=client.messages.create,
             model=model_config.model,
-            max_tokens=max_tokens,
-            temperature=temperature,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
+            **_anthropic_request_options(model_config.model, options_dict),
         )
         duration_ns = time.time_ns() - start_ns
         adapter = AnthropicResponseAdapter(message, duration_ns)

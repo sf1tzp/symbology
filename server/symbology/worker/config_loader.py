@@ -178,7 +178,8 @@ def resolve_generation_model_config(model_config, prompt_text: str):
 
     Returns the ModelConfig the caller should both **use and record**: the
     original when the request fits the local model, or an Anthropic ModelConfig
-    (mirroring the original's ``max_tokens``/``temperature``) when the request's
+    (mirroring the original's options — see :func:`build_overflow_model_config`)
+    when the request's
     estimated context usage exceeds ``OPENAI_OVERFLOW_THRESHOLD_TOKENS`` (the
     local model's context ceiling).
 
@@ -252,8 +253,9 @@ def build_overflow_model_config(model_config):
 
     Shared by the preemptive offload (:func:`resolve_generation_model_config`) and
     the reactive fallback (:func:`generate_with_overflow`). The swapped config keeps
-    only ``{max_tokens, temperature}`` so it dedups against any existing Anthropic
-    config for the same model/options.
+    only ``{max_tokens, temperature}`` — ``max_tokens`` alone for models that no
+    longer accept sampling params (Sonnet 5+) — so it dedups against any existing
+    Anthropic config for the same model/options.
 
     Returns ``None`` when offload isn't possible: the model is already an Anthropic
     one, no overflow/default Anthropic model is configured, or no Anthropic API key
@@ -262,7 +264,7 @@ def build_overflow_model_config(model_config):
     import json
 
     from symbology.database.model_configs import get_or_create_model_config
-    from symbology.llm.client import _provider_for
+    from symbology.llm.client import _provider_for, sampling_params_removed
     from symbology.utils.config import settings
 
     if _provider_for(model_config.model) != "openai":
@@ -273,15 +275,14 @@ def build_overflow_model_config(model_config):
         return None
 
     options = json.loads(model_config.options_json)
+    overflow_options = {"max_tokens": options.get("max_tokens", 4096)}
+    # Sampling-removed models (Sonnet 5+) reject temperature with a 400 — keep
+    # it out of the stored config so the hash/dedup reflects what's actually sent.
+    if not sampling_params_removed(overflow_model):
+        overflow_options["temperature"] = options.get("temperature", 0.8)
     return get_or_create_model_config({
         "model": overflow_model,
-        "options_json": json.dumps(
-            {
-                "max_tokens": options.get("max_tokens", 4096),
-                "temperature": options.get("temperature", 0.8),
-            },
-            sort_keys=True,
-        ),
+        "options_json": json.dumps(overflow_options, sort_keys=True),
     })
 
 

@@ -31,6 +31,10 @@ runtime = [
   "click>=8.1.0",
   "rich>=13.0.0",
   "boto3>=1.35.0",
+  # Imported directly by utils.text HTML-fallback stripping (also transitive
+  # deps of edgartools; declared because we import them ourselves).
+  "beautifulsoup4>=4.12.0",
+  "lxml>=5.0.0",
 ]
 
 # Development dependencies: runtime + interactive analysis/notebook tooling.

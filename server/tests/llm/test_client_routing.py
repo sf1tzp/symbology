@@ -17,6 +17,7 @@ from symbology.llm.client import (
     get_chat_response,
     get_generate_response,
     retry_backoff,
+    sampling_params_removed,
 )
 
 ADAPTER_ATTRS = (
@@ -103,6 +104,56 @@ def test_generate_routes_to_anthropic():
     assert sent["system"] == "sys"
     assert sent["messages"] == [{"role": "user", "content": "usr"}]
     assert sent["max_tokens"] == 256 and sent["temperature"] == 0.3
+
+
+def test_sampling_params_removed_classification():
+    # Sonnet 5+ / Opus 4.7+ / Claude 5 tier reject temperature (400).
+    assert sampling_params_removed("claude-sonnet-5") is True
+    assert sampling_params_removed("claude-opus-4-7") is True
+    assert sampling_params_removed("claude-opus-4-8") is True
+    assert sampling_params_removed("claude-fable-5") is True
+    # Older families still accept the configured temperature.
+    assert sampling_params_removed("claude-sonnet-4-6") is False
+    assert sampling_params_removed("claude-sonnet-4-5-20250929") is False
+    assert sampling_params_removed("claude-haiku-4-5-20251001") is False
+
+
+def test_generate_sonnet_5_omits_sampling_and_disables_thinking():
+    """Sonnet 5 rejects temperature with a 400 and runs adaptive thinking by
+    default; the client must send neither temperature nor an implicit-thinking
+    request (max_tokens is sized for text output only)."""
+    client = _FakeAnthropicClient()
+    adapter, _ = get_generate_response(
+        _model_config("claude-sonnet-5"), "sys", "usr", client=client
+    )
+
+    assert adapter.response == "hello from claude"
+    sent = client.calls[0]
+    assert "temperature" not in sent
+    assert sent["thinking"] == {"type": "disabled"}
+    assert sent["max_tokens"] == 256
+
+
+def test_chat_sonnet_5_omits_sampling_and_disables_thinking():
+    client = _FakeAnthropicClient()
+    get_chat_response(
+        _model_config("claude-sonnet-5"),
+        [{"role": "user", "content": "hi"}],
+        client=client,
+    )
+    sent = client.calls[0]
+    assert "temperature" not in sent
+    assert sent["thinking"] == {"type": "disabled"}
+
+
+def test_generate_older_claude_keeps_temperature():
+    client = _FakeAnthropicClient()
+    get_generate_response(
+        _model_config("claude-haiku-4-5-20251001"), "sys", "usr", client=client
+    )
+    sent = client.calls[0]
+    assert sent["temperature"] == 0.3
+    assert "thinking" not in sent
 
 
 def test_generate_routes_to_openai():

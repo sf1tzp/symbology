@@ -1,4 +1,9 @@
-from symbology.utils.text import normalize_filing_text, validate_section_content
+from symbology.utils.text import (
+    looks_like_html,
+    normalize_filing_text,
+    strip_html_to_text,
+    validate_section_content,
+)
 
 
 class TestNormalizeFilingText:
@@ -74,6 +79,50 @@ class TestNormalizeFilingText:
     def test_already_clean_text(self):
         text = "This is clean text.\n\nNew paragraph here."
         assert normalize_filing_text(text) == text
+
+
+class TestHtmlFallbackStripping:
+    """edgartools occasionally returns raw HTML slices instead of extracted
+    text (observed on Citigroup/GE/Synchrony 10-Ks); ingestion must strip the
+    markup before storage."""
+
+    # Mimics the observed fallback shape: leading layout divs, inline styles.
+    HTML_SECTION = (
+        '<div style="min-height:36pt;width:100%"><div><span><br/></span></div></div>'
+        '<div><span style="font-family:\'Times New Roman\',serif;font-size:12pt">'
+        "MANAGEMENT'S DISCUSSION AND ANALYSIS</span></div>"
+        '<table><tr><td><span style="color:#000000">Revenue</span></td>'
+        "<td><span>$100</span></td></tr></table>"
+        "<style>.cls { color: red; }</style>"
+    )
+
+    def test_detects_html_section(self):
+        assert looks_like_html(self.HTML_SECTION) is True
+        assert looks_like_html("  \n" + self.HTML_SECTION) is True
+
+    def test_plain_text_not_detected(self):
+        assert looks_like_html("The company operates in multiple segments.") is False
+        # Angle bracket at start without markup structure is not HTML.
+        assert looks_like_html("<placeholder> means fill this in") is False
+        assert looks_like_html("") is False
+        assert looks_like_html(None) is False
+
+    def test_strip_extracts_text_and_drops_styles(self):
+        text = strip_html_to_text(self.HTML_SECTION)
+        assert "MANAGEMENT'S DISCUSSION AND ANALYSIS" in text
+        assert "Revenue" in text and "$100" in text
+        assert "<" not in text
+        assert "font-family" not in text
+        assert ".cls" not in text  # <style> body dropped, not text-extracted
+
+    def test_normalize_strips_html_fallback(self):
+        result = normalize_filing_text(self.HTML_SECTION)
+        assert "MANAGEMENT'S DISCUSSION AND ANALYSIS" in result
+        assert "<div" not in result and "<span" not in result
+
+    def test_normalize_leaves_text_with_entities_untouched(self):
+        # Entity decoding must still work on non-HTML text (the existing path).
+        assert "AT&T" in normalize_filing_text("AT&amp;T results")
 
 
 class TestValidateSectionContent:

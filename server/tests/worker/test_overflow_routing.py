@@ -105,6 +105,30 @@ def test_offload_swaps_to_anthropic_and_mirrors_options(monkeypatch):
     assert json.loads(captured["options_json"]) == {"max_tokens": 8192, "temperature": 0.2}
 
 
+def test_offload_to_sonnet_5_drops_temperature(monkeypatch):
+    """Sonnet 5 rejects sampling params (400), so the overflow config must
+    carry only max_tokens — no temperature mirrored from the local config."""
+    monkeypatch.setattr(settings.openai, "overflow_threshold_tokens", 45000)
+    monkeypatch.setattr(settings.openai, "overflow_model", "claude-sonnet-5")
+    monkeypatch.setattr(settings.anthropic, "api_key", "sk-test")
+
+    captured = {}
+
+    def _fake_goc(data):
+        captured.update(data)
+        return _mc(data["model"])
+
+    monkeypatch.setattr(
+        "symbology.database.model_configs.get_or_create_model_config", _fake_goc
+    )
+
+    mc = _mc("google/gemma-4-e4b", max_tokens=8192, temperature=0.2)
+    out = cl.resolve_generation_model_config(mc, _huge_prompt(46000))
+
+    assert out.model == "claude-sonnet-5"
+    assert json.loads(captured["options_json"]) == {"max_tokens": 8192}
+
+
 def test_offload_falls_back_to_anthropic_default_model(monkeypatch):
     monkeypatch.setattr(settings.openai, "overflow_threshold_tokens", 45000)
     monkeypatch.setattr(settings.openai, "overflow_model", "")  # -> use default_model

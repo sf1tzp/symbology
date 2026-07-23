@@ -249,9 +249,13 @@ def find_or_create_document(company_id: UUID, title: str, document_type: Documen
         if existing_document:
             # Update content if provided. is_substantive tracks the content, so
             # refresh it alongside (a re-ingested section may cross the threshold).
+            # content_hash must be refreshed too — downstream generation dedups
+            # on it, so a stale hash makes re-ingested content invisibly reuse
+            # output generated from the old content.
             if content is not None:
                 existing_document.content = content
                 existing_document.is_substantive = is_substantive
+                existing_document.update_content_hash()
                 session.commit()
                 logger.info("updated_document_content",
                            document_id=str(existing_document.id),

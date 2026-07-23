@@ -519,9 +519,11 @@ def test_find_or_create_document_update_existing(db_session, create_test_company
         "content": "Original management discussion content."
     }
     document = Document(**document_data)
+    document.update_content_hash()
     db_session.add(document)
     db_session.commit()
     document_id = document.id
+    original_hash = document.content_hash
 
     # Mock the db_session global
     original_get_db_session = documents_module.get_db_session
@@ -540,6 +542,10 @@ def test_find_or_create_document_update_existing(db_session, create_test_company
         # Should be the same document but with updated content
         assert updated_doc.id == document_id
         assert updated_doc.content == "Updated management discussion content."
+        # content_hash tracks the content — downstream generation dedups on it,
+        # so a stale hash would silently reuse output from the old content.
+        assert updated_doc.content_hash != original_hash
+        assert updated_doc.content_hash == updated_doc.generate_content_hash()
     finally:
         # Restore the original function
         documents_module.get_db_session = original_get_db_session

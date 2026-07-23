@@ -18,10 +18,44 @@ _UNICODE_PATTERN = re.compile(
     "[" + re.escape("".join(_UNICODE_REPLACEMENTS.keys())) + "]"
 )
 
+# Closing tags that mark markup-structured content. edgartools item extraction
+# normally returns extracted text, but for some filing structures (observed on
+# Citigroup/GE/Synchrony 10-Ks) it falls back to raw HTML slices — table-heavy
+# sections arrive as 90%+ inline-style markup, inflating token counts ~10x and
+# overflowing model context limits downstream.
+_HTML_CLOSING_TAG_RE = re.compile(
+    r"</(?:div|span|p|td|tr|table|body|html)>", re.IGNORECASE
+)
+
+
+def looks_like_html(text: str) -> bool:
+    """Whether section content is an HTML document rather than extracted text."""
+    if not text:
+        return False
+    return text.lstrip().startswith("<") and bool(
+        _HTML_CLOSING_TAG_RE.search(text[:5000])
+    )
+
+
+def strip_html_to_text(html_content: str) -> str:
+    """Extract the text content from an HTML fragment.
+
+    bs4/lxml are imported lazily: they're runtime deps, but the strip only runs
+    on the rare HTML-fallback documents.
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html_content, "lxml")
+    # Style/script bodies are markup, not content.
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    return soup.get_text(separator="\n")
+
 
 def normalize_filing_text(text: str) -> str:
     """Normalize raw SEC filing text for storage.
 
+    - Strips HTML markup when the section arrived as raw HTML instead of text
     - Decodes HTML entities
     - Normalizes Unicode (smart quotes, dashes, ellipsis)
     - Collapses excessive blank lines (3+ newlines → 2)
@@ -31,6 +65,9 @@ def normalize_filing_text(text: str) -> str:
     """
     if not text:
         return text
+
+    if looks_like_html(text):
+        text = strip_html_to_text(text)
 
     # Decode HTML entities (handles &amp;, &nbsp;, &#8220;, etc.)
     text = html.unescape(text)

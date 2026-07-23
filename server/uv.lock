@@ -2175,12 +2175,14 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "beautifulsoup4" },
     { name = "boto3" },
     { name = "click" },
     { name = "edgartools" },
     { name = "httpx" },
     { name = "ipywidgets" },
     { name = "jupyter" },
+    { name = "lxml" },
     { name = "matplotlib" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -2190,22 +2192,26 @@ all = [
     { name = "seaborn" },
 ]
 dev = [
+    { name = "beautifulsoup4" },
     { name = "boto3" },
     { name = "click" },
     { name = "edgartools" },
     { name = "httpx" },
     { name = "ipywidgets" },
     { name = "jupyter" },
+    { name = "lxml" },
     { name = "matplotlib" },
     { name = "requests" },
     { name = "rich" },
     { name = "seaborn" },
 ]
 runtime = [
+    { name = "beautifulsoup4" },
     { name = "boto3" },
     { name = "click" },
     { name = "edgartools" },
     { name = "httpx" },
+    { name = "lxml" },
     { name = "requests" },
     { name = "rich" },
 ]
@@ -2219,12 +2225,14 @@ test = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.3" },
     { name = "anthropic", specifier = ">=0.52.0" },
+    { name = "beautifulsoup4", marker = "extra == 'runtime'", specifier = ">=4.12.0" },
     { name = "boto3", marker = "extra == 'runtime'", specifier = ">=1.35.0" },
     { name = "click", marker = "extra == 'runtime'", specifier = ">=8.1.0" },
     { name = "edgartools", marker = "extra == 'runtime'", specifier = ">=5.14.0" },
     { name = "httpx", marker = "extra == 'runtime'", specifier = "==0.28.1" },
     { name = "ipywidgets", marker = "extra == 'dev'" },
     { name = "jupyter", marker = "extra == 'dev'" },
+    { name = "lxml", marker = "extra == 'runtime'", specifier = ">=5.0.0" },
     { name = "matplotlib", marker = "extra == 'dev'", specifier = "==3.10.9" },
     { name = "openai", specifier = ">=1.40.0" },
     { name = "pgvector", specifier = ">=0.3.0" },

@@ -1,0 +1,84 @@
+<!-- @dsCard group="Components" name="Buttons" subtitle="Default / secondary / outline / ghost / link / destructive, 3 sizes" width="640" -->
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Buttons — Symbology design system</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap"
+			rel="stylesheet"
+		/>
+		<link rel="stylesheet" href="site.css" />
+		<style>
+			/* Mirrors buttonVariants base in src/lib/components/ui/button/button.svelte */
+			.btn {
+				display: inline-flex;
+				flex-shrink: 0;
+				align-items: center;
+				justify-content: center;
+				gap: 0.5rem;
+				white-space: nowrap;
+				border-radius: var(--radius-md);
+				font-size: 0.875rem;
+				font-weight: 500;
+				outline: none;
+				transition: all 0.15s;
+				cursor: pointer;
+				border: none;
+				height: 2.25rem;
+				padding: 0.5rem 1rem;
+			}
+			.btn-sm {
+				height: 2rem;
+				padding-inline: 0.75rem;
+			}
+			.btn-lg {
+				height: 2.5rem;
+				padding-inline: 1.5rem;
+			}
+		</style>
+	</head>
+	<body class="bg-paper p-8">
+		<div class="flex flex-col gap-8">
+			<div>
+				<div class="meta mb-4 text-xs text-ink-4">Variants</div>
+				<div class="flex flex-wrap items-center gap-4">
+					<button class="btn bg-primary text-primary-foreground shadow-xs hover:bg-primary/90">
+						Default
+					</button>
+					<button class="btn bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80">
+						Secondary
+					</button>
+					<button class="btn border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground">
+						Outline
+					</button>
+					<button class="btn hover:bg-accent hover:text-accent-foreground">Ghost</button>
+					<button class="btn text-primary underline-offset-4 hover:underline">Link</button>
+					<button class="btn bg-destructive text-white shadow-xs hover:bg-destructive/90">
+						Destructive
+					</button>
+				</div>
+			</div>
+
+			<div>
+				<div class="meta mb-4 text-xs text-ink-4">Sizes</div>
+				<div class="flex flex-wrap items-center gap-4">
+					<button class="btn btn-sm bg-primary text-primary-foreground shadow-xs">Small</button>
+					<button class="btn bg-primary text-primary-foreground shadow-xs">Default</button>
+					<button class="btn btn-lg bg-primary text-primary-foreground shadow-xs">Large</button>
+				</div>
+			</div>
+
+			<div>
+				<div class="meta mb-4 text-xs text-ink-4">Disabled</div>
+				<div class="flex flex-wrap items-center gap-4">
+					<button class="btn bg-primary text-primary-foreground opacity-50" disabled>Default</button>
+					<button class="btn border bg-background opacity-50" disabled>Outline</button>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

@@ -1,0 +1,40 @@
+<!-- @dsCard group="Components" name="Section head" subtitle="Eyebrow with accent dot + serif heading + aside slot" width="900" -->
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Section head — Symbology design system</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap"
+			rel="stylesheet"
+		/>
+		<link rel="stylesheet" href="site.css" />
+	</head>
+	<body class="bg-paper p-8">
+		<!-- Mirrors the non-sticky variant of src/lib/components/SectionHead.svelte -->
+		<header class="flex-between mb-7 items-end gap-6">
+			<div>
+				<div class="eyebrow mb-2 flex items-center">
+					<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;What changed
+				</div>
+				<h2 class="section-heading">Year-over-year changes</h2>
+			</div>
+			<div>
+				<span class="tag">FY2024</span>
+			</div>
+		</header>
+
+		<!-- Plum accent variant (10-Q pages) -->
+		<header class="flex-between items-end gap-6">
+			<div>
+				<div class="eyebrow mb-2 flex items-center">
+					<span style="color: var(--plum)">&#9679;</span>&nbsp;&nbsp;Quarterly filing
+				</div>
+				<h2 class="section-heading">Third quarter, FY2025</h2>
+			</div>
+		</header>
+	</body>
+</html>

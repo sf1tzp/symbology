@@ -40,3 +40,9 @@ generate-db-types:
 build:
   ~/.local/bin/nerdctl build . -t symbology-ui:latest
   ~/.local/bin/nerdctl save symbology-ui:latest -o symbology-ui-latest.tar
+
+# Compile src/app.css (tokens + component classes + the Tailwind utilities the
+# preview HTMLs use) into the stylesheet the standalone design-system previews
+# link. site.css is generated — run this before syncing previews.
+design-system:
+  npx @tailwindcss/cli -i src/app.css -o design-system/site.css

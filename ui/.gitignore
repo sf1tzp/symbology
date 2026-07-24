@@ -2,6 +2,7 @@ node_modules
 
 # Output
 .output
+/design-system/site.css
 .vercel
 .netlify
 .wrangler

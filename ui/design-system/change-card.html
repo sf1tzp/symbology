@@ -1,0 +1,115 @@
+<!-- @dsCard group="Components" name="Change card" subtitle="Left accent bar per doc type / change kind; kind-tag or dot header" width="900" -->
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Change card — Symbology design system</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap"
+			rel="stylesheet"
+		/>
+		<link rel="stylesheet" href="site.css" />
+		<style>
+			/* Mirrors the scoped styles in src/lib/components/ChangeCard.svelte and
+			   ChangeKindTag.svelte. Accents come from docColor()/changeKindColor() in
+			   src/lib/utils/changes.ts. */
+			.change-card {
+				display: flex;
+				flex-direction: column;
+				gap: 0.75rem;
+				min-width: 0;
+				overflow-wrap: break-word;
+				padding: 1.25rem 1.5rem;
+				border: 1px solid var(--rule);
+				border-left: 3px solid var(--card-accent, var(--teal-2));
+				border-radius: 0 8px 8px 0;
+				text-decoration: none;
+				color: inherit;
+			}
+			.change-card .hd {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+				font-size: 15px;
+				font-weight: 600;
+				color: var(--ink);
+			}
+			.change-card .hd-dot {
+				width: 8px;
+				height: 8px;
+				border-radius: 9999px;
+				flex-shrink: 0;
+			}
+			.change-card .ti {
+				font-family: var(--serif);
+				font-size: 16px;
+				line-height: 1.4;
+				color: var(--ink);
+			}
+			.change-card .ft {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				margin-top: auto;
+				padding-top: 0.5rem;
+				font-size: 12px;
+				color: var(--ink-4);
+			}
+			.kind-tag {
+				background: color-mix(in oklch, var(--kind) 15%, transparent);
+				border-color: var(--kind);
+				color: var(--kind);
+			}
+		</style>
+	</head>
+	<body class="bg-paper p-8">
+		<div class="change-grid">
+			<a href="#" class="change-card" style="--card-accent: var(--warn)">
+				<div class="hd">
+					<span class="tag kind-tag" style="--kind: var(--warn)">escalated&nbsp;↗</span>
+				</div>
+				<div class="ti">
+					Supply-chain concentration risk expanded from one paragraph to a full subsection naming
+					single-source component suppliers.
+				</div>
+				<div class="ft">
+					<span>Item 1A · Risk factors</span>
+					<span>Open ›</span>
+				</div>
+			</a>
+
+			<a href="#" class="change-card" style="--card-accent: var(--blue)">
+				<div class="hd">
+					<span class="hd-dot" style="background: var(--blue)"></span>
+					Management discussion
+				</div>
+				<div class="ti">
+					Liquidity discussion now leads with share-repurchase capacity rather than capital
+					expenditure plans.
+				</div>
+				<div class="ft">
+					<span>Item 7 · MD&amp;A</span>
+					<span>Open ›</span>
+				</div>
+			</a>
+
+			<a href="#" class="change-card" style="--card-accent: var(--danger)">
+				<div class="hd">
+					<span class="hd-dot" style="background: var(--danger)"></span>
+					Risk factors
+				</div>
+				<div class="ti">
+					New disclosure on regulatory scrutiny of AI training data, absent from the prior year's
+					filing.
+				</div>
+				<div class="ft">
+					<span>Item 1A · Risk factors</span>
+					<span>Open ›</span>
+				</div>
+			</a>
+		</div>
+	</body>
+</html>

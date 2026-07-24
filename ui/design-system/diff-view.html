@@ -1,0 +1,68 @@
+<!-- @dsCard group="Components" name="Diff view" subtitle="Side-by-side year-over-year compare with ins/del marks + diff card" width="960" -->
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Diff view — Symbology design system</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap"
+			rel="stylesheet"
+		/>
+		<link rel="stylesheet" href="site.css" />
+		<style>
+			.kind-tag {
+				background: color-mix(in oklch, var(--kind) 15%, transparent);
+				border-color: var(--kind);
+				color: var(--kind);
+			}
+		</style>
+	</head>
+	<body class="bg-paper p-8">
+		<div class="flex flex-col gap-8">
+			<div class="max-w-sm">
+				<div class="meta mb-4 text-xs text-ink-4">.diff-card</div>
+				<div class="diff-card">
+					<div class="diff-card-head">
+						<span class="tag kind-tag" style="--kind: var(--warn)">escalated&nbsp;↗</span>
+						<span class="meta text-xs text-ink-4">+412 tokens</span>
+					</div>
+					<h3 class="diff-card-heading">Dependence on third-party cloud infrastructure</h3>
+					<div class="meta text-xs text-ink-3">Item 1A · Risk factors</div>
+				</div>
+			</div>
+
+			<div>
+				<div class="meta mb-4 text-xs text-ink-4">.compare — side-by-side with .ins / .del / .cite</div>
+				<div class="compare">
+					<div class="compare-col">
+						<h4><span>FY2023</span><span>10-K</span></h4>
+						<div class="compare-text">
+							<p>
+								We rely on <span class="del">a small number of</span> third-party cloud providers
+								to host our services. A disruption at any of these providers could
+								<span class="del">temporarily</span> impair our ability to serve
+								customers.<a class="cite" href="#">[1]</a>
+							</p>
+						</div>
+					</div>
+					<div class="compare-col compare-col--secondary">
+						<h4><span>FY2024</span><span>10-K</span></h4>
+						<div class="compare-text">
+							<p>
+								We rely on <span class="ins">two principal</span> third-party cloud providers to
+								host our services. A disruption at any of these providers could
+								<span class="ins">materially and adversely</span> impair our ability to serve
+								customers<span class="ins">, and migrating between providers would require
+								significant time and expense</span>.<a class="cite" href="#">[1]</a>
+							</p>
+						</div>
+					</div>
+				</div>
+				<button class="compare-toggle md:hidden">Show FY2024 side ↓</button>
+			</div>
+		</div>
+	</body>
+</html>

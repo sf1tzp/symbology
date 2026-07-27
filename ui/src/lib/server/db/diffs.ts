@@ -1,5 +1,7 @@
+import { sql } from 'kysely';
 import { db } from '../db';
 import { isNumericNoise } from '$lib/utils/changes';
+import type { LandingDiffShowcase } from '$lib/api-types';
 import type { DocumentTypeEnum } from './types';
 
 export interface DiffOp {
@@ -477,6 +479,115 @@ export async function getLatestChangeCardsForCompanies(
 		});
 	}
 	return opts.limit != null ? ranked.slice(0, opts.limit) : ranked;
+}
+
+// Landing showcase bounds: the featured diff must read as a genuine *prose*
+// edit — dates and figures slip past isNumericNoise when month names carry the
+// letters — and still fit comfortably in a marketing section. Requiring a
+// generated summary reuses the pipeline's own significance gate.
+const SHOWCASE_MAX_TOTAL_CHARS = 1800;
+const SHOWCASE_MIN_CHANGED_LETTERS = 120;
+const SHOWCASE_MIN_PROSE_LETTER_FRACTION = 0.85;
+const SHOWCASE_CANDIDATE_POOL = 60;
+
+const countLetters = (s: string) => (s.match(/\p{L}/gu) ?? []).length;
+const countDigits = (s: string) => (s.match(/\p{Nd}/gu) ?? []).length;
+
+/** Changed (insert/delete) text reads as prose: mostly letters, enough of them. */
+function hasProseEdit(ops: DiffOp[]): boolean {
+	const changed = ops
+		.filter((o) => o.op !== 'equal')
+		.map((o) => o.text)
+		.join('');
+	const letters = countLetters(changed);
+	const digits = countDigits(changed);
+	return (
+		letters >= SHOWCASE_MIN_CHANGED_LETTERS &&
+		letters / Math.max(1, letters + digits) >= SHOWCASE_MIN_PROSE_LETTER_FRACTION
+	);
+}
+
+/** Heading is a real topic title, not table debris ("(in millions)March 31, 2025…"). */
+function isCleanHeading(heading: string | null): heading is string {
+	if (!heading) return false;
+	const trimmed = heading.trim();
+	if (trimmed.length < 4 || trimmed.length > 90) return false;
+	const letters = countLetters(trimmed);
+	const digits = countDigits(trimmed);
+	return letters >= 8 && digits === 0;
+}
+
+/**
+ * One randomly selected, *presentable* section diff for the landing page's
+ * "see exactly what changed" showcase. Samples a pool of summarised
+ * emphasis/wording shifts (the pipeline's own significance gate) and returns
+ * the first whose edit is substantial prose with a clean topic heading —
+ * progressively relaxing to any non-noise candidate, or null when no diffs
+ * qualify yet.
+ */
+export async function getFeaturedLandingDiff(): Promise<LandingDiffShowcase | null> {
+	const candidates = await db
+		.selectFrom('section_diffs as sd')
+		.innerJoin('diff_sets as ds', 'ds.id', 'sd.diff_set_id')
+		.innerJoin('companies as c', 'c.id', 'ds.company_id')
+		.select([
+			'sd.id',
+			'sd.section_path',
+			'sd.heading',
+			'sd.change_kind',
+			'sd.ops',
+			'sd.truncated',
+			'sd.summary_content_id',
+			'ds.document_type',
+			'ds.left_filing_id',
+			'ds.right_filing_id',
+			'c.ticker',
+			'c.name',
+			'c.display_name',
+			'c.fiscal_year_end'
+		])
+		.where('sd.change_kind', 'in', [...CARD_CHANGE_KINDS])
+		.where('sd.heading', 'is not', null)
+		.where('sd.summary_content_id', 'is not', null)
+		.orderBy(sql`random()`)
+		.limit(SHOWCASE_CANDIDATE_POOL)
+		.execute();
+
+	const usable = candidates.filter((c) => !isNumericNoise(c.ops as unknown as DiffOp[]));
+	if (usable.length === 0) return null;
+
+	const totalChars = (ops: DiffOp[]) => ops.reduce((n, o) => n + o.text.length, 0);
+	const fits = (c: (typeof usable)[number]) =>
+		totalChars(c.ops as unknown as DiffOp[]) <= SHOWCASE_MAX_TOTAL_CHARS;
+	const prose = (c: (typeof usable)[number]) => hasProseEdit(c.ops as unknown as DiffOp[]);
+
+	const pick =
+		usable.find((c) => fits(c) && prose(c) && isCleanHeading(c.heading)) ??
+		usable.find((c) => fits(c) && prose(c)) ??
+		usable.find(fits) ??
+		usable[0];
+
+	const [filings, summaries] = await Promise.all([
+		loadFilingRefs([pick.left_filing_id, pick.right_filing_id], pick.document_type),
+		loadSummaries([pick.summary_content_id])
+	]);
+
+	return {
+		ticker: pick.ticker,
+		name: pick.name,
+		display_name: pick.display_name,
+		fiscal_year_end: toIso(pick.fiscal_year_end),
+		documentType: pick.document_type,
+		sectionDiffId: pick.id,
+		sectionPath: pick.section_path,
+		heading: pick.heading,
+		changeKind: pick.change_kind,
+		summary: pick.summary_content_id ? (summaries.get(pick.summary_content_id) ?? null) : null,
+		ops: (pick.ops ?? []) as unknown as DiffOp[],
+		truncated: pick.truncated,
+		leftFiling: pick.left_filing_id ? (filings.get(pick.left_filing_id) ?? null) : null,
+		rightFiling: pick.right_filing_id ? (filings.get(pick.right_filing_id) ?? null) : null
+	};
 }
 
 export interface FilingChangeHighlight {

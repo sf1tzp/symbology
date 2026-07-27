@@ -189,6 +189,40 @@ export interface FeaturedCompanyIntro {
 	created_at: string | null;
 }
 
+// Featured diff (landing-page "see exactly what changed" showcase) — one randomly
+// chosen readable section diff, with just enough context to render a DiffView and
+// deep-link into the company's full change report.
+export interface LandingDiffOp {
+	op: 'equal' | 'insert' | 'delete';
+	text: string;
+}
+
+export interface LandingDiffFiling {
+	form: string;
+	filingDate: string | null;
+	periodOfReport: string | null;
+	accessionNumber: string;
+	documentHash: string | null;
+}
+
+export interface LandingDiffShowcase {
+	ticker: string;
+	name: string;
+	display_name: string | null;
+	fiscal_year_end: string | null;
+	documentType: string;
+	sectionDiffId: string;
+	sectionPath: string | null;
+	heading: string | null;
+	changeKind: string;
+	/** Generated one-paragraph summary of the change (the editorial deck). */
+	summary: string | null;
+	ops: LandingDiffOp[];
+	truncated: boolean;
+	leftFiling: LandingDiffFiling | null;
+	rightFiling: LandingDiffFiling | null;
+}
+
 // Company Group types
 export interface CompanyGroupResponse {
 	id: string;

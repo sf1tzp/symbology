@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import FeaturedIntroCarousel from '$lib/components/landing/FeaturedIntroCarousel.svelte';
+	import DiffShowcase from '$lib/components/landing/DiffShowcase.svelte';
 	import Heart from '@lucide/svelte/icons/heart';
 	import { supportEnabled } from '$lib/features';
 
@@ -15,6 +16,27 @@
 
 	const _stats = $derived(data.stats as PlatformStats | null);
 	const featured = $derived(data.featured);
+	const featuredDiff = $derived(data.featuredDiff);
+
+	// Brand principles — the angle that differentiates Symbology from the
+	// "trusted by institutions" incumbents: editorial, independent, free.
+	const principles = [
+		{
+			eyebrow: 'EDITORIAL',
+			title: 'Written to be read.',
+			body: 'Filings are written to be defensible; Symbology is written to be readable. Plain-language synthesis that stays within one click of the source document it came from.'
+		},
+		{
+			eyebrow: 'INDEPENDENT',
+			title: 'Homegrown by design.',
+			body: 'No data-vendor lineage, no enterprise sales team. Symbology is an independent project, and most of its synthesis runs on consumer hardware we operate ourselves.'
+		},
+		{
+			eyebrow: 'OPEN TO ALL',
+			title: 'Free for everyone.',
+			body: 'Company briefs, filing summaries, and change reports are free to read. Supporters fund the backlog and unlock extras — watchlist digests, company requests — not a paywall.'
+		}
+	];
 
 	const proofCards = [
 		{
@@ -74,8 +96,8 @@
 				>
 			</div>
 			<div class="meta mt-1.5 text-ink-4">
-				Sourced directly from SEC EDGAR &middot; Early access: hundreds of top companies, and
-				growing
+				Sourced directly from SEC EDGAR &middot; Free to read &middot; Hundreds of top companies,
+				and growing
 			</div>
 		</div>
 	</div>
@@ -107,6 +129,33 @@
 
 <!-- Featured company intros -->
 <FeaturedIntroCarousel companies={featured} />
+
+<!-- Featured diff: a live "what changed" specimen -->
+<DiffShowcase diff={featuredDiff} />
+
+<!-- Brand principles -->
+<section class="hairline-section">
+	<div class="eyebrow mb-8">
+		<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;WHAT SYMBOLOGY IS
+	</div>
+	<div class="grid-3">
+		{#each principles as p (p.eyebrow)}
+			<div>
+				<div class="eyebrow mb-3">
+					<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;{p.eyebrow}
+				</div>
+				<h3
+					class="mb-3.5 font-serif text-[26px] leading-[1.2] font-normal tracking-[-0.015em] text-ink"
+				>
+					{p.title}
+				</h3>
+				<p class="body-text text-[15px] leading-[1.6] text-ink-2">
+					{p.body}
+				</p>
+			</div>
+		{/each}
+	</div>
+</section>
 
 <!-- Supporter initiative -->
 {#if supportEnabled}

@@ -3,7 +3,7 @@
 	import DiffView from '$lib/components/DiffView.svelte';
 	import ChangeKindTag from '$lib/components/ChangeKindTag.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
-	import { getAnalysisTypeDisplay } from '$lib/utils/filings';
+	import { formatDate, getAnalysisTypeDisplay } from '$lib/utils/filings';
 	import { docColor } from '$lib/utils/changes';
 	import { titleCase } from 'title-case';
 	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
@@ -56,6 +56,12 @@
 		return iso ? `’${iso.slice(2, 4)}` : f.form;
 	}
 
+	// Full fiscal-year label for the sidebar sources list, e.g. "FY2024".
+	function fyFull(f: ShowcaseSourceFiling): string {
+		const iso = f.periodOfReport ?? f.filingDate;
+		return iso ? `FY${iso.slice(0, 4)}` : '';
+	}
+
 	// DiffView only reads fiscal_year_end off the company (for fiscal-period labels).
 	function companyForPeriods(c: ShowcaseCompany): CompanyResponse {
 		return { fiscal_year_end: c.fiscal_year_end } as CompanyResponse;
@@ -106,12 +112,11 @@
 				{#each companies as c (c.ticker)}
 					<div class="w-full shrink-0 snap-start">
 						<article class="flex h-full flex-col overflow-hidden rounded-lg border border-rule">
-							<!-- Masthead: identity left, provenance right -->
-							<header
-								class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-rule px-5 py-4 md:px-7 md:py-5"
-							>
-								<div class="min-w-0">
-									<div class="flex flex-wrap items-baseline gap-3">
+							<!-- Top: identity + provenance sidebar | the brief (mirrors the /c page's
+							     brief-column layout; stacks below lg) -->
+							<div class="grid flex-1 grid-cols-1 lg:grid-cols-[280px_1fr]">
+								<div class="border-b border-rule p-5 md:p-7 lg:border-r lg:border-b-0">
+									<div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
 										<a
 											href="/c/{c.ticker}"
 											class="font-serif text-[22px] leading-tight text-ink no-underline transition-colors duration-150 hover:text-teal-2"
@@ -121,45 +126,66 @@
 										<span class="tag font-medium text-ink">{c.ticker}</span>
 									</div>
 									{#if c.sic_description}
-										<div class="mt-1 font-serif text-xs text-ink-4 italic">
+										<div class="mt-1.5 font-serif text-xs text-ink-4 italic">
 											{c.sic_description}
 										</div>
 									{/if}
-								</div>
-								{#if c.sourceFilings.length > 0}
-									<div class="flex flex-col gap-1.5 md:items-end">
-										<span class="eyebrow text-[10.5px]">
-											Synthesized from {c.source_filing_count} Form
-											{c.source_form_type ?? 'filing'}{c.source_filing_count === 1 ? '' : 's'}
-										</span>
-										<div class="flex flex-wrap items-baseline gap-1.5">
-											{#each c.sourceFilings.slice(0, MAX_CITATIONS) as f (f.accessionNumber)}
-												<a
-													href="/f/{f.accessionNumber}"
-													class="rounded border border-rule px-1.5 py-0.5 font-mono text-[11px] text-ink-3 no-underline transition-colors duration-150 hover:border-teal-2 hover:text-teal-2"
-													title="{f.form} filing"
-												>
-													{f.form}&nbsp;{fyShort(f)}
-												</a>
-											{/each}
-											{#if c.sourceFilings.length > MAX_CITATIONS}
-												<span class="font-mono text-[11px] text-ink-4">
-													+{c.sourceFilings.length - MAX_CITATIONS}
-												</span>
-											{/if}
-										</div>
-									</div>
-								{/if}
-							</header>
 
-							<!-- Body: the brief (reading column) | the latest change (annotation rail) -->
-							<div class="grid flex-1 grid-cols-1 {c.diff ? 'lg:grid-cols-[1.15fr_1fr]' : ''}">
+									{#if c.sourceFilings.length > 0}
+										<div class="mt-5 lg:mt-8">
+											<div class="eyebrow mb-3 text-[10.5px]">
+												Synthesized from {c.source_filing_count} Form
+												{c.source_form_type ?? 'filing'}{c.source_filing_count === 1 ? '' : 's'}
+											</div>
+											<!-- Compact citation chips below lg… -->
+											<div class="flex flex-wrap items-baseline gap-1.5 lg:hidden">
+												{#each c.sourceFilings.slice(0, MAX_CITATIONS) as f (f.accessionNumber)}
+													<a
+														href="/f/{f.accessionNumber}"
+														class="rounded border border-rule px-1.5 py-0.5 font-mono text-[11px] text-ink-3 no-underline transition-colors duration-150 hover:border-teal-2 hover:text-teal-2"
+														title="{f.form} filing"
+													>
+														{f.form}&nbsp;{fyShort(f)}
+													</a>
+												{/each}
+												{#if c.sourceFilings.length > MAX_CITATIONS}
+													<span class="font-mono text-[11px] text-ink-4">
+														+{c.sourceFilings.length - MAX_CITATIONS}
+													</span>
+												{/if}
+											</div>
+											<!-- …a sources list (as on the company page) in the lg sidebar. -->
+											<div class="hidden flex-col gap-3 lg:flex">
+												{#each c.sourceFilings.slice(0, MAX_CITATIONS) as f (f.accessionNumber)}
+													<a href="/f/{f.accessionNumber}" class="group no-underline">
+														<div
+															class="font-serif text-[15px] text-ink transition-colors duration-150 group-hover:text-teal-2"
+														>
+															{f.form} &middot; {fyFull(f)}
+														</div>
+														{#if f.filingDate}
+															<div class="meta text-xs text-ink-4">
+																Filed {formatDate(f.filingDate)}
+															</div>
+														{/if}
+													</a>
+												{/each}
+												{#if c.sourceFilings.length > MAX_CITATIONS}
+													<span class="meta text-xs text-ink-4">
+														+{c.sourceFilings.length - MAX_CITATIONS} more
+													</span>
+												{/if}
+											</div>
+										</div>
+									{/if}
+								</div>
+
 								<div class="flex flex-col p-5 md:p-7 lg:p-8">
 									<div class="eyebrow mb-5">
 										<span class="text-teal-2">&#9679;</span>&nbsp;&nbsp;THE BRIEF
 									</div>
 									<div class="relative max-h-[19rem] overflow-hidden md:max-h-[21rem]">
-										<div class="analysis-body {c.diff ? '' : 'max-w-[68ch]'}">
+										<div class="analysis-body max-w-[68ch]">
 											<MarkdownContent content={c.briefParagraphs.join('\n\n')} />
 										</div>
 										<!-- Fade the teaser out into the page instead of cutting it off. -->
@@ -176,63 +202,61 @@
 										</a>
 									</div>
 								</div>
-
-								{#if c.diff}
-									<div
-										class="flex flex-col border-t border-rule bg-paper-2/60 p-5 md:p-7 lg:border-t-0 lg:border-l lg:p-8"
-									>
-										<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-											<div class="eyebrow">
-												<span style="color: {docColor(c.diff.documentType)};">&#9679;</span
-												>&nbsp;&nbsp;LATEST CHANGE &middot; {getAnalysisTypeDisplay(
-													c.diff.documentType
-												)}
-											</div>
-											<ChangeKindTag changeKind={c.diff.changeKind} />
-										</div>
-										{#if c.diff.heading}
-											<h3
-												class="mt-0 mb-1 font-serif text-[19px] leading-[1.3] tracking-[-0.01em] text-ink"
-											>
-												{c.diff.heading}
-											</h3>
-										{/if}
-										{#if c.diff.sectionPath}
-											<div class="meta mb-4 text-xs text-ink-4">{c.diff.sectionPath}</div>
-										{/if}
-										{#if c.diff.summary}
-											<p
-												class="mt-0 mb-6 border-l-2 border-teal-2 pl-3.5 font-serif text-[15px] leading-[1.55] text-ink-2"
-											>
-												{c.diff.summary}
-											</p>
-										{/if}
-										<!-- Stack the compare columns: the rail is too narrow for side-by-side. -->
-										<div class="[&_.compare]:grid-cols-1 [&_.compare]:gap-5 [&_.diff-block]:mb-0">
-											<DiffView
-												topic={{
-													sectionPath: c.diff.sectionPath,
-													heading: c.diff.heading,
-													changeKind: c.diff.changeKind,
-													ops: c.diff.ops,
-													truncated: c.diff.truncated
-												}}
-												leftFiling={c.diff.leftFiling}
-												rightFiling={c.diff.rightFiling}
-												company={companyForPeriods(c)}
-											/>
-										</div>
-										<div class="mt-auto flex justify-end pt-5">
-											<a
-												href={changesHref(c)}
-												class="meta text-sm whitespace-nowrap text-teal-2 no-underline"
-											>
-												See more {c.ticker} changes &rarr;
-											</a>
-										</div>
-									</div>
-								{/if}
 							</div>
+
+							<!-- Bottom: the latest change, full width with the before | after compare -->
+							{#if c.diff}
+								<div class="border-t border-rule bg-paper-2/60 p-5 md:p-7 lg:px-8">
+									<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+										<div class="eyebrow">
+											<span style="color: {docColor(c.diff.documentType)};">&#9679;</span
+											>&nbsp;&nbsp;LATEST CHANGE &middot; {getAnalysisTypeDisplay(
+												c.diff.documentType
+											)}
+										</div>
+										<ChangeKindTag changeKind={c.diff.changeKind} />
+									</div>
+									{#if c.diff.heading}
+										<h3
+											class="mt-0 mb-1 font-serif text-[22px] leading-[1.25] tracking-[-0.015em] text-ink"
+										>
+											{c.diff.heading}
+										</h3>
+									{/if}
+									{#if c.diff.sectionPath}
+										<div class="meta mb-4 text-xs text-ink-4">{c.diff.sectionPath}</div>
+									{/if}
+									{#if c.diff.summary}
+										<p
+											class="mt-0 mb-6 max-w-[68ch] border-l-2 border-teal-2 pl-4 font-serif text-[16px] leading-[1.6] text-ink-2"
+										>
+											{c.diff.summary}
+										</p>
+									{/if}
+									<div class="[&_.diff-block]:mb-0">
+										<DiffView
+											topic={{
+												sectionPath: c.diff.sectionPath,
+												heading: c.diff.heading,
+												changeKind: c.diff.changeKind,
+												ops: c.diff.ops,
+												truncated: c.diff.truncated
+											}}
+											leftFiling={c.diff.leftFiling}
+											rightFiling={c.diff.rightFiling}
+											company={companyForPeriods(c)}
+										/>
+									</div>
+									<div class="flex justify-end pt-4">
+										<a
+											href={changesHref(c)}
+											class="meta text-sm whitespace-nowrap text-teal-2 no-underline"
+										>
+											See more {c.ticker} changes &rarr;
+										</a>
+									</div>
+								</div>
+							{/if}
 						</article>
 					</div>
 				{/each}

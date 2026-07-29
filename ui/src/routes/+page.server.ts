@@ -1,15 +1,10 @@
 import type { PageServerLoad } from './$types';
-import { getFeaturedCompanyIntros } from '$lib/server/db/page-content';
-import { getFeaturedLandingDiff } from '$lib/server/db/diffs';
+import { getLandingShowcase } from '$lib/server/db/landing';
 
 export const load: PageServerLoad = async ({ fetch }) => {
-	const [statsRes, featured, featuredDiff] = await Promise.all([
-		fetch('/api/stats'),
-		getFeaturedCompanyIntros(3),
-		getFeaturedLandingDiff()
-	]);
+	const [statsRes, showcase] = await Promise.all([fetch('/api/stats'), getLandingShowcase(3)]);
 
 	const stats = statsRes.ok ? await statsRes.json() : null;
 
-	return { stats, featured, featuredDiff };
+	return { stats, showcase };
 };

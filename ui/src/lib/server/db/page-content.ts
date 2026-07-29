@@ -1,6 +1,4 @@
-import { sql } from 'kysely';
 import { db } from '../db';
-import type { FeaturedCompanyIntro } from '$lib/api-types';
 
 export interface PageContentSlot {
 	content: string | null;
@@ -191,83 +189,4 @@ export async function getCompanyPageForms(companyId: string): Promise<string[]> 
 		.where('company_id', '=', companyId)
 		.execute();
 	return rows.map((r) => r.form);
-}
-
-/**
- * Featured companies for the landing carousel: a random selection of published
- * companies (one CompanyPageContent each, its latest), each with its intro text
- * plus the form type and count of the source filings it was synthesised from.
- */
-export async function getFeaturedCompanyIntros(limit = 3): Promise<FeaturedCompanyIntro[]> {
-	// Latest published page content per company (distinct on company, newest row).
-	const latestPerCompany = db
-		.selectFrom('company_page_content as cpc')
-		.select(['cpc.id', 'cpc.company_id', 'cpc.intro_content_id', 'cpc.created_at'])
-		.distinctOn('cpc.company_id')
-		.orderBy('cpc.company_id')
-		.orderBy('cpc.created_at', 'desc');
-
-	const pages = await db
-		.selectFrom(latestPerCompany.as('p'))
-		.innerJoin('companies as c', 'c.id', 'p.company_id')
-		.select([
-			'p.id',
-			'p.intro_content_id',
-			'p.created_at',
-			'c.ticker',
-			'c.name',
-			'c.display_name',
-			'c.sic_description'
-		])
-		.where('p.intro_content_id', 'is not', null)
-		.orderBy(sql`random()`)
-		.limit(limit)
-		.execute();
-
-	if (pages.length === 0) return [];
-
-	const pageIds = pages.map((p) => p.id);
-	const [introSlots, sourceRows] = await Promise.all([
-		loadSlots(pages.map((p) => p.intro_content_id)),
-		db
-			.selectFrom('company_page_content_filing as cpcf')
-			.innerJoin('filings as f', 'f.id', 'cpcf.filing_id')
-			.select(['cpcf.company_page_content_id as pageId', 'f.form'])
-			.where('cpcf.company_page_content_id', 'in', pageIds)
-			.execute()
-	]);
-
-	// Aggregate source filings per page: how many, and the dominant form type.
-	const sourcesByPage = new Map<string, { count: number; forms: Map<string, number> }>();
-	for (const row of sourceRows) {
-		const agg = sourcesByPage.get(row.pageId) ?? { count: 0, forms: new Map<string, number>() };
-		agg.count += 1;
-		agg.forms.set(row.form, (agg.forms.get(row.form) ?? 0) + 1);
-		sourcesByPage.set(row.pageId, agg);
-	}
-	const dominantForm = (forms: Map<string, number>): string | null => {
-		let best: string | null = null;
-		let bestN = 0;
-		for (const [form, n] of forms) {
-			if (n > bestN) {
-				best = form;
-				bestN = n;
-			}
-		}
-		return best;
-	};
-
-	return pages.map((p) => {
-		const agg = sourcesByPage.get(p.id);
-		return {
-			ticker: p.ticker,
-			name: p.name,
-			display_name: p.display_name,
-			sic_description: p.sic_description,
-			intro: slotFrom(introSlots, p.intro_content_id)?.content ?? null,
-			source_form_type: agg ? dominantForm(agg.forms) : null,
-			source_filing_count: agg?.count ?? 0,
-			created_at: toIso(p.created_at)
-		};
-	});
 }

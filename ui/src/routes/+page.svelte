@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import FeaturedIntroCarousel from '$lib/components/landing/FeaturedIntroCarousel.svelte';
-	import DiffShowcase from '$lib/components/landing/DiffShowcase.svelte';
+	import CompanyShowcase from '$lib/components/landing/CompanyShowcase.svelte';
 	import Heart from '@lucide/svelte/icons/heart';
 	import { supportEnabled } from '$lib/features';
 
@@ -15,8 +14,7 @@
 	}
 
 	const _stats = $derived(data.stats as PlatformStats | null);
-	const featured = $derived(data.featured);
-	const featuredDiff = $derived(data.featuredDiff);
+	const showcase = $derived(data.showcase);
 
 	// Brand principles — the angle that differentiates Symbology from the
 	// "trusted by institutions" incumbents: editorial, independent, free.
@@ -127,11 +125,8 @@
 	</div>
 </section>
 
-<!-- Featured company intros -->
-<FeaturedIntroCarousel companies={featured} />
-
-<!-- Featured diff: a live "what changed" specimen -->
-<DiffShowcase diff={featuredDiff} />
+<!-- Showcase: featured companies, each pairing its brief with a live diff -->
+<CompanyShowcase companies={showcase} />
 
 <!-- Brand principles -->
 <section class="hairline-section">

@@ -177,21 +177,9 @@ export interface SynthesisListResponse {
 	total: number;
 }
 
-// Featured company intro (landing-page carousel) — sourced from CompanyPageContent
-export interface FeaturedCompanyIntro {
-	ticker: string;
-	name: string;
-	display_name: string | null;
-	sic_description: string | null;
-	intro: string | null;
-	source_form_type: string | null;
-	source_filing_count: number;
-	created_at: string | null;
-}
-
-// Featured diff (landing-page "see exactly what changed" showcase) — one randomly
-// chosen readable section diff, with just enough context to render a DiffView and
-// deep-link into the company's full change report.
+// Landing showcase (single "dossier" carousel) — one slide per randomly-featured
+// company, pairing its synthesized 10-K brief with one recent, readable section
+// diff, plus the source filings the brief was synthesized from.
 export interface LandingDiffOp {
 	op: 'equal' | 'insert' | 'delete';
 	text: string;
@@ -205,11 +193,14 @@ export interface LandingDiffFiling {
 	documentHash: string | null;
 }
 
-export interface LandingDiffShowcase {
-	ticker: string;
-	name: string;
-	display_name: string | null;
-	fiscal_year_end: string | null;
+export interface ShowcaseSourceFiling {
+	accessionNumber: string;
+	form: string;
+	filingDate: string | null;
+	periodOfReport: string | null;
+}
+
+export interface ShowcaseDiff {
 	documentType: string;
 	sectionDiffId: string;
 	sectionPath: string | null;
@@ -221,6 +212,22 @@ export interface LandingDiffShowcase {
 	truncated: boolean;
 	leftFiling: LandingDiffFiling | null;
 	rightFiling: LandingDiffFiling | null;
+}
+
+export interface ShowcaseCompany {
+	ticker: string;
+	name: string;
+	display_name: string | null;
+	sic_description: string | null;
+	fiscal_year_end: string | null;
+	/** Leading paragraphs of the 10-K brief (markdown), truncated for the teaser. */
+	briefParagraphs: string[];
+	source_form_type: string | null;
+	source_filing_count: number;
+	/** Newest-first source filings, for the "synthesized from" citation chips. */
+	sourceFilings: ShowcaseSourceFiling[];
+	/** A recent, presentable section diff — null when none qualifies yet. */
+	diff: ShowcaseDiff | null;
 }
 
 // Company Group types
